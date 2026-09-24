@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Group, Paper, Text, TextInput, Title } from "@mantine/core";
+import { Alert, Button, Group, Image, Modal, Paper, Text, TextInput, Title } from "@mantine/core";
 import { IconSearch } from "@tabler/icons-react";
 import { useUserQueryKey } from "../auth/SessionContext";
 import type { LibraryEntry, SearchMedia } from "../../types";
@@ -9,6 +9,7 @@ export function SearchPanel() {
   const queryClient = useQueryClient();
   const userQueryKey = useUserQueryKey();
   const [query, setQuery] = useState("");
+  const [selectedMedia, setSelectedMedia] = useState<SearchMedia | null>(null);
   const library = useQuery({
     queryKey: userQueryKey("library"),
     queryFn: async () => {
@@ -44,6 +45,36 @@ export function SearchPanel() {
       <Title order={1}>Search</Title>
       <TextInput mt="md" label="Search TMDB" value={query} onChange={event => setQuery(event.currentTarget.value)} leftSection={<IconSearch size={16} />} />
       {results.isError && <Alert color="red" mt="md">Search is temporarily unavailable.</Alert>}
+      {library.isError && <Alert color="red" mt="md">Could not check your library. You can still view search results.</Alert>}
+      {addToLibrary.isError && <Alert color="red" mt="md">{addToLibrary.error.message}</Alert>}
+      <Modal opened={selectedMedia !== null} onClose={() => setSelectedMedia(null)} title={selectedMedia?.title} centered>
+        {selectedMedia && (
+          <Group align="start" wrap="nowrap">
+            {selectedMedia.poster_path && (
+              <Image src={`https://image.tmdb.org/t/p/w342${selectedMedia.poster_path}`} alt={`${selectedMedia.title} poster`} w={112} radius="sm" />
+            )}
+            <div>
+              <Text size="sm" c="dimmed">
+                {selectedMedia.type === "tv" ? "TV show" : "Movie"}
+                {selectedMedia.release_date ? ` · ${selectedMedia.release_date.slice(0, 4)}` : ""}
+                {selectedMedia.original_language ? ` · ${selectedMedia.original_language.toUpperCase()}` : ""}
+              </Text>
+              {selectedMedia.original_title && selectedMedia.original_title !== selectedMedia.title && (
+                <Text size="sm" mt="xs">Original title: {selectedMedia.original_title}</Text>
+              )}
+              <Text mt="md">{selectedMedia.overview || "No description is available."}</Text>
+              <Button
+                mt="lg"
+                disabled={libraryIDs.has(`${selectedMedia.type}:${selectedMedia.tmdb_id}`)}
+                loading={addToLibrary.isPending}
+                onClick={() => addToLibrary.mutate(selectedMedia)}
+              >
+                {libraryIDs.has(`${selectedMedia.type}:${selectedMedia.tmdb_id}`) ? "In library" : "Add to watchlist"}
+              </Button>
+            </div>
+          </Group>
+        )}
+      </Modal>
       {results.data?.map(item => {
         const mediaID = `${item.type}:${item.tmdb_id}`;
         const saved = libraryIDs.has(mediaID);
@@ -54,9 +85,12 @@ export function SearchPanel() {
                 <Text fw={700}>{item.title}</Text>
                 <Text c="dimmed">{item.type === "tv" ? "TV show" : "Movie"}{item.release_date ? ` · ${item.release_date.slice(0, 4)}` : ""}</Text>
               </div>
-              <Button size="xs" disabled={saved} onClick={() => addToLibrary.mutate(item)} loading={addToLibrary.isPending}>
-                {saved ? "In library" : "Add"}
-              </Button>
+              <Group gap="xs">
+                <Button size="xs" variant="default" onClick={() => setSelectedMedia(item)}>Details</Button>
+                <Button size="xs" disabled={saved} onClick={() => addToLibrary.mutate(item)} loading={addToLibrary.isPending}>
+                  {saved ? "In library" : "Add"}
+                </Button>
+              </Group>
             </Group>
           </Paper>
         );
