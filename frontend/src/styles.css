@@ -112,10 +112,15 @@ select {
 .detail-runtime { display: inline-flex; align-items: center; gap: 6px; color: rgb(255 255 255 / .72); }
 .detail-poster { position: relative; z-index: 1; width: 190px; max-height: 286px; object-fit: cover; border-radius: 14px; box-shadow: 0 18px 44px rgb(0 0 0 / .36); }
 .detail-actions { align-items: center; }
-.detail-actions .rating-stars { padding: 4px 8px; border: 1px solid rgb(255 255 255 / .16); border-radius: 10px; background: rgb(255 255 255 / .08); }
-.rating-stars { align-items: center; }
-.rating-stars .mantine-ActionIcon-root { transition: color 120ms ease, transform 120ms ease; }
-.rating-stars .mantine-ActionIcon-root:hover { transform: translateY(-1px); }
+.rating-stars { display: inline-flex; width: max-content !important; max-width: 100%; height: max-content; flex: 0 0 auto; align-self: flex-start; align-items: center; gap: 3px; padding: 0; border: 0; background: transparent; }
+.rating-star-button { color: var(--mantine-color-gray-6); transition: color 120ms ease, transform 120ms ease, background-color 120ms ease; }
+.rating-star-button.is-filled { color: #f2b544; }
+.rating-star-button:not(:disabled):hover { color: #ffd16a; transform: translateY(-1px); background: rgb(242 181 68 / .12); }
+.rating-star-button:focus-visible { outline: 2px solid #f2b544; outline-offset: 2px; }
+.rating-star-button:disabled { opacity: .5; }
+.rating-stars-readonly { display: inline-flex; gap: 1px; }
+.rating-star { display: inline-flex; color: var(--mantine-color-gray-6); }
+.rating-star.is-filled { color: #f2b544; }
 .detail-actions .mantine-Select-input { background: rgb(255 255 255 / .12); color: #fff; border-color: rgb(255 255 255 / .2); }
 .detail-section { margin-top: 28px; }
 .episode-row { overflow: hidden; background: var(--mantine-color-body); transition: transform 150ms ease, border-color 150ms ease; }
@@ -202,6 +207,7 @@ select {
   .episode-row-action { margin-right: 8px; }
   .detail-actions { align-items: stretch; flex-direction: column; }
   .detail-actions > * { width: 100%; }
+  .detail-actions > .rating-stars { width: max-content !important; flex: 0 0 auto; }
   .history-list::before { left: 15px; }
   .history-entry { padding-left: 38px !important; }
   .history-entry-marker { left: 4px; }
