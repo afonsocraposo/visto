@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Group, Loader, Modal, Paper, Text } from "@mantine/core";
+import { Alert, Button, Group, Loader, Modal, Paper, Text, Title } from "@mantine/core";
 import { EmptyState } from "../../components/EmptyState";
 import { useUserQueryKey } from "../auth/SessionContext";
 import { api } from "../../lib/api";
-import { formatCalendarDate, groupCalendarEntries } from "./calendar";
+import { calendarMonthRange, dateInTimezone, formatCalendarDate, formatCalendarMonth, groupCalendarEntries, monthInTimezone, shiftCalendarMonth } from "./calendar";
 import type { CalendarEntry, ContinueEntry } from "../../types";
 
 export function WatchNow() {
@@ -65,17 +65,37 @@ export function WatchNow() {
 
 export function WatchCalendar() {
   const userQueryKey = useUserQueryKey();
-  const calendar = useQuery({
-    queryKey: userQueryKey("calendar"),
-    queryFn: () => api.get<CalendarEntry[]>("/api/v1/calendar", "Calendar is temporarily unavailable."),
+  const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
+  const settings = useQuery({
+    queryKey: userQueryKey("profile-settings"),
+    queryFn: () => api.get<{ timezone: string }>("/api/v1/profile/activity-settings", "Calendar settings are temporarily unavailable."),
   });
+  const today = settings.data ? dateInTimezone(settings.data.timezone) : "";
+  const currentMonth = today ? today.slice(0, 7) : "";
+  const month = selectedMonth ?? currentMonth;
+  const range = today && month ? calendarMonthRange(month, today) : null;
+  const calendar = useQuery({
+    queryKey: userQueryKey("calendar", range?.from, range?.to),
+    enabled: range !== null,
+    queryFn: () => api.get<CalendarEntry[]>(`/api/v1/calendar?from=${range!.from}&to=${range!.to}`, "Calendar is temporarily unavailable."),
+  });
+  if (settings.isPending) return <Group justify="center" mt="xl"><Loader /></Group>;
+  if (settings.isError || !range) return <Alert color="red" mt="md">Calendar settings are temporarily unavailable.</Alert>;
+  const controls = (
+    <Group justify="space-between" mt="md">
+      <Button variant="default" disabled={month <= currentMonth} onClick={() => setSelectedMonth(shiftCalendarMonth(month, -1))}>Previous month</Button>
+      <Title order={2} size="h3">{formatCalendarMonth(month)}</Title>
+      <Button variant="default" onClick={() => setSelectedMonth(shiftCalendarMonth(month, 1))}>Next month</Button>
+    </Group>
+  );
   if (calendar.isPending) return <Group justify="center" mt="xl"><Loader /></Group>;
   if (calendar.isError) return <Alert color="red" mt="md">Calendar is temporarily unavailable.</Alert>;
-  if (!calendar.data?.length) return <EmptyState title="No upcoming episodes" />;
+  if (!calendar.data?.length) return <>{controls}<EmptyState title="No upcoming episodes this month" /></>;
   const groups = groupCalendarEntries(calendar.data);
 
   return (
     <>
+      {controls}
       {groups.map(group => (
         <section key={group.date} aria-label={`Episodes airing ${formatCalendarDate(group.date)}`}>
           <Text component="h2" fw={700} size="lg" mt="lg">{formatCalendarDate(group.date)}</Text>

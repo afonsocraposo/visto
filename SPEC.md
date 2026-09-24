@@ -265,6 +265,9 @@ Watch · Search · Feed · Library
 
 The Watch tab has `Now` and `Calendar` sub-tabs. `Now` prioritizes Continue
 Watching, then upcoming episodes. `Calendar` provides the full upcoming view.
+The calendar opens on the current month, starts at today's date in the user's
+configured timezone, groups episodes by air date, and supports navigation to
+later months. Previous-month navigation is disabled before the current month.
 Marking an ordinary next episode watched takes one action. The skipped-prior-
 episodes confirmation is the only routine exception.
 
