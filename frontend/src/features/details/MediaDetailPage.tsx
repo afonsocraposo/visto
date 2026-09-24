@@ -1,18 +1,18 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ActionIcon, Alert, Badge, Button, Group, Image, Loader, Menu, Modal, Paper, Select, Stack, Switch, Text, Title, Tooltip } from "@mantine/core";
-import { IconArrowLeft, IconCheck, IconClock, IconEye, IconEyeCheck, IconRefresh } from "@tabler/icons-react";
+import { IconArrowLeft, IconClock, IconEye, IconEyeCheck, IconRefresh } from "@tabler/icons-react";
 import { api, retryTransientRequest } from "../../lib/api";
 import { backdropURL, posterURL } from "../../lib/artwork";
 import { useUserQueryKey } from "../auth/SessionContext";
 import { findMissingPriorEpisodes } from "../library/episodeSelection";
-import { RatingStars } from "../../components/RatingStars";
-import { MediaQuickActions } from "../../components/MediaQuickActions";
 import { CastSection } from "../../components/CastSection";
 import { MediaPosterCard } from "../../components/MediaPosterCard";
 import { regularSeasonsThrough, selectUnwatchedEpisodes, selectWatchedEpisodes } from "./watchSelection";
 import { resolveMediaID } from "./mediaIdentity";
 import { heroArtworkLayers } from "./heroArtwork";
+import { EpisodeActions, MediaActions } from "./MediaDetailActions";
+import { chunk } from "./batch";
 import type { EpisodeRating, HistoryEntry, LibraryEntry, MediaDetailTarget, SearchMedia, ShowEpisodeEntry, TemporaryEpisodeDetails, TemporaryMovieDetails, TemporaryShowDetails } from "../../types";
 
 type Props = { target: MediaDetailTarget; onBack: () => void; onOpenDetail: (target: MediaDetailTarget) => void; onOpenPerson: (personID: number) => void };
@@ -374,22 +374,4 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
     {selectedEpisode && episodeDetails.data?.crew?.length ? <section className="detail-section"><Text className="section-kicker">Episode crew</Text><Group gap="xs">{episodeDetails.data.crew.filter(member => ["Director", "Writer", "Screenplay"].includes(member.job)).slice(0, 8).map(member => <Badge key={`${member.id}-${member.job}`} variant="light">{member.job}: {member.name}</Badge>)}</Group></section> : null}
     {!isSaved && <Text className="detail-hint" c="dimmed">This is a temporary preview. Mark an episode watched to add the show to Watching.</Text>}
   </div>;
-}
-
-function chunk<T>(values: T[], size: number): T[][] {
-  const batches: T[][] = [];
-  for (let index = 0; index < values.length; index += size) batches.push(values.slice(index, index + size));
-  return batches;
-}
-
-function EpisodeActions({ entry, canRate, rating, onRate, onWatch, onRewatch, onUnwatch, pending }: { entry: ShowEpisodeEntry; canRate: boolean; rating?: number | null; onRate: (rating: number | null) => void; onWatch: () => void; onRewatch: () => void; onUnwatch: () => void; pending: boolean }) {
-  return <Group className="detail-actions" mt="lg"><Badge color={entry.watched ? "teal" : "yellow"} variant="light">{entry.watched ? "Watched" : "Not watched"}</Badge><RatingStars value={rating} onChange={onRate} label="Episode rating" disabled={!canRate || pending} size="md" />{!canRate && <Text size="xs" c="dimmed">Add to library to rate</Text>}{entry.watched ? <><Button variant="light" leftSection={<IconRefresh size={16} />} loading={pending} onClick={onRewatch}>Rewatch episode</Button><Button variant="default" leftSection={<IconEye size={16} />} loading={pending} onClick={onUnwatch}>Mark unwatched</Button></> : <Button leftSection={<IconEye size={16} />} loading={pending} onClick={onWatch}>Mark watched</Button>}</Group>;
-}
-
-type ActionMutation<T> = { isPending: boolean; mutate: (value: T) => void };
-function MediaActions({ media, isSaved, status, rating, notificationsEnabled, add, update, updateNotifications, watched, onWatch, onUnwatch, pending }: { media: SearchMedia; isSaved: boolean; status?: string; rating?: number | null; notificationsEnabled: boolean; add: ActionMutation<"watching" | "watchlist">; update: ActionMutation<{ status: string; rating: number | null }>; updateNotifications: ActionMutation<boolean>; watched: boolean; onWatch: () => void; onUnwatch: () => void; pending: boolean }) {
-  if (!isSaved) return <Group className="detail-actions" mt="lg"><MediaQuickActions media={media} busy={add.isPending || pending} onWatch={() => media.type === "tv" ? add.mutate("watching") : onWatch()} onWatchlist={() => add.mutate("watchlist")} /></Group>;
-  const statusOptions: { value: string; label: string; disabled?: boolean }[] = [{ value: "watchlist", label: "Watchlist" }, { value: "watching", label: "Watching" }, ...(media.type === "movie" ? [] : [{ value: "paused", label: "Paused" }, { value: "dropped", label: "Dropped" }])];
-  if (media.type === "movie" && status && !statusOptions.some(option => option.value === status)) statusOptions.push({ value: status, label: `${status[0].toUpperCase()}${status.slice(1)} (not available for movies)`, disabled: true });
-  return <Group className="detail-actions" mt="lg"><Select aria-label="Current list" value={status} onChange={value => value && update.mutate({ status: value, rating: rating ?? null })} data={statusOptions} w={150} /><RatingStars value={rating} onChange={value => update.mutate({ status: status!, rating: value })} label="Media rating" disabled={pending} size="md" />{media.type === "tv" && <Switch aria-label="New episode notifications for this show" label="Episode alerts" checked={notificationsEnabled} disabled={updateNotifications.isPending} onChange={event => updateNotifications.mutate(event.currentTarget.checked)} />}{media.type === "movie" && (watched ? <><Button variant="light" leftSection={<IconRefresh size={16} />} loading={pending} onClick={onWatch}>Rewatch movie</Button><Button variant="default" leftSection={<IconEye size={16} />} loading={pending} onClick={onUnwatch}>Mark unwatched</Button></> : <Button variant="light" leftSection={<IconCheck size={16} />} loading={pending} onClick={onWatch}>Mark watched</Button>)}</Group>;
 }
