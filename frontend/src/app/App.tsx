@@ -4,6 +4,7 @@ import { Group, Loader, MantineProvider } from "@mantine/core";
 import { Dashboard } from "../features/navigation/Dashboard";
 import { AuthGate } from "../features/auth/AuthGate";
 import { SessionProvider } from "../features/auth/SessionContext";
+import { forcedColorScheme } from "./theme";
 import type { Theme, User } from "../types";
 
 export function App() {
@@ -21,7 +22,7 @@ export function App() {
   }, [theme]);
 
   return (
-    <MantineProvider defaultColorScheme={theme === "system" ? "auto" : theme}>
+    <MantineProvider defaultColorScheme="auto" forceColorScheme={forcedColorScheme(theme)}>
       {session.isPending ? (
         <Group justify="center" mt="xl"><Loader /></Group>
       ) : session.data ? (
