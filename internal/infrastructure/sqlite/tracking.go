@@ -182,7 +182,7 @@ func (store *Store) DeletePlay(ctx context.Context, userID, playID string) error
 }
 
 func (store *Store) ListPlays(ctx context.Context, userID string, limit int) ([]tracking.HistoryEntry, error) {
-	rows, err := store.DB.QueryContext(ctx, `SELECT p.id,p.user_id,p.media_id,p.episode_id,p.watched_at,p.source,COALESCE(movie.title,show.title,''),episode.season_number,episode.episode_number
+	rows, err := store.DB.QueryContext(ctx, `SELECT p.id,p.user_id,p.media_id,p.episode_id,p.watched_at,p.source,COALESCE(movie.title,show.title,''),episode.season_number,episode.episode_number,COALESCE(episode.still_path,movie.poster_path,show.poster_path,'')
 		FROM plays p LEFT JOIN media movie ON movie.id=p.media_id LEFT JOIN episodes episode ON episode.id=p.episode_id LEFT JOIN media show ON show.id=episode.show_id
 		WHERE p.user_id=? ORDER BY p.watched_at DESC,p.id DESC LIMIT ?`, userID, limit)
 	if err != nil {
@@ -195,9 +195,11 @@ func (store *Store) ListPlays(ctx context.Context, userID string, limit int) ([]
 		var mediaID, episodeID sql.NullString
 		var watchedAt string
 		var season, number sql.NullInt64
-		if err := rows.Scan(&entry.Play.ID, &entry.Play.UserID, &mediaID, &episodeID, &watchedAt, &entry.Play.Source, &entry.Title, &season, &number); err != nil {
+		var artwork sql.NullString
+		if err := rows.Scan(&entry.Play.ID, &entry.Play.UserID, &mediaID, &episodeID, &watchedAt, &entry.Play.Source, &entry.Title, &season, &number, &artwork); err != nil {
 			return nil, fmt.Errorf("scan play history: %w", err)
 		}
+		if artwork.Valid { entry.ArtworkPath = artwork.String }
 		if mediaID.Valid {
 			value := mediaID.String
 			entry.Play.MediaID = &value

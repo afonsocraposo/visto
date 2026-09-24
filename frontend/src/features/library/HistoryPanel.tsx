@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Badge, Button, Group, Loader, Paper, Stack, Text, TextInput, Title } from "@mantine/core";
+import { Alert, Badge, Button, Group, Image, Loader, Paper, Stack, Text, TextInput, Title } from "@mantine/core";
 import { IconClock, IconEdit, IconHistory, IconRefresh, IconTrash } from "@tabler/icons-react";
 import { useUserQueryKey } from "../auth/SessionContext";
 import { api } from "../../lib/api";
+import { backdropURL } from "../../lib/artwork";
+import { formatActivityTime } from "../../lib/time";
 import type { HistoryEntry } from "../../types";
 
 export function HistoryPanel() {
@@ -60,15 +62,19 @@ function HistoryCard({ entry }: { entry: HistoryEntry }) {
     ]),
   });
 
+  const watchedAtDate = new Date(entry.play.watched_at);
   return <Paper className="history-entry" withBorder p="md">
     <div className="history-entry-marker" aria-hidden="true"><IconHistory size={15} /></div>
     <Stack gap="sm" className="history-entry-content">
       <Group justify="space-between" align="flex-start" gap="md" wrap="nowrap">
-        <div className="history-entry-title"><Text fw={750}>{entry.title}</Text>{entry.episode_label && <Badge className="history-episode" variant="light">{entry.episode_label}</Badge>}</div>
-        <Text className="history-date" size="sm" c="dimmed">{new Date(entry.play.watched_at).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}</Text>
+        <Group className="history-heading" wrap="nowrap" gap="sm" align="flex-start">
+          <div className="history-art">{entry.artwork_path ? <Image src={backdropURL(entry.artwork_path, "w780")!} alt="" /> : <IconHistory size={18} />}</div>
+          <div className="history-entry-title"><Text fw={750}>{entry.title}</Text>{entry.episode_label && <Badge className="history-episode" variant="light">{entry.episode_label}</Badge>}</div>
+        </Group>
+        <Text className="history-date" size="sm" c="dimmed">{formatActivityTime(watchedAtDate)}</Text>
       </Group>
       <Group justify="space-between" align="center" gap="sm" wrap="wrap">
-        <Text className="history-time" size="sm" c="dimmed"><IconClock size={15} /> {new Date(entry.play.watched_at).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</Text>
+        <Text className="history-time" size="sm" c="dimmed"><IconClock size={15} /> {watchedAtDate.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</Text>
         <Group gap="xs">
           <Button size="xs" variant="subtle" leftSection={<IconEdit size={14} />} onClick={() => setEditing(value => !value)}>{editing ? "Cancel" : "Edit time"}</Button>
           <Button size="xs" variant="light" leftSection={<IconRefresh size={14} />} loading={rewatch.isPending} onClick={() => rewatch.mutate()}>Rewatch</Button>

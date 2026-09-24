@@ -96,6 +96,9 @@ select {
 .history-entry:hover { border-color: #48b7ae; transform: translateX(2px); }
 .history-entry-marker { position: absolute; top: 18px; left: 8px; display: grid; place-items: center; width: 24px; height: 24px; border: 4px solid var(--mantine-color-body); border-radius: 50%; background: #48b7ae; color: #0f3f3b; }
 .history-entry-title { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; }
+.history-heading { min-width: 0; }
+.history-art { display: grid; place-items: center; width: 92px; height: 58px; flex: 0 0 92px; overflow: hidden; border-radius: 8px; background: #1b2430; color: #f2b544; }
+.history-art img { width: 100%; height: 100%; object-fit: cover; }
 .history-episode { color: #12675f; background: #dff4f1; }
 .history-date { white-space: nowrap; }
 .history-time { display: inline-flex; align-items: center; gap: 6px; }
@@ -138,6 +141,8 @@ select {
   .history-entry { padding-left: 38px !important; }
   .history-entry-marker { left: 4px; }
   .history-date { font-size: .78rem; }
+  .history-heading { min-width: 0; }
+  .history-art { width: 72px; height: 52px; flex-basis: 72px; }
   .history-entry-content > .mantine-Group-root { align-items: flex-start; }
   .history-edit { align-items: stretch; flex-direction: column; }
   .history-edit > * { width: 100%; }

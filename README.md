@@ -30,11 +30,21 @@ separate copy away from the server.
 
 ## Development
 
-Requirements: Go 1.22+, Node.js 22+, and a TMDB API key for metadata search.
+Requirements: Go 1.22+, Node.js 22+, Air, and a TMDB API key for metadata search.
+
+Install Air once:
+
+```sh
+go install github.com/air-verse/air@latest
+```
+
+Run the Go API and the Vite frontend in separate terminals. Docker is not
+needed for the development loop.
 
 ```sh
 # terminal 1
-VISTO_TMDB_API_KEY=your_tmdb_api_key go run ./cmd/server
+set -a; source .env; set +a
+air
 
 # terminal 2
 cd frontend
@@ -42,7 +52,12 @@ npm install
 npm run dev
 ```
 
-The Vite server proxies `/api` requests to the Go server on port 8080.
+Air rebuilds and restarts the Go server when Go or SQL files change. Vite
+reloads the frontend when TypeScript or CSS files change. The Vite server
+proxies `/api` and `/health` requests to the Go server on port 8080.
+
+Open `http://localhost:5173` during development. Use Docker on port 8080 for
+production-like checks only.
 
 ## Checks
 

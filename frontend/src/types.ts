@@ -75,4 +75,5 @@ export type HistoryEntry = {
   };
   title: string;
   episode_label?: string;
+  artwork_path?: string;
 };

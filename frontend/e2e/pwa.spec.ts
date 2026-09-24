@@ -41,11 +41,11 @@ test("Given a signed-in user, When they move through the app and choose a theme,
   await expect(page.getByRole("button", { name: "Watch", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Feed" }).click();
   await expect(page.getByText("No shared activity yet")).toBeVisible();
-  await page.getByRole("button", { name: "Search" }).click();
+  await page.getByRole("button", { name: "Discover" }).click();
   await expect(page.getByRole("textbox", { name: "Search TMDB" })).toBeVisible();
-  await page.getByRole("button", { name: "Library" }).click();
+  await page.getByRole("button", { name: "Profile" }).click();
   await expect(page.getByText("Your library is empty")).toBeVisible();
-  await page.getByRole("tab", { name: "Profile & settings" }).click();
+  await page.getByRole("tab", { name: "Settings" }).click();
   await expect(page.getByText("Choose who can see your activity")).toBeVisible();
 
   await page.getByRole("combobox", { name: "Color theme" }).click();
@@ -80,7 +80,7 @@ test("Given an unsaved TV show, When the user adds it or chooses Watch later, Th
     await fulfillJSON(route, []);
   });
   await page.goto("/");
-  await page.getByRole("button", { name: "Search" }).click();
+  await page.getByRole("button", { name: "Discover" }).click();
   await page.getByRole("textbox", { name: "Search TMDB" }).fill("Example");
   await expect(page.getByText("The Example Show").first()).toBeVisible();
   await page.getByRole("button", { name: "Add to watching" }).click();

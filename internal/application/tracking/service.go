@@ -27,6 +27,7 @@ type HistoryEntry struct {
 	Play         Play   `json:"play"`
 	Title        string `json:"title"`
 	EpisodeLabel string `json:"episode_label,omitempty"`
+	ArtworkPath  string `json:"artwork_path,omitempty"`
 }
 
 type Repository interface {
