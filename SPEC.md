@@ -106,8 +106,11 @@ Every user has an activity visibility preference:
 ### Library
 
 A user can search TMDB, inspect a title, and add it to their library. Adding a
-title requires a status. A tracking action, rating, or status change implicitly
-creates the user's library relationship when it does not already exist.
+title requires a status. In search, the primary action for a TV show adds it to
+`watching`; a separate `Watch later` action adds it to `watchlist`. Movies use
+`Watch later` to add them to `watchlist`. A tracking action, rating, or status
+change implicitly creates the user's library relationship when it does not
+already exist.
 
 Statuses have these meanings:
 

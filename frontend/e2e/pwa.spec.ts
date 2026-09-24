@@ -57,6 +57,40 @@ test("Given a signed-in user, When they move through the app and choose a theme,
   await expect(page.locator("html")).toHaveAttribute("data-mantine-color-scheme", "light");
 });
 
+test("Given an unsaved TV show, When the user adds it or chooses Watch later, Then the selected library status is saved", async ({ page }) => {
+  await mockSignedInSession(page);
+  const show = {
+    tmdb_id: 100,
+    type: "tv",
+    title: "The Example Show",
+    original_title: "The Example Show",
+    overview: "A test show.",
+    release_date: "2024-01-01",
+    poster_path: "",
+    original_language: "en",
+  };
+  await page.route("**/api/v1/search**", route => fulfillJSON(route, [show]));
+  const savedStatuses: string[] = [];
+  await page.route("**/api/v1/library", async route => {
+    if (route.request().method() === "POST") {
+      savedStatuses.push(route.request().postDataJSON().status);
+      await fulfillJSON(route, {}, 201);
+      return;
+    }
+    await fulfillJSON(route, []);
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Search" }).click();
+  await page.getByRole("textbox", { name: "Search TMDB" }).fill("Example");
+  await expect(page.getByText("The Example Show").first()).toBeVisible();
+  await page.getByRole("button", { name: "Add to watching" }).click();
+  await expect.poll(() => savedStatuses).toEqual(["watching"]);
+
+  await page.getByRole("button", { name: "Details" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Watch later" }).click();
+  await expect.poll(() => savedStatuses).toEqual(["watching", "watchlist"]);
+});
+
 test("Given the ordinary next episode, When the user taps Watched, Then only that episode is recorded", async ({ page }) => {
   await mockSignedInSession(page);
   let singlePlay: unknown;

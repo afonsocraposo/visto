@@ -23,8 +23,13 @@ export function SearchPanel() {
     queryFn: () => api.get<SearchMedia[]>(`/api/v1/search?q=${encodeURIComponent(debouncedQuery)}`, "Search is temporarily unavailable."),
   });
   const addToLibrary = useMutation({
-    mutationFn: (media: SearchMedia) => api.post("/api/v1/library", { media, status: "watchlist" }, "Could not add this title."),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: userQueryKey("library") }),
+    mutationFn: ({ media, status }: { media: SearchMedia; status: "watching" | "watchlist" }) =>
+      api.post("/api/v1/library", { media, status }, "Could not add this title."),
+    onSuccess: async () => Promise.all([
+      queryClient.invalidateQueries({ queryKey: userQueryKey("library") }),
+      queryClient.invalidateQueries({ queryKey: userQueryKey("continue") }),
+      queryClient.invalidateQueries({ queryKey: userQueryKey("calendar") }),
+    ]),
   });
   const libraryIDs = new Set(library.data?.map(entry => entry.item.media_id) ?? []);
 
@@ -51,14 +56,22 @@ export function SearchPanel() {
                 <Text size="sm" mt="xs">Original title: {selectedMedia.original_title}</Text>
               )}
               <Text mt="md">{selectedMedia.overview || "No description is available."}</Text>
-              <Button
-                mt="lg"
-                disabled={libraryIDs.has(`${selectedMedia.type}:${selectedMedia.tmdb_id}`)}
-                loading={addToLibrary.isPending}
-                onClick={() => addToLibrary.mutate(selectedMedia)}
-              >
-                {libraryIDs.has(`${selectedMedia.type}:${selectedMedia.tmdb_id}`) ? "In library" : "Add to watchlist"}
-              </Button>
+              {libraryIDs.has(`${selectedMedia.type}:${selectedMedia.tmdb_id}`) ? (
+                <Button mt="lg" disabled>In library</Button>
+              ) : selectedMedia.type === "tv" ? (
+                <Group mt="lg" gap="xs">
+                  <Button loading={addToLibrary.isPending} onClick={() => addToLibrary.mutate({ media: selectedMedia, status: "watching" })}>
+                    Add to watching
+                  </Button>
+                  <Button variant="default" loading={addToLibrary.isPending} onClick={() => addToLibrary.mutate({ media: selectedMedia, status: "watchlist" })}>
+                    Watch later
+                  </Button>
+                </Group>
+              ) : (
+                <Button mt="lg" loading={addToLibrary.isPending} onClick={() => addToLibrary.mutate({ media: selectedMedia, status: "watchlist" })}>
+                  Watch later
+                </Button>
+              )}
             </div>
           </Group>
         )}
@@ -75,9 +88,20 @@ export function SearchPanel() {
               </div>
               <Group gap="xs">
                 <Button size="xs" variant="default" onClick={() => setSelectedMedia(item)}>Details</Button>
-                <Button size="xs" disabled={saved} onClick={() => addToLibrary.mutate(item)} loading={addToLibrary.isPending}>
-                  {saved ? "In library" : "Add"}
-                </Button>
+                {saved ? <Button size="xs" disabled>In library</Button> : item.type === "tv" ? (
+                  <>
+                    <Button size="xs" onClick={() => addToLibrary.mutate({ media: item, status: "watching" })} loading={addToLibrary.isPending}>
+                      Add to watching
+                    </Button>
+                    <Button size="xs" variant="default" onClick={() => addToLibrary.mutate({ media: item, status: "watchlist" })} loading={addToLibrary.isPending}>
+                      Watch later
+                    </Button>
+                  </>
+                ) : (
+                  <Button size="xs" onClick={() => addToLibrary.mutate({ media: item, status: "watchlist" })} loading={addToLibrary.isPending}>
+                    Watch later
+                  </Button>
+                )}
               </Group>
             </Group>
           </Paper>
