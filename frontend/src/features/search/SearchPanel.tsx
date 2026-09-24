@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useDebouncedValue } from "@mantine/hooks";
 import { Alert, Button, Group, Image, Modal, Paper, Text, TextInput, Title } from "@mantine/core";
 import { IconSearch } from "@tabler/icons-react";
 import { useUserQueryKey } from "../auth/SessionContext";
@@ -9,6 +10,7 @@ export function SearchPanel() {
   const queryClient = useQueryClient();
   const userQueryKey = useUserQueryKey();
   const [query, setQuery] = useState("");
+  const [debouncedQuery] = useDebouncedValue(query.trim(), 300);
   const [selectedMedia, setSelectedMedia] = useState<SearchMedia | null>(null);
   const library = useQuery({
     queryKey: userQueryKey("library"),
@@ -19,10 +21,10 @@ export function SearchPanel() {
     },
   });
   const results = useQuery({
-    queryKey: userQueryKey("search", query),
-    enabled: query.trim().length > 1,
+    queryKey: userQueryKey("search", debouncedQuery),
+    enabled: debouncedQuery.length > 1,
     queryFn: async () => {
-      const response = await fetch(`/api/v1/search?q=${encodeURIComponent(query)}`);
+      const response = await fetch(`/api/v1/search?q=${encodeURIComponent(debouncedQuery)}`);
       if (!response.ok) throw new Error();
       return response.json() as Promise<SearchMedia[]>;
     },
