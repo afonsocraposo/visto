@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ActionIcon, Alert, Badge, Button, Group, Image, Loader, Modal, Paper, Select, Stack, Switch, Text, Title, Tooltip } from "@mantine/core";
 import { IconArrowLeft, IconCheck, IconClock, IconEye, IconEyeCheck } from "@tabler/icons-react";
-import { api } from "../../lib/api";
+import { api, retryTransientRequest } from "../../lib/api";
 import { backdropURL, posterURL } from "../../lib/artwork";
 import { useUserQueryKey } from "../auth/SessionContext";
 import { findMissingPriorEpisodes } from "../library/episodeSelection";
@@ -25,17 +25,22 @@ export function MediaDetailPage({ target, onBack, onOpenDetail }: Props) {
   const library = useQuery({
     queryKey: userQueryKey("media-detail", target.mediaType, target.tmdbID),
     queryFn: () => api.get<LibraryEntry>(`/api/v1/${target.mediaType === "tv" ? "shows" : "movies"}/${target.tmdbID}`, "Could not load media details."),
-    retry: false,
+    retry: retryTransientRequest,
+    retryDelay: attempt => Math.min(500 * 2 ** attempt, 3000),
   });
   const temporary = useQuery({
     queryKey: userQueryKey("temporary-show-detail", target.tmdbID),
     enabled: target.mediaType === "tv",
     queryFn: () => api.get<TemporaryShowDetails>(`/api/v1/discover/shows/${target.tmdbID}`, "Could not load TV show details."),
+    retry: retryTransientRequest,
+    retryDelay: attempt => Math.min(500 * 2 ** attempt, 3000),
   });
   const movieDetails = useQuery({
     queryKey: userQueryKey("temporary-movie-detail", target.tmdbID),
     enabled: target.mediaType === "movie",
     queryFn: () => api.get<TemporaryMovieDetails>(`/api/v1/discover/movies/${target.tmdbID}`, "Could not load movie details."),
+    retry: retryTransientRequest,
+    retryDelay: attempt => Math.min(500 * 2 ** attempt, 3000),
   });
   const seed = target.seed;
   const media = library.data?.media
@@ -187,9 +192,12 @@ export function MediaDetailPage({ target, onBack, onOpenDetail }: Props) {
     ]),
   });
 
-  if (library.isPending && !seed) return <Group justify="center" mt="xl"><Loader /></Group>;
-  if (library.isError && !seed) return <Alert color="yellow" mt="md">This title is not in your library. Open it from Discover or add it to your library first.</Alert>;
-  if (!media) return <Alert color="yellow" mt="md">This title is no longer available.</Alert>;
+  const fallbackDetails = target.mediaType === "tv" ? temporary : movieDetails;
+  if (!media && (library.isPending || fallbackDetails.isPending)) return <Group justify="center" mt="xl"><Loader /></Group>;
+  if (!media) return <Alert color="yellow" mt="md" title="Could not load this title">
+    {fallbackDetails.error instanceof Error ? fallbackDetails.error.message : library.error instanceof Error ? library.error.message : "The media details are temporarily unavailable."}
+    <Button variant="subtle" size="compact-sm" ml="sm" onClick={() => { void library.refetch(); void fallbackDetails.refetch(); }}>Try again</Button>
+  </Alert>;
 
   const art = posterURL(media.poster_path, "w500");
   const temporaryEpisodeEntries = temporaryEpisodes.data?.episodes ?? [];

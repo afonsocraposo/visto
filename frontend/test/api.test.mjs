@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const { api } = await import("../src/lib/api.ts");
+const { APIRequestError, api, retryTransientRequest } = await import("../src/lib/api.ts");
 
 test("Given a successful JSON response, When the API client reads it, Then it returns the typed payload", async () => {
   const originalFetch = globalThis.fetch;
@@ -27,6 +27,14 @@ test("Given a failed API response, When the API client reads it, Then it uses th
   }
 });
 
+
+test("Given an API failure, When retry policy checks it, Then only transient responses are retried", async () => {
+  assert.equal(retryTransientRequest(0, new APIRequestError("Busy", 503)), true);
+  assert.equal(retryTransientRequest(0, new APIRequestError("Slow down", 429)), true);
+  assert.equal(retryTransientRequest(0, new APIRequestError("Not found", 404)), false);
+  assert.equal(retryTransientRequest(2, new APIRequestError("Busy", 503)), false);
+  assert.equal(retryTransientRequest(0, new TypeError("Failed to fetch")), true);
+});
 test("Given a failed network request, When the API client cannot reach the server, Then it reports the unavailable connection", async () => {
   const originalFetch = globalThis.fetch;
   const originalWindow = globalThis.window;

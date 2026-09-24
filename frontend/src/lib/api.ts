@@ -1,5 +1,21 @@
 type APIError = { error?: string };
 
+export class APIRequestError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "APIRequestError";
+    this.status = status;
+  }
+}
+
+export function retryTransientRequest(failureCount: number, error: unknown): boolean {
+  if (failureCount >= 2) return false;
+  if (error instanceof APIRequestError) return error.status === 429 || error.status >= 500;
+  return error instanceof TypeError;
+}
+
 export const connectionUnavailableEvent = "visto:connection-unavailable";
 
 function reportConnectionUnavailable() {
@@ -19,7 +35,7 @@ async function request<T>(path: string, init: RequestInit, fallback: string): Pr
   if (response.headers.get("X-Visto-Offline") === "true") reportConnectionUnavailable();
   if (!response.ok) {
     const body = await response.json().catch(() => ({})) as APIError;
-    throw new Error(body.error || fallback);
+    throw new APIRequestError(body.error || fallback, response.status);
   }
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
