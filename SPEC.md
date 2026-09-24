@@ -462,9 +462,9 @@ Given/When/Then language before or alongside implementation.
 
 Each domain rule has focused tests. Application use cases have BDD acceptance
 tests against a real SQLite database. HTTP endpoints have authorization and
-contract tests derived from OpenAPI. The PWA has end-to-end tests for critical
-flows, including installability, navigation, theme choice, and the ordinary
-one-tap watch action.
+contract tests derived from OpenAPI. Playwright runs the PWA's critical browser
+flows in Chromium, including manifest and service-worker installability,
+navigation, light/dark theme choice, and the ordinary one-tap watch action.
 
 Required early scenarios include:
 
