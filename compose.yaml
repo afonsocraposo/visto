@@ -1,0 +1,12 @@
+services:
+  visto:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      VISTO_TMDB_API_KEY: ${VISTO_TMDB_API_KEY:-}
+    volumes:
+      - visto-data:/data
+    restart: unless-stopped
+volumes:
+  visto-data:

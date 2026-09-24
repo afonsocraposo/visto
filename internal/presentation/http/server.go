@@ -3,6 +3,7 @@ package httpserver
 import (
 	"encoding/json"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/afonsocosta/visto/internal/application/auth"
@@ -13,13 +14,18 @@ type Server struct {
 	handler http.Handler
 }
 
-func New(authService *auth.Service, metadataProvider domain.MetadataProvider) *Server {
+func New(authService *auth.Service, metadataProvider domain.MetadataProvider, webDir string) *Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", health)
 	mux.HandleFunc("POST /api/v1/auth/bootstrap", bootstrap(authService))
 	mux.HandleFunc("POST /api/v1/auth/login", login(authService))
 	mux.HandleFunc("GET /api/v1/me", currentUser(authService))
 	mux.HandleFunc("GET /api/v1/search", search(authService, metadataProvider))
+	if webDir != "" {
+		if _, err := os.Stat(webDir); err == nil {
+			mux.Handle("GET /", http.FileServer(http.Dir(webDir)))
+		}
+	}
 	return &Server{handler: mux}
 }
 

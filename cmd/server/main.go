@@ -37,7 +37,7 @@ func main() {
 	}
 	server := &http.Server{
 		Addr:              environment("VISTO_LISTEN_ADDR", ":8080"),
-		Handler:           httpserver.New(auth.NewService(store), metadataProvider).Handler(),
+		Handler:           httpserver.New(auth.NewService(store), metadataProvider, os.Getenv("VISTO_WEB_DIR")).Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
