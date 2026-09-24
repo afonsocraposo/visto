@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/afonsocosta/visto/internal/application/watch"
@@ -46,7 +47,7 @@ func (store *Store) WatchingShows(ctx context.Context, userID string) ([]watch.S
 				return nil, fmt.Errorf("scan episode: %w", err)
 			}
 			episode.ShowID = show.ID
-			if airDate.Valid {
+			if airDate.Valid && strings.TrimSpace(airDate.String) != "" {
 				parsed, err := time.Parse("2006-01-02", airDate.String)
 				if err != nil {
 					episodeRows.Close()
@@ -112,10 +113,16 @@ func (store *Store) ListShowEpisodes(ctx context.Context, userID, showID string)
 		if err := rows.Scan(&entry.Episode.ID, &entry.Episode.ShowID, &entry.Episode.SeasonNumber, &entry.Episode.EpisodeNumber, &airDate, &entry.Name, &overview, &runtime, &stillPath, &entry.Watched); err != nil {
 			return nil, fmt.Errorf("scan show episode: %w", err)
 		}
-		if overview.Valid { entry.Overview = overview.String }
-		if runtime.Valid { entry.Runtime = int(runtime.Int64) }
-		if stillPath.Valid { entry.StillPath = stillPath.String }
-		if airDate.Valid {
+		if overview.Valid {
+			entry.Overview = overview.String
+		}
+		if runtime.Valid {
+			entry.Runtime = int(runtime.Int64)
+		}
+		if stillPath.Valid {
+			entry.StillPath = stillPath.String
+		}
+		if airDate.Valid && strings.TrimSpace(airDate.String) != "" {
 			parsed, err := time.Parse(time.DateOnly, airDate.String)
 			if err != nil {
 				return nil, fmt.Errorf("parse show episode air date: %w", err)
@@ -179,7 +186,7 @@ func (store *Store) ListSeasonEpisodes(ctx context.Context, userID, seasonID str
 		if err := rows.Scan(&entry.Episode.ID, &entry.Episode.ShowID, &entry.Episode.SeasonNumber, &entry.Episode.EpisodeNumber, &airDate, &entry.Name, &entry.Watched); err != nil {
 			return nil, fmt.Errorf("scan season episode: %w", err)
 		}
-		if airDate.Valid {
+		if airDate.Valid && strings.TrimSpace(airDate.String) != "" {
 			parsed, err := time.Parse(time.DateOnly, airDate.String)
 			if err != nil {
 				return nil, fmt.Errorf("parse season episode air date: %w", err)
