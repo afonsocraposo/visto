@@ -48,6 +48,34 @@ paths:
       responses:
         '200': { description: Library entries, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/LibraryEntry' } } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
+  /plays:
+    post:
+      summary: Record one movie or episode watch
+      security: [{ sessionCookie: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CreatePlayRequest' } } } }
+      responses:
+        '201': { description: Created play, content: { application/json: { schema: { $ref: '#/components/schemas/Play' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /plays/{playID}:
+    parameters:
+      - { name: playID, in: path, required: true, schema: { type: string } }
+    patch:
+      summary: Correct the timestamp of one of the user's plays
+      security: [{ sessionCookie: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CorrectPlayRequest' } } } }
+      responses:
+        '204': { description: Play corrected }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: Play not found }
+    delete:
+      summary: Delete one of the user's plays
+      security: [{ sessionCookie: [] }]
+      responses:
+        '204': { description: Play deleted }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: Play not found }
     post:
       summary: Add a movie or TV show to the authenticated user's library
       security: [{ sessionCookie: [] }]
@@ -120,3 +148,28 @@ components:
       properties:
         item: { $ref: '#/components/schemas/LibraryItem' }
         media: { $ref: '#/components/schemas/MediaSearchResult' }
+    CreatePlayRequest:
+      type: object
+      properties:
+        media_id: { type: string }
+        episode_id: { type: string }
+        watched_at: { type: string, format: date-time, description: Must not be in the future. Defaults to now. }
+        source: { type: string, enum: [web, api, mcp, import], default: web }
+      oneOf:
+        - required: [media_id]
+        - required: [episode_id]
+    CorrectPlayRequest:
+      type: object
+      required: [watched_at]
+      properties:
+        watched_at: { type: string, format: date-time, description: Must not be in the future. }
+    Play:
+      type: object
+      required: [id, user_id, watched_at, source]
+      properties:
+        id: { type: string }
+        user_id: { type: string }
+        media_id: { type: [string, 'null'] }
+        episode_id: { type: [string, 'null'] }
+        watched_at: { type: string, format: date-time }
+        source: { type: string, enum: [web, api, mcp, import] }

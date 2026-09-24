@@ -2,12 +2,14 @@ package httpserver
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"os"
 	"time"
 
 	"github.com/afonsocosta/visto/internal/application/auth"
 	"github.com/afonsocosta/visto/internal/application/library"
+	"github.com/afonsocosta/visto/internal/application/tracking"
 	"github.com/afonsocosta/visto/internal/domain"
 )
 
@@ -15,25 +17,110 @@ type Server struct {
 	handler http.Handler
 }
 
-func New(authService *auth.Service, metadataProvider domain.MetadataProvider, webDir string, libraryServices ...*library.Service) *Server {
+func New(authService *auth.Service, metadataProvider domain.MetadataProvider, webDir string, libraryService *library.Service, trackingService *tracking.Service) *Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", health)
 	mux.HandleFunc("POST /api/v1/auth/bootstrap", bootstrap(authService))
 	mux.HandleFunc("POST /api/v1/auth/login", login(authService))
 	mux.HandleFunc("GET /api/v1/me", currentUser(authService))
 	mux.HandleFunc("GET /api/v1/search", search(authService, metadataProvider))
-	var libraryService *library.Service
-	if len(libraryServices) > 0 {
-		libraryService = libraryServices[0]
-	}
 	mux.HandleFunc("GET /api/v1/library", listLibrary(authService, libraryService))
 	mux.HandleFunc("POST /api/v1/library", saveLibrary(authService, libraryService))
+	mux.HandleFunc("POST /api/v1/plays", createPlay(authService, trackingService))
+	mux.HandleFunc("PATCH /api/v1/plays/{playID}", correctPlay(authService, trackingService))
+	mux.HandleFunc("DELETE /api/v1/plays/{playID}", deletePlay(authService, trackingService))
 	if webDir != "" {
 		if _, err := os.Stat(webDir); err == nil {
 			mux.Handle("GET /", http.FileServer(http.Dir(webDir)))
 		}
 	}
 	return &Server{handler: mux}
+}
+
+type playRequest struct {
+	MediaID   *string    `json:"media_id"`
+	EpisodeID *string    `json:"episode_id"`
+	WatchedAt *time.Time `json:"watched_at"`
+	Source    string     `json:"source"`
+}
+
+func createPlay(authService *auth.Service, service *tracking.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := authenticatedUser(w, r, authService)
+		if !ok {
+			return
+		}
+		if service == nil {
+			writeError(w, http.StatusServiceUnavailable, "tracking is not configured")
+			return
+		}
+		var request playRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid JSON")
+			return
+		}
+		watchedAt := time.Time{}
+		if request.WatchedAt != nil {
+			watchedAt = *request.WatchedAt
+		}
+		play, err := service.Record(r.Context(), user.ID, request.MediaID, request.EpisodeID, watchedAt, request.Source)
+		if err != nil {
+			writeTrackingError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusCreated, play)
+	}
+}
+
+func correctPlay(authService *auth.Service, service *tracking.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := authenticatedUser(w, r, authService)
+		if !ok {
+			return
+		}
+		if service == nil {
+			writeError(w, http.StatusServiceUnavailable, "tracking is not configured")
+			return
+		}
+		var request struct {
+			WatchedAt time.Time `json:"watched_at"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid JSON")
+			return
+		}
+		if err := service.Correct(r.Context(), user.ID, r.PathValue("playID"), request.WatchedAt); err != nil {
+			writeTrackingError(w, err)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+func deletePlay(authService *auth.Service, service *tracking.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := authenticatedUser(w, r, authService)
+		if !ok {
+			return
+		}
+		if service == nil {
+			writeError(w, http.StatusServiceUnavailable, "tracking is not configured")
+			return
+		}
+		if err := service.Remove(r.Context(), user.ID, r.PathValue("playID")); err != nil {
+			writeTrackingError(w, err)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+func writeTrackingError(w http.ResponseWriter, err error) {
+	if errors.Is(err, tracking.ErrPlayNotFound) {
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	writeError(w, http.StatusBadRequest, err.Error())
 }
 
 type libraryRequest struct {

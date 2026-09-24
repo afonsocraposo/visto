@@ -2,24 +2,31 @@ package tracking
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"time"
 )
 
-var ErrFutureWatchTime = errors.New("watched_at cannot be in the future")
+var (
+	ErrFutureWatchTime = errors.New("watched_at cannot be in the future")
+	ErrPlayNotFound    = errors.New("play not found")
+)
 
 type Play struct {
-	ID        string
-	UserID    string
-	MediaID   *string
-	EpisodeID *string
-	WatchedAt time.Time
-	Source    string
+	ID        string    `json:"id"`
+	UserID    string    `json:"user_id"`
+	MediaID   *string   `json:"media_id"`
+	EpisodeID *string   `json:"episode_id"`
+	WatchedAt time.Time `json:"watched_at"`
+	Source    string    `json:"source"`
 }
 
 type Repository interface {
 	CreatePlay(context.Context, Play) error
+	UpdatePlay(context.Context, string, string, time.Time) error
+	DeletePlay(context.Context, string, string) error
 }
 
 type Service struct {
@@ -28,7 +35,11 @@ type Service struct {
 	newID      func() string
 }
 
-func NewService(repository Repository, newID func() string) *Service {
+func NewService(repository Repository) *Service {
+	return &Service{repository: repository, now: time.Now, newID: newID}
+}
+
+func NewServiceWithID(repository Repository, newID func() string) *Service {
 	return &Service{repository: repository, now: time.Now, newID: newID}
 }
 
@@ -54,4 +65,35 @@ func (service *Service) Record(ctx context.Context, userID string, mediaID, epis
 		return Play{}, err
 	}
 	return play, nil
+}
+
+func (service *Service) Correct(ctx context.Context, userID, playID string, watchedAt time.Time) error {
+	if userID == "" || playID == "" {
+		return fmt.Errorf("user and play are required")
+	}
+	if watchedAt.IsZero() {
+		return fmt.Errorf("watched_at is required")
+	}
+	if watchedAt.After(service.now().UTC()) {
+		return ErrFutureWatchTime
+	}
+	if err := service.repository.UpdatePlay(ctx, userID, playID, watchedAt.UTC()); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (service *Service) Remove(ctx context.Context, userID, playID string) error {
+	if userID == "" || playID == "" {
+		return fmt.Errorf("user and play are required")
+	}
+	return service.repository.DeletePlay(ctx, userID, playID)
+}
+
+func newID() string {
+	bytes := make([]byte, 32)
+	if _, err := rand.Read(bytes); err != nil {
+		panic(fmt.Sprintf("generate play ID: %v", err))
+	}
+	return base64.RawURLEncoding.EncodeToString(bytes)
 }
