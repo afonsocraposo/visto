@@ -75,6 +75,16 @@ test("Given a fresh install, When the service worker installs, Then it precaches
   assert.ok(await shell.match(`${origin}/icon.svg`));
 });
 
+test("Given a browser install prompt, When it reads the web manifest, Then Visto has standalone mode and an app icon", async () => {
+  const manifest = JSON.parse(await readFile(new URL("../public/manifest.webmanifest", import.meta.url), "utf8"));
+  const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
+
+  assert.equal(manifest.start_url, "/");
+  assert.equal(manifest.display, "standalone");
+  assert.ok(manifest.icons.some(icon => icon.src && icon.type === "image/svg+xml" && icon.sizes === "any"));
+  assert.match(html, /<link\s+rel="manifest"\s+href="\/manifest\.webmanifest"/);
+});
+
 test("Given a signed-in user, When an allowed GET is cached, Then offline reads are user-scoped and capped at 100", async () => {
   const harness = createHarness();
   let userID = "alice";
