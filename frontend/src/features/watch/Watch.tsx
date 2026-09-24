@@ -4,6 +4,7 @@ import { Alert, Button, Group, Loader, Modal, Paper, Text } from "@mantine/core"
 import { EmptyState } from "../../components/EmptyState";
 import { useUserQueryKey } from "../auth/SessionContext";
 import { api } from "../../lib/api";
+import { formatCalendarDate, groupCalendarEntries } from "./calendar";
 import type { CalendarEntry, ContinueEntry } from "../../types";
 
 export function WatchNow() {
@@ -71,15 +72,20 @@ export function WatchCalendar() {
   if (calendar.isPending) return <Group justify="center" mt="xl"><Loader /></Group>;
   if (calendar.isError) return <Alert color="red" mt="md">Calendar is temporarily unavailable.</Alert>;
   if (!calendar.data?.length) return <EmptyState title="No upcoming episodes" />;
+  const groups = groupCalendarEntries(calendar.data);
 
   return (
     <>
-      {calendar.data.map(item => (
-        <Paper key={item.episode.id} withBorder p="md" mt="sm">
-          <Text fw={700}>{item.title}</Text>
-          <Text>{`S${String(item.episode.season_number).padStart(2, "0")}E${String(item.episode.episode_number).padStart(2, "0")}`}</Text>
-          <Text c="dimmed">{item.episode.air_date ? new Date(`${item.episode.air_date}T00:00:00`).toLocaleDateString() : "Date not announced"}</Text>
-        </Paper>
+      {groups.map(group => (
+        <section key={group.date} aria-label={`Episodes airing ${formatCalendarDate(group.date)}`}>
+          <Text component="h2" fw={700} size="lg" mt="lg">{formatCalendarDate(group.date)}</Text>
+          {group.entries.map(item => (
+            <Paper key={item.episode.id} withBorder p="md" mt="sm">
+              <Text fw={700}>{item.title}</Text>
+              <Text>{`S${String(item.episode.season_number).padStart(2, "0")}E${String(item.episode.episode_number).padStart(2, "0")}`}</Text>
+            </Paper>
+          ))}
+        </section>
       ))}
     </>
   );
