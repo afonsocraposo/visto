@@ -7,8 +7,10 @@ import (
 	"time"
 
 	"github.com/afonsocosta/visto/internal/application/feed"
+	"github.com/afonsocosta/visto/internal/application/library"
 	"github.com/afonsocosta/visto/internal/application/profile"
 	"github.com/afonsocosta/visto/internal/application/tracking"
+	"github.com/afonsocosta/visto/internal/domain"
 	"github.com/afonsocosta/visto/internal/infrastructure/sqlite"
 )
 
@@ -63,6 +65,23 @@ func TestFeed_GivenPrivateAndOptedInActivity_WhenListed_ThenPrivateEventsStayHid
 	if err := store.CreateBulkPlays(ctx, bulkPlays); err != nil {
 		t.Fatal(err)
 	}
+	// A first rating and a later rating change are separate eligible events.
+	for index, rating := range []int{5, 4} {
+		updatedAt := time.Date(2026, 9, 24, 12+index, 0, 0, 0, time.UTC)
+		if err := store.UpsertItem(ctx, library.Item{
+			UserID: "family-user", MediaID: movieID, Status: domain.WatchlistStatus,
+			Rating: &rating, AddedAt: updatedAt, UpdatedAt: updatedAt,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	privateRating := 5
+	if err := store.UpsertItem(ctx, library.Item{
+		UserID: "private-user", MediaID: movieID, Status: domain.WatchlistStatus,
+		Rating: &privateRating, AddedAt: time.Now(), UpdatedAt: time.Now(),
+	}); err != nil {
+		t.Fatal(err)
+	}
 
 	// When the instance feed is listed, private activity is absent and the
 	// opted-in user's plays have distinct watch/rewatch and one aggregate item.
@@ -71,6 +90,7 @@ func TestFeed_GivenPrivateAndOptedInActivity_WhenListed_ThenPrivateEventsStayHid
 		t.Fatal(err)
 	}
 	kinds := map[string]int{}
+	seenRatings := map[int]bool{}
 	for _, item := range page.Items {
 		if item.DisplayName == "private-user" {
 			t.Fatalf("private activity leaked into the feed: %+v", item)
@@ -79,8 +99,14 @@ func TestFeed_GivenPrivateAndOptedInActivity_WhenListed_ThenPrivateEventsStayHid
 		if item.Kind == "bulk_watch" && (item.Count != 2 || item.Title != "Example Show") {
 			t.Fatalf("bulk activity was not aggregated with its show and count: %+v", item)
 		}
+		if item.Kind == "rating" {
+			if item.Title != "Example Movie" || item.Rating == nil {
+				t.Fatalf("rating activity is missing its title or value: %+v", item)
+			}
+			seenRatings[*item.Rating] = true
+		}
 	}
-	if kinds["watch"] != 1 || kinds["rewatch"] != 1 || kinds["bulk_watch"] != 1 || len(page.Items) != 3 {
+	if kinds["watch"] != 1 || kinds["rewatch"] != 1 || kinds["bulk_watch"] != 1 || kinds["rating"] != 2 || !seenRatings[5] || !seenRatings[4] || len(page.Items) != 5 {
 		t.Fatalf("feed activity kinds=%v items=%+v", kinds, page.Items)
 	}
 
