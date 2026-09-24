@@ -345,10 +345,11 @@ components:
         updated_at: { type: string, format: date-time }
     LibraryEntry:
       type: object
-      required: [item, media]
+      required: [item, media, completed]
       properties:
         item: { $ref: '#/components/schemas/LibraryItem' }
         media: { $ref: '#/components/schemas/MediaSearchResult' }
+        completed: { type: boolean, description: Derived movie display state; true when this user has at least one movie play. Never stored as a library status. }
     CreatePlayRequest:
       type: object
       properties:

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Group, Paper, Select, Text } from "@mantine/core";
+import { Alert, Badge, Button, Group, Paper, Select, Text } from "@mantine/core";
 import { useUserQueryKey } from "../auth/SessionContext";
 import { EpisodeBrowser } from "./EpisodeBrowser";
 import type { LibraryEntry } from "../../types";
@@ -40,7 +40,10 @@ export function LibraryCard({ entry }: { entry: LibraryEntry }) {
 
   return <Paper withBorder p="md" mt="sm">
     <Group justify="space-between">
-      <Text fw={700}>{entry.media.title}</Text>
+      <Group gap="xs">
+        <Text fw={700}>{entry.media.title}</Text>
+        {entry.completed && <Badge color="green" variant="light">Completed</Badge>}
+      </Group>
       <Text size="sm" c="dimmed">{entry.media.type === "tv" ? "TV show" : "Movie"}</Text>
     </Group>
     <Group mt="sm" grow>
@@ -58,7 +61,7 @@ export function LibraryCard({ entry }: { entry: LibraryEntry }) {
       ]} />
     </Group>
     {entry.media.type === "tv" && <Button mt="sm" size="xs" variant="default" onClick={() => setEpisodesOpen(true)}>Browse episodes</Button>}
-    {entry.media.type === "movie" && <Button mt="sm" size="xs" loading={watched.isPending} onClick={() => watched.mutate()}>Watched</Button>}
+    {entry.media.type === "movie" && <Button mt="sm" size="xs" loading={watched.isPending} onClick={() => watched.mutate()}>{entry.completed ? "Rewatch" : "Watched"}</Button>}
     {update.isError && <Alert color="red" mt="sm">{update.error.message}</Alert>}
     {watched.isError && <Alert color="red" mt="sm">{watched.error.message}</Alert>}
     {episodesOpen && <EpisodeBrowser showID={entry.item.media_id} title={entry.media.title} onClose={() => setEpisodesOpen(false)} />}

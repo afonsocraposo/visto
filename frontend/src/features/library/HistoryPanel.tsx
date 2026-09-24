@@ -37,6 +37,7 @@ function HistoryCard({ entry }: { entry: HistoryEntry }) {
     queryClient.invalidateQueries({ queryKey: userQueryKey("continue") }),
     queryClient.invalidateQueries({ queryKey: userQueryKey("calendar") }),
     queryClient.invalidateQueries({ queryKey: userQueryKey("feed") }),
+    queryClient.invalidateQueries({ queryKey: userQueryKey("library") }),
   ]);
   const save = useMutation({
     mutationFn: async () => {
@@ -60,7 +61,11 @@ function HistoryCard({ entry }: { entry: HistoryEntry }) {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
       });
       if (!response.ok) throw new Error("Could not record the rewatch.");
-    }, onSuccess: () => queryClient.invalidateQueries({ queryKey: userQueryKey("history") }),
+    }, onSuccess: async () => Promise.all([
+      queryClient.invalidateQueries({ queryKey: userQueryKey("history") }),
+      queryClient.invalidateQueries({ queryKey: userQueryKey("library") }),
+      queryClient.invalidateQueries({ queryKey: userQueryKey("feed") }),
+    ]),
   });
 
   return <Group justify="space-between" align="end" mt="md" wrap="wrap">

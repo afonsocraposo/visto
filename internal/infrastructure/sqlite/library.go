@@ -114,7 +114,8 @@ func (s *Store) UpsertItem(ctx context.Context, item library.Item) error {
 }
 
 func (s *Store) ListItems(ctx context.Context, userID string) ([]library.Entry, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT um.user_id,um.media_id,um.status,um.rating,um.added_at,um.updated_at,m.media_type,m.tmdb_id,m.title,m.original_title,m.overview,m.release_date,m.poster_path,m.original_language
+	rows, err := s.DB.QueryContext(ctx, `SELECT um.user_id,um.media_id,um.status,um.rating,um.added_at,um.updated_at,m.media_type,m.tmdb_id,m.title,m.original_title,m.overview,m.release_date,m.poster_path,m.original_language,
+		(m.media_type='movie' AND EXISTS(SELECT 1 FROM plays p WHERE p.user_id=um.user_id AND p.media_id=um.media_id))
 		FROM user_media um JOIN media m ON m.id=um.media_id WHERE um.user_id=? ORDER BY um.updated_at DESC`, userID)
 	if err != nil {
 		return nil, fmt.Errorf("list library items: %w", err)
@@ -125,7 +126,7 @@ func (s *Store) ListItems(ctx context.Context, userID string) ([]library.Entry, 
 		var entry library.Entry
 		var rating sql.NullInt64
 		var addedAt, updatedAt string
-		if err := rows.Scan(&entry.Item.UserID, &entry.Item.MediaID, &entry.Item.Status, &rating, &addedAt, &updatedAt, &entry.Media.Type, &entry.Media.TMDBID, &entry.Media.Title, &entry.Media.OriginalTitle, &entry.Media.Overview, &entry.Media.ReleaseDate, &entry.Media.PosterPath, &entry.Media.OriginalLanguage); err != nil {
+		if err := rows.Scan(&entry.Item.UserID, &entry.Item.MediaID, &entry.Item.Status, &rating, &addedAt, &updatedAt, &entry.Media.Type, &entry.Media.TMDBID, &entry.Media.Title, &entry.Media.OriginalTitle, &entry.Media.Overview, &entry.Media.ReleaseDate, &entry.Media.PosterPath, &entry.Media.OriginalLanguage, &entry.Completed); err != nil {
 			return nil, fmt.Errorf("scan library item: %w", err)
 		}
 		entry.Media.ID = entry.Item.MediaID
@@ -154,12 +155,13 @@ func (s *Store) GetMediaByTMDBID(ctx context.Context, userID string, mediaType d
 	var rating sql.NullInt64
 	var addedAt, updatedAt string
 	err := s.DB.QueryRowContext(ctx, `SELECT um.user_id,um.media_id,um.status,um.rating,um.added_at,um.updated_at,
-		m.media_type,m.tmdb_id,m.title,m.original_title,m.overview,m.release_date,m.poster_path,m.original_language
+		m.media_type,m.tmdb_id,m.title,m.original_title,m.overview,m.release_date,m.poster_path,m.original_language,
+		(m.media_type='movie' AND EXISTS(SELECT 1 FROM plays p WHERE p.user_id=um.user_id AND p.media_id=um.media_id))
 		FROM user_media um JOIN media m ON m.id=um.media_id
 		WHERE um.user_id=? AND m.media_type=? AND m.tmdb_id=?`, userID, mediaType, tmdbID).Scan(
 		&entry.Item.UserID, &entry.Item.MediaID, &entry.Item.Status, &rating, &addedAt, &updatedAt,
 		&entry.Media.Type, &entry.Media.TMDBID, &entry.Media.Title, &entry.Media.OriginalTitle,
-		&entry.Media.Overview, &entry.Media.ReleaseDate, &entry.Media.PosterPath, &entry.Media.OriginalLanguage,
+		&entry.Media.Overview, &entry.Media.ReleaseDate, &entry.Media.PosterPath, &entry.Media.OriginalLanguage, &entry.Completed,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return library.Entry{}, library.ErrMediaNotFound

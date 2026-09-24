@@ -38,8 +38,9 @@ type Media struct {
 }
 
 type Entry struct {
-	Item  Item  `json:"item"`
-	Media Media `json:"media"`
+	Item      Item  `json:"item"`
+	Media     Media `json:"media"`
+	Completed bool  `json:"completed"`
 }
 
 type mediaRepository interface {

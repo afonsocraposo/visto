@@ -22,6 +22,7 @@ export type SearchMedia = {
 export type LibraryEntry = {
   item: { media_id: string; status: string; rating: number | null };
   media: SearchMedia & { id: string };
+  completed: boolean;
 };
 
 export type FeedItem = {
