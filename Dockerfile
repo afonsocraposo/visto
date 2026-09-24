@@ -14,7 +14,7 @@ COPY internal/ internal/
 RUN CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o /out/visto ./cmd/server
 
 FROM alpine:3.21
-RUN addgroup -S visto && adduser -S visto -G visto
+RUN apk add --no-cache tzdata && addgroup -S visto && adduser -S visto -G visto
 COPY --from=server /out/visto /usr/local/bin/visto
 COPY --from=web /build/dist /app/web
 RUN mkdir /data && chown visto:visto /data

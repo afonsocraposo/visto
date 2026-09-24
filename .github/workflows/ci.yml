@@ -24,3 +24,8 @@ jobs:
         working-directory: frontend
       - run: npm run build
         working-directory: frontend
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t visto:ci .
