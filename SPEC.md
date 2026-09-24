@@ -214,6 +214,13 @@ episodes, images, and air dates. Each Visto instance uses its own TMDB API
 credentials. Visto imports metadata lazily when a user opens or adds a result.
 It does not mirror the entire TMDB catalogue.
 
+TMDB access is implemented only by the infrastructure adapter using
+[`github.com/cyruzin/golang-tmdb`](https://github.com/cyruzin/golang-tmdb).
+The adapter initializes a configured client, supplies an HTTP client with an
+explicit timeout and bounded connection pool, and enables the library's 429
+auto-retry support. The rest of Visto depends on a provider interface, never on
+the library's client or response types.
+
 The application caches enough raw provider data to support refresh and display,
 but it must preserve user data if TMDB changes or removes a record. Media are
 unique by `(media_type, tmdb_id)`. All TMDB use must comply with TMDB terms and
@@ -389,6 +396,29 @@ PRAGMA busy_timeout = 5000;
 ```
 
 All timestamps are stored as UTC ISO-8601 values.
+
+### SQLite migrations
+
+The database schema is managed exclusively through ordered SQL migration files
+in `internal/infrastructure/sqlite/migrations/`. Each file has a unique,
+zero-padded version prefix and an immutable descriptive name, for example:
+
+```text
+0001_initial_schema.sql
+0002_add_activity_events.sql
+```
+
+At application startup, the migration runner creates and reads a
+`schema_migrations` table containing the migration version, checksum, and apply
+time. It runs pending migrations in version order, each inside a transaction,
+and records a migration only after its transaction succeeds. Startup fails if a
+previously applied migration is missing or its checksum has changed.
+
+Applied migrations are append-only: they are never edited, renamed, reordered,
+or deleted. Schema changes always add a new forward migration. Migrations must
+be safe for an empty database and preserve existing user data during upgrades.
+The test suite runs the complete migration sequence against a fresh SQLite
+database and verifies that re-running it is a no-op.
 
 ## 12. Testing
 
