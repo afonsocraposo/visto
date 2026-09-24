@@ -36,8 +36,13 @@ func New(authService *auth.Service, metadataProvider domain.MetadataProvider, we
 	mux.HandleFunc("POST /api/v1/auth/logout", logout(authService))
 	mux.HandleFunc("POST /api/v1/users", createUser(authService))
 	mux.HandleFunc("GET /api/v1/me", currentUser(authService))
+	mux.HandleFunc("GET /api/v1/tokens", listPersonalTokens(authService))
+	mux.HandleFunc("POST /api/v1/tokens", createPersonalToken(authService))
+	mux.HandleFunc("DELETE /api/v1/tokens/{tokenID}", revokePersonalToken(authService))
 	mux.HandleFunc("GET /api/v1/profile/activity-settings", activitySettings(authService, profileService))
 	mux.HandleFunc("PATCH /api/v1/profile/activity-settings", setActivitySettings(authService, profileService))
+	mux.HandleFunc("PATCH /api/v1/profile/pushover-settings", setPushoverSettings(authService, profileService))
+	mux.HandleFunc("DELETE /api/v1/profile/pushover-key", clearPushoverKey(authService, profileService))
 	mux.HandleFunc("GET /api/v1/feed", instanceFeed(authService, feedService))
 	mux.HandleFunc("GET /api/v1/export/json", jsonExport(authService, exportService))
 	mux.HandleFunc("GET /api/v1/export/csv", csvExport(authService, exportService))
@@ -48,14 +53,18 @@ func New(authService *auth.Service, metadataProvider domain.MetadataProvider, we
 	mux.HandleFunc("GET /api/v1/discover/shows/{tmdbID}/seasons/{seasonNumber}", temporaryShowSeasonEpisodes(authService, metadataProvider))
 	mux.HandleFunc("GET /api/v1/discover/shows/{tmdbID}/seasons/{seasonNumber}/episodes/{episodeNumber}", temporaryEpisodeDetails(authService, metadataProvider))
 	mux.HandleFunc("GET /api/v1/discover/movies/{tmdbID}", temporaryMovieDetails(authService, metadataProvider))
+	mux.HandleFunc("GET /api/v1/people/{tmdbID}", personDetails(authService, metadataProvider))
 	mux.HandleFunc("GET /api/v1/movies/{tmdbID}", mediaDetails(authService, libraryService, metadataProvider, domain.MovieMediaType))
 	mux.HandleFunc("GET /api/v1/shows/{tmdbID}", mediaDetails(authService, libraryService, metadataProvider, domain.TVMediaType))
 	mux.HandleFunc("GET /api/v1/library", listLibrary(authService, libraryService))
 	mux.HandleFunc("POST /api/v1/library", saveLibrary(authService, libraryService, metadataProvider))
 	mux.HandleFunc("PATCH /api/v1/library/{mediaID}", updateLibrary(authService, libraryService))
+	mux.HandleFunc("PATCH /api/v1/library/{mediaID}/notifications", setLibraryNotifications(authService, libraryService))
 	mux.HandleFunc("POST /api/v1/plays", createPlay(authService, trackingService))
 	mux.HandleFunc("GET /api/v1/plays", playHistory(authService, trackingService))
 	mux.HandleFunc("POST /api/v1/plays/bulk", createBulkPlays(authService, trackingService))
+	mux.HandleFunc("DELETE /api/v1/plays/bulk", deleteBulkEpisodePlays(authService, trackingService))
+	mux.HandleFunc("DELETE /api/v1/plays/media/{mediaID}", deleteMediaPlays(authService, trackingService))
 	mux.HandleFunc("PATCH /api/v1/plays/{playID}", correctPlay(authService, trackingService))
 	mux.HandleFunc("DELETE /api/v1/plays/{playID}", deletePlay(authService, trackingService))
 	mux.HandleFunc("GET /api/v1/episodes/{episodeID}/rating", episodeRating(authService, trackingService))
@@ -248,6 +257,35 @@ func updateLibrary(authService *auth.Service, service *library.Service) http.Han
 	}
 }
 
+func setLibraryNotifications(authService *auth.Service, service *library.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := authenticatedUser(w, r, authService)
+		if !ok {
+			return
+		}
+		if service == nil {
+			writeError(w, http.StatusServiceUnavailable, "library is not configured")
+			return
+		}
+		var request struct {
+			Enabled bool `json:"enabled"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid JSON")
+			return
+		}
+		if err := service.SetNotificationsEnabled(r.Context(), user.ID, r.PathValue("mediaID"), request.Enabled); err != nil {
+			if errors.Is(err, library.ErrMediaNotFound) {
+				writeError(w, http.StatusNotFound, err.Error())
+				return
+			}
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
 func createBulkPlays(authService *auth.Service, service *tracking.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		user, ok := authenticatedUser(w, r, authService)
@@ -276,6 +314,49 @@ func createBulkPlays(authService *auth.Service, service *tracking.Service) http.
 			return
 		}
 		writeJSON(w, http.StatusCreated, plays)
+	}
+}
+
+func deleteBulkEpisodePlays(authService *auth.Service, service *tracking.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := authenticatedUser(w, r, authService)
+		if !ok {
+			return
+		}
+		if service == nil {
+			writeError(w, http.StatusServiceUnavailable, "tracking is not configured")
+			return
+		}
+		var request struct {
+			EpisodeIDs []string `json:"episode_ids"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid JSON")
+			return
+		}
+		if err := service.RemoveEpisodes(r.Context(), user.ID, request.EpisodeIDs); err != nil {
+			writeTrackingError(w, err)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+func deleteMediaPlays(authService *auth.Service, service *tracking.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := authenticatedUser(w, r, authService)
+		if !ok {
+			return
+		}
+		if service == nil {
+			writeError(w, http.StatusServiceUnavailable, "tracking is not configured")
+			return
+		}
+		if err := service.RemoveMediaPlays(r.Context(), user.ID, r.PathValue("mediaID")); err != nil {
+			writeTrackingError(w, err)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
 	}
 }
 
@@ -553,6 +634,62 @@ func setActivitySettings(authService *auth.Service, service *profile.Service) ht
 		}
 		if err := service.Update(r.Context(), user.ID, request); err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+func setPushoverSettings(authService *auth.Service, service *profile.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := authenticatedUser(w, r, authService)
+		if !ok {
+			return
+		}
+		if service == nil {
+			writeError(w, http.StatusServiceUnavailable, "profile is not configured")
+			return
+		}
+		var request struct {
+			Enabled bool   `json:"enabled"`
+			UserKey string `json:"user_key"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid JSON")
+			return
+		}
+		if err := service.UpdatePushover(r.Context(), user.ID, request.Enabled, request.UserKey); err != nil {
+			if errors.Is(err, profile.ErrPushoverUnavailable) {
+				writeError(w, http.StatusServiceUnavailable, err.Error())
+				return
+			}
+			if errors.Is(err, profile.ErrInvalidPushoverSettings) {
+				writeError(w, http.StatusBadRequest, err.Error())
+				return
+			}
+			writeError(w, http.StatusInternalServerError, "Pushover settings could not be saved")
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+func clearPushoverKey(authService *auth.Service, service *profile.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := authenticatedUser(w, r, authService)
+		if !ok {
+			return
+		}
+		if service == nil {
+			writeError(w, http.StatusServiceUnavailable, "profile is not configured")
+			return
+		}
+		if err := service.ClearPushoverKey(r.Context(), user.ID); err != nil {
+			if errors.Is(err, profile.ErrPushoverUnavailable) {
+				writeError(w, http.StatusServiceUnavailable, err.Error())
+				return
+			}
+			writeError(w, http.StatusInternalServerError, "Pushover key could not be removed")
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
@@ -902,6 +1039,30 @@ func temporaryMovieDetails(authService *auth.Service, provider domain.MetadataPr
 	}
 }
 
+func personDetails(authService *auth.Service, provider domain.MetadataProvider) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := authenticatedUser(w, r, authService); !ok {
+			return
+		}
+		personProvider, ok := provider.(domain.PersonMetadataProvider)
+		if !ok {
+			writeError(w, http.StatusServiceUnavailable, "person metadata is not configured")
+			return
+		}
+		tmdbID, err := strconv.ParseInt(r.PathValue("tmdbID"), 10, 64)
+		if err != nil || tmdbID <= 0 {
+			writeError(w, http.StatusBadRequest, "invalid TMDB person ID")
+			return
+		}
+		person, err := personProvider.Person(r.Context(), tmdbID)
+		if err != nil {
+			writeError(w, http.StatusBadGateway, "person details are temporarily unavailable")
+			return
+		}
+		writeJSON(w, http.StatusOK, person)
+	}
+}
+
 func temporaryEpisodeDetails(authService *auth.Service, provider domain.MetadataProvider) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if _, ok := authenticatedUser(w, r, authService); !ok {
@@ -1035,17 +1196,118 @@ func currentUser(service *auth.Service) http.HandlerFunc {
 func authenticatedUser(w http.ResponseWriter, r *http.Request, service *auth.Service) (domain.User, bool) {
 	w.Header().Set("Cache-Control", "private, no-store")
 	w.Header().Add("Vary", "Cookie")
-	cookie, err := r.Cookie("visto_session")
-	if err != nil || service == nil {
+	w.Header().Add("Vary", "Authorization")
+	if service == nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
 		return domain.User{}, false
 	}
-	user, err := service.Authenticate(r.Context(), cookie.Value)
+	var user domain.User
+	var err error
+	if authorization := strings.TrimSpace(r.Header.Get("Authorization")); authorization != "" {
+		parts := strings.Fields(authorization)
+		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
+			writeError(w, http.StatusUnauthorized, "authentication required")
+			return domain.User{}, false
+		}
+		user, err = service.AuthenticatePersonalToken(r.Context(), parts[1])
+	} else {
+		cookie, cookieErr := r.Cookie("visto_session")
+		if cookieErr != nil {
+			writeError(w, http.StatusUnauthorized, "authentication required")
+			return domain.User{}, false
+		}
+		user, err = service.Authenticate(r.Context(), cookie.Value)
+	}
 	if err != nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")
 		return domain.User{}, false
 	}
 	return user, true
+}
+
+func listPersonalTokens(service *auth.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := authenticatedUser(w, r, service)
+		if !ok {
+			return
+		}
+		tokens, err := service.PersonalTokens(r.Context(), user.ID)
+		if err != nil {
+			status := http.StatusInternalServerError
+			message := "could not list personal API tokens"
+			if errors.Is(err, auth.ErrPersonalTokensUnavailable) {
+				status = http.StatusServiceUnavailable
+				message = "personal API tokens are not configured"
+			}
+			writeError(w, status, message)
+			return
+		}
+		writeJSON(w, http.StatusOK, tokens)
+	}
+}
+
+func createPersonalToken(service *auth.Service) http.HandlerFunc {
+	type requestBody struct {
+		Name      string `json:"name"`
+		ExpiresAt string `json:"expires_at"`
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := authenticatedUser(w, r, service)
+		if !ok {
+			return
+		}
+		var body requestBody
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid JSON")
+			return
+		}
+		var expiresAt *time.Time
+		if strings.TrimSpace(body.ExpiresAt) != "" {
+			parsed, err := time.Parse(time.RFC3339, body.ExpiresAt)
+			if err != nil {
+				writeError(w, http.StatusBadRequest, "expires_at must be an RFC 3339 timestamp")
+				return
+			}
+			expiresAt = &parsed
+		}
+		token, err := service.CreatePersonalToken(r.Context(), user.ID, body.Name, expiresAt)
+		if err != nil {
+			status := http.StatusInternalServerError
+			message := "could not create personal API token"
+			if errors.Is(err, auth.ErrInvalidPersonalToken) {
+				status = http.StatusBadRequest
+				message = err.Error()
+			} else if errors.Is(err, auth.ErrPersonalTokensUnavailable) {
+				status = http.StatusServiceUnavailable
+				message = "personal API tokens are not configured"
+			}
+			writeError(w, status, message)
+			return
+		}
+		writeJSON(w, http.StatusCreated, token)
+	}
+}
+
+func revokePersonalToken(service *auth.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := authenticatedUser(w, r, service)
+		if !ok {
+			return
+		}
+		if err := service.RevokePersonalToken(r.Context(), user.ID, r.PathValue("tokenID")); err != nil {
+			if errors.Is(err, auth.ErrPersonalTokenMissing) {
+				writeError(w, http.StatusNotFound, "personal API token not found")
+				return
+			}
+			status := http.StatusInternalServerError
+			if errors.Is(err, auth.ErrPersonalTokensUnavailable) {
+				status = http.StatusServiceUnavailable
+			}
+			writeError(w, status, "could not revoke personal API token")
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
 }
 func writeError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]string{"error": message})

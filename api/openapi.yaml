@@ -36,7 +36,7 @@ paths:
   /users:
     post:
       summary: Create a local user account as an administrator
-      security: [{ sessionCookie: [] }]
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/BootstrapRequest' } } } }
       responses:
         '201': { description: Local account created, content: { application/json: { schema: { $ref: '#/components/schemas/User' } } } }
@@ -46,29 +46,71 @@ paths:
   /me:
     get:
       summary: Get the authenticated user
-      security: [{ sessionCookie: [] }]
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
       responses:
         '200': { description: Current user, content: { application/json: { schema: { $ref: '#/components/schemas/User' } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
+  /tokens:
+    get:
+      summary: List the authenticated user's personal API tokens without exposing their secrets
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      responses:
+        '200': { description: Personal tokens, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/PersonalAPIToken' } } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      summary: Create a personal API token; its secret is returned only in this response
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CreatePersonalAPITokenRequest' } } } }
+      responses:
+        '201': { description: Created token and one-time secret, content: { application/json: { schema: { $ref: '#/components/schemas/IssuedPersonalAPIToken' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /tokens/{tokenID}:
+    delete:
+      summary: Revoke one of the authenticated user's personal API tokens
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      parameters:
+        - { name: tokenID, in: path, required: true, schema: { type: string } }
+      responses:
+        '204': { description: Token revoked }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: Token not found for this user }
   /profile/activity-settings:
     get:
       summary: Get the authenticated user's activity-feed visibility
-      security: [{ sessionCookie: [] }]
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
       responses:
         '200': { description: Activity settings, content: { application/json: { schema: { $ref: '#/components/schemas/ActivitySettings' } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
     patch:
       summary: Change the authenticated user's activity-feed visibility
-      security: [{ sessionCookie: [] }]
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ActivitySettings' } } } }
       responses:
         '204': { description: Activity setting updated }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+  /profile/pushover-settings:
+    patch:
+      summary: Save the authenticated user's Pushover user key and notification preference
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/PushoverSettingsRequest' } } } }
+      responses:
+        '204': { description: Pushover settings updated }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '503': { description: Pushover is not configured on this instance }
+  /profile/pushover-key:
+    delete:
+      summary: Remove the authenticated user's encrypted Pushover key and disable notifications
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      responses:
+        '204': { description: Pushover key removed }
+        '401': { $ref: '#/components/responses/Unauthorized' }
   /feed:
     get:
       summary: List recent opted-in activity on this instance
-      security: [{ sessionCookie: [] }]
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
       parameters:
         - { name: cursor, in: query, schema: { type: string } }
         - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 30 } }
@@ -78,21 +120,21 @@ paths:
   /export/json:
     get:
       summary: Download the authenticated user's library and plays as JSON
-      security: [{ sessionCookie: [] }]
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
       responses:
         '200': { description: JSON export }
         '401': { $ref: '#/components/responses/Unauthorized' }
   /export/csv:
     get:
       summary: Download the authenticated user's library and plays as CSV
-      security: [{ sessionCookie: [] }]
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
       responses:
         '200': { description: CSV export }
         '401': { $ref: '#/components/responses/Unauthorized' }
   /search:
     get:
       summary: Search movies and TV shows through the instance TMDB provider
-      security: [{ sessionCookie: [] }]
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
       parameters:
         - { name: q, in: query, required: true, schema: { type: string, minLength: 1 } }
         - { name: language, in: query, schema: { type: string, example: en-US } }
@@ -105,7 +147,7 @@ paths:
   /trending:
     get:
       summary: Get cached trending movies and TV shows from the instance TMDB provider
-      security: [{ sessionCookie: [] }]
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
       parameters:
         - { name: window, in: query, schema: { type: string, enum: [day, week], default: week } }
       responses:
@@ -117,7 +159,7 @@ paths:
   /discover/movies/{tmdbID}:
     get:
       summary: Get temporary rich movie metadata without adding it to the library
-      security: [{ sessionCookie: [] }]
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
       parameters:
         - { name: tmdbID, in: path, required: true, schema: { type: integer, format: int64, minimum: 1 } }
       responses:
@@ -125,10 +167,38 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '502': { description: TMDB is temporarily unavailable }
+  /people/{tmdbID}:
+    get:
+      summary: Get a person's biography and combined movie and TV cast credits
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      parameters:
+        - { name: tmdbID, in: path, required: true, schema: { type: integer, format: int64, minimum: 1 } }
+      responses:
+        '200':
+          description: Person details and cast credits sorted by popularity
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [tmdb_id, name, biography, credits]
+                properties:
+                  tmdb_id: { type: integer, format: int64 }
+                  name: { type: string }
+                  biography: { type: string }
+                  profile_path: { type: string }
+                  birthday: { type: string }
+                  deathday: { type: string }
+                  place_of_birth: { type: string }
+                  known_for_department: { type: string }
+                  credits: { type: array, items: { $ref: '#/components/schemas/PersonCredit' } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '502': { description: TMDB is temporarily unavailable }
+        '503': { description: TMDB person metadata is not configured }
   /discover/shows/{tmdbID}:
     get:
       summary: Get temporary rich TV metadata and season summaries without adding it to the library
-      security: [{ sessionCookie: [] }]
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
       parameters:
         - { name: tmdbID, in: path, required: true, schema: { type: integer, format: int64, minimum: 1 } }
       responses:
@@ -139,7 +209,7 @@ paths:
   /discover/shows/{tmdbID}/seasons/{seasonNumber}:
     get:
       summary: Load one temporary TV season's episodes
-      security: [{ sessionCookie: [] }]
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
       parameters:
         - { name: tmdbID, in: path, required: true, schema: { type: integer, format: int64, minimum: 1 } }
         - { name: seasonNumber, in: path, required: true, schema: { type: integer, minimum: 0 } }
@@ -151,7 +221,7 @@ paths:
   /discover/shows/{tmdbID}/seasons/{seasonNumber}/episodes/{episodeNumber}:
     get:
       summary: Load temporary rich TV episode metadata
-      security: [{ sessionCookie: [] }]
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
       parameters:
         - { name: tmdbID, in: path, required: true, schema: { type: integer, format: int64, minimum: 1 } }
         - { name: seasonNumber, in: path, required: true, schema: { type: integer, minimum: 0 } }
@@ -164,7 +234,7 @@ paths:
   /movies/{tmdbID}:
     get:
       summary: Get a movie in the authenticated user's library
-      security: [{ sessionCookie: [] }]
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
       parameters:
         - { name: tmdbID, in: path, required: true, schema: { type: integer, format: int64, minimum: 1 } }
       responses:
@@ -175,7 +245,7 @@ paths:
   /shows/{tmdbID}:
     get:
       summary: Get a TV show in the authenticated user's library
-      security: [{ sessionCookie: [] }]
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
       parameters:
         - { name: tmdbID, in: path, required: true, schema: { type: integer, format: int64, minimum: 1 } }
       responses:
@@ -186,13 +256,13 @@ paths:
   /library:
     get:
       summary: List the authenticated user's library
-      security: [{ sessionCookie: [] }]
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
       responses:
         '200': { description: Library entries, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/LibraryEntry' } } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
     post:
       summary: Add a movie or TV show to the authenticated user's library
-      security: [{ sessionCookie: [] }]
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SaveLibraryRequest' } } } }
       responses:
         '201': { description: Saved library item, content: { application/json: { schema: { $ref: '#/components/schemas/LibraryItem' } } } }
@@ -201,7 +271,7 @@ paths:
   /library/{mediaID}:
     patch:
       summary: Change the authenticated user's status and rating for a library item
-      security: [{ sessionCookie: [] }]
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
       parameters:
         - { name: mediaID, in: path, required: true, schema: { type: string } }
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/UpdateLibraryRequest' } } } }
@@ -209,10 +279,22 @@ paths:
         '200': { description: Updated library item, content: { application/json: { schema: { $ref: '#/components/schemas/LibraryItem' } } } }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+  /library/{mediaID}/notifications:
+    patch:
+      summary: Enable or disable new-episode notifications for a tracked TV show
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      parameters:
+        - { name: mediaID, in: path, required: true, schema: { type: string } }
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [enabled], properties: { enabled: { type: boolean } } } } } }
+      responses:
+        '204': { description: Show notification preference updated }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: Show not found in this user's library }
   /plays:
     get:
       summary: List the authenticated user's recent play history
-      security: [{ sessionCookie: [] }]
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
       parameters:
         - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 500, default: 100 } }
       responses:
@@ -221,7 +303,7 @@ paths:
   /episodes/{episodeID}/rating:
     get:
       summary: Get the authenticated user's episode rating
-      security: [{ sessionCookie: [] }]
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
       parameters:
         - { name: episodeID, in: path, required: true, schema: { type: string } }
       responses:
@@ -229,7 +311,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
     put:
       summary: Set or clear the authenticated user's episode rating
-      security: [{ sessionCookie: [] }]
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
       parameters:
         - { name: episodeID, in: path, required: true, schema: { type: string } }
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SetEpisodeRatingRequest' } } } }
@@ -239,7 +321,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
     post:
       summary: Record one movie or episode watch
-      security: [{ sessionCookie: [] }]
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CreatePlayRequest' } } } }
       responses:
         '201': { description: Created play, content: { application/json: { schema: { $ref: '#/components/schemas/Play' } } } }
@@ -250,7 +332,7 @@ paths:
       - { name: playID, in: path, required: true, schema: { type: string } }
     patch:
       summary: Correct the timestamp of one of the user's plays
-      security: [{ sessionCookie: [] }]
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CorrectPlayRequest' } } } }
       responses:
         '204': { description: Play corrected }
@@ -259,7 +341,7 @@ paths:
         '404': { description: Play not found }
     delete:
       summary: Delete one of the user's plays
-      security: [{ sessionCookie: [] }]
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
       responses:
         '204': { description: Play deleted }
         '401': { $ref: '#/components/responses/Unauthorized' }
@@ -267,16 +349,34 @@ paths:
   /plays/bulk:
     post:
       summary: Mark earlier episodes from one show watched as one bulk action
-      security: [{ sessionCookie: [] }]
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
       requestBody: { required: true, content: { application/json: { schema: { type: object, required: [episode_ids], properties: { episode_ids: { type: array, minItems: 1, maxItems: 100, uniqueItems: true, items: { type: string } }, watched_at: { type: string, format: date-time } } } } } }
       responses:
         '201': { description: Created plays for all episodes }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+    delete:
+      summary: Mark selected episodes unwatched by removing the user's plays for them
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [episode_ids], properties: { episode_ids: { type: array, minItems: 1, maxItems: 100, uniqueItems: true, items: { type: string } } } } } } }
+      responses:
+        '204': { description: All plays for the selected episodes were removed }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /plays/media/{mediaID}:
+    delete:
+      summary: Mark a movie unwatched by removing all of the user's movie plays
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      parameters:
+        - { name: mediaID, in: path, required: true, schema: { type: string } }
+      responses:
+        '204': { description: All plays for the movie were removed }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
   /shows/{showID}/episodes:
     get:
       summary: List episodes of a show in the authenticated user's library
-      security: [{ sessionCookie: [] }]
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
       parameters:
         - { name: showID, in: path, required: true, schema: { type: string } }
       responses:
@@ -286,7 +386,7 @@ paths:
   /shows/{showID}/seasons:
     get:
       summary: List seasons for a show in the authenticated user's library
-      security: [{ sessionCookie: [] }]
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
       parameters:
         - { name: showID, in: path, required: true, schema: { type: string } }
       responses:
@@ -296,7 +396,7 @@ paths:
   /shows/{showID}/progress:
     get:
       summary: Derive the authenticated user's show progress
-      security: [{ sessionCookie: [] }]
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
       parameters:
         - { name: showID, in: path, required: true, schema: { type: string } }
       responses:
@@ -306,7 +406,7 @@ paths:
   /seasons/{seasonID}/episodes:
     get:
       summary: List episodes in a season in the authenticated user's library
-      security: [{ sessionCookie: [] }]
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
       parameters:
         - { name: seasonID, in: path, required: true, schema: { type: string } }
       responses:
@@ -316,14 +416,14 @@ paths:
   /continue-watching:
     get:
       summary: Derive the authenticated user's next released episodes
-      security: [{ sessionCookie: [] }]
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
       responses:
         '200': { description: Continue or start watching entries, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ContinueEntry' } } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
   /calendar:
     get:
       summary: List unwatched upcoming episodes for shows being watched
-      security: [{ sessionCookie: [] }]
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
       parameters:
         - { name: from, in: query, schema: { type: string, format: date } }
         - { name: to, in: query, schema: { type: string, format: date } }
@@ -334,6 +434,7 @@ paths:
 components:
   securitySchemes:
     sessionCookie: { type: apiKey, in: cookie, name: visto_session }
+    bearerToken: { type: http, scheme: bearer, bearerFormat: Visto personal API token }
   responses:
     BadRequest: { description: Invalid request }
     Unauthorized: { description: Authentication required }
@@ -351,6 +452,28 @@ components:
       properties:
         username: { type: string }
         password: { type: string, format: password }
+    CreatePersonalAPITokenRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 80 }
+        expires_at: { type: string, format: date-time, description: Optional expiry timestamp. Omit for a token that remains active until revoked. }
+    PersonalAPIToken:
+      type: object
+      required: [id, name, created_at]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        created_at: { type: string, format: date-time }
+        last_used_at: { type: string, format: date-time }
+        expires_at: { type: string, format: date-time }
+    IssuedPersonalAPIToken:
+      allOf:
+        - { $ref: '#/components/schemas/PersonalAPIToken' }
+        - type: object
+          required: [token]
+          properties:
+            token: { type: string, description: One-time secret. Store securely; subsequent responses never include it. }
     User:
       type: object
       required: [id, username, display_name, role, created_at]
@@ -362,10 +485,19 @@ components:
         created_at: { type: string, format: date-time }
     ActivitySettings:
       type: object
-      required: [activity_visibility]
+      required: [activity_visibility, timezone, pushover_enabled, has_pushover_key, pushover_available]
       properties:
         activity_visibility: { type: string, enum: [private, instance] }
         timezone: { type: string, example: Europe/Lisbon }
+        pushover_enabled: { type: boolean }
+        has_pushover_key: { type: boolean, description: Indicates whether an encrypted key exists. The key is never returned. }
+        pushover_available: { type: boolean, description: Indicates that instance-level Pushover settings are configured. }
+    PushoverSettingsRequest:
+      type: object
+      required: [enabled]
+      properties:
+        enabled: { type: boolean }
+        user_key: { type: string, description: Optional replacement user key. It is encrypted and never returned. }
     FeedItem:
       type: object
       required: [id, display_name, kind, title, occurred_at]
@@ -412,6 +544,21 @@ components:
         name: { type: string }
         character: { type: string }
         profile_path: { type: string }
+    PersonCredit:
+      type: object
+      required: [tmdb_id, type, title, popularity]
+      properties:
+        tmdb_id: { type: integer, format: int64 }
+        type: { type: string, enum: [movie, tv] }
+        title: { type: string }
+        original_title: { type: string }
+        character: { type: string }
+        overview: { type: string }
+        release_date: { type: string }
+        poster_path: { type: string }
+        backdrop_path: { type: string }
+        original_language: { type: string }
+        popularity: { type: number, format: float }
     TemporaryMovieDetails:
       type: object
       required: [media, cast, genres]
@@ -479,12 +626,13 @@ components:
         rating: { type: [integer, 'null'], minimum: 1, maximum: 5 }
     LibraryItem:
       type: object
-      required: [user_id, media_id, status, added_at, updated_at]
+      required: [user_id, media_id, status, notifications_enabled, added_at, updated_at]
       properties:
         user_id: { type: string }
         media_id: { type: string }
         status: { type: string, enum: [watchlist, watching, paused, dropped] }
         rating: { type: [integer, 'null'], minimum: 1, maximum: 5 }
+        notifications_enabled: { type: boolean, description: Per-show new-episode notification preference. }
         added_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
     LibraryEntry:

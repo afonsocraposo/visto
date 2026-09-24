@@ -10,10 +10,15 @@ import (
 )
 
 type repo struct {
-	item    library.Item
-	media   library.Media
-	entries []library.Entry
-	lookup  struct {
+	item                   library.Item
+	media                  library.Media
+	entries                []library.Entry
+	notificationPreference struct {
+		userID  string
+		mediaID string
+		enabled bool
+	}
+	lookup struct {
 		userID string
 		typeID domain.MediaType
 		tmdbID int64
@@ -29,6 +34,10 @@ func (r *repo) GetMediaByTMDBID(_ context.Context, userID string, mediaType doma
 		return library.Entry{}, library.ErrMediaNotFound
 	}
 	return r.entries[0], nil
+}
+func (r *repo) SetNotificationsEnabled(_ context.Context, userID, mediaID string, enabled bool) error {
+	r.notificationPreference.userID, r.notificationPreference.mediaID, r.notificationPreference.enabled = userID, mediaID, enabled
+	return nil
 }
 
 func TestGetByTMDBID_GivenAnOwnedTVShow_WhenRequested_ThenItUsesTheAuthenticatedUserAndMediaType(t *testing.T) {
@@ -72,10 +81,38 @@ func TestSaveMedia_GivenTMDBMovie_WhenSaving_ThenItUsesStableMediaID(t *testing.
 		t.Fatalf("media IDs = %q and %q", r.media.ID, r.item.MediaID)
 	}
 }
+
+func TestSave_GivenMovie_WhenPausedOrDropped_ThenItRejectsTheStatus(t *testing.T) {
+	for _, status := range []domain.LibraryStatus{domain.PausedStatus, domain.DroppedStatus} {
+		t.Run(string(status), func(t *testing.T) {
+			_, err := library.NewService(&repo{}).Save(context.Background(), "u", "movie:42", status, nil)
+			if err == nil {
+				t.Fatalf("movie status %q was accepted", status)
+			}
+		})
+	}
+}
+
 func TestSave_GivenSixStarRating_WhenSaving_ThenItRejectsIt(t *testing.T) {
 	rating := 6
 	_, err := library.NewService(&repo{}).Save(context.Background(), "u", "m", domain.WatchingStatus, &rating)
 	if err == nil {
 		t.Fatal("expected rating error")
+	}
+}
+
+func TestSetNotificationsEnabled_GivenTrackedShow_WhenDisabled_ThenItStoresAnOwnerScopedPreference(t *testing.T) {
+	repository := &repo{}
+	if err := library.NewService(repository).SetNotificationsEnabled(context.Background(), "owner", "tv:42", false); err != nil {
+		t.Fatal(err)
+	}
+	if repository.notificationPreference.userID != "owner" || repository.notificationPreference.mediaID != "tv:42" || repository.notificationPreference.enabled {
+		t.Fatalf("preference=%+v", repository.notificationPreference)
+	}
+}
+
+func TestSetNotificationsEnabled_GivenMovie_WhenRequested_ThenItRejectsThePreference(t *testing.T) {
+	if err := library.NewService(&repo{}).SetNotificationsEnabled(context.Background(), "owner", "movie:42", true); err == nil {
+		t.Fatal("expected movie alert preference to be rejected")
 	}
 }

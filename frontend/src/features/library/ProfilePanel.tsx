@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Button, Group, Paper, PasswordInput, Select, Text, TextInput, Title } from "@mantine/core";
 import { IconDownload } from "@tabler/icons-react";
 import { useUserQueryKey } from "../auth/SessionContext";
+import { PersonalTokensPanel } from "./PersonalTokensPanel";
 import type { User } from "../../types";
 
 export function ProfilePanel({ user }: { user: User }) {
@@ -10,12 +11,13 @@ export function ProfilePanel({ user }: { user: User }) {
   const userQueryKey = useUserQueryKey();
   const [visibility, setVisibility] = useState("private");
   const [timezone, setTimezone] = useState("UTC");
+  const [pushoverUserKey, setPushoverUserKey] = useState("");
   const settings = useQuery({
     queryKey: userQueryKey("profile-settings"),
     queryFn: async () => {
       const response = await fetch("/api/v1/profile/activity-settings");
       if (!response.ok) throw new Error();
-      return response.json() as Promise<{ activity_visibility: string; timezone: string }>;
+      return response.json() as Promise<{ activity_visibility: string; timezone: string; pushover_available: boolean; pushover_enabled: boolean; has_pushover_key: boolean }>;
     },
   });
   useEffect(() => {
@@ -36,6 +38,42 @@ export function ProfilePanel({ user }: { user: User }) {
       queryClient.invalidateQueries({ queryKey: userQueryKey("feed") }),
     ]),
   });
+  const savePushover = useMutation({
+    mutationFn: async () => {
+      const response = await fetch("/api/v1/profile/pushover-settings", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: settings.data?.pushover_enabled ?? false, user_key: pushoverUserKey }),
+      });
+      if (!response.ok) {
+        const result = await response.json().catch(() => ({}));
+        throw new Error(result.error || "Could not save Pushover settings.");
+      }
+    }, onSuccess: async () => {
+      setPushoverUserKey("");
+      await queryClient.invalidateQueries({ queryKey: userQueryKey("profile-settings") });
+    },
+  });
+  const updatePushover = useMutation({
+    mutationFn: async (enabled: boolean) => {
+      const response = await fetch("/api/v1/profile/pushover-settings", {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled, user_key: pushoverUserKey }),
+      });
+      if (!response.ok) {
+        const result = await response.json().catch(() => ({}));
+        throw new Error(result.error || "Could not update notification settings.");
+      }
+    }, onSuccess: async () => {
+      setPushoverUserKey("");
+      await queryClient.invalidateQueries({ queryKey: userQueryKey("profile-settings") });
+    },
+  });
+  const removePushoverKey = useMutation({
+    mutationFn: async () => {
+      const response = await fetch("/api/v1/profile/pushover-key", { method: "DELETE" });
+      if (!response.ok) throw new Error("Could not remove the Pushover key.");
+    }, onSuccess: async () => queryClient.invalidateQueries({ queryKey: userQueryKey("profile-settings") }),
+  });
   const settingsUnavailable = settings.isPending || settings.isError;
 
   return <>
@@ -50,6 +88,19 @@ export function ProfilePanel({ user }: { user: User }) {
       {save.isError && <Alert color="red" mt="md">{save.error.message}</Alert>}
       <Button mt="md" disabled={settingsUnavailable} loading={save.isPending} onClick={() => save.mutate()}>Save settings</Button>
 
+      <Title order={3} mt="xl">New episode alerts</Title>
+      {settings.data?.pushover_available ? <>
+        <Text size="sm" c="dimmed" mt="xs">Get a Pushover alert when an unwatched regular episode airs for a show you are watching.</Text>
+        <PasswordInput mt="md" label={settings.data.has_pushover_key ? "Replace Pushover user key" : "Pushover user key"} value={pushoverUserKey} onChange={event => setPushoverUserKey(event.currentTarget.value)} autoComplete="off" />
+        <Text size="xs" c="dimmed" mt={5}>Your key is encrypted before it is saved and is never shown again.</Text>
+        {(savePushover.isError || updatePushover.isError || removePushoverKey.isError) && <Alert color="red" mt="md">{savePushover.error?.message || updatePushover.error?.message || removePushoverKey.error?.message}</Alert>}
+        <Group mt="md">
+          {pushoverUserKey && <Button loading={savePushover.isPending} onClick={() => savePushover.mutate()}>Save key</Button>}
+          {settings.data.has_pushover_key && <Button variant="default" loading={updatePushover.isPending} onClick={() => updatePushover.mutate(!settings.data!.pushover_enabled)}>{settings.data.pushover_enabled ? "Turn alerts off" : "Turn alerts on"}</Button>}
+          {settings.data.has_pushover_key && <Button color="red" variant="subtle" loading={removePushoverKey.isPending} onClick={() => removePushoverKey.mutate()}>Remove key</Button>}
+        </Group>
+      </> : <Text size="sm" c="dimmed" mt="xs">Pushover alerts are not configured by this Visto instance.</Text>}
+
       <Title order={3} mt="xl">Export your data</Title>
       <Text size="sm" c="dimmed" mt="xs">These downloads include only your library, ratings, and watch history.</Text>
       <Group mt="md">
@@ -61,6 +112,7 @@ export function ProfilePanel({ user }: { user: User }) {
         </Button>
       </Group>
     </Paper>
+    <PersonalTokensPanel />
     {user.role === "admin" && <CreateUserPanel />}
   </>;
 }

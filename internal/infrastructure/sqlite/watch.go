@@ -221,13 +221,16 @@ func (store *Store) Timezone(ctx context.Context, userID string) (string, error)
 	return timezone, nil
 }
 
-func (store *Store) ShowsNeedingCatalogRefresh(ctx context.Context, activeTTL, finishedTTL time.Duration) ([]int64, error) {
+func (store *Store) ShowsNeedingCatalogRefresh(ctx context.Context, activeTTL, finishedTTL time.Duration, limit int) ([]int64, error) {
+	if limit <= 0 {
+		return nil, fmt.Errorf("catalog refresh limit must be positive")
+	}
 	activeCutoff := time.Now().UTC().Add(-activeTTL).Format(time.RFC3339Nano)
 	finishedCutoff := time.Now().UTC().Add(-finishedTTL).Format(time.RFC3339Nano)
 	rows, err := store.DB.QueryContext(ctx, `SELECT DISTINCT m.tmdb_id FROM user_media um JOIN media m ON m.id=um.media_id
 		WHERE m.media_type='tv' AND ((m.status IN ('Ended','Canceled','Cancelled') AND (m.catalog_updated_at IS NULL OR m.catalog_updated_at<?)) OR
 		(COALESCE(m.status,'') NOT IN ('Ended','Canceled','Cancelled') AND (m.catalog_updated_at IS NULL OR m.catalog_updated_at<?)))
-		ORDER BY m.catalog_updated_at IS NOT NULL, m.catalog_updated_at`, finishedCutoff, activeCutoff)
+		ORDER BY m.catalog_updated_at IS NOT NULL, m.catalog_updated_at LIMIT ?`, finishedCutoff, activeCutoff, limit)
 	if err != nil {
 		return nil, fmt.Errorf("list catalog refresh IDs: %w", err)
 	}
@@ -253,6 +256,6 @@ var _ interface {
 	ListSeasonEpisodes(context.Context, string, string) ([]watch.ShowEpisode, error)
 } = (*Store)(nil)
 var _ interface {
-	ShowsNeedingCatalogRefresh(context.Context, time.Duration, time.Duration) ([]int64, error)
+	ShowsNeedingCatalogRefresh(context.Context, time.Duration, time.Duration, int) ([]int64, error)
 	ImportShowMetadata(context.Context, string, domain.TVShowMetadata) error
 } = (*Store)(nil)

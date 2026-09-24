@@ -7,6 +7,7 @@ import (
 	"io"
 	"math/rand"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -45,6 +46,8 @@ type Client struct {
 	movieCalls   map[int64]*movieCall
 	episodeCache map[string]cachedEpisode
 	episodeCalls map[string]*episodeCall
+	personCache  map[int64]cachedPerson
+	personCalls  map[int64]*personCall
 }
 
 type cachedSearch struct {
@@ -93,6 +96,15 @@ type episodeCall struct {
 	episode domain.TVEpisodeMetadata
 	err     error
 }
+type cachedPerson struct {
+	person    domain.PersonMetadata
+	expiresAt time.Time
+}
+type personCall struct {
+	done   chan struct{}
+	person domain.PersonMetadata
+	err    error
+}
 
 type retryAfterTransport struct {
 	next    http.RoundTripper
@@ -129,7 +141,7 @@ func New(apiKey string, httpClient *http.Client) (*Client, error) {
 		bounded.MaxIdleConnsPerHost = 4
 		httpClient.Transport = bounded
 	}
-	vistoClient := &Client{client: client, requests: make(chan struct{}, 4), searchCache: map[string]cachedSearch{}, searchCalls: map[string]*searchCall{}, showCache: map[int64]cachedShow{}, showCalls: map[int64]*showCall{}, summaryCache: map[int64]cachedShow{}, summaryCalls: map[int64]*showCall{}, seasonCache: map[string]cachedSeason{}, seasonCalls: map[string]*seasonCall{}, movieCache: map[int64]cachedMovie{}, movieCalls: map[int64]*movieCall{}, episodeCache: map[string]cachedEpisode{}, episodeCalls: map[string]*episodeCall{}}
+	vistoClient := &Client{client: client, requests: make(chan struct{}, 4), searchCache: map[string]cachedSearch{}, searchCalls: map[string]*searchCall{}, showCache: map[int64]cachedShow{}, showCalls: map[int64]*showCall{}, summaryCache: map[int64]cachedShow{}, summaryCalls: map[int64]*showCall{}, seasonCache: map[string]cachedSeason{}, seasonCalls: map[string]*seasonCall{}, movieCache: map[int64]cachedMovie{}, movieCalls: map[int64]*movieCall{}, episodeCache: map[string]cachedEpisode{}, episodeCalls: map[string]*episodeCall{}, personCache: map[int64]cachedPerson{}, personCalls: map[int64]*personCall{}}
 	baseTransport := httpClient.Transport
 	if baseTransport == nil {
 		baseTransport = http.DefaultTransport
@@ -382,6 +394,40 @@ func (client *Client) ShowSummary(ctx context.Context, tmdbID int64) (domain.TVS
 	return cloneShow(show), err
 }
 
+// RefreshShow fetches the show summary and its latest regular season only.
+// This keeps scheduled refresh traffic bounded even for long-running shows.
+func (client *Client) RefreshShow(ctx context.Context, tmdbID int64) (domain.TVShowMetadata, error) {
+	show, err := client.ShowSummary(ctx, tmdbID)
+	if err != nil {
+		return domain.TVShowMetadata{}, err
+	}
+	latestSeason, found := latestRegularSeasonNumber(show.Seasons)
+	if !found {
+		return show, nil
+	}
+	season, err := client.Season(ctx, tmdbID, latestSeason)
+	if err != nil {
+		return domain.TVShowMetadata{}, err
+	}
+	for index := range show.Seasons {
+		if show.Seasons[index].Number == latestSeason {
+			show.Seasons[index].Episodes = season.Episodes
+			break
+		}
+	}
+	return show, nil
+}
+
+func latestRegularSeasonNumber(seasons []domain.TVSeasonMetadata) (int, bool) {
+	latest, found := 0, false
+	for _, season := range seasons {
+		if season.Number > 0 && (!found || season.Number > latest) {
+			latest, found = season.Number, true
+		}
+	}
+	return latest, found
+}
+
 func (client *Client) Season(ctx context.Context, tmdbID int64, seasonNumber int) (domain.TVSeasonMetadata, error) {
 	if tmdbID <= 0 || seasonNumber < 0 {
 		return domain.TVSeasonMetadata{}, fmt.Errorf("TMDB show and season IDs must be valid")
@@ -463,6 +509,55 @@ func (client *Client) Movie(ctx context.Context, tmdbID int64) (domain.MovieMeta
 	close(call.done)
 	client.mu.Unlock()
 	return cloneMovie(movie), err
+}
+
+func (client *Client) Person(ctx context.Context, tmdbID int64) (domain.PersonMetadata, error) {
+	if tmdbID <= 0 {
+		return domain.PersonMetadata{}, fmt.Errorf("TMDB person ID must be positive")
+	}
+	client.mu.Lock()
+	if cached, ok := client.personCache[tmdbID]; ok && time.Now().Before(cached.expiresAt) {
+		client.mu.Unlock()
+		return clonePerson(cached.person), nil
+	}
+	if call, ok := client.personCalls[tmdbID]; ok {
+		client.mu.Unlock()
+		select {
+		case <-call.done:
+			return clonePerson(call.person), call.err
+		case <-ctx.Done():
+			return domain.PersonMetadata{}, ctx.Err()
+		}
+	}
+	call := &personCall{done: make(chan struct{})}
+	client.personCalls[tmdbID] = call
+	client.mu.Unlock()
+
+	person, err := client.fetchPerson(ctx, tmdbID)
+	client.mu.Lock()
+	call.person = clonePerson(person)
+	call.err = err
+	if err == nil {
+		client.personCache[tmdbID] = cachedPerson{person: clonePerson(person), expiresAt: time.Now().Add(showCacheTTL)}
+		now := time.Now()
+		for id, cached := range client.personCache {
+			if !now.Before(cached.expiresAt) {
+				delete(client.personCache, id)
+			}
+		}
+		for len(client.personCache) > maxShowCacheEntries {
+			for id := range client.personCache {
+				if id != tmdbID {
+					delete(client.personCache, id)
+					break
+				}
+			}
+		}
+	}
+	delete(client.personCalls, tmdbID)
+	close(call.done)
+	client.mu.Unlock()
+	return clonePerson(person), err
 }
 
 func (client *Client) Episode(ctx context.Context, showID int64, seasonNumber int, episodeNumber int) (domain.TVEpisodeMetadata, error) {
@@ -552,6 +647,12 @@ func cloneMovie(movie domain.MovieMetadata) domain.MovieMetadata {
 	return clone
 }
 
+func clonePerson(person domain.PersonMetadata) domain.PersonMetadata {
+	clone := person
+	clone.Credits = append([]domain.PersonCredit(nil), person.Credits...)
+	return clone
+}
+
 func (client *Client) fetchShow(ctx context.Context, tmdbID int64) (domain.TVShowMetadata, error) {
 	show, err := client.ShowSummary(ctx, tmdbID)
 	if err != nil {
@@ -635,6 +736,55 @@ func (client *Client) fetchMovie(ctx context.Context, tmdbID int64) (domain.Movi
 		}
 	}
 	return movie, nil
+}
+
+func (client *Client) fetchPerson(ctx context.Context, tmdbID int64) (domain.PersonMetadata, error) {
+	if err := client.acquire(ctx); err != nil {
+		return domain.PersonMetadata{}, err
+	}
+	defer func() { <-client.requests }()
+	var details *tmdbapi.PersonDetails
+	if err := client.requestHeld(ctx, func() error {
+		var requestErr error
+		details, requestErr = client.client.GetPersonDetails(int(tmdbID), map[string]string{"append_to_response": "combined_credits"})
+		return requestErr
+	}); err != nil {
+		return domain.PersonMetadata{}, err
+	}
+	person := domain.PersonMetadata{TMDBID: details.ID, Name: details.Name, Biography: details.Biography, ProfilePath: details.ProfilePath, Birthday: details.Birthday, Deathday: details.Deathday, PlaceOfBirth: details.PlaceOfBirth, KnownFor: details.KnownForDepartment, Credits: []domain.PersonCredit{}}
+	seen := make(map[string]int)
+	if details.PersonCombinedCreditsAppend != nil && details.CombinedCredits != nil {
+		for _, credit := range details.CombinedCredits.Cast {
+			mediaType := domain.MediaType(credit.MediaType)
+			if (mediaType != domain.MovieMediaType && mediaType != domain.TVMediaType) || credit.Adult || credit.ID <= 0 {
+				continue
+			}
+			title, originalTitle, releaseDate := credit.Title, credit.OriginalTitle, credit.ReleaseDate
+			if mediaType == domain.TVMediaType {
+				title, originalTitle, releaseDate = credit.Name, credit.OriginalName, credit.FirstAirDate
+			}
+			if title == "" {
+				continue
+			}
+			item := domain.PersonCredit{TMDBID: credit.ID, Type: mediaType, Title: title, OriginalTitle: originalTitle, Character: credit.Character, Overview: credit.Overview, ReleaseDate: releaseDate, PosterPath: credit.PosterPath, BackdropPath: credit.BackdropPath, OriginalLanguage: credit.OriginalLanguage, Popularity: credit.Popularity}
+			key := fmt.Sprintf("%s:%d", mediaType, credit.ID)
+			if index, exists := seen[key]; exists {
+				if person.Credits[index].Character == "" && item.Character != "" {
+					person.Credits[index].Character = item.Character
+				}
+				continue
+			}
+			seen[key] = len(person.Credits)
+			person.Credits = append(person.Credits, item)
+		}
+	}
+	sort.SliceStable(person.Credits, func(i, j int) bool {
+		if person.Credits[i].Popularity != person.Credits[j].Popularity {
+			return person.Credits[i].Popularity > person.Credits[j].Popularity
+		}
+		return person.Credits[i].Title < person.Credits[j].Title
+	})
+	return person, nil
 }
 
 func (client *Client) fetchEpisode(ctx context.Context, showID int64, seasonNumber int, episodeNumber int) (domain.TVEpisodeMetadata, error) {
@@ -767,3 +917,5 @@ var ErrTemporarilyUnavailable = errors.New("metadata temporarily unavailable")
 
 var _ domain.MetadataProvider = (*Client)(nil)
 var _ domain.TVShowMetadataProvider = (*Client)(nil)
+var _ domain.ScheduledTVShowMetadataProvider = (*Client)(nil)
+var _ domain.PersonMetadataProvider = (*Client)(nil)

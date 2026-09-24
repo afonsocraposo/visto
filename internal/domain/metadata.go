@@ -17,6 +17,12 @@ type TVShowMetadataProvider interface {
 	Show(ctx context.Context, tmdbID int64) (TVShowMetadata, error)
 }
 
+// ScheduledTVShowMetadataProvider returns a bounded refresh snapshot for the
+// background catalog job. Implementations should avoid fetching every season.
+type ScheduledTVShowMetadataProvider interface {
+	RefreshShow(ctx context.Context, tmdbID int64) (TVShowMetadata, error)
+}
+
 // TVShowSummaryProvider provides the show-level details without loading every
 // season's episodes. The HTTP layer uses this for temporary Discover views.
 type TVShowSummaryProvider interface {
@@ -30,6 +36,36 @@ type MovieMetadataProvider interface {
 
 type TVEpisodeMetadataProvider interface {
 	Episode(ctx context.Context, showID int64, seasonNumber int, episodeNumber int) (TVEpisodeMetadata, error)
+}
+
+type PersonMetadataProvider interface {
+	Person(ctx context.Context, tmdbID int64) (PersonMetadata, error)
+}
+
+type PersonMetadata struct {
+	TMDBID       int64          `json:"tmdb_id"`
+	Name         string         `json:"name"`
+	Biography    string         `json:"biography"`
+	ProfilePath  string         `json:"profile_path,omitempty"`
+	Birthday     string         `json:"birthday,omitempty"`
+	Deathday     string         `json:"deathday,omitempty"`
+	PlaceOfBirth string         `json:"place_of_birth,omitempty"`
+	KnownFor     string         `json:"known_for_department,omitempty"`
+	Credits      []PersonCredit `json:"credits"`
+}
+
+type PersonCredit struct {
+	TMDBID           int64     `json:"tmdb_id"`
+	Type             MediaType `json:"type"`
+	Title            string    `json:"title"`
+	OriginalTitle    string    `json:"original_title,omitempty"`
+	Character        string    `json:"character,omitempty"`
+	Overview         string    `json:"overview,omitempty"`
+	ReleaseDate      string    `json:"release_date,omitempty"`
+	PosterPath       string    `json:"poster_path,omitempty"`
+	BackdropPath     string    `json:"backdrop_path,omitempty"`
+	OriginalLanguage string    `json:"original_language,omitempty"`
+	Popularity       float32   `json:"popularity"`
 }
 
 type TVShowMetadata struct {

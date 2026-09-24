@@ -2,6 +2,8 @@ package auth
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -96,6 +98,115 @@ func TestLogoutBDD(t *testing.T) {
 		}
 		if repository.revokedTokenHash != "" {
 			t.Fatal("expected no token to be revoked")
+		}
+	})
+}
+
+type personalTokenTestRepository struct {
+	logoutRepository
+	user   domain.User
+	tokens map[string]PersonalToken
+	hashes map[string]string
+}
+
+func (repository *personalTokenTestRepository) CreatePersonalToken(_ context.Context, id, userID, name, tokenHash string, createdAt time.Time, expiresAt *time.Time) error {
+	if repository.tokens == nil {
+		repository.tokens = map[string]PersonalToken{}
+		repository.hashes = map[string]string{}
+	}
+	item := PersonalToken{ID: id, Name: name, CreatedAt: createdAt, ExpiresAt: expiresAt}
+	repository.tokens[id] = item
+	repository.hashes[tokenHash] = id
+	return nil
+}
+
+func (repository *personalTokenTestRepository) ListPersonalTokens(context.Context, string) ([]PersonalToken, error) {
+	items := []PersonalToken{}
+	for _, item := range repository.tokens {
+		items = append(items, item)
+	}
+	return items, nil
+}
+
+func (repository *personalTokenTestRepository) RevokePersonalToken(_ context.Context, _, id string) error {
+	item, ok := repository.tokens[id]
+	if !ok {
+		return ErrPersonalTokenMissing
+	}
+	delete(repository.tokens, id)
+	for hash, tokenID := range repository.hashes {
+		if tokenID == item.ID {
+			delete(repository.hashes, hash)
+		}
+	}
+	return nil
+}
+
+func (repository *personalTokenTestRepository) FindUserByPersonalTokenHash(_ context.Context, hash string, now time.Time) (domain.User, error) {
+	id, ok := repository.hashes[hash]
+	if !ok {
+		return domain.User{}, ErrInvalidCredentials
+	}
+	item := repository.tokens[id]
+	if item.ExpiresAt != nil && !item.ExpiresAt.After(now) {
+		return domain.User{}, ErrInvalidCredentials
+	}
+	usedAt := now
+	item.LastUsedAt = &usedAt
+	repository.tokens[id] = item
+	return repository.user, nil
+}
+
+func TestPersonalTokensBDD(t *testing.T) {
+	t.Run("Given a named personal token, When it is created, Then only its hash is stored and the secret is returned once", func(t *testing.T) {
+		repository := &personalTokenTestRepository{user: domain.User{ID: "user-1", Role: domain.UserRole}}
+		service := NewService(repository)
+		expiry := time.Now().UTC().Add(24 * time.Hour)
+
+		issued, err := service.CreatePersonalToken(context.Background(), repository.user.ID, "   home server   ", &expiry)
+		if err != nil {
+			t.Fatalf("create personal token: %v", err)
+		}
+		if !strings.HasPrefix(issued.Token, "visto_pat_") || issued.PersonalToken.Name != "home server" {
+			t.Fatalf("issued token = %+v", issued)
+		}
+		if _, storesPlaintext := repository.hashes[issued.Token]; storesPlaintext {
+			t.Fatal("repository must not store the plaintext token")
+		}
+		if _, ok := repository.hashes[hashToken(issued.Token)]; !ok {
+			t.Fatal("repository must store the one-way token hash")
+		}
+
+		user, err := service.AuthenticatePersonalToken(context.Background(), issued.Token)
+		if err != nil || user.ID != repository.user.ID {
+			t.Fatalf("authenticate token: user=%+v error=%v", user, err)
+		}
+		listed, err := service.PersonalTokens(context.Background(), repository.user.ID)
+		if err != nil || len(listed) != 1 || listed[0].LastUsedAt == nil {
+			t.Fatalf("list token use: tokens=%+v error=%v", listed, err)
+		}
+		if err := service.RevokePersonalToken(context.Background(), repository.user.ID, issued.ID); err != nil {
+			t.Fatalf("revoke token: %v", err)
+		}
+		if _, err := service.AuthenticatePersonalToken(context.Background(), issued.Token); !errors.Is(err, ErrInvalidCredentials) {
+			t.Fatalf("authentication after revocation error=%v, want invalid credentials", err)
+		}
+	})
+
+	t.Run("Given a token name that is blank, When creating a token, Then it is rejected", func(t *testing.T) {
+		service := NewService(&personalTokenTestRepository{user: domain.User{ID: "user-1"}})
+		if _, err := service.CreatePersonalToken(context.Background(), "user-1", "  ", nil); err == nil {
+			t.Fatal("expected an empty token name to be rejected")
+		}
+	})
+
+	t.Run("Given an expiry in the past, When creating a token, Then it is rejected", func(t *testing.T) {
+		service := NewService(&personalTokenTestRepository{user: domain.User{ID: "user-1"}})
+		now := time.Date(2026, time.September, 24, 12, 0, 0, 0, time.UTC)
+		service.now = func() time.Time { return now }
+		expiry := now.Add(-time.Second)
+		if _, err := service.CreatePersonalToken(context.Background(), "user-1", "expired", &expiry); !errors.Is(err, ErrInvalidPersonalToken) {
+			t.Fatalf("create error=%v, want invalid token details", err)
 		}
 	})
 }

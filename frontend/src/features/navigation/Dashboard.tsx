@@ -9,6 +9,7 @@ import { FeedArea } from "../feed/FeedArea";
 import { LibraryArea } from "../library/LibraryArea";
 import { LibraryListPage } from "../library/LibraryListPage";
 import { MediaDetailPage } from "../details/MediaDetailPage";
+import { PersonDetailPage } from "../people/PersonDetailPage";
 import { activeTabForLocation } from "./activeTab";
 import type { LibraryStatus, MediaDetailTarget, Tab, Theme, User } from "../../types";
 import { connectionUnavailableEvent } from "../../lib/api";
@@ -22,6 +23,8 @@ export function Dashboard({ user, theme, setTheme }: { user: User; theme: Theme;
   const returnTo = detailSearch.get("from");
   const tab: Tab = activeTabForLocation(pathname, window.location.search, window.location.origin);
   const detailMatch = pathname.match(/^\/media\/(movie|tv)\/(\d+)$/);
+  const personMatch = pathname.match(/^\/people\/(\d+)$/);
+  const personID = personMatch ? Number(personMatch[1]) : undefined;
   const listMatch = pathname.match(/^\/profile\/library\/(watching|completed|watchlist|paused|dropped)$/);
   const listStatus = listMatch?.[1] as LibraryStatus | undefined;
   const seedTitle = detailSearch.get("title");
@@ -60,6 +63,7 @@ export function Dashboard({ user, theme, setTheme }: { user: User; theme: Theme;
       } : {}),
     },
   });
+  const openPerson = (tmdbID: number) => void navigate({ to: `/people/${tmdbID}`, search: { from: currentHref } });
   const [view, setView] = useState("now");
   const [online, setOnline] = useState(() => navigator.onLine);
   const [checkingConnection, setCheckingConnection] = useState(false);
@@ -151,7 +155,7 @@ export function Dashboard({ user, theme, setTheme }: { user: User; theme: Theme;
           </Alert>
         )}
         {logout.isError && <Alert color="red" mb="md">{logout.error.message}</Alert>}
-        {detail ? <MediaDetailPage target={detail} onBack={() => void navigate({ to: safeReturnPath(returnTo, detail.mediaType === "tv" ? "/profile" : "/discover") })} onOpenDetail={openDetail} /> : listStatus ? <LibraryListPage status={listStatus} onBack={() => void navigate({ to: "/profile" })} onOpenDetail={openDetail} /> : tab === "watch" && (
+        {personID ? <PersonDetailPage personID={personID} onBack={() => void navigate({ to: safeReturnPath(returnTo, "/discover") })} onOpenDetail={openDetail} /> : detail ? <MediaDetailPage target={detail} onBack={() => void navigate({ to: safeReturnPath(returnTo, detail.mediaType === "tv" ? "/profile" : "/discover") })} onOpenDetail={openDetail} onOpenPerson={openPerson} /> : listStatus ? <LibraryListPage status={listStatus} onBack={() => void navigate({ to: "/profile" })} onOpenDetail={openDetail} /> : tab === "watch" && (
           <>
             <Tabs className="watch-tabs" value={view} onChange={value => setView(value || "now")}>
               <Tabs.List>
@@ -162,9 +166,9 @@ export function Dashboard({ user, theme, setTheme }: { user: User; theme: Theme;
             {view === "now" ? <WatchNow onOpenDetail={openDetail} /> : <WatchCalendar />}
           </>
         )}
-        {!detail && tab === "search" && <SearchPanel onOpenDetail={openDetail} />}
-        {!detail && tab === "feed" && <FeedArea />}
-        {!detail && !listStatus && tab === "library" && <LibraryArea user={user} onOpenDetail={openDetail} onOpenList={status => void navigate({ to: `/profile/library/${status}` })} />}
+        {!detail && !personID && tab === "search" && <SearchPanel onOpenDetail={openDetail} />}
+        {!detail && !personID && tab === "feed" && <FeedArea />}
+        {!detail && !personID && !listStatus && tab === "library" && <LibraryArea user={user} onOpenDetail={openDetail} onOpenList={status => void navigate({ to: `/profile/library/${status}` })} />}
       </AppShell.Main>
       <AppShell.Footer className="visto-footer">
         <Group className="bottom-nav" justify="space-around" h="100%">

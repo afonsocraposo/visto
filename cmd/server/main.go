@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -15,9 +16,12 @@ import (
 	exportapp "github.com/afonsocosta/visto/internal/application/export"
 	"github.com/afonsocosta/visto/internal/application/feed"
 	"github.com/afonsocosta/visto/internal/application/library"
+	"github.com/afonsocosta/visto/internal/application/notifications"
 	"github.com/afonsocosta/visto/internal/application/profile"
 	"github.com/afonsocosta/visto/internal/application/tracking"
 	"github.com/afonsocosta/visto/internal/application/watch"
+	backupjob "github.com/afonsocosta/visto/internal/infrastructure/backup"
+	"github.com/afonsocosta/visto/internal/infrastructure/pushover"
 	"github.com/afonsocosta/visto/internal/infrastructure/sqlite"
 	"github.com/afonsocosta/visto/internal/infrastructure/tmdb"
 	httpserver "github.com/afonsocosta/visto/internal/presentation/http"
@@ -54,10 +58,46 @@ func main() {
 	watchService := watch.NewService(store, metadataProvider)
 	refreshContext, stopRefresh := context.WithCancel(context.Background())
 	defer stopRefresh()
-	go watchService.RunCatalogRefresher(refreshContext, 6*time.Hour, 24*time.Hour, 30*24*time.Hour)
+	refreshInterval := durationEnvironment("VISTO_CATALOG_REFRESH_INTERVAL", 6*time.Hour)
+	activeRefreshTTL := durationEnvironment("VISTO_CATALOG_ACTIVE_TTL", 24*time.Hour)
+	finishedRefreshTTL := durationEnvironment("VISTO_CATALOG_FINISHED_TTL", 30*24*time.Hour)
+	go watchService.RunCatalogRefresher(refreshContext, refreshInterval, activeRefreshTTL, finishedRefreshTTL)
+	backupInterval := durationEnvironment("VISTO_BACKUP_INTERVAL", 24*time.Hour)
+	backupRetention := durationEnvironment("VISTO_BACKUP_RETENTION", 30*24*time.Hour)
+	backupDirectory := environment("VISTO_BACKUP_DIR", filepath.Join(filepath.Dir(databasePath), "backups"))
+	backupContext, stopBackup := context.WithCancel(context.Background())
+	defer stopBackup()
+	go backupjob.Run(backupContext, databasePath, backupDirectory, backupInterval, backupRetention, log.Default())
+	appToken := os.Getenv("VISTO_PUSHOVER_APP_TOKEN")
+	encryptionKey := os.Getenv("VISTO_SECRET_ENCRYPTION_KEY")
+	if appToken != "" && encryptionKey == "" {
+		log.Fatal("VISTO_SECRET_ENCRYPTION_KEY is required when Pushover is configured")
+	}
+	var profileConfig profile.PushoverConfig
+	var secretCipher *pushover.AESGCMCipher
+	if encryptionKey != "" {
+		cipher, err := pushover.NewAESGCMCipher(encryptionKey)
+		if err != nil {
+			log.Fatalf("configure secret encryption: %v", err)
+		}
+		secretCipher = cipher
+		profileConfig.Cipher = cipher
+		profileConfig.Available = appToken != ""
+	}
+	profiles := profile.NewService(store, profileConfig)
+	if appToken != "" {
+		pushoverClient, err := pushover.NewClient(appToken, nil)
+		if err != nil {
+			log.Fatalf("configure Pushover: %v", err)
+		}
+		dispatchInterval := durationEnvironment("VISTO_PUSHOVER_INTERVAL", 15*time.Minute)
+		notificationContext, stopNotifications := context.WithCancel(context.Background())
+		defer stopNotifications()
+		go notifications.NewService(store, pushoverClient, secretCipher).Run(notificationContext, dispatchInterval, log.Default())
+	}
 	server := &http.Server{
 		Addr:              environment("VISTO_LISTEN_ADDR", ":8080"),
-		Handler:           httpserver.New(auth.NewService(store), metadataProvider, os.Getenv("VISTO_WEB_DIR"), library.NewService(store), tracking.NewService(store), profile.NewService(store), feed.NewService(store), exportapp.NewService(store), watchService).Handler(),
+		Handler:           httpserver.New(auth.NewService(store), metadataProvider, os.Getenv("VISTO_WEB_DIR"), library.NewService(store), tracking.NewService(store), profiles, feed.NewService(store), exportapp.NewService(store), watchService).Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
@@ -87,4 +127,23 @@ func environment(name, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func durationEnvironment(name string, fallback time.Duration) time.Duration {
+	duration, err := parseDuration(name, os.Getenv(name), fallback)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return duration
+}
+
+func parseDuration(name, value string, fallback time.Duration) (time.Duration, error) {
+	if value == "" {
+		return fallback, nil
+	}
+	duration, err := time.ParseDuration(value)
+	if err != nil || duration <= 0 {
+		return 0, fmt.Errorf("%s must be a positive duration", name)
+	}
+	return duration, nil
 }

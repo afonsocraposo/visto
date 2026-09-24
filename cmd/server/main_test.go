@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/afonsocosta/visto/internal/infrastructure/sqlite"
 )
@@ -40,5 +41,20 @@ func TestRunBackup_GivenServerDatabase_WhenOperatorRequestsBackup_ThenTheBackupC
 	}
 	if value != "saved" {
 		t.Fatalf("backup value=%q, want saved", value)
+	}
+}
+
+func TestParseDuration_GivenEmptyValidOrInvalidSetting_WhenParsed_ThenItUsesOnlyPositiveDurations(t *testing.T) {
+	fallback := 6 * time.Hour
+	if actual, err := parseDuration("VISTO_TEST_INTERVAL", "", fallback); err != nil || actual != fallback {
+		t.Fatalf("empty setting = %s, %v; want fallback %s", actual, err, fallback)
+	}
+	if actual, err := parseDuration("VISTO_TEST_INTERVAL", "12h", fallback); err != nil || actual != 12*time.Hour {
+		t.Fatalf("valid setting = %s, %v; want 12h", actual, err)
+	}
+	for _, value := range []string{"0s", "-1h", "invalid"} {
+		if _, err := parseDuration("VISTO_TEST_INTERVAL", value, fallback); err == nil {
+			t.Errorf("setting %q was accepted, want a positive duration error", value)
+		}
 	}
 }

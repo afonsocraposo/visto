@@ -2,12 +2,44 @@ package sqlite_test
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/afonsocosta/visto/internal/domain"
 	"github.com/afonsocosta/visto/internal/infrastructure/sqlite"
 )
+
+func TestShowsNeedingCatalogRefresh_GivenManyTrackedShows_WhenLimited_ThenItReturnsOnlyTheBoundedBatch(t *testing.T) {
+	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "visto.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	if _, err := store.DB.Exec(`INSERT INTO users(id,username,display_name,password_hash,role,created_at,updated_at) VALUES('u','u','u','hash','user',?,?)`, now, now); err != nil {
+		t.Fatal(err)
+	}
+	for id := int64(1); id <= 4; id++ {
+		mediaID := fmt.Sprintf("tv:%d", id)
+		if _, err := store.DB.Exec(`INSERT INTO media(id,media_type,tmdb_id,title,status,metadata_updated_at,created_at) VALUES(?,'tv',?,?,'Returning','2026-01-01','2026-01-01')`, mediaID, id, mediaID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := store.DB.Exec(`INSERT INTO user_media(id,user_id,media_id,status,added_at,updated_at) VALUES(?, 'u', ?, 'watching', '2026-01-01', '2026-01-01')`, "u:"+mediaID, mediaID); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	ids, err := store.ShowsNeedingCatalogRefresh(context.Background(), 24*time.Hour, 30*24*time.Hour, 2)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ids) != 2 {
+		t.Fatalf("refresh IDs=%v, want exactly two", ids)
+	}
+}
 
 func TestImportShowMetadata_GivenShowWithRegularEpisodesAndSpecials_WhenImported_ThenEpisodesAreStoredByTMDBIdentity(t *testing.T) {
 	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "visto.db"))

@@ -506,6 +506,40 @@ and backups. v0.1 supports an operator-initiated SQLite backup. v0.2 adds a
 lightweight in-process scheduler for metadata refresh, duplicate-safe Pushover
 delivery, automatic SQLite backups using SQLite's backup API, and retention.
 
+The scheduler runs in the application process and stops on graceful shutdown.
+It refreshes tracked TV catalogs every 6 hours by default, checks active or
+upcoming shows after 24 hours, and checks ended or cancelled shows after 30
+days. Optional Pushover notifications are checked every 15 minutes by default.
+The refresh interval and both freshness windows are configurable with
+`VISTO_CATALOG_REFRESH_INTERVAL`, `VISTO_CATALOG_ACTIVE_TTL`, and
+`VISTO_CATALOG_FINISHED_TTL`. A run processes a bounded batch; a failed TMDB
+request is logged and retried at a later scheduled run, not in a tight loop.
+Each show refresh fetches its summary and, at most, the latest regular season;
+it does not re-fetch every season of long-running shows.
+
+Automatic SQLite backups use the online backup API. They run daily by default,
+are written under `/data/backups`, and are retained for 30 days. Operators can
+set `VISTO_BACKUP_DIR`, `VISTO_BACKUP_INTERVAL`, and
+`VISTO_BACKUP_RETENTION`. Visto creates backups with owner-only file
+permissions and only prunes expired backups with its own filename pattern.
+The existing manual backup command remains available.
+
+Personal API tokens belong to one user. Their high-entropy secrets are shown
+only at creation and stored as hashes. Users can name, optionally expire, list,
+and revoke their own tokens. A bearer token has the same user-scoped authority
+as that user's web session; it does not bypass authorization or reveal another
+user's data.
+
+Pushover is optional and opt-in. An installation provides the Pushover
+application token and a secret-encryption key; each user supplies and can
+remove their own Pushover user key. User keys are encrypted at rest. Visto may
+send one notification for each newly aired regular episode for a show in that
+user's `watching` list when notifications are enabled. Paused or dropped
+shows, disabled per-show notifications, and episodes the user has already
+watched are excluded. Notifications start when a show enters `watching` or
+per-show alerts are enabled, so opting in does not send an old-episode backlog.
+Notification delivery is deduplicated per user and episode.
+
 User exports contain only the authenticated user's data. CSV is a convenient
 archive; JSON is designed for reliable future import and round-trip backup.
 

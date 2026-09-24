@@ -1,6 +1,7 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { Alert, Button, Group, Loader, Paper, Text, Title } from "@mantine/core";
 import { EmptyState } from "../../components/EmptyState";
+import { RatingStars } from "../../components/RatingStars";
 import { useUserQueryKey } from "../auth/SessionContext";
 import { api } from "../../lib/api";
 import type { FeedItem } from "../../types";
@@ -26,13 +27,15 @@ export function FeedPanel() {
       <div className="page-heading"><Text className="section-kicker">From your household</Text><Title order={1}>Community feed</Title></div>
       {items.map(item => (
         <Paper className="feed-card" key={item.id} withBorder p="md" mt="sm">
-          <Group wrap="nowrap" align="flex-start">
+          <Group wrap="wrap" align="flex-start">
             <div className="feed-avatar" aria-hidden="true">{item.display_name.slice(0, 1).toUpperCase()}</div>
-            <Text>
+            <Group className="feed-activity-content" wrap="wrap" gap="xs" align="center">
+            <Text className="feed-activity-text">
               <Text component="span" fw={700}>{item.display_name}</Text> {item.kind === "rewatch" ? "rewatched" : item.kind === "rating" ? "rated" : item.kind === "bulk_watch" ? `marked ${item.count} episodes of` : "watched"}{" "}
               <Text component="span" fw={700}>{item.title}</Text>
-              {item.kind === "rating" && item.rating ? ` · ${"★".repeat(item.rating)}` : item.season_number ? ` · S${String(item.season_number).padStart(2, "0")}E${String(item.episode_number).padStart(2, "0")}` : ""}
             </Text>
+            {item.kind === "rating" && item.rating ? <RatingStars value={item.rating} label={`${item.display_name}'s rating`} readOnly size="sm" /> : item.season_number ? <Text size="sm" c="dimmed">S{String(item.season_number).padStart(2, "0")}E{String(item.episode_number).padStart(2, "0")}</Text> : null}
+            </Group>
           </Group>
         </Paper>
       ))}

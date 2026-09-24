@@ -27,7 +27,6 @@ test("Given a failed API response, When the API client reads it, Then it uses th
   }
 });
 
-
 test("Given an API failure, When retry policy checks it, Then only transient responses are retried", async () => {
   assert.equal(retryTransientRequest(0, new APIRequestError("Busy", 503)), true);
   assert.equal(retryTransientRequest(0, new APIRequestError("Slow down", 429)), true);
@@ -35,6 +34,7 @@ test("Given an API failure, When retry policy checks it, Then only transient res
   assert.equal(retryTransientRequest(2, new APIRequestError("Busy", 503)), false);
   assert.equal(retryTransientRequest(0, new TypeError("Failed to fetch")), true);
 });
+
 test("Given a failed network request, When the API client cannot reach the server, Then it reports the unavailable connection", async () => {
   const originalFetch = globalThis.fetch;
   const originalWindow = globalThis.window;
@@ -77,6 +77,21 @@ test("Given an empty success response, When the API client sends a delete, Then 
   };
   try {
     assert.equal(await api.delete("/api/v1/plays/play-1"), undefined);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("Given episode IDs, When the API client deletes with a body, Then it sends the JSON payload", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (path, init) => {
+    assert.equal(path, "/api/v1/plays/bulk");
+    assert.equal(init.method, "DELETE");
+    assert.deepEqual(JSON.parse(init.body), { episode_ids: ["episode-1", "episode-2"] });
+    return new Response(null, { status: 204 });
+  };
+  try {
+    assert.equal(await api.delete("/api/v1/plays/bulk", "Could not mark unwatched.", { episode_ids: ["episode-1", "episode-2"] }), undefined);
   } finally {
     globalThis.fetch = originalFetch;
   }

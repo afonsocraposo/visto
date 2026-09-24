@@ -47,4 +47,55 @@ func (store *Store) SetSettings(ctx context.Context, userID string, settings pro
 	return tx.Commit()
 }
 
+func (store *Store) GetPushoverSettings(ctx context.Context, userID string) (enabled, hasKey bool, err error) {
+	err = store.DB.QueryRowContext(ctx, `SELECT pushover_notifications_enabled,pushover_user_key_encrypted IS NOT NULL FROM user_settings WHERE user_id=?`, userID).Scan(&enabled, &hasKey)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, false, fmt.Errorf("settings not found")
+	}
+	if err != nil {
+		return false, false, fmt.Errorf("get Pushover settings: %w", err)
+	}
+	return enabled, hasKey, nil
+}
+
+func (store *Store) SetPushoverSettings(ctx context.Context, userID string, encryptedKey *string, enabled bool) error {
+	tx, err := store.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	var wasEnabled bool
+	if err := tx.QueryRowContext(ctx, `SELECT pushover_notifications_enabled FROM user_settings WHERE user_id=?`, userID).Scan(&wasEnabled); err != nil {
+		return fmt.Errorf("read Pushover settings: %w", err)
+	}
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	_, err = tx.ExecContext(ctx, `UPDATE user_settings SET
+		pushover_user_key_encrypted=COALESCE(?,pushover_user_key_encrypted),pushover_notifications_enabled=?,updated_at=?
+		WHERE user_id=?`, encryptedKey, enabled, now, userID)
+	if err != nil {
+		return fmt.Errorf("save Pushover settings: %w", err)
+	}
+	if enabled && !wasEnabled {
+		if _, err := tx.ExecContext(ctx, `UPDATE user_media SET notifications_since=? WHERE user_id=? AND status='watching'`, now, userID); err != nil {
+			return fmt.Errorf("set Pushover notification baseline: %w", err)
+		}
+	}
+	return tx.Commit()
+}
+
+func (store *Store) ClearPushoverKey(ctx context.Context, userID string) error {
+	result, err := store.DB.ExecContext(ctx, `UPDATE user_settings SET pushover_user_key_encrypted=NULL,pushover_notifications_enabled=0,updated_at=? WHERE user_id=?`, time.Now().UTC().Format(time.RFC3339Nano), userID)
+	if err != nil {
+		return fmt.Errorf("clear Pushover user key: %w", err)
+	}
+	changed, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("inspect cleared Pushover settings: %w", err)
+	}
+	if changed == 0 {
+		return fmt.Errorf("settings not found")
+	}
+	return nil
+}
+
 var _ profile.Repository = (*Store)(nil)

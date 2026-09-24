@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -46,6 +47,14 @@ type Repository interface {
 
 type historyRepository interface {
 	ListPlays(context.Context, string, int) ([]HistoryEntry, error)
+}
+
+type episodePlayDeletionRepository interface {
+	DeleteEpisodePlays(context.Context, string, []string) error
+}
+
+type mediaPlayDeletionRepository interface {
+	DeleteMediaPlays(context.Context, string, string) error
 }
 
 type episodeRatingRepository interface {
@@ -145,6 +154,41 @@ func (service *Service) Remove(ctx context.Context, userID, playID string) error
 		return fmt.Errorf("user and play are required")
 	}
 	return service.repository.DeletePlay(ctx, userID, playID)
+}
+
+func (service *Service) RemoveEpisodes(ctx context.Context, userID string, episodeIDs []string) error {
+	if userID == "" {
+		return fmt.Errorf("user is required")
+	}
+	if len(episodeIDs) == 0 || len(episodeIDs) > 100 {
+		return fmt.Errorf("bulk action must include 1 to 100 episodes")
+	}
+	seen := map[string]bool{}
+	for _, episodeID := range episodeIDs {
+		if episodeID == "" || seen[episodeID] {
+			return fmt.Errorf("episode IDs must be non-empty and unique")
+		}
+		seen[episodeID] = true
+	}
+	repository, ok := service.repository.(episodePlayDeletionRepository)
+	if !ok {
+		return fmt.Errorf("bulk episode deletion is not configured")
+	}
+	return repository.DeleteEpisodePlays(ctx, userID, episodeIDs)
+}
+
+func (service *Service) RemoveMediaPlays(ctx context.Context, userID, mediaID string) error {
+	if userID == "" || mediaID == "" {
+		return fmt.Errorf("user and media are required")
+	}
+	if !strings.HasPrefix(mediaID, "movie:") {
+		return fmt.Errorf("only movie watch history can be removed by media ID")
+	}
+	repository, ok := service.repository.(mediaPlayDeletionRepository)
+	if !ok {
+		return fmt.Errorf("media watch removal is not configured")
+	}
+	return repository.DeleteMediaPlays(ctx, userID, mediaID)
 }
 
 func (service *Service) History(ctx context.Context, userID string, limit int) ([]HistoryEntry, error) {

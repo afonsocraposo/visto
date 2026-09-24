@@ -11,11 +11,16 @@ import (
 
 type metadataRepository struct {
 	repository
-	showIDs  []int64
-	imported []int64
+	showIDs      []int64
+	imported     []int64
+	refreshLimit int
 }
 
-func (r *metadataRepository) ShowsNeedingCatalogRefresh(context.Context, time.Duration, time.Duration) ([]int64, error) {
+func (r *metadataRepository) ShowsNeedingCatalogRefresh(_ context.Context, _, _ time.Duration, limit int) ([]int64, error) {
+	r.refreshLimit = limit
+	if len(r.showIDs) > limit {
+		return r.showIDs[:limit], nil
+	}
 	return r.showIDs, nil
 }
 func (r *metadataRepository) ImportShowMetadata(_ context.Context, showID string, metadata domain.TVShowMetadata) error {
@@ -26,10 +31,18 @@ func (r *metadataRepository) ImportShowMetadata(_ context.Context, showID string
 	return nil
 }
 
-type showMetadataProvider struct{ calls []int64 }
+type showMetadataProvider struct {
+	calls        []int64
+	refreshCalls []int64
+}
 
 func (p *showMetadataProvider) Show(_ context.Context, tmdbID int64) (domain.TVShowMetadata, error) {
 	p.calls = append(p.calls, tmdbID)
+	return domain.TVShowMetadata{TMDBID: tmdbID, Name: fmt.Sprintf("Show %d", tmdbID)}, nil
+}
+
+func (p *showMetadataProvider) RefreshShow(_ context.Context, tmdbID int64) (domain.TVShowMetadata, error) {
+	p.refreshCalls = append(p.refreshCalls, tmdbID)
 	return domain.TVShowMetadata{TMDBID: tmdbID, Name: fmt.Sprintf("Show %d", tmdbID)}, nil
 }
 
@@ -211,10 +224,13 @@ func TestRefreshCatalog_GivenManyStaleShows_WhenSchedulerRefreshesCatalog_ThenPr
 	if err := service.RefreshCatalog(context.Background(), 24*time.Hour, 30*24*time.Hour); err != nil {
 		t.Fatal(err)
 	}
-	if len(provider.calls) != maxShowRefreshesPerRequest || len(repository.imported) != maxShowRefreshesPerRequest {
-		t.Fatalf("provider calls=%v imports=%v, want at most %d for one request", provider.calls, repository.imported, maxShowRefreshesPerRequest)
+	if len(provider.refreshCalls) != maxShowRefreshesPerRequest || len(provider.calls) != 0 || len(repository.imported) != maxShowRefreshesPerRequest {
+		t.Fatalf("bounded provider calls=%v full provider calls=%v imports=%v, want at most %d bounded refreshes for one request", provider.refreshCalls, provider.calls, repository.imported, maxShowRefreshesPerRequest)
 	}
-	if provider.calls[0] != 10 || provider.calls[1] != 11 {
-		t.Fatalf("refresh order=%v, want most recently tracked shows first", provider.calls)
+	if repository.refreshLimit != maxShowRefreshesPerRequest {
+		t.Fatalf("refresh query limit=%d, want %d", repository.refreshLimit, maxShowRefreshesPerRequest)
+	}
+	if provider.refreshCalls[0] != 10 || provider.refreshCalls[1] != 11 {
+		t.Fatalf("refresh order=%v, want most recently tracked shows first", provider.refreshCalls)
 	}
 }

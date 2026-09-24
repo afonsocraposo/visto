@@ -1,7 +1,7 @@
 import type { Tab } from "../../types";
 
 export function activeTabForLocation(pathname: string, search: string, origin: string): Tab {
-  if (pathname.startsWith("/media/")) {
+  if (pathname.startsWith("/media/") || pathname.startsWith("/people/")) {
     return tabFromReturnLocation(new URLSearchParams(search).get("from"), origin, 0);
   }
   return tabForPath(pathname);
@@ -12,7 +12,7 @@ function tabFromReturnLocation(returnTo: string | null, origin: string, depth: n
   try {
     const url = new URL(returnTo, origin);
     if (url.origin !== new URL(origin).origin) return "watch";
-    if (url.pathname.startsWith("/media/")) {
+    if (url.pathname.startsWith("/media/") || url.pathname.startsWith("/people/")) {
       return tabFromReturnLocation(url.searchParams.get("from"), origin, depth + 1);
     }
     return tabForPath(url.pathname);

@@ -81,6 +81,97 @@ func (store *Store) RevokeSession(ctx context.Context, tokenHash string) error {
 	return nil
 }
 
+func (store *Store) CreatePersonalToken(ctx context.Context, id, userID, name, tokenHash string, createdAt time.Time, expiresAt *time.Time) error {
+	var expiry any
+	if expiresAt != nil {
+		expiry = expiresAt.UTC().Format(time.RFC3339Nano)
+	}
+	_, err := store.DB.ExecContext(ctx, `INSERT INTO personal_api_tokens(id,user_id,name,token_hash,created_at,expires_at) VALUES(?,?,?,?,?,?)`, id, userID, name, tokenHash, createdAt.UTC().Format(time.RFC3339Nano), expiry)
+	if err != nil {
+		return fmt.Errorf("create personal API token: %w", err)
+	}
+	return nil
+}
+
+func (store *Store) ListPersonalTokens(ctx context.Context, userID string) ([]auth.PersonalToken, error) {
+	rows, err := store.DB.QueryContext(ctx, `SELECT id,name,created_at,last_used_at,expires_at FROM personal_api_tokens WHERE user_id=? ORDER BY created_at DESC,id`, userID)
+	if err != nil {
+		return nil, fmt.Errorf("list personal API tokens: %w", err)
+	}
+	defer rows.Close()
+	tokens := []auth.PersonalToken{}
+	for rows.Next() {
+		var token auth.PersonalToken
+		var createdAt string
+		var lastUsedAt, expiresAt sql.NullString
+		if err := rows.Scan(&token.ID, &token.Name, &createdAt, &lastUsedAt, &expiresAt); err != nil {
+			return nil, fmt.Errorf("scan personal API token: %w", err)
+		}
+		token.CreatedAt, err = time.Parse(time.RFC3339Nano, createdAt)
+		if err != nil {
+			return nil, fmt.Errorf("parse personal API token creation time: %w", err)
+		}
+		if lastUsedAt.Valid {
+			parsed, err := time.Parse(time.RFC3339Nano, lastUsedAt.String)
+			if err != nil {
+				return nil, fmt.Errorf("parse personal API token last-used time: %w", err)
+			}
+			token.LastUsedAt = &parsed
+		}
+		if expiresAt.Valid {
+			parsed, err := time.Parse(time.RFC3339Nano, expiresAt.String)
+			if err != nil {
+				return nil, fmt.Errorf("parse personal API token expiry: %w", err)
+			}
+			token.ExpiresAt = &parsed
+		}
+		tokens = append(tokens, token)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate personal API tokens: %w", err)
+	}
+	return tokens, nil
+}
+
+func (store *Store) RevokePersonalToken(ctx context.Context, userID, tokenID string) error {
+	result, err := store.DB.ExecContext(ctx, `DELETE FROM personal_api_tokens WHERE id=? AND user_id=?`, tokenID, userID)
+	if err != nil {
+		return fmt.Errorf("revoke personal API token: %w", err)
+	}
+	deleted, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("inspect revoked personal API token: %w", err)
+	}
+	if deleted == 0 {
+		return auth.ErrPersonalTokenMissing
+	}
+	return nil
+}
+
+func (store *Store) FindUserByPersonalTokenHash(ctx context.Context, tokenHash string, now time.Time) (domain.User, error) {
+	tx, err := store.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return domain.User{}, fmt.Errorf("begin personal API token authentication: %w", err)
+	}
+	defer tx.Rollback()
+	var userID string
+	err = tx.QueryRowContext(ctx, `UPDATE personal_api_tokens SET last_used_at=? WHERE token_hash=? AND (expires_at IS NULL OR expires_at>?) RETURNING user_id`, now.UTC().Format(time.RFC3339Nano), tokenHash, now.UTC().Format(time.RFC3339Nano)).Scan(&userID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.User{}, auth.ErrInvalidCredentials
+	}
+	if err != nil {
+		return domain.User{}, fmt.Errorf("authenticate personal API token: %w", err)
+	}
+	user, _, err := scanUser(tx.QueryRowContext(ctx, `SELECT id,username,display_name,password_hash,role,created_at FROM users WHERE id=?`, userID))
+	if err != nil {
+		return domain.User{}, err
+	}
+	if err := tx.Commit(); err != nil {
+		return domain.User{}, fmt.Errorf("record personal API token use: %w", err)
+	}
+	return user, nil
+}
+
 type scanner interface{ Scan(...any) error }
 
 func scanUser(row scanner) (domain.User, string, error) {

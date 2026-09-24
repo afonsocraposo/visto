@@ -65,6 +65,14 @@ func TestRecordEpisodes_GivenSkippedEpisodes_WhenRecordingBulk_ThenItStoresEachA
 	}
 }
 
+func TestRemoveMediaPlays_GivenATVShowID_WhenRemovingByMedia_ThenItRejectsTheRequest(t *testing.T) {
+	service := tracking.NewServiceWithID(&repository{}, func() string { return "play" })
+	err := service.RemoveMediaPlays(context.Background(), "user-1", "tv:42")
+	if err == nil {
+		t.Fatal("expected non-movie media ID to be rejected")
+	}
+}
+
 func TestCorrect_GivenFutureTimestamp_WhenCorrecting_ThenItRejectsTheTimestamp(t *testing.T) {
 	service := tracking.NewServiceWithID(&repository{}, func() string { return "play" })
 	err := service.Correct(context.Background(), "user-1", "play-1", time.Now().UTC().AddDate(100, 0, 0))

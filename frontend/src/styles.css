@@ -102,15 +102,14 @@ select {
 .media-detail { align-items: stretch; }
 .detail-page { padding-bottom: 24px; }
 .detail-back { margin: -8px 0 12px -8px; }
-.detail-hero { position: relative; display: flex; min-height: 430px; overflow: hidden; align-items: flex-end; justify-content: space-between; padding: clamp(24px, 5vw, 56px); border-radius: 22px; background-position: center; background-size: cover; color: #fff; box-shadow: 0 24px 70px rgb(9 13 18 / .22); }
-.detail-hero-content { position: relative; z-index: 1; max-width: 680px; }
+.detail-hero { position: relative; display: flex; width: 100vw; min-height: clamp(500px, 72vh, 780px); overflow: hidden; align-items: flex-end; justify-content: center; margin-inline: calc(50% - 50vw); background-position: center; background-size: cover; color: #fff; }
+.detail-hero-content { position: relative; z-index: 1; width: calc(100% - 32px); max-width: 1120px; margin-inline: auto; padding: clamp(24px, 5vw, 56px); }
 .detail-hero h1 { max-width: 760px; margin-top: 12px; font-size: clamp(2rem, 6vw, 4.6rem); letter-spacing: -.065em; line-height: .98; }
 .detail-subtitle { color: rgb(255 255 255 / .72); font-size: .95rem; }
 .detail-season-link { margin: 2px 0 0 -10px; padding-inline: 10px; color: rgb(255 255 255 / .72); }
 .detail-season-link:hover { color: #fff; background: rgb(255 255 255 / .1); }
 .detail-overview { max-width: 640px; margin-top: 20px; color: rgb(255 255 255 / .86); font-size: 1.05rem; line-height: 1.65; }
 .detail-runtime { display: inline-flex; align-items: center; gap: 6px; color: rgb(255 255 255 / .72); }
-.detail-poster { position: relative; z-index: 1; width: 190px; max-height: 286px; object-fit: cover; border-radius: 14px; box-shadow: 0 18px 44px rgb(0 0 0 / .36); }
 .detail-actions { align-items: center; }
 .rating-stars { display: inline-flex; width: max-content !important; max-width: 100%; height: max-content; flex: 0 0 auto; align-self: flex-start; align-items: center; gap: 3px; padding: 0; border: 0; background: transparent; }
 .rating-star-button { color: var(--mantine-color-gray-6); transition: color 120ms ease, transform 120ms ease, background-color 120ms ease; }
@@ -135,14 +134,34 @@ select {
 .detail-hint { margin-top: 20px; }
 .cast-member-card { min-width: 0; overflow: hidden; background: var(--mantine-color-body); transition: border-color 150ms ease, transform 150ms ease; }
 .cast-member-card:hover { border-color: #48b7ae; transform: translateY(-2px); }
+.cast-member-clickable { width: 100%; color: var(--mantine-color-text); font: inherit; text-align: left; cursor: pointer; }
+.cast-member-clickable:focus-visible { outline: 2px solid #f2b544; outline-offset: 3px; }
 .cast-member-photo { aspect-ratio: 3 / 4; overflow: hidden; background: #1b2430; }
 .cast-member-photo .mantine-Image-root, .cast-member-photo img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center 24%; }
 .cast-member-fallback { display: grid; place-items: center; width: 100%; height: 100%; background: linear-gradient(135deg, #334155, #19212b); color: #f2b544; font-size: 2.5rem; font-weight: 800; }
 .cast-member-copy { display: grid; align-content: start; gap: 3px; min-height: 66px; padding: 9px 10px 11px; }
 .cast-member-name, .cast-member-character { line-height: 1.25; }
+.person-detail-page { padding-bottom: 24px; }
+.person-hero { display: grid; grid-template-columns: minmax(180px, 260px) minmax(0, 1fr); gap: clamp(24px, 5vw, 56px); align-items: center; min-height: 360px; padding: clamp(24px, 5vw, 56px); border: 1px solid var(--mantine-color-gray-3); border-radius: 22px; background: linear-gradient(135deg, color-mix(in srgb, #48b7ae 12%, var(--mantine-color-body)), var(--mantine-color-body) 68%); }
+.person-portrait { width: 100%; max-width: 260px; aspect-ratio: 3 / 4; overflow: hidden; border-radius: 14px; background: #1b2430; box-shadow: 0 18px 44px rgb(0 0 0 / .2); }
+.person-portrait .mantine-Image-root, .person-portrait img { width: 100%; height: 100%; object-fit: cover; object-position: center 24%; }
+.person-portrait-fallback { display: grid; width: 100%; height: 100%; place-items: center; background: linear-gradient(135deg, #334155, #19212b); color: #f2b544; font-size: 5rem; font-weight: 800; }
+.person-biography { min-width: 0; max-width: 720px; }
+.person-biography h1 { margin-top: 10px; font-size: clamp(2.2rem, 5vw, 4.6rem); letter-spacing: -.06em; line-height: .98; }
+.person-facts { margin-top: 12px; color: var(--mantine-color-dimmed); }
+.person-facts > p { display: inline-flex; align-items: center; gap: 5px; }
+.person-bio-copy { max-width: 680px; margin-top: 20px; line-height: 1.65; }
+.person-bio-toggle { margin: 7px 0 0 -10px; }
+.person-filmography { margin-top: 34px; }
+.person-filmography-heading { margin-bottom: 14px; }
+.person-filmography-heading h2 { letter-spacing: -.04em; }
+.person-credit-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
+.media-poster-card-subtitle { color: rgb(255 255 255 / .78); }
 .library-clickable { cursor: pointer; }
 .library-clickable:hover { color: var(--mantine-color-yellow-7); }
 .feed-card { border-left: 3px solid #48b7ae; }
+.feed-activity-content { flex: 1 1 0; min-width: 0; }
+.feed-activity-text { flex: 0 1 auto; }
 .history-intro { margin-top: 6px; }
 .history-list { position: relative; display: grid; gap: 12px; }
 .history-list::before { position: absolute; top: 18px; bottom: 18px; left: 19px; width: 1px; background: color-mix(in srgb, #48b7ae 45%, var(--mantine-color-gray-3)); content: ""; }
@@ -200,9 +219,14 @@ select {
   .trending-card:nth-child(n+5) { display: none; }
   .library-grid, .library-grid-full { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
   .library-grid { grid-template-columns: 1fr; }
-  .detail-hero { min-height: 560px; align-items: flex-end; padding: 22px; }
-  .detail-poster { position: absolute; top: 22px; right: 22px; width: 112px; max-height: 168px; opacity: .9; }
-  .detail-hero-content { max-width: 100%; }
+  .detail-hero { min-height: 560px; align-items: flex-end; }
+  .detail-hero-content { width: calc(100% - 24px); max-width: 1120px; padding: 22px; }
+  .person-hero { grid-template-columns: 1fr; gap: 22px; padding: 22px; }
+  .person-portrait { width: min(48vw, 180px); justify-self: center; }
+  .person-biography { text-align: center; }
+  .person-biography h1 { font-size: clamp(2rem, 11vw, 3rem); }
+  .person-facts { justify-content: center; }
+  .person-credit-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
   .detail-overview { font-size: .95rem; line-height: 1.5; }
   .episode-row-layout { min-height: 104px; }
   .episode-art { width: 112px; min-height: 104px; flex-basis: 112px; }

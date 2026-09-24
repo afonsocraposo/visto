@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/afonsocosta/visto/internal/application/tracking"
@@ -148,6 +149,7 @@ func (store *Store) CreateBulkPlays(ctx context.Context, plays []tracking.Play) 
 	}
 	defer tx.Rollback()
 	var showID string
+	priorWatch := make(map[string]bool, len(plays))
 	for index, play := range plays {
 		if play.EpisodeID == nil {
 			return fmt.Errorf("bulk plays must reference episodes")
@@ -161,6 +163,11 @@ func (store *Store) CreateBulkPlays(ctx context.Context, plays []tracking.Play) 
 		} else if currentShow != showID {
 			return fmt.Errorf("bulk episodes must belong to one show")
 		}
+		var count int
+		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM plays WHERE user_id=? AND episode_id=?`, play.UserID, *play.EpisodeID).Scan(&count); err != nil {
+			return fmt.Errorf("check prior episode watches: %w", err)
+		}
+		priorWatch[*play.EpisodeID] = count > 0
 	}
 	createdAtTime := time.Now().UTC()
 	createdAt := createdAtTime.Format(time.RFC3339Nano)
@@ -177,18 +184,33 @@ func (store *Store) CreateBulkPlays(ctx context.Context, plays []tracking.Play) 
 		return fmt.Errorf("get activity visibility: %w", err)
 	}
 	if visibility == "instance" {
-		playIDs := make([]string, 0, len(plays))
+		firstWatchIDs := make([]string, 0, len(plays))
 		for _, play := range plays {
-			playIDs = append(playIDs, play.ID)
+			if priorWatch[*play.EpisodeID] {
+				if _, err := tx.ExecContext(ctx, `INSERT INTO activity_events(id,user_id,kind,play_id,episode_id,occurred_at,created_at) VALUES(?,?,?,?,?,?,?)`, "activity:"+play.ID, play.UserID, "rewatch", play.ID, *play.EpisodeID, play.WatchedAt.Format(time.RFC3339Nano), createdAt); err != nil {
+					return fmt.Errorf("create episode rewatch activity: %w", err)
+				}
+			} else {
+				firstWatchIDs = append(firstWatchIDs, play.ID)
+			}
 		}
-		detailJSON, _ := json.Marshal(struct {
-			Count   int      `json:"count"`
-			PlayIDs []string `json:"play_ids"`
-		}{Count: len(plays), PlayIDs: playIDs})
-		detail := string(detailJSON)
-		eventID := "bulk:" + plays[0].ID
-		if _, err := tx.ExecContext(ctx, `INSERT INTO activity_events(id,user_id,kind,media_id,detail_json,occurred_at,created_at) VALUES(?,?,?,?,?,?,?)`, eventID, plays[0].UserID, "bulk_watch", showID, detail, plays[0].WatchedAt.Format(time.RFC3339Nano), createdAt); err != nil {
-			return fmt.Errorf("create bulk activity event: %w", err)
+		if len(firstWatchIDs) > 0 {
+			detailJSON, _ := json.Marshal(struct {
+				Count   int      `json:"count"`
+				PlayIDs []string `json:"play_ids"`
+			}{Count: len(firstWatchIDs), PlayIDs: firstWatchIDs})
+			detail := string(detailJSON)
+			firstPlay := plays[0]
+			for _, play := range plays {
+				if play.ID == firstWatchIDs[0] {
+					firstPlay = play
+					break
+				}
+			}
+			eventID := "bulk:" + firstPlay.ID
+			if _, err := tx.ExecContext(ctx, `INSERT INTO activity_events(id,user_id,kind,media_id,detail_json,occurred_at,created_at) VALUES(?,?,?,?,?,?,?)`, eventID, firstPlay.UserID, "bulk_watch", showID, detail, firstPlay.WatchedAt.Format(time.RFC3339Nano), createdAt); err != nil {
+				return fmt.Errorf("create bulk activity event: %w", err)
+			}
 		}
 	}
 	if err := tx.Commit(); err != nil {
@@ -199,8 +221,8 @@ func (store *Store) CreateBulkPlays(ctx context.Context, plays []tracking.Play) 
 
 func ensureWatchingRelationship(ctx context.Context, tx *sql.Tx, userID, mediaID string, createdAt time.Time) error {
 	timestamp := createdAt.Format(time.RFC3339Nano)
-	_, err := tx.ExecContext(ctx, `INSERT INTO user_media(id,user_id,media_id,status,added_at,updated_at)
-		VALUES(?,?,?,'watching',?,?) ON CONFLICT(user_id,media_id) DO UPDATE SET updated_at=excluded.updated_at`, userID+":"+mediaID, userID, mediaID, timestamp, timestamp)
+	_, err := tx.ExecContext(ctx, `INSERT INTO user_media(id,user_id,media_id,status,added_at,updated_at,notifications_since)
+		VALUES(?,?,?,'watching',?,?,?) ON CONFLICT(user_id,media_id) DO UPDATE SET updated_at=excluded.updated_at`, userID+":"+mediaID, userID, mediaID, timestamp, timestamp, timestamp)
 	if err != nil {
 		return fmt.Errorf("ensure library relationship for tracked media: %w", err)
 	}
@@ -249,6 +271,86 @@ func (store *Store) DeletePlay(ctx context.Context, userID, playID string) error
 	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM activity_events WHERE play_id=? OR (kind='bulk_watch' AND EXISTS(SELECT 1 FROM json_each(activity_events.detail_json,'$.play_ids') WHERE value=?))`, playID, playID); err != nil {
 		return fmt.Errorf("remove deleted play activity: %w", err)
+	}
+	return tx.Commit()
+}
+
+func (store *Store) DeleteEpisodePlays(ctx context.Context, userID string, episodeIDs []string) error {
+	tx, err := store.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin episode watch removal: %w", err)
+	}
+	defer tx.Rollback()
+	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(episodeIDs)), ",")
+	arguments := make([]any, 0, len(episodeIDs)+1)
+	arguments = append(arguments, userID)
+	for _, episodeID := range episodeIDs {
+		arguments = append(arguments, episodeID)
+	}
+	rows, err := tx.QueryContext(ctx, `SELECT id FROM plays WHERE user_id=? AND episode_id IN (`+placeholders+`)`, arguments...)
+	if err != nil {
+		return fmt.Errorf("list episode watches to remove: %w", err)
+	}
+	playIDs := []string{}
+	for rows.Next() {
+		var playID string
+		if err := rows.Scan(&playID); err != nil {
+			rows.Close()
+			return fmt.Errorf("scan episode watch to remove: %w", err)
+		}
+		playIDs = append(playIDs, playID)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return fmt.Errorf("iterate episode watches to remove: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return fmt.Errorf("close episode watches: %w", err)
+	}
+	for _, playID := range playIDs {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM activity_events WHERE play_id=? OR (kind='bulk_watch' AND EXISTS(SELECT 1 FROM json_each(activity_events.detail_json,'$.play_ids') WHERE value=?))`, playID, playID); err != nil {
+			return fmt.Errorf("remove activity for episode watch: %w", err)
+		}
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM plays WHERE user_id=? AND episode_id IN (`+placeholders+`)`, arguments...); err != nil {
+		return fmt.Errorf("remove episode watches: %w", err)
+	}
+	return tx.Commit()
+}
+
+func (store *Store) DeleteMediaPlays(ctx context.Context, userID, mediaID string) error {
+	tx, err := store.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin media watch removal: %w", err)
+	}
+	defer tx.Rollback()
+	rows, err := tx.QueryContext(ctx, `SELECT id FROM plays WHERE user_id=? AND media_id=?`, userID, mediaID)
+	if err != nil {
+		return fmt.Errorf("list media watches to remove: %w", err)
+	}
+	playIDs := []string{}
+	for rows.Next() {
+		var playID string
+		if err := rows.Scan(&playID); err != nil {
+			rows.Close()
+			return fmt.Errorf("scan media watch to remove: %w", err)
+		}
+		playIDs = append(playIDs, playID)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return fmt.Errorf("iterate media watches to remove: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return fmt.Errorf("close media watches: %w", err)
+	}
+	for _, playID := range playIDs {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM activity_events WHERE play_id=? OR (kind='bulk_watch' AND EXISTS(SELECT 1 FROM json_each(activity_events.detail_json,'$.play_ids') WHERE value=?))`, playID, playID); err != nil {
+			return fmt.Errorf("remove activity for media watch: %w", err)
+		}
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM plays WHERE user_id=? AND media_id=?`, userID, mediaID); err != nil {
+		return fmt.Errorf("remove media watches: %w", err)
 	}
 	return tx.Commit()
 }

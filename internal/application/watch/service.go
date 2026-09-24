@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"sort"
 	"time"
 
@@ -87,7 +88,7 @@ type episodeRepository interface {
 var ErrShowNotFound = errors.New("show not found")
 
 type catalogRefreshRepository interface {
-	ShowsNeedingCatalogRefresh(context.Context, time.Duration, time.Duration) ([]int64, error)
+	ShowsNeedingCatalogRefresh(context.Context, time.Duration, time.Duration, int) ([]int64, error)
 	ImportShowMetadata(context.Context, string, domain.TVShowMetadata) error
 }
 
@@ -246,15 +247,18 @@ func (service *Service) RefreshCatalog(ctx context.Context, activeTTL, finishedT
 	if !ok {
 		return nil
 	}
-	tmdbIDs, err := repository.ShowsNeedingCatalogRefresh(ctx, activeTTL, finishedTTL)
+	tmdbIDs, err := repository.ShowsNeedingCatalogRefresh(ctx, activeTTL, finishedTTL, maxShowRefreshesPerRequest)
 	if err != nil {
 		return err
 	}
-	if len(tmdbIDs) > maxShowRefreshesPerRequest {
-		tmdbIDs = tmdbIDs[:maxShowRefreshesPerRequest]
-	}
 	for _, tmdbID := range tmdbIDs {
-		metadata, err := service.metadataProvider.Show(ctx, tmdbID)
+		var metadata domain.TVShowMetadata
+		var err error
+		if boundedProvider, ok := service.metadataProvider.(domain.ScheduledTVShowMetadataProvider); ok {
+			metadata, err = boundedProvider.RefreshShow(ctx, tmdbID)
+		} else {
+			metadata, err = service.metadataProvider.Show(ctx, tmdbID)
+		}
 		if err != nil {
 			return err
 		}
@@ -268,7 +272,11 @@ func (service *Service) RefreshCatalog(ctx context.Context, activeTTL, finishedT
 // RunCatalogRefresher keeps local metadata current without coupling TMDB
 // traffic to page visits. The caller owns ctx and controls shutdown.
 func (service *Service) RunCatalogRefresher(ctx context.Context, interval, activeTTL, finishedTTL time.Duration) {
-	refresh := func() { _ = service.RefreshCatalog(ctx, activeTTL, finishedTTL) }
+	refresh := func() {
+		if err := service.RefreshCatalog(ctx, activeTTL, finishedTTL); err != nil && !errors.Is(err, context.Canceled) {
+			log.Printf("scheduled TV metadata refresh failed: %v", err)
+		}
+	}
 	refresh()
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()

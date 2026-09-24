@@ -12,6 +12,16 @@ import (
 	"github.com/afonsocosta/visto/internal/domain"
 )
 
+func TestLatestRegularSeasonNumber_GivenSpecialsAndRegularSeasons_ReturnsHighestRegularSeason(t *testing.T) {
+	got, ok := latestRegularSeasonNumber([]domain.TVSeasonMetadata{{Number: 0}, {Number: 1}, {Number: 7}, {Number: 3}})
+	if !ok || got != 7 {
+		t.Fatalf("latest regular season = %d, %t; want 7, true", got, ok)
+	}
+	if _, ok := latestRegularSeasonNumber([]domain.TVSeasonMetadata{{Number: 0}}); ok {
+		t.Fatal("specials-only metadata should not trigger a regular season fetch")
+	}
+}
+
 func TestSearch_GivenTMDBReturns429_WhenRetryAfterExpires_ThenItRetriesWithinTheConfiguredCap(t *testing.T) {
 	var calls atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -38,6 +48,43 @@ func TestSearch_GivenTMDBReturns429_WhenRetryAfterExpires_ThenItRetriesWithinThe
 	}
 	if len(results) != 0 || calls.Load() != 2 {
 		t.Fatalf("results=%v calls=%d, want empty results after one retry", results, calls.Load())
+	}
+}
+
+func TestPerson_GivenMixedDuplicateCredits_WhenLoadedTwice_ThenItSortsDeduplicatesAndCachesThem(t *testing.T) {
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		if r.URL.Path != "/3/person/123" || r.URL.Query().Get("append_to_response") != "combined_credits" {
+			t.Errorf("request URL=%s, want combined person details", r.URL.String())
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":123,"name":"Example Actor","biography":"A short biography.","profile_path":"/actor.jpg","combined_credits":{"cast":[{"id":8,"media_type":"tv","name":"Popular Show","original_name":"Popular Show","character":"Lead","first_air_date":"2020-01-01","poster_path":"/show.jpg","popularity":90},{"id":7,"media_type":"movie","title":"Popular Film","original_title":"Popular Film","character":"Self","release_date":"2021-01-01","poster_path":"/film.jpg","popularity":120},{"id":8,"media_type":"tv","name":"Popular Show","character":"Lead","popularity":90},{"id":99,"media_type":"movie","title":"Adult title","adult":true,"popularity":200}]}}`))
+	}))
+	defer server.Close()
+	client, err := New("test-key", server.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	previous := client.client.GetBaseURL()
+	client.client.SetCustomBaseURL(server.URL + "/3")
+	defer client.client.SetCustomBaseURL(previous)
+
+	person, err := client.Person(context.Background(), 123)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.Person(context.Background(), 123); err != nil {
+		t.Fatal(err)
+	}
+	if person.Name != "Example Actor" || len(person.Credits) != 2 {
+		t.Fatalf("person=%+v, want two non-adult unique credits", person)
+	}
+	if person.Credits[0].Title != "Popular Film" || person.Credits[1].Title != "Popular Show" {
+		t.Fatalf("credits order = %+v, want popularity descending", person.Credits)
+	}
+	if calls.Load() != 1 {
+		t.Fatalf("provider calls=%d, want one cached request", calls.Load())
 	}
 }
 

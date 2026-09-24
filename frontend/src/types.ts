@@ -8,6 +8,15 @@ export type User = {
   role: "admin" | "user";
 };
 
+export type PersonalAPIToken = {
+  id: string;
+  name: string;
+  created_at: string;
+  last_used_at?: string;
+  expires_at?: string;
+};
+export type IssuedPersonalAPIToken = PersonalAPIToken & { token: string };
+
 export type SearchMedia = {
   tmdb_id: number;
   type: "movie" | "tv";
@@ -22,7 +31,7 @@ export type SearchMedia = {
 export type TrendingResponse = { tv: SearchMedia[]; movies: SearchMedia[] };
 
 export type LibraryEntry = {
-  item: { media_id: string; status: string; rating: number | null; updated_at: string };
+  item: { media_id: string; status: string; rating: number | null; notifications_enabled: boolean; updated_at: string };
   media: SearchMedia & { id: string };
   completed: boolean;
   progress?: { watched_episodes: number; total_episodes: number };
@@ -62,6 +71,30 @@ export type CalendarEntry = { show_id: string; title: string; episode: Episode }
 export type ShowEpisodeEntry = { episode: Episode; name: string; overview?: string; runtime?: number; still_path?: string; watched: boolean };
 export type EpisodeRating = { episode_id: string; rating: number | null; updated_at?: string };
 export type TVCastMember = { id: number; name: string; character: string; profile_path?: string };
+export type PersonCredit = {
+  tmdb_id: number;
+  type: "movie" | "tv";
+  title: string;
+  original_title?: string;
+  character?: string;
+  overview?: string;
+  release_date?: string;
+  poster_path?: string;
+  backdrop_path?: string;
+  original_language?: string;
+  popularity: number;
+};
+export type PersonDetails = {
+  tmdb_id: number;
+  name: string;
+  biography: string;
+  profile_path?: string;
+  birthday?: string;
+  deathday?: string;
+  place_of_birth?: string;
+  known_for_department?: string;
+  credits: PersonCredit[];
+};
 export type TVCrewMember = { id: number; name: string; job: string; department: string; profile_path?: string };
 export type TemporaryShowDetails = {
   media: SearchMedia & { id: string; status?: string };
