@@ -217,9 +217,10 @@ It does not mirror the entire TMDB catalogue.
 TMDB access is implemented only by the infrastructure adapter using
 [`github.com/cyruzin/golang-tmdb`](https://github.com/cyruzin/golang-tmdb).
 The adapter initializes a configured client, supplies an HTTP client with an
-explicit timeout and bounded connection pool, and enables the library's 429
-auto-retry support. The rest of Visto depends on a provider interface, never on
-the library's client or response types.
+explicit timeout and bounded connection pool. It does not use the library's
+unbounded auto-retry mode; Visto owns the capped, jittered retry and shared
+rate-limit policy described below. The rest of Visto depends on a provider
+interface, never on the library's client or response types.
 
 The application caches enough raw provider data to support refresh and display,
 but it must preserve user data if TMDB changes or removes a record. Media are
