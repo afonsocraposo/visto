@@ -15,6 +15,7 @@ import (
 
 	"github.com/afonsocosta/visto/internal/domain"
 	tmdbapi "github.com/cyruzin/golang-tmdb"
+	"golang.org/x/sync/singleflight"
 )
 
 const (
@@ -34,24 +35,17 @@ type Client struct {
 	client       *tmdbapi.Client
 	requests     chan struct{}
 	mu           sync.Mutex
+	calls        singleflight.Group
 	pausedUntil  time.Time
 	retryAfter   time.Duration
 	searchCache  map[string]cachedSearch
-	searchCalls  map[string]*searchCall
 	showCache    map[int64]cachedShow
-	showCalls    map[int64]*showCall
 	summaryCache map[int64]cachedShow
-	summaryCalls map[int64]*showCall
 	seasonCache  map[string]cachedSeason
-	seasonCalls  map[string]*seasonCall
 	movieCache   map[int64]cachedMovie
-	movieCalls   map[int64]*movieCall
 	episodeCache map[string]cachedEpisode
-	episodeCalls map[string]*episodeCall
 	personCache  map[int64]cachedPerson
-	personCalls  map[int64]*personCall
 	relatedCache map[string]cachedSearch
-	relatedCalls map[string]*searchCall
 }
 
 type cachedSearch struct {
@@ -59,55 +53,25 @@ type cachedSearch struct {
 	expiresAt time.Time
 }
 
-type searchCall struct {
-	done    chan struct{}
-	results []domain.MediaSearchResult
-	err     error
-}
 type cachedShow struct {
 	show      domain.TVShowMetadata
 	expiresAt time.Time
-}
-type showCall struct {
-	done chan struct{}
-	show domain.TVShowMetadata
-	err  error
 }
 type cachedSeason struct {
 	season    domain.TVSeasonMetadata
 	expiresAt time.Time
 }
-type seasonCall struct {
-	done   chan struct{}
-	season domain.TVSeasonMetadata
-	err    error
-}
 type cachedMovie struct {
 	movie     domain.MovieMetadata
 	expiresAt time.Time
-}
-type movieCall struct {
-	done  chan struct{}
-	movie domain.MovieMetadata
-	err   error
 }
 type cachedEpisode struct {
 	episode   domain.TVEpisodeMetadata
 	expiresAt time.Time
 }
-type episodeCall struct {
-	done    chan struct{}
-	episode domain.TVEpisodeMetadata
-	err     error
-}
 type cachedPerson struct {
 	person    domain.PersonMetadata
 	expiresAt time.Time
-}
-type personCall struct {
-	done   chan struct{}
-	person domain.PersonMetadata
-	err    error
 }
 
 type retryAfterTransport struct {
@@ -145,7 +109,7 @@ func New(apiKey string, httpClient *http.Client) (*Client, error) {
 		bounded.MaxIdleConnsPerHost = 4
 		httpClient.Transport = bounded
 	}
-	vistoClient := &Client{client: client, requests: make(chan struct{}, 4), searchCache: map[string]cachedSearch{}, searchCalls: map[string]*searchCall{}, showCache: map[int64]cachedShow{}, showCalls: map[int64]*showCall{}, summaryCache: map[int64]cachedShow{}, summaryCalls: map[int64]*showCall{}, seasonCache: map[string]cachedSeason{}, seasonCalls: map[string]*seasonCall{}, movieCache: map[int64]cachedMovie{}, movieCalls: map[int64]*movieCall{}, episodeCache: map[string]cachedEpisode{}, episodeCalls: map[string]*episodeCall{}, personCache: map[int64]cachedPerson{}, personCalls: map[int64]*personCall{}, relatedCache: map[string]cachedSearch{}, relatedCalls: map[string]*searchCall{}}
+	vistoClient := &Client{client: client, requests: make(chan struct{}, 4), searchCache: map[string]cachedSearch{}, showCache: map[int64]cachedShow{}, summaryCache: map[int64]cachedShow{}, seasonCache: map[string]cachedSeason{}, movieCache: map[int64]cachedMovie{}, episodeCache: map[string]cachedEpisode{}, personCache: map[int64]cachedPerson{}, relatedCache: map[string]cachedSearch{}}
 	baseTransport := httpClient.Transport
 	if baseTransport == nil {
 		baseTransport = http.DefaultTransport
@@ -170,23 +134,14 @@ func (client *Client) Search(ctx context.Context, query, language string) ([]dom
 		client.mu.Unlock()
 		return append([]domain.MediaSearchResult(nil), cached.results...), nil
 	}
-	if call, ok := client.searchCalls[cacheKey]; ok {
-		client.mu.Unlock()
-		select {
-		case <-call.done:
-			return append([]domain.MediaSearchResult(nil), call.results...), call.err
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		}
-	}
-	call := &searchCall{done: make(chan struct{})}
-	client.searchCalls[cacheKey] = call
 	client.mu.Unlock()
-	results, err := client.search(ctx, query, language)
-	client.mu.Lock()
-	call.results = append([]domain.MediaSearchResult(nil), results...)
-	call.err = err
-	if err == nil {
+
+	result, err := client.coalesce(ctx, "search:"+cacheKey, func() (any, error) {
+		results, err := client.search(ctx, query, language)
+		if err != nil {
+			return nil, err
+		}
+		client.mu.Lock()
 		client.searchCache[cacheKey] = cachedSearch{results: append([]domain.MediaSearchResult(nil), results...), expiresAt: time.Now().Add(searchCacheTTL)}
 		if len(client.searchCache) > maxSearchCacheEntries {
 			now := time.Now()
@@ -202,11 +157,13 @@ func (client *Client) Search(ctx context.Context, query, language string) ([]dom
 				}
 			}
 		}
+		client.mu.Unlock()
+		return results, nil
+	})
+	if err != nil {
+		return nil, err
 	}
-	delete(client.searchCalls, cacheKey)
-	close(call.done)
-	client.mu.Unlock()
-	return results, err
+	return append([]domain.MediaSearchResult(nil), result.([]domain.MediaSearchResult)...), nil
 }
 
 func (client *Client) Trending(ctx context.Context, mediaType, timeWindow string) ([]domain.MediaSearchResult, error) {
@@ -222,30 +179,22 @@ func (client *Client) Trending(ctx context.Context, mediaType, timeWindow string
 		client.mu.Unlock()
 		return append([]domain.MediaSearchResult(nil), cached.results...), nil
 	}
-	if call, ok := client.searchCalls[cacheKey]; ok {
-		client.mu.Unlock()
-		select {
-		case <-call.done:
-			return append([]domain.MediaSearchResult(nil), call.results...), call.err
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		}
-	}
-	call := &searchCall{done: make(chan struct{})}
-	client.searchCalls[cacheKey] = call
 	client.mu.Unlock()
 
-	results, err := client.fetchTrending(ctx, mediaType, timeWindow)
-	client.mu.Lock()
-	call.results = append([]domain.MediaSearchResult(nil), results...)
-	call.err = err
-	if err == nil {
+	result, err := client.coalesce(ctx, "trending:"+cacheKey, func() (any, error) {
+		results, err := client.fetchTrending(ctx, mediaType, timeWindow)
+		if err != nil {
+			return nil, err
+		}
+		client.mu.Lock()
 		client.searchCache[cacheKey] = cachedSearch{results: append([]domain.MediaSearchResult(nil), results...), expiresAt: time.Now().Add(searchCacheTTL)}
+		client.mu.Unlock()
+		return results, nil
+	})
+	if err != nil {
+		return nil, err
 	}
-	delete(client.searchCalls, cacheKey)
-	close(call.done)
-	client.mu.Unlock()
-	return results, err
+	return append([]domain.MediaSearchResult(nil), result.([]domain.MediaSearchResult)...), nil
 }
 
 func (client *Client) Related(ctx context.Context, mediaType domain.MediaType, tmdbID int64) ([]domain.MediaSearchResult, error) {
@@ -258,24 +207,14 @@ func (client *Client) Related(ctx context.Context, mediaType domain.MediaType, t
 		client.mu.Unlock()
 		return append([]domain.MediaSearchResult(nil), cached.results...), nil
 	}
-	if call, ok := client.relatedCalls[cacheKey]; ok {
-		client.mu.Unlock()
-		select {
-		case <-call.done:
-			return append([]domain.MediaSearchResult(nil), call.results...), call.err
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		}
-	}
-	call := &searchCall{done: make(chan struct{})}
-	client.relatedCalls[cacheKey] = call
 	client.mu.Unlock()
 
-	results, err := client.fetchRelated(ctx, mediaType, tmdbID)
-	client.mu.Lock()
-	call.results = append([]domain.MediaSearchResult(nil), results...)
-	call.err = err
-	if err == nil {
+	result, err := client.coalesce(ctx, "related:"+cacheKey, func() (any, error) {
+		results, err := client.fetchRelated(ctx, mediaType, tmdbID)
+		if err != nil {
+			return nil, err
+		}
+		client.mu.Lock()
 		now := time.Now()
 		for key, cached := range client.relatedCache {
 			if !now.Before(cached.expiresAt) {
@@ -291,11 +230,13 @@ func (client *Client) Related(ctx context.Context, mediaType domain.MediaType, t
 				}
 			}
 		}
+		client.mu.Unlock()
+		return results, nil
+	})
+	if err != nil {
+		return nil, err
 	}
-	delete(client.relatedCalls, cacheKey)
-	close(call.done)
-	client.mu.Unlock()
-	return results, err
+	return append([]domain.MediaSearchResult(nil), result.([]domain.MediaSearchResult)...), nil
 }
 
 func (client *Client) fetchRelated(ctx context.Context, mediaType domain.MediaType, tmdbID int64) ([]domain.MediaSearchResult, error) {
@@ -423,29 +364,21 @@ func (client *Client) Show(ctx context.Context, tmdbID int64) (domain.TVShowMeta
 		client.mu.Unlock()
 		return cloneShow(cached.show), nil
 	}
-	if call, ok := client.showCalls[tmdbID]; ok {
-		client.mu.Unlock()
-		select {
-		case <-call.done:
-			return cloneShow(call.show), call.err
-		case <-ctx.Done():
-			return domain.TVShowMetadata{}, ctx.Err()
+	client.mu.Unlock()
+	result, err := client.coalesce(ctx, fmt.Sprintf("show:%d", tmdbID), func() (any, error) {
+		show, err := client.fetchShow(ctx, tmdbID)
+		if err != nil {
+			return nil, err
 		}
-	}
-	call := &showCall{done: make(chan struct{})}
-	client.showCalls[tmdbID] = call
-	client.mu.Unlock()
-	show, err := client.fetchShow(ctx, tmdbID)
-	client.mu.Lock()
-	call.show = cloneShow(show)
-	call.err = err
-	if err == nil {
+		client.mu.Lock()
 		client.cacheShowLocked(tmdbID, show, time.Now().Add(showCacheTTL))
+		client.mu.Unlock()
+		return show, nil
+	})
+	if err != nil {
+		return domain.TVShowMetadata{}, err
 	}
-	delete(client.showCalls, tmdbID)
-	close(call.done)
-	client.mu.Unlock()
-	return cloneShow(show), err
+	return cloneShow(result.(domain.TVShowMetadata)), nil
 }
 
 func (client *Client) ShowSummary(ctx context.Context, tmdbID int64) (domain.TVShowMetadata, error) {
@@ -461,23 +394,13 @@ func (client *Client) ShowSummary(ctx context.Context, tmdbID int64) (domain.TVS
 		client.mu.Unlock()
 		return cloneShow(cached.show), nil
 	}
-	if call, ok := client.summaryCalls[tmdbID]; ok {
-		client.mu.Unlock()
-		select {
-		case <-call.done:
-			return cloneShow(call.show), call.err
-		case <-ctx.Done():
-			return domain.TVShowMetadata{}, ctx.Err()
-		}
-	}
-	call := &showCall{done: make(chan struct{})}
-	client.summaryCalls[tmdbID] = call
 	client.mu.Unlock()
-	show, err := client.fetchShowSummary(ctx, tmdbID)
-	client.mu.Lock()
-	call.show = cloneShow(show)
-	call.err = err
-	if err == nil {
+	result, err := client.coalesce(ctx, fmt.Sprintf("show-summary:%d", tmdbID), func() (any, error) {
+		show, err := client.fetchShowSummary(ctx, tmdbID)
+		if err != nil {
+			return nil, err
+		}
+		client.mu.Lock()
 		client.summaryCache[tmdbID] = cachedShow{show: cloneShow(show), expiresAt: time.Now().Add(showCacheTTL)}
 		now := time.Now()
 		for id, cached := range client.summaryCache {
@@ -493,11 +416,13 @@ func (client *Client) ShowSummary(ctx context.Context, tmdbID int64) (domain.TVS
 				}
 			}
 		}
+		client.mu.Unlock()
+		return show, nil
+	})
+	if err != nil {
+		return domain.TVShowMetadata{}, err
 	}
-	delete(client.summaryCalls, tmdbID)
-	close(call.done)
-	client.mu.Unlock()
-	return cloneShow(show), err
+	return cloneShow(result.(domain.TVShowMetadata)), nil
 }
 
 // RefreshShow fetches the show summary and its latest regular season only.
@@ -544,23 +469,13 @@ func (client *Client) Season(ctx context.Context, tmdbID int64, seasonNumber int
 		client.mu.Unlock()
 		return cloneSeason(cached.season), nil
 	}
-	if call, ok := client.seasonCalls[cacheKey]; ok {
-		client.mu.Unlock()
-		select {
-		case <-call.done:
-			return cloneSeason(call.season), call.err
-		case <-ctx.Done():
-			return domain.TVSeasonMetadata{}, ctx.Err()
-		}
-	}
-	call := &seasonCall{done: make(chan struct{})}
-	client.seasonCalls[cacheKey] = call
 	client.mu.Unlock()
-	season, err := client.fetchSeason(ctx, tmdbID, seasonNumber)
-	client.mu.Lock()
-	call.season = cloneSeason(season)
-	call.err = err
-	if err == nil {
+	result, err := client.coalesce(ctx, "season:"+cacheKey, func() (any, error) {
+		season, err := client.fetchSeason(ctx, tmdbID, seasonNumber)
+		if err != nil {
+			return nil, err
+		}
+		client.mu.Lock()
 		client.seasonCache[cacheKey] = cachedSeason{season: cloneSeason(season), expiresAt: time.Now().Add(showCacheTTL)}
 		now := time.Now()
 		for key, cached := range client.seasonCache {
@@ -576,11 +491,13 @@ func (client *Client) Season(ctx context.Context, tmdbID int64, seasonNumber int
 				}
 			}
 		}
+		client.mu.Unlock()
+		return season, nil
+	})
+	if err != nil {
+		return domain.TVSeasonMetadata{}, err
 	}
-	delete(client.seasonCalls, cacheKey)
-	close(call.done)
-	client.mu.Unlock()
-	return cloneSeason(season), err
+	return cloneSeason(result.(domain.TVSeasonMetadata)), nil
 }
 
 func (client *Client) Movie(ctx context.Context, tmdbID int64) (domain.MovieMetadata, error) {
@@ -592,29 +509,21 @@ func (client *Client) Movie(ctx context.Context, tmdbID int64) (domain.MovieMeta
 		client.mu.Unlock()
 		return cloneMovie(cached.movie), nil
 	}
-	if call, ok := client.movieCalls[tmdbID]; ok {
-		client.mu.Unlock()
-		select {
-		case <-call.done:
-			return cloneMovie(call.movie), call.err
-		case <-ctx.Done():
-			return domain.MovieMetadata{}, ctx.Err()
+	client.mu.Unlock()
+	result, err := client.coalesce(ctx, fmt.Sprintf("movie:%d", tmdbID), func() (any, error) {
+		movie, err := client.fetchMovie(ctx, tmdbID)
+		if err != nil {
+			return nil, err
 		}
-	}
-	call := &movieCall{done: make(chan struct{})}
-	client.movieCalls[tmdbID] = call
-	client.mu.Unlock()
-	movie, err := client.fetchMovie(ctx, tmdbID)
-	client.mu.Lock()
-	call.movie = cloneMovie(movie)
-	call.err = err
-	if err == nil {
+		client.mu.Lock()
 		client.movieCache[tmdbID] = cachedMovie{movie: cloneMovie(movie), expiresAt: time.Now().Add(showCacheTTL)}
+		client.mu.Unlock()
+		return movie, nil
+	})
+	if err != nil {
+		return domain.MovieMetadata{}, err
 	}
-	delete(client.movieCalls, tmdbID)
-	close(call.done)
-	client.mu.Unlock()
-	return cloneMovie(movie), err
+	return cloneMovie(result.(domain.MovieMetadata)), nil
 }
 
 func (client *Client) Person(ctx context.Context, tmdbID int64) (domain.PersonMetadata, error) {
@@ -626,24 +535,13 @@ func (client *Client) Person(ctx context.Context, tmdbID int64) (domain.PersonMe
 		client.mu.Unlock()
 		return clonePerson(cached.person), nil
 	}
-	if call, ok := client.personCalls[tmdbID]; ok {
-		client.mu.Unlock()
-		select {
-		case <-call.done:
-			return clonePerson(call.person), call.err
-		case <-ctx.Done():
-			return domain.PersonMetadata{}, ctx.Err()
-		}
-	}
-	call := &personCall{done: make(chan struct{})}
-	client.personCalls[tmdbID] = call
 	client.mu.Unlock()
-
-	person, err := client.fetchPerson(ctx, tmdbID)
-	client.mu.Lock()
-	call.person = clonePerson(person)
-	call.err = err
-	if err == nil {
+	result, err := client.coalesce(ctx, fmt.Sprintf("person:%d", tmdbID), func() (any, error) {
+		person, err := client.fetchPerson(ctx, tmdbID)
+		if err != nil {
+			return nil, err
+		}
+		client.mu.Lock()
 		client.personCache[tmdbID] = cachedPerson{person: clonePerson(person), expiresAt: time.Now().Add(showCacheTTL)}
 		now := time.Now()
 		for id, cached := range client.personCache {
@@ -659,11 +557,13 @@ func (client *Client) Person(ctx context.Context, tmdbID int64) (domain.PersonMe
 				}
 			}
 		}
+		client.mu.Unlock()
+		return person, nil
+	})
+	if err != nil {
+		return domain.PersonMetadata{}, err
 	}
-	delete(client.personCalls, tmdbID)
-	close(call.done)
-	client.mu.Unlock()
-	return clonePerson(person), err
+	return clonePerson(result.(domain.PersonMetadata)), nil
 }
 
 func (client *Client) Episode(ctx context.Context, showID int64, seasonNumber int, episodeNumber int) (domain.TVEpisodeMetadata, error) {
@@ -676,29 +576,31 @@ func (client *Client) Episode(ctx context.Context, showID int64, seasonNumber in
 		client.mu.Unlock()
 		return cloneEpisode(cached.episode), nil
 	}
-	if call, ok := client.episodeCalls[cacheKey]; ok {
-		client.mu.Unlock()
-		select {
-		case <-call.done:
-			return cloneEpisode(call.episode), call.err
-		case <-ctx.Done():
-			return domain.TVEpisodeMetadata{}, ctx.Err()
+	client.mu.Unlock()
+	result, err := client.coalesce(ctx, "episode:"+cacheKey, func() (any, error) {
+		episode, err := client.fetchEpisode(ctx, showID, seasonNumber, episodeNumber)
+		if err != nil {
+			return nil, err
 		}
-	}
-	call := &episodeCall{done: make(chan struct{})}
-	client.episodeCalls[cacheKey] = call
-	client.mu.Unlock()
-	episode, err := client.fetchEpisode(ctx, showID, seasonNumber, episodeNumber)
-	client.mu.Lock()
-	call.episode = cloneEpisode(episode)
-	call.err = err
-	if err == nil {
+		client.mu.Lock()
 		client.episodeCache[cacheKey] = cachedEpisode{episode: cloneEpisode(episode), expiresAt: time.Now().Add(showCacheTTL)}
+		client.mu.Unlock()
+		return episode, nil
+	})
+	if err != nil {
+		return domain.TVEpisodeMetadata{}, err
 	}
-	delete(client.episodeCalls, cacheKey)
-	close(call.done)
-	client.mu.Unlock()
-	return cloneEpisode(episode), err
+	return cloneEpisode(result.(domain.TVEpisodeMetadata)), nil
+}
+
+func (client *Client) coalesce(ctx context.Context, key string, fetch func() (any, error)) (any, error) {
+	result := client.calls.DoChan(key, fetch)
+	select {
+	case value := <-result:
+		return value.Val, value.Err
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 }
 
 // cacheShowLocked bounds retained show metadata in addition to its TTL. Search
