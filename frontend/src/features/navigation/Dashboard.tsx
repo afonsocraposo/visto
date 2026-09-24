@@ -5,7 +5,7 @@ import { IconCalendar, IconCompass, IconHome, IconLibrary, IconLogout, IconSearc
 import { WatchNow, WatchCalendar } from "../watch/Watch";
 import { SearchPanel } from "../search/SearchPanel";
 import { FeedPanel } from "../feed/FeedPanel";
-import { LibraryPanel, HistoryPanel, ProfilePanel } from "../library/Library";
+import { LibraryArea } from "../library/LibraryArea";
 import type { Tab, Theme, User } from "../../types";
 
 export function Dashboard({ user, theme, setTheme }: { user: User; theme: Theme; setTheme: (theme: Theme) => void }) {
@@ -105,7 +105,7 @@ export function Dashboard({ user, theme, setTheme }: { user: User; theme: Theme;
         )}
         {tab === "search" && <SearchPanel />}
         {tab === "feed" && <FeedPanel />}
-        {tab === "library" && <><LibraryPanel /><HistoryPanel /><ProfilePanel user={user} /></>}
+        {tab === "library" && <LibraryArea user={user} />}
       </AppShell.Main>
       <AppShell.Footer>
         <Group justify="space-around" h="100%">
