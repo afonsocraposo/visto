@@ -1,0 +1,84 @@
+openapi: 3.1.0
+info:
+  title: Visto API
+  version: 0.1.0
+  description: Self-hosted movie and TV tracking API.
+servers:
+  - url: /api/v1
+paths:
+  /auth/bootstrap:
+    post:
+      summary: Create the first local administrator
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/BootstrapRequest' } } } }
+      responses:
+        '201': { description: Administrator created, content: { application/json: { schema: { $ref: '#/components/schemas/User' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { description: An administrator already exists }
+  /auth/login:
+    post:
+      summary: Start a web session
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/LoginRequest' } } } }
+      responses:
+        '200': { description: Authenticated user and session cookie, content: { application/json: { schema: { $ref: '#/components/schemas/User' } } } }
+        '401': { description: Invalid credentials }
+  /me:
+    get:
+      summary: Get the authenticated user
+      security: [{ sessionCookie: [] }]
+      responses:
+        '200': { description: Current user, content: { application/json: { schema: { $ref: '#/components/schemas/User' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /search:
+    get:
+      summary: Search movies and TV shows through the instance TMDB provider
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { name: q, in: query, required: true, schema: { type: string, minLength: 1 } }
+        - { name: language, in: query, schema: { type: string, example: en-US } }
+      responses:
+        '200': { description: Search results, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/MediaSearchResult' } } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '502': { description: TMDB is temporarily unavailable }
+        '503': { description: TMDB is not configured }
+components:
+  securitySchemes:
+    sessionCookie: { type: apiKey, in: cookie, name: visto_session }
+  responses:
+    BadRequest: { description: Invalid request }
+    Unauthorized: { description: Authentication required }
+  schemas:
+    BootstrapRequest:
+      type: object
+      required: [username, display_name, password]
+      properties:
+        username: { type: string, minLength: 3, maxLength: 32 }
+        display_name: { type: string, minLength: 1, maxLength: 80 }
+        password: { type: string, format: password, minLength: 12 }
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username: { type: string }
+        password: { type: string, format: password }
+    User:
+      type: object
+      required: [id, username, display_name, role, created_at]
+      properties:
+        id: { type: string }
+        username: { type: string }
+        display_name: { type: string }
+        role: { type: string, enum: [admin, user] }
+        created_at: { type: string, format: date-time }
+    MediaSearchResult:
+      type: object
+      required: [tmdb_id, type, title]
+      properties:
+        tmdb_id: { type: integer, format: int64 }
+        type: { type: string, enum: [movie, tv] }
+        title: { type: string }
+        original_title: { type: string }
+        overview: { type: string }
+        release_date: { type: string, format: date }
+        poster_path: { type: string }
+        original_language: { type: string }
