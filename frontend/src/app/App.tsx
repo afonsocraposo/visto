@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { createTheme, Group, Loader, MantineProvider } from "@mantine/core";
-import { Dashboard } from "../features/navigation/Dashboard";
 import { AuthGate } from "../features/auth/AuthGate";
 import { SessionProvider } from "../features/auth/SessionContext";
 import { forcedColorScheme } from "./theme";
+import { router } from "./router";
+import { RouterProvider } from "@tanstack/react-router";
 import type { Theme, User } from "../types";
 
 const themeDefinition = createTheme({
@@ -38,7 +39,7 @@ export function App() {
         <Group justify="center" mt="xl"><Loader /></Group>
       ) : session.data ? (
         <SessionProvider user={session.data}>
-          <Dashboard user={session.data} theme={theme} setTheme={setTheme} />
+          <RouterProvider router={router} context={{ user: session.data, theme, setTheme }} />
         </SessionProvider>
       ) : (
         <AuthGate />

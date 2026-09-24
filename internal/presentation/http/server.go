@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -59,10 +60,23 @@ func New(authService *auth.Service, metadataProvider domain.MetadataProvider, we
 	mux.HandleFunc("GET /api/v1/seasons/{seasonID}/episodes", seasonEpisodes(authService, watchService))
 	if webDir != "" {
 		if _, err := os.Stat(webDir); err == nil {
-			mux.Handle("GET /", http.FileServer(http.Dir(webDir)))
+			mux.Handle("GET /", singlePageApp(webDir))
 		}
 	}
 	return &Server{handler: csrfProtection(mux)}
+}
+
+func singlePageApp(webDir string) http.Handler {
+	files := http.FileServer(http.Dir(webDir))
+	index := filepath.Join(webDir, "index.html")
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requested := filepath.Join(webDir, filepath.Clean("/"+r.URL.Path))
+		if info, err := os.Stat(requested); err == nil && !info.IsDir() {
+			files.ServeHTTP(w, r)
+			return
+		}
+		http.ServeFile(w, r, index)
+	})
 }
 
 func playHistory(authService *auth.Service, service *tracking.Service) http.HandlerFunc {
