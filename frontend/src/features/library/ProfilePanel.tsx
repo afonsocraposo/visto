@@ -31,20 +31,24 @@ export function ProfilePanel({ user }: { user: User }) {
         body: JSON.stringify({ activity_visibility: visibility, timezone }),
       });
       if (!response.ok) throw new Error("Could not save settings.");
-    }, onSuccess: () => queryClient.invalidateQueries({ queryKey: userQueryKey("profile-settings") }),
+    }, onSuccess: async () => Promise.all([
+      queryClient.invalidateQueries({ queryKey: userQueryKey("profile-settings") }),
+      queryClient.invalidateQueries({ queryKey: userQueryKey("feed") }),
+    ]),
   });
+  const settingsUnavailable = settings.isPending || settings.isError;
 
   return <>
     <Paper withBorder p="md" mt="lg">
       <Title order={2}>Profile</Title>
       <Text size="sm" c="dimmed" mt="xs">Choose who can see your activity and which time zone the calendar uses.</Text>
       {settings.isError && <Alert color="red" mt="md">Profile settings are temporarily unavailable.</Alert>}
-      <Select mt="md" label="Activity feed" value={visibility} onChange={value => setVisibility(value || "private")} data={[
+      <Select mt="md" label="Activity feed" value={visibility} disabled={settingsUnavailable} onChange={value => setVisibility(value || "private")} data={[
         { value: "private", label: "Private" }, { value: "instance", label: "Visible to this instance" },
       ]} />
-      <TextInput mt="md" label="Time zone" description="Use a time zone such as Europe/Lisbon or America/New_York." value={timezone} onChange={event => setTimezone(event.currentTarget.value)} />
+      <TextInput mt="md" label="Time zone" description="Use a time zone such as Europe/Lisbon or America/New_York." value={timezone} disabled={settingsUnavailable} onChange={event => setTimezone(event.currentTarget.value)} />
       {save.isError && <Alert color="red" mt="md">{save.error.message}</Alert>}
-      <Button mt="md" loading={save.isPending} onClick={() => save.mutate()}>Save settings</Button>
+      <Button mt="md" disabled={settingsUnavailable} loading={save.isPending} onClick={() => save.mutate()}>Save settings</Button>
 
       <Title order={3} mt="xl">Export your data</Title>
       <Text size="sm" c="dimmed" mt="xs">These downloads include only your library, ratings, and watch history.</Text>
