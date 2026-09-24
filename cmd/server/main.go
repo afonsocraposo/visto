@@ -17,6 +17,7 @@ import (
 	"github.com/afonsocosta/visto/internal/application/feed"
 	"github.com/afonsocosta/visto/internal/application/library"
 	"github.com/afonsocosta/visto/internal/application/notifications"
+	"github.com/afonsocosta/visto/internal/application/oauth"
 	"github.com/afonsocosta/visto/internal/application/profile"
 	"github.com/afonsocosta/visto/internal/application/tracking"
 	"github.com/afonsocosta/visto/internal/application/watch"
@@ -25,6 +26,7 @@ import (
 	"github.com/afonsocosta/visto/internal/infrastructure/sqlite"
 	"github.com/afonsocosta/visto/internal/infrastructure/tmdb"
 	httpserver "github.com/afonsocosta/visto/internal/presentation/http"
+	mcpserver "github.com/afonsocosta/visto/internal/presentation/mcp"
 )
 
 func main() {
@@ -95,9 +97,20 @@ func main() {
 		defer stopNotifications()
 		go notifications.NewService(store, pushoverClient, secretCipher).Run(notificationContext, dispatchInterval, log.Default())
 	}
+	appHandler := http.NewServeMux()
+	authService := auth.NewService(store)
+	publicURL := os.Getenv("VISTO_PUBLIC_URL")
+	if err := mcpserver.ValidatePublicURL(publicURL); err != nil {
+		log.Fatal(err)
+	}
+	mcpHandler := mcpserver.New(authService, oauth.NewService(store), publicURL, metadataProvider, library.NewService(store), tracking.NewService(store), watchService)
+	appHandler.Handle("/mcp", mcpHandler)
+	appHandler.Handle("/oauth/", mcpHandler)
+	appHandler.Handle("/.well-known/", mcpHandler)
+	appHandler.Handle("/", httpserver.New(authService, metadataProvider, os.Getenv("VISTO_WEB_DIR"), library.NewService(store), tracking.NewService(store), profiles, feed.NewService(store), exportapp.NewService(store), watchService).Handler())
 	server := &http.Server{
 		Addr:              environment("VISTO_LISTEN_ADDR", ":8080"),
-		Handler:           httpserver.New(auth.NewService(store), metadataProvider, os.Getenv("VISTO_WEB_DIR"), library.NewService(store), tracking.NewService(store), profiles, feed.NewService(store), exportapp.NewService(store), watchService).Handler(),
+		Handler:           appHandler,
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}

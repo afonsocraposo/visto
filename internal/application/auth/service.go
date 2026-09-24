@@ -109,9 +109,9 @@ func (service *Service) Bootstrap(ctx context.Context, username, displayName, pa
 }
 
 func (service *Service) Login(ctx context.Context, username, password string) (domain.User, string, time.Time, error) {
-	user, hash, err := service.repository.FindUserByUsername(ctx, strings.TrimSpace(username))
-	if err != nil || !verifyPassword(hash, password) {
-		return domain.User{}, "", time.Time{}, ErrInvalidCredentials
+	user, err := service.AuthenticateCredentials(ctx, username, password)
+	if err != nil {
+		return domain.User{}, "", time.Time{}, err
 	}
 	token, err := newToken()
 	if err != nil {
@@ -122,6 +122,14 @@ func (service *Service) Login(ctx context.Context, username, password string) (d
 		return domain.User{}, "", time.Time{}, err
 	}
 	return user, token, expiresAt, nil
+}
+
+func (service *Service) AuthenticateCredentials(ctx context.Context, username, password string) (domain.User, error) {
+	user, hash, err := service.repository.FindUserByUsername(ctx, strings.TrimSpace(username))
+	if err != nil || !verifyPassword(hash, password) {
+		return domain.User{}, ErrInvalidCredentials
+	}
+	return user, nil
 }
 
 func (service *Service) Authenticate(ctx context.Context, token string) (domain.User, error) {

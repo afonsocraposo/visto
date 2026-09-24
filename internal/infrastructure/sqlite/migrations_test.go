@@ -31,10 +31,10 @@ func TestMigrator_GivenFreshDatabase_WhenAppliedTwice_ThenSchemaIsCreatedAndSeco
 	if err := db.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&count); err != nil {
 		t.Fatalf("count migrations: %v", err)
 	}
-	if count != 6 {
-		t.Fatalf("migration count = %d, want 6", count)
+	if count != 7 {
+		t.Fatalf("migration count = %d, want 7", count)
 	}
-	for _, table := range []string{"users", "media", "episodes", "plays", "activity_events", "episode_ratings", "personal_api_tokens", "notification_deliveries"} {
+	for _, table := range []string{"users", "media", "episodes", "plays", "activity_events", "episode_ratings", "personal_api_tokens", "notification_deliveries", "oauth_clients", "oauth_authorization_codes", "oauth_access_tokens", "oauth_refresh_tokens"} {
 		var name string
 		if err := db.QueryRow(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?`, table).Scan(&name); err != nil {
 			t.Fatalf("expected table %q: %v", table, err)

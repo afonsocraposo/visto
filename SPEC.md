@@ -68,7 +68,9 @@ trademark policy.
 
 ### v0.3: remote MCP
 
-- MCP over Streamable HTTP.
+- MCP over Streamable HTTP at the fixed `/mcp` endpoint.
+- Support the current stateless MCP protocol and the preceding client protocol
+  during migration.
 - OAuth authorization server for third-party MCP clients.
 - OAuth consent, PKCE, revocation, and scoped access.
 

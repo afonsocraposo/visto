@@ -54,6 +54,22 @@ Visto alerts for newly aired regular episodes in shows a user is watching.
 Specials, paused or dropped shows, disabled show alerts, and episodes already
 marked watched are excluded. Delivery is deduplicated per user and episode.
 
+## ChatGPT MCP connection
+
+Visto's MCP endpoint is `/mcp`. To connect ChatGPT, set `VISTO_PUBLIC_URL` to
+the canonical HTTPS origin used to reach the instance, for example
+`https://visto.example.com`. OAuth discovery uses this exact origin, so set it
+to the external address exposed by the reverse proxy or secure tunnel. Keep
+the `/mcp`, `/oauth/`, and `/.well-known/` paths available through that proxy.
+The server supports PKCE authorization, separate read and write permissions,
+and per-user Visto accounts.
+
+In ChatGPT web, enable developer mode, create a custom MCP app, and enter
+`https://visto.example.com/mcp` as its endpoint. ChatGPT discovers Visto's
+OAuth endpoints and asks each user to sign in with their Visto account and
+approve access. Visto uses the identity associated with that user's token,
+not a `user_id` sent in an MCP tool call. See [OpenAI's MCP app guide](https://help.openai.com/en/articles/12584461-developer-mode-and-mcp-apps-in-chatgpt).
+
 ## Development
 
 Requirements: Go 1.22+, Node.js 22+, Air, and a TMDB API key for metadata search.
