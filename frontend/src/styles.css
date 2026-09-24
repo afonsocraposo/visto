@@ -46,7 +46,9 @@ select {
 .watch-row-art { width: 240px; min-height: 144px; flex: 0 0 240px; overflow: hidden; background: #1b2430; }
 .watch-row-art .mantine-Image-root, .watch-row-art img { width: 100%; height: 100%; object-fit: cover; }
 .watch-row-content { display: flex; flex-direction: column; justify-content: center; gap: 10px; min-width: 0; flex: 1; padding-block: 14px; }
-.watch-row-show { align-self: flex-start; max-width: 100%; }
+.watch-row-show { align-self: flex-start; max-width: 100%; cursor: pointer; }
+.watch-row-show:hover { border-color: var(--mantine-color-yellow-6); }
+.watch-row-show:focus-visible { outline: 2px solid var(--mantine-color-yellow-6); outline-offset: 2px; }
 .watch-row-show .mantine-Badge-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .watch-row-meta { min-width: 0; }
 .watch-row-episode { color: var(--mantine-color-text); font-size: 1.05rem; font-weight: 700; white-space: nowrap; }
@@ -132,10 +134,19 @@ select {
 .history-empty { text-align: center; }
 .feed-avatar { display: grid; place-items: center; width: 30px; height: 30px; flex: 0 0 30px; border-radius: 50%; background: #dff4f1; color: #12675f; font-weight: 800; }
 .empty-state { background: linear-gradient(135deg, color-mix(in srgb, var(--mantine-color-body) 90%, #f2b544), var(--mantine-color-body)); border-style: dashed; }
-.auth-card { margin-top: clamp(48px, 14vh, 140px); box-shadow: 0 24px 70px rgb(23 34 48 / .13); }
+.auth-screen { position: relative; display: flex; min-height: 100dvh; align-items: center; overflow: hidden; background: #10141a; isolation: isolate; }
+.auth-backdrop { position: absolute; inset: 0; z-index: -2; background-position: center; background-size: cover; }
+.auth-screen::before { position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, rgb(8 12 17 / .86) 0%, rgb(8 12 17 / .58) 43%, rgb(8 12 17 / .2) 100%), linear-gradient(0deg, rgb(8 12 17 / .65), transparent 34%); content: ""; }
+.auth-screen-inner { width: min(100% - 48px, 1120px); margin: 0 auto; padding: 48px 0; }
+.auth-card { width: min(100%, 440px); margin: 0; background: color-mix(in srgb, var(--mantine-color-body) 94%, transparent); box-shadow: 0 24px 70px rgb(0 0 0 / .35); backdrop-filter: blur(20px); }
 .auth-mark { width: 44px; height: 44px; border-radius: 14px; margin-bottom: 22px; font-size: 1.35rem; }
+.auth-feature-caption { position: absolute; right: max(24px, calc((100vw - 1120px) / 2)); bottom: 28px; max-width: min(320px, 30vw); color: #fff; text-align: right; text-shadow: 0 2px 12px rgb(0 0 0 / .7); }
+.auth-feature-caption p:first-child { color: rgb(255 255 255 / .75); }
 
 @media (max-width: 680px) {
+  .auth-screen-inner { width: min(100% - 32px, 440px); padding: 44px 0 88px; }
+  .auth-screen::before { background: linear-gradient(180deg, rgb(8 12 17 / .5), rgb(8 12 17 / .8)); }
+  .auth-feature-caption { right: 18px; bottom: 16px; max-width: 70vw; font-size: .85rem; }
   .visto-header-inner, .visto-main { width: min(100% - 24px, 1120px); }
   .visto-main { padding-top: 96px; }
   .welcome-name, .theme-select { display: none; }

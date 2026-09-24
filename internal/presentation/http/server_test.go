@@ -19,6 +19,28 @@ type accountHTTPRepository struct {
 	passwordHash string
 }
 
+type publicTrendingProvider struct{}
+
+func (publicTrendingProvider) Search(context.Context, string, string) ([]domain.MediaSearchResult, error) {
+	return nil, nil
+}
+
+func (publicTrendingProvider) Trending(_ context.Context, mediaType, _ string) ([]domain.MediaSearchResult, error) {
+	return []domain.MediaSearchResult{{TMDBID: 42, Type: domain.MediaType(mediaType), Title: "Example", BackdropPath: "/example.jpg"}}, nil
+}
+
+func TestPublicTrending_GivenNoSession_WhenLoginRequestsArtwork_ThenItReturnsOnlyTrendingMetadata(t *testing.T) {
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/public/trending?window=week", nil)
+	response := httptest.NewRecorder()
+	httpserver.New(nil, publicTrendingProvider{}, "", nil, nil, nil, nil, nil, nil).Handler().ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", response.Code, response.Body.String())
+	}
+	if !strings.Contains(response.Body.String(), `"backdrop_path":"/example.jpg"`) {
+		t.Fatalf("response has no trending backdrop: %s", response.Body.String())
+	}
+}
+
 func (*accountHTTPRepository) BootstrapAdmin(context.Context, domain.User, string) error { return nil }
 func (repository *accountHTTPRepository) CreateUser(_ context.Context, user domain.User, passwordHash string) error {
 	repository.createdUser = user

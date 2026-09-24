@@ -43,6 +43,7 @@ func New(authService *auth.Service, metadataProvider domain.MetadataProvider, we
 	mux.HandleFunc("GET /api/v1/export/csv", csvExport(authService, exportService))
 	mux.HandleFunc("GET /api/v1/search", search(authService, metadataProvider))
 	mux.HandleFunc("GET /api/v1/trending", trending(authService, metadataProvider))
+	mux.HandleFunc("GET /api/v1/public/trending", publicTrending(metadataProvider))
 	mux.HandleFunc("GET /api/v1/discover/shows/{tmdbID}", temporaryShowDetails(authService, metadataProvider))
 	mux.HandleFunc("GET /api/v1/discover/shows/{tmdbID}/seasons/{seasonNumber}", temporaryShowSeasonEpisodes(authService, metadataProvider))
 	mux.HandleFunc("GET /api/v1/discover/shows/{tmdbID}/seasons/{seasonNumber}/episodes/{episodeNumber}", temporaryEpisodeDetails(authService, metadataProvider))
@@ -115,39 +116,49 @@ func playHistory(authService *auth.Service, service *tracking.Service) http.Hand
 }
 
 func trending(authService *auth.Service, provider domain.MetadataProvider) http.HandlerFunc {
-	type response struct {
-		TV     []domain.MediaSearchResult `json:"tv"`
-		Movies []domain.MediaSearchResult `json:"movies"`
-	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		if _, ok := authenticatedUser(w, r, authService); !ok {
 			return
 		}
-		trendingProvider, ok := provider.(domain.TrendingMetadataProvider)
-		if !ok {
-			writeError(w, http.StatusServiceUnavailable, "TMDB trending is not configured")
-			return
-		}
-		window := r.URL.Query().Get("window")
-		if window == "" {
-			window = "week"
-		}
-		if window != "day" && window != "week" {
-			writeError(w, http.StatusBadRequest, "window must be day or week")
-			return
-		}
-		movies, err := trendingProvider.Trending(r.Context(), "movie", window)
-		if err != nil {
-			writeError(w, http.StatusBadGateway, "trending metadata is temporarily unavailable")
-			return
-		}
-		shows, err := trendingProvider.Trending(r.Context(), "tv", window)
-		if err != nil {
-			writeError(w, http.StatusBadGateway, "trending metadata is temporarily unavailable")
-			return
-		}
-		writeJSON(w, http.StatusOK, response{TV: shows, Movies: movies})
+		serveTrending(w, r, provider)
 	}
+}
+
+func publicTrending(provider domain.MetadataProvider) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		serveTrending(w, r, provider)
+	}
+}
+
+func serveTrending(w http.ResponseWriter, r *http.Request, provider domain.MetadataProvider) {
+	type response struct {
+		TV     []domain.MediaSearchResult `json:"tv"`
+		Movies []domain.MediaSearchResult `json:"movies"`
+	}
+	trendingProvider, ok := provider.(domain.TrendingMetadataProvider)
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "TMDB trending is not configured")
+		return
+	}
+	window := r.URL.Query().Get("window")
+	if window == "" {
+		window = "week"
+	}
+	if window != "day" && window != "week" {
+		writeError(w, http.StatusBadRequest, "window must be day or week")
+		return
+	}
+	movies, err := trendingProvider.Trending(r.Context(), "movie", window)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "trending metadata is temporarily unavailable")
+		return
+	}
+	shows, err := trendingProvider.Trending(r.Context(), "tv", window)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "trending metadata is temporarily unavailable")
+		return
+	}
+	writeJSON(w, http.StatusOK, response{TV: shows, Movies: movies})
 }
 
 func episodeRating(authService *auth.Service, service *tracking.Service) http.HandlerFunc {

@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Alert,
@@ -11,10 +11,41 @@ import {
   TextInput,
   Title,
 } from "@mantine/core";
-import type { User } from "../../types";
+import { backdropURL } from "../../lib/artwork";
+import { api } from "../../lib/api";
+import type { TrendingResponse, User } from "../../types";
+import { pickLoginBackdrop, readLoginBackdrop, saveLoginBackdrop, type LoginBackdrop } from "./loginBackdrop";
+
+function cachedBackdrop(): LoginBackdrop | null {
+  try { return readLoginBackdrop(window.localStorage, Date.now()); } catch { return null; }
+}
+
+function cacheBackdrop(selection: LoginBackdrop): void {
+  try { saveLoginBackdrop(window.localStorage, selection); } catch { /* Storage is optional. */ }
+}
 
 export function AuthGate() {
   const queryClient = useQueryClient();
+  const [backdrop, setBackdrop] = useState<LoginBackdrop | null>(cachedBackdrop);
+  const trending = useQuery({
+    queryKey: ["public-trending", "week"],
+    enabled: backdrop === null,
+    queryFn: () => api.get<TrendingResponse>("/api/v1/public/trending?window=week", "Trending artwork is unavailable."),
+    staleTime: 5 * 60_000,
+  });
+  useEffect(() => {
+    if (backdrop || !trending.data) return;
+    const cached = cachedBackdrop();
+    const selected = cached ?? pickLoginBackdrop(trending.data, Date.now());
+    if (!selected) return;
+    if (!cached) cacheBackdrop(selected);
+    setBackdrop(selected);
+  }, [backdrop, trending.data]);
+  useEffect(() => {
+    if (!backdrop) return;
+    const timeout = window.setTimeout(() => setBackdrop(null), Math.max(0, backdrop.expiresAt - Date.now()));
+    return () => window.clearTimeout(timeout);
+  }, [backdrop]);
   const setup = useQuery({
     queryKey: ["auth-status"],
     queryFn: async () => {
@@ -64,10 +95,6 @@ export function AuthGate() {
     onSuccess: user => queryClient.setQueryData(["session"], user),
   });
 
-  if (setup.isPending) {
-    return <Group justify="center" mt="xl"><Loader /></Group>;
-  }
-
   const isFirstRun = setup.data?.bootstrap_available;
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -81,12 +108,17 @@ export function AuthGate() {
   const pending = isFirstRun ? createAdmin.isPending : signIn.isPending;
 
   return (
-    <Paper className="auth-card" withBorder radius="xl" p="xl" maw={440} mx="auto" mt="xl">
+    <div className="auth-screen">
+      <div className="auth-backdrop" style={backdrop ? { backgroundImage: `url(${backdropURL(backdrop.backdrop_path, "w1280")})` } : undefined} aria-hidden="true" />
+      <div className="auth-screen-inner"><Paper className="auth-card" withBorder radius="xl" p="xl">
       <div className="auth-mark" aria-hidden="true">V</div>
       <Title order={1}>{isFirstRun ? "Set up Visto" : "Welcome to Visto"}</Title>
       <Text c="dimmed" mt="xs">
         {isFirstRun ? "Create the first administrator for this instance." : "Sign in to track what you watch."}
       </Text>
+      {setup.isPending && <Group justify="center" py="xl"><Loader /></Group>}
+      {setup.isError && <Alert color="red" mt="lg">Could not check instance setup. Refresh the page and try again.</Alert>}
+      {!setup.isPending && !setup.isError &&
       <form onSubmit={event => void submit(event)}>
         <TextInput required minLength={3} maxLength={32} label="Username" value={username} onChange={event => setUsername(event.currentTarget.value)} mt="lg" />
         {isFirstRun && <TextInput required maxLength={80} label="Your name" value={displayName} onChange={event => setDisplayName(event.currentTarget.value)} mt="md" />}
@@ -95,7 +127,9 @@ export function AuthGate() {
         <Button type="submit" loading={pending} fullWidth mt="lg">
           {isFirstRun ? "Create administrator" : "Sign in"}
         </Button>
-      </form>
-    </Paper>
+      </form>}
+      </Paper></div>
+      {backdrop && <div className="auth-feature-caption"><Text size="xs" fw={700}>Trending on TMDB</Text><Text fw={650}>{backdrop.title}</Text></div>}
+    </div>
   );
 }

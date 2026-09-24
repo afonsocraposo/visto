@@ -54,10 +54,11 @@ export function WatchNow({ onOpenDetail }: { onOpenDetail?: (target: MediaDetail
         {entries.data.map(entry => {
           const art = backdropURL(entry.next_episode_still_path, "w780") ?? posterURL(entry.poster_path, "w500");
           const openEpisode = () => onOpenDetail?.({ mediaType: "tv", tmdbID: Number(entry.show_id.split(":")[1]), mediaID: entry.show_id, episodeID: entry.next_episode?.id, episode: entry.next_episode });
+          const openShow = () => onOpenDetail?.({ mediaType: "tv", tmdbID: Number(entry.show_id.split(":")[1]), mediaID: entry.show_id, seasonNumber: entry.next_episode?.season_number });
           return <Paper key={entry.show_id} className="watch-row" withBorder p={0} role={onOpenDetail ? "button" : undefined} tabIndex={onOpenDetail ? 0 : undefined} onClick={openEpisode} onKeyDown={event => { if ((event.key === "Enter" || event.key === " ") && event.target === event.currentTarget) { event.preventDefault(); openEpisode(); } }}>
             <div className="watch-row-art">{art ? <Image src={art} alt="" /> : <div className="artwork-fallback">{entry.title.slice(0, 1)}</div>}</div>
             <div className="watch-row-content">
-              <Badge className="watch-row-show" size="lg" variant="outline" color="gray" radius="xl">{entry.title}</Badge>
+              <Badge component="button" type="button" className="watch-row-show" size="lg" variant="outline" color="gray" radius="xl" aria-label={`Open ${entry.title} at season ${entry.next_episode?.season_number ?? 1}`} disabled={!onOpenDetail} onClick={event => { event.stopPropagation(); openShow(); }}>{entry.title}</Badge>
               <Group className="watch-row-meta" gap="xs" wrap="wrap">
                 <Text className="watch-row-episode">{entry.next_episode ? `S${String(entry.next_episode.season_number).padStart(2, "0")} | E${String(entry.next_episode.episode_number).padStart(2, "0")}` : "Episode details are pending"}</Text>
                 {entry.remaining_episodes > 0 && <Badge size="sm" variant="light" color="gray">+{entry.remaining_episodes} left</Badge>}
