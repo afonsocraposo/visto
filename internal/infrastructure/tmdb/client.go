@@ -276,7 +276,7 @@ func (client *Client) fetchShow(ctx context.Context, tmdbID int64) (domain.TVSho
 	}); err != nil {
 		return domain.TVShowMetadata{}, err
 	}
-	show := domain.TVShowMetadata{TMDBID: details.ID, Name: details.Name, Overview: details.Overview, PosterPath: details.PosterPath, FirstAirDate: details.FirstAirDate, OriginalLanguage: details.OriginalLanguage}
+	show := domain.TVShowMetadata{TMDBID: details.ID, Name: details.Name, Overview: details.Overview, PosterPath: details.PosterPath, FirstAirDate: details.FirstAirDate, OriginalLanguage: details.OriginalLanguage, Status: details.Status}
 	for _, season := range details.Seasons {
 		seasonMetadata := domain.TVSeasonMetadata{TMDBID: season.ID, Number: season.SeasonNumber, Name: season.Name, Overview: season.Overview, PosterPath: season.PosterPath, AirDate: season.AirDate}
 		var seasonDetails *tmdbapi.TVSeasonDetails

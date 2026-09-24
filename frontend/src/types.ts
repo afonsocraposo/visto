@@ -20,7 +20,7 @@ export type SearchMedia = {
 };
 
 export type LibraryEntry = {
-  item: { media_id: string; status: string; rating: number | null };
+  item: { media_id: string; status: string; rating: number | null; updated_at: string };
   media: SearchMedia & { id: string };
   completed: boolean;
 };
@@ -75,5 +75,8 @@ export type HistoryEntry = {
   };
   title: string;
   episode_label?: string;
+  episode_name?: string;
   artwork_path?: string;
 };
+
+export type LibraryStatus = "watching" | "completed" | "watchlist" | "paused" | "dropped";

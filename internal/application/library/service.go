@@ -33,6 +33,7 @@ type Media struct {
 	ReleaseDate      string           `json:"release_date"`
 	PosterPath       string           `json:"poster_path"`
 	OriginalLanguage string           `json:"original_language"`
+	Status           string           `json:"status,omitempty"`
 	Type             domain.MediaType `json:"type"`
 	TMDBID           int64            `json:"tmdb_id"`
 }

@@ -10,9 +10,10 @@ const watchRoute = createRoute({ getParentRoute: () => rootRoute, path: "/watch"
 const discoverRoute = createRoute({ getParentRoute: () => rootRoute, path: "/discover", component: DashboardRoute });
 const feedRoute = createRoute({ getParentRoute: () => rootRoute, path: "/feed", component: DashboardRoute });
 const profileRoute = createRoute({ getParentRoute: () => rootRoute, path: "/profile", component: DashboardRoute });
+const profileLibraryListRoute = createRoute({ getParentRoute: () => rootRoute, path: "/profile/library/$status", component: DashboardRoute });
 const mediaRoute = createRoute({ getParentRoute: () => rootRoute, path: "/media/$mediaType/$tmdbID", component: DashboardRoute });
 
-const routeTree = rootRoute.addChildren([dashboardRoute, watchRoute, discoverRoute, feedRoute, profileRoute, mediaRoute]);
+const routeTree = rootRoute.addChildren([dashboardRoute, watchRoute, discoverRoute, feedRoute, profileRoute, profileLibraryListRoute, mediaRoute]);
 export const router = createRouter({ routeTree, context: undefined! });
 
 function DashboardRoute() {

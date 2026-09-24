@@ -69,7 +69,7 @@ function HistoryCard({ entry }: { entry: HistoryEntry }) {
       <Group justify="space-between" align="flex-start" gap="md" wrap="nowrap">
         <Group className="history-heading" wrap="nowrap" gap="sm" align="flex-start">
           <div className="history-art">{entry.artwork_path ? <Image src={backdropURL(entry.artwork_path, "w780")!} alt="" /> : <IconHistory size={18} />}</div>
-          <div className="history-entry-title"><Text fw={750}>{entry.title}</Text>{entry.episode_label && <Badge className="history-episode" variant="light">{entry.episode_label}</Badge>}</div>
+          <div className="history-entry-title"><Text fw={750}>{entry.title}</Text>{entry.episode_label && <Badge className="history-episode" variant="light">{entry.episode_label}</Badge>}{entry.episode_name && <Text className="history-episode-name" size="sm" fw={600}>{entry.episode_name}</Text>}</div>
         </Group>
         <Text className="history-date" size="sm" c="dimmed">{formatActivityTime(watchedAtDate)}</Text>
       </Group>

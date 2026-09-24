@@ -128,7 +128,7 @@ func (store *Store) CreateBulkPlays(ctx context.Context, plays []tracking.Play) 
 func ensureWatchingRelationship(ctx context.Context, tx *sql.Tx, userID, mediaID string, createdAt time.Time) error {
 	timestamp := createdAt.Format(time.RFC3339Nano)
 	_, err := tx.ExecContext(ctx, `INSERT INTO user_media(id,user_id,media_id,status,added_at,updated_at)
-		VALUES(?,?,?,'watching',?,?) ON CONFLICT(user_id,media_id) DO NOTHING`, userID+":"+mediaID, userID, mediaID, timestamp, timestamp)
+		VALUES(?,?,?,'watching',?,?) ON CONFLICT(user_id,media_id) DO UPDATE SET updated_at=excluded.updated_at`, userID+":"+mediaID, userID, mediaID, timestamp, timestamp)
 	if err != nil {
 		return fmt.Errorf("ensure library relationship for tracked media: %w", err)
 	}
@@ -182,7 +182,7 @@ func (store *Store) DeletePlay(ctx context.Context, userID, playID string) error
 }
 
 func (store *Store) ListPlays(ctx context.Context, userID string, limit int) ([]tracking.HistoryEntry, error) {
-	rows, err := store.DB.QueryContext(ctx, `SELECT p.id,p.user_id,p.media_id,p.episode_id,p.watched_at,p.source,COALESCE(movie.title,show.title,''),episode.season_number,episode.episode_number,COALESCE(episode.still_path,movie.poster_path,show.poster_path,'')
+	rows, err := store.DB.QueryContext(ctx, `SELECT p.id,p.user_id,p.media_id,p.episode_id,p.watched_at,p.source,COALESCE(movie.title,show.title,''),episode.name,episode.season_number,episode.episode_number,COALESCE(episode.still_path,movie.poster_path,show.poster_path,'')
 		FROM plays p LEFT JOIN media movie ON movie.id=p.media_id LEFT JOIN episodes episode ON episode.id=p.episode_id LEFT JOIN media show ON show.id=episode.show_id
 		WHERE p.user_id=? ORDER BY p.watched_at DESC,p.id DESC LIMIT ?`, userID, limit)
 	if err != nil {
@@ -195,11 +195,14 @@ func (store *Store) ListPlays(ctx context.Context, userID string, limit int) ([]
 		var mediaID, episodeID sql.NullString
 		var watchedAt string
 		var season, number sql.NullInt64
+		var episodeName sql.NullString
 		var artwork sql.NullString
-		if err := rows.Scan(&entry.Play.ID, &entry.Play.UserID, &mediaID, &episodeID, &watchedAt, &entry.Play.Source, &entry.Title, &season, &number, &artwork); err != nil {
+		if err := rows.Scan(&entry.Play.ID, &entry.Play.UserID, &mediaID, &episodeID, &watchedAt, &entry.Play.Source, &entry.Title, &episodeName, &season, &number, &artwork); err != nil {
 			return nil, fmt.Errorf("scan play history: %w", err)
 		}
-		if artwork.Valid { entry.ArtworkPath = artwork.String }
+		if artwork.Valid {
+			entry.ArtworkPath = artwork.String
+		}
 		if mediaID.Valid {
 			value := mediaID.String
 			entry.Play.MediaID = &value
@@ -208,6 +211,9 @@ func (store *Store) ListPlays(ctx context.Context, userID string, limit int) ([]
 			value := episodeID.String
 			entry.Play.EpisodeID = &value
 			entry.EpisodeLabel = fmt.Sprintf("S%02dE%02d", season.Int64, number.Int64)
+			if episodeName.Valid {
+				entry.EpisodeName = episodeName.String
+			}
 		}
 		entry.Play.WatchedAt, err = time.Parse(time.RFC3339Nano, watchedAt)
 		if err != nil {

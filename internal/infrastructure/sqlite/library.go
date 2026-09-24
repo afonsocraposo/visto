@@ -13,10 +13,10 @@ import (
 
 func (s *Store) UpsertMedia(ctx context.Context, media library.Media) error {
 	now := time.Now().UTC().Format(time.RFC3339Nano)
-	_, err := s.DB.ExecContext(ctx, `INSERT INTO media(id,media_type,tmdb_id,title,original_title,overview,release_date,poster_path,original_language,metadata_updated_at,created_at)
-		VALUES(?,?,?,?,?,?,?,?,?,?,?)
-		ON CONFLICT(media_type,tmdb_id) DO UPDATE SET title=excluded.title,original_title=excluded.original_title,overview=excluded.overview,release_date=excluded.release_date,poster_path=excluded.poster_path,original_language=excluded.original_language,metadata_updated_at=excluded.metadata_updated_at`,
-		media.ID, media.Type, media.TMDBID, media.Title, media.OriginalTitle, media.Overview, media.ReleaseDate, media.PosterPath, media.OriginalLanguage, now, now)
+	_, err := s.DB.ExecContext(ctx, `INSERT INTO media(id,media_type,tmdb_id,title,original_title,overview,release_date,poster_path,original_language,status,metadata_updated_at,created_at)
+		VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
+		ON CONFLICT(media_type,tmdb_id) DO UPDATE SET title=excluded.title,original_title=excluded.original_title,overview=excluded.overview,release_date=excluded.release_date,poster_path=excluded.poster_path,original_language=excluded.original_language,status=COALESCE(NULLIF(excluded.status,''),media.status),metadata_updated_at=excluded.metadata_updated_at`,
+		media.ID, media.Type, media.TMDBID, media.Title, media.OriginalTitle, media.Overview, media.ReleaseDate, media.PosterPath, media.OriginalLanguage, media.Status, now, now)
 	if err != nil {
 		return fmt.Errorf("upsert media: %w", err)
 	}
@@ -30,7 +30,7 @@ func (s *Store) ImportShowMetadata(ctx context.Context, showID string, show doma
 	}
 	defer tx.Rollback()
 	now := time.Now().UTC().Format(time.RFC3339Nano)
-	if _, err := tx.ExecContext(ctx, `UPDATE media SET title=?,original_title=?,overview=?,release_date=?,poster_path=?,original_language=?,metadata_updated_at=?,catalog_updated_at=? WHERE id=? AND media_type='tv' AND tmdb_id=?`, show.Name, show.Name, show.Overview, show.FirstAirDate, show.PosterPath, show.OriginalLanguage, now, now, showID, show.TMDBID); err != nil {
+	if _, err := tx.ExecContext(ctx, `UPDATE media SET title=?,original_title=?,overview=?,release_date=?,poster_path=?,original_language=?,status=?,metadata_updated_at=?,catalog_updated_at=? WHERE id=? AND media_type='tv' AND tmdb_id=?`, show.Name, show.Name, show.Overview, show.FirstAirDate, show.PosterPath, show.OriginalLanguage, show.Status, now, now, showID, show.TMDBID); err != nil {
 		return fmt.Errorf("update show metadata: %w", err)
 	}
 	for _, season := range show.Seasons {
@@ -114,8 +114,9 @@ func (s *Store) UpsertItem(ctx context.Context, item library.Item) error {
 }
 
 func (s *Store) ListItems(ctx context.Context, userID string) ([]library.Entry, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT um.user_id,um.media_id,um.status,um.rating,um.added_at,um.updated_at,m.media_type,m.tmdb_id,m.title,COALESCE(m.original_title,''),COALESCE(m.overview,''),COALESCE(m.release_date,''),COALESCE(m.poster_path,''),COALESCE(m.original_language,''),
-		(m.media_type='movie' AND EXISTS(SELECT 1 FROM plays p WHERE p.user_id=um.user_id AND p.media_id=um.media_id))
+	rows, err := s.DB.QueryContext(ctx, `SELECT um.user_id,um.media_id,um.status,um.rating,um.added_at,um.updated_at,m.media_type,m.tmdb_id,m.title,COALESCE(m.original_title,''),COALESCE(m.overview,''),COALESCE(m.release_date,''),COALESCE(m.poster_path,''),COALESCE(m.original_language,''),COALESCE(m.status,''),
+		((m.media_type='movie' AND EXISTS(SELECT 1 FROM plays p WHERE p.user_id=um.user_id AND p.media_id=um.media_id)) OR
+		 (m.media_type='tv' AND m.status IN ('Ended','Canceled','Cancelled') AND EXISTS(SELECT 1 FROM episodes e WHERE e.show_id=m.id AND e.season_number>0) AND NOT EXISTS(SELECT 1 FROM episodes e WHERE e.show_id=m.id AND e.season_number>0 AND (e.air_date IS NULL OR e.air_date<=date('now')) AND NOT EXISTS(SELECT 1 FROM plays p WHERE p.user_id=um.user_id AND p.episode_id=e.id))))
 		FROM user_media um JOIN media m ON m.id=um.media_id WHERE um.user_id=? ORDER BY um.updated_at DESC`, userID)
 	if err != nil {
 		return nil, fmt.Errorf("list library items: %w", err)
@@ -126,7 +127,7 @@ func (s *Store) ListItems(ctx context.Context, userID string) ([]library.Entry, 
 		var entry library.Entry
 		var rating sql.NullInt64
 		var addedAt, updatedAt string
-		if err := rows.Scan(&entry.Item.UserID, &entry.Item.MediaID, &entry.Item.Status, &rating, &addedAt, &updatedAt, &entry.Media.Type, &entry.Media.TMDBID, &entry.Media.Title, &entry.Media.OriginalTitle, &entry.Media.Overview, &entry.Media.ReleaseDate, &entry.Media.PosterPath, &entry.Media.OriginalLanguage, &entry.Completed); err != nil {
+		if err := rows.Scan(&entry.Item.UserID, &entry.Item.MediaID, &entry.Item.Status, &rating, &addedAt, &updatedAt, &entry.Media.Type, &entry.Media.TMDBID, &entry.Media.Title, &entry.Media.OriginalTitle, &entry.Media.Overview, &entry.Media.ReleaseDate, &entry.Media.PosterPath, &entry.Media.OriginalLanguage, &entry.Media.Status, &entry.Completed); err != nil {
 			return nil, fmt.Errorf("scan library item: %w", err)
 		}
 		entry.Media.ID = entry.Item.MediaID
@@ -155,13 +156,14 @@ func (s *Store) GetMediaByTMDBID(ctx context.Context, userID string, mediaType d
 	var rating sql.NullInt64
 	var addedAt, updatedAt string
 	err := s.DB.QueryRowContext(ctx, `SELECT um.user_id,um.media_id,um.status,um.rating,um.added_at,um.updated_at,
-		m.media_type,m.tmdb_id,m.title,COALESCE(m.original_title,''),COALESCE(m.overview,''),COALESCE(m.release_date,''),COALESCE(m.poster_path,''),COALESCE(m.original_language,''),
-		(m.media_type='movie' AND EXISTS(SELECT 1 FROM plays p WHERE p.user_id=um.user_id AND p.media_id=um.media_id))
+		m.media_type,m.tmdb_id,m.title,COALESCE(m.original_title,''),COALESCE(m.overview,''),COALESCE(m.release_date,''),COALESCE(m.poster_path,''),COALESCE(m.original_language,''),COALESCE(m.status,''),
+		((m.media_type='movie' AND EXISTS(SELECT 1 FROM plays p WHERE p.user_id=um.user_id AND p.media_id=um.media_id)) OR
+		 (m.media_type='tv' AND m.status IN ('Ended','Canceled','Cancelled') AND EXISTS(SELECT 1 FROM episodes e WHERE e.show_id=m.id AND e.season_number>0) AND NOT EXISTS(SELECT 1 FROM episodes e WHERE e.show_id=m.id AND e.season_number>0 AND (e.air_date IS NULL OR e.air_date<=date('now')) AND NOT EXISTS(SELECT 1 FROM plays p WHERE p.user_id=um.user_id AND p.episode_id=e.id))))
 		FROM user_media um JOIN media m ON m.id=um.media_id
 		WHERE um.user_id=? AND m.media_type=? AND m.tmdb_id=?`, userID, mediaType, tmdbID).Scan(
 		&entry.Item.UserID, &entry.Item.MediaID, &entry.Item.Status, &rating, &addedAt, &updatedAt,
 		&entry.Media.Type, &entry.Media.TMDBID, &entry.Media.Title, &entry.Media.OriginalTitle,
-		&entry.Media.Overview, &entry.Media.ReleaseDate, &entry.Media.PosterPath, &entry.Media.OriginalLanguage, &entry.Completed,
+		&entry.Media.Overview, &entry.Media.ReleaseDate, &entry.Media.PosterPath, &entry.Media.OriginalLanguage, &entry.Media.Status, &entry.Completed,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return library.Entry{}, library.ErrMediaNotFound

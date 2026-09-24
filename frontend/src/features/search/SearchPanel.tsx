@@ -32,6 +32,17 @@ export function SearchPanel({ onOpenDetail }: { onOpenDetail?: (target: MediaDet
       queryClient.invalidateQueries({ queryKey: userQueryKey("calendar") }),
     ]),
   });
+  const addMovieAsWatched = useMutation({
+    mutationFn: async (media: SearchMedia) => {
+      await api.post("/api/v1/library", { media, status: "watching" }, "Could not add this title.");
+      await api.post("/api/v1/plays", { media_id: `${media.type}:${media.tmdb_id}` }, "Could not record this watch.");
+    },
+    onSuccess: async () => Promise.all([
+      queryClient.invalidateQueries({ queryKey: userQueryKey("library") }),
+      queryClient.invalidateQueries({ queryKey: userQueryKey("history") }),
+      queryClient.invalidateQueries({ queryKey: userQueryKey("feed") }),
+    ]),
+  });
   const libraryIDs = new Set(library.data?.map(entry => entry.item.media_id) ?? []);
 
   return (
@@ -69,9 +80,7 @@ export function SearchPanel({ onOpenDetail }: { onOpenDetail?: (target: MediaDet
                   </Button>
                 </Group>
               ) : (
-                <Button mt="lg" loading={addToLibrary.isPending} onClick={() => addToLibrary.mutate({ media: selectedMedia, status: "watchlist" })}>
-                  Watch later
-                </Button>
+                <Group mt="lg" gap="xs"><Button loading={addMovieAsWatched.isPending} onClick={() => addMovieAsWatched.mutate(selectedMedia)}>Mark watched</Button><Button variant="default" loading={addToLibrary.isPending} onClick={() => addToLibrary.mutate({ media: selectedMedia, status: "watchlist" })}>Watch later</Button></Group>
               )}
             </div>
           </Group>
@@ -105,9 +114,10 @@ export function SearchPanel({ onOpenDetail }: { onOpenDetail?: (target: MediaDet
                     </Button>
                   </>
                 ) : (
-                  <Button size="xs" onClick={() => addToLibrary.mutate({ media: item, status: "watchlist" })} loading={addToLibrary.isPending}>
-                    Watch later
-                  </Button>
+                  <>
+                    <Button size="xs" onClick={() => addMovieAsWatched.mutate(item)} loading={addMovieAsWatched.isPending}>Mark watched</Button>
+                    <Button size="xs" variant="default" onClick={() => addToLibrary.mutate({ media: item, status: "watchlist" })} loading={addToLibrary.isPending}>Watch later</Button>
+                  </>
                 )}
               </Group>
             </Group>

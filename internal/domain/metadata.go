@@ -20,6 +20,7 @@ type TVShowMetadata struct {
 	PosterPath       string
 	FirstAirDate     string
 	OriginalLanguage string
+	Status           string
 	Seasons          []TVSeasonMetadata
 }
 

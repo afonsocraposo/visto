@@ -7,8 +7,9 @@ import { WatchNow, WatchCalendar } from "../watch/Watch";
 import { SearchPanel } from "../search/SearchPanel";
 import { FeedArea } from "../feed/FeedArea";
 import { LibraryArea } from "../library/LibraryArea";
+import { LibraryListPage } from "../library/LibraryListPage";
 import { MediaDetailPage } from "../details/MediaDetailPage";
-import type { MediaDetailTarget, Tab, Theme, User } from "../../types";
+import type { LibraryStatus, MediaDetailTarget, Tab, Theme, User } from "../../types";
 import { connectionUnavailableEvent } from "../../lib/api";
 
 export function Dashboard({ user, theme, setTheme }: { user: User; theme: Theme; setTheme: (theme: Theme) => void }) {
@@ -17,6 +18,8 @@ export function Dashboard({ user, theme, setTheme }: { user: User; theme: Theme;
   const pathname = useRouterState({ select: state => state.location.pathname });
   const tab: Tab = pathname.startsWith("/discover") ? "search" : pathname.startsWith("/feed") ? "feed" : pathname.startsWith("/profile") ? "library" : "watch";
   const detailMatch = pathname.match(/^\/media\/(movie|tv)\/(\d+)$/);
+  const listMatch = pathname.match(/^\/profile\/library\/(watching|completed|watchlist|paused|dropped)$/);
+  const listStatus = listMatch?.[1] as LibraryStatus | undefined;
   const detailSearch = new URLSearchParams(window.location.search);
   const detail: MediaDetailTarget | null = detailMatch ? {
     mediaType: detailMatch[1] as "movie" | "tv",
@@ -116,7 +119,7 @@ export function Dashboard({ user, theme, setTheme }: { user: User; theme: Theme;
           </Alert>
         )}
         {logout.isError && <Alert color="red" mb="md">{logout.error.message}</Alert>}
-        {detail ? <MediaDetailPage target={detail} onBack={() => void navigate({ to: detail.mediaType === "tv" ? "/profile" : "/discover" })} onOpenDetail={target => void navigate({ to: `/media/${target.mediaType}/${target.tmdbID}`, search: { media: target.mediaID, episode: target.episodeID, season: target.seasonNumber } })} /> : tab === "watch" && (
+        {detail ? <MediaDetailPage target={detail} onBack={() => void navigate({ to: detail.mediaType === "tv" ? "/profile" : "/discover" })} onOpenDetail={target => void navigate({ to: `/media/${target.mediaType}/${target.tmdbID}`, search: { media: target.mediaID, episode: target.episodeID, season: target.seasonNumber } })} /> : listStatus ? <LibraryListPage status={listStatus} onBack={() => void navigate({ to: "/profile" })} onOpenDetail={target => void navigate({ to: `/media/${target.mediaType}/${target.tmdbID}`, search: { media: target.mediaID, episode: target.episodeID, season: target.seasonNumber } })} /> : tab === "watch" && (
           <>
             <Tabs className="watch-tabs" value={view} onChange={value => setView(value || "now")}>
               <Tabs.List>
@@ -129,7 +132,7 @@ export function Dashboard({ user, theme, setTheme }: { user: User; theme: Theme;
         )}
         {!detail && tab === "search" && <SearchPanel />}
         {!detail && tab === "feed" && <FeedArea />}
-        {!detail && tab === "library" && <LibraryArea user={user} onOpenDetail={target => void navigate({ to: `/media/${target.mediaType}/${target.tmdbID}`, search: { media: target.mediaID, episode: target.episodeID, season: target.seasonNumber } })} />}
+        {!detail && !listStatus && tab === "library" && <LibraryArea user={user} onOpenDetail={target => void navigate({ to: `/media/${target.mediaType}/${target.tmdbID}`, search: { media: target.mediaID, episode: target.episodeID, season: target.seasonNumber } })} onOpenList={status => void navigate({ to: `/profile/library/${status}` })} />}
       </AppShell.Main>
       <AppShell.Footer className="visto-footer">
         <Group className="bottom-nav" justify="space-around" h="100%">
