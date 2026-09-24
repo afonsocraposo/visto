@@ -1,12 +1,13 @@
 package httpserver
 
 import (
-	"net"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/afonsocosta/visto/internal/presentation/security"
 )
 
 const loginWindow = 15 * time.Minute
@@ -18,27 +19,19 @@ type loginAttempts struct {
 	blockedUntil time.Time
 }
 type LoginLimiter struct {
-	mu      sync.Mutex
-	clients map[string]loginAttempts
-	checks  uint64
-	now     func() time.Time
+	mu         sync.Mutex
+	clients    map[string]loginAttempts
+	maxEntries int
+	now        func() time.Time
 }
 
 func newLoginLimiter() *LoginLimiter {
-	return &LoginLimiter{clients: map[string]loginAttempts{}, now: time.Now}
+	return &LoginLimiter{clients: map[string]loginAttempts{}, maxEntries: 10_000, now: time.Now}
 }
 func (limiter *LoginLimiter) allowed(ip string) (bool, time.Duration) {
 	limiter.mu.Lock()
 	defer limiter.mu.Unlock()
 	now := limiter.now()
-	limiter.checks++
-	if limiter.checks%256 == 0 {
-		for key, attempt := range limiter.clients {
-			if now.Sub(attempt.windowStart) > 2*loginWindow && now.After(attempt.blockedUntil) {
-				delete(limiter.clients, key)
-			}
-		}
-	}
 	attempt, exists := limiter.clients[ip]
 	if !exists {
 		return true, 0
@@ -59,6 +52,9 @@ func (limiter *LoginLimiter) failed(ip string) {
 	if attempt.windowStart.IsZero() || now.Sub(attempt.windowStart) >= loginWindow {
 		attempt = loginAttempts{windowStart: now}
 	}
+	if _, exists := limiter.clients[ip]; !exists && len(limiter.clients) >= limiter.maxEntries {
+		limiter.evictOne()
+	}
 	attempt.failures++
 	if attempt.failures >= loginFailureLimit {
 		attempt.failures = 0
@@ -67,21 +63,28 @@ func (limiter *LoginLimiter) failed(ip string) {
 	}
 	limiter.clients[ip] = attempt
 }
+
+func (limiter *LoginLimiter) evictOne() {
+	var oldestIP string
+	var oldest time.Time
+	for ip, attempt := range limiter.clients {
+		seen := attempt.windowStart
+		if attempt.blockedUntil.After(seen) {
+			seen = attempt.blockedUntil
+		}
+		if oldestIP == "" || seen.Before(oldest) {
+			oldestIP, oldest = ip, seen
+		}
+	}
+	delete(limiter.clients, oldestIP)
+}
 func (limiter *LoginLimiter) reset(ip string) {
 	limiter.mu.Lock()
 	delete(limiter.clients, ip)
 	limiter.mu.Unlock()
 }
 
-func clientIP(request *http.Request) string {
-	host, _, err := net.SplitHostPort(request.RemoteAddr)
-	if err == nil {
-		return host
-	}
-	return request.RemoteAddr
-}
-
-func csrfProtection(next http.Handler) http.Handler {
+func csrfProtection(next http.Handler, proxies *security.ProxyResolver) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodGet || r.Method == http.MethodHead || r.Method == http.MethodOptions {
 			next.ServeHTTP(w, r)
@@ -102,7 +105,7 @@ func csrfProtection(next http.Handler) http.Handler {
 			return
 		}
 		expectedScheme := "http"
-		if r.TLS != nil || strings.EqualFold(strings.TrimSpace(r.Header.Get("X-Forwarded-Proto")), "https") {
+		if proxies != nil && proxies.IsHTTPS(r) || proxies == nil && r.TLS != nil {
 			expectedScheme = "https"
 		}
 		if !strings.EqualFold(parsed.Scheme, expectedScheme) || !strings.EqualFold(parsed.Host, r.Host) {

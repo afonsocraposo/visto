@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"sync"
 	"syscall"
 	"time"
 
@@ -27,6 +28,7 @@ import (
 	"github.com/afonsocosta/visto/internal/infrastructure/tmdb"
 	httpserver "github.com/afonsocosta/visto/internal/presentation/http"
 	mcpserver "github.com/afonsocosta/visto/internal/presentation/mcp"
+	"github.com/afonsocosta/visto/internal/presentation/security"
 )
 
 func main() {
@@ -49,6 +51,15 @@ func main() {
 		log.Fatalf("open database: %v", err)
 	}
 	defer store.Close()
+	backgroundContext, stopBackground := context.WithCancel(context.Background())
+	var workers sync.WaitGroup
+	startWorker := func(run func(context.Context)) {
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			run(backgroundContext)
+		}()
+	}
 
 	var metadataProvider *tmdb.Client
 	if apiKey := os.Getenv("VISTO_TMDB_API_KEY"); apiKey != "" {
@@ -58,18 +69,18 @@ func main() {
 		}
 	}
 	watchService := watch.NewService(store, metadataProvider)
-	refreshContext, stopRefresh := context.WithCancel(context.Background())
-	defer stopRefresh()
 	refreshInterval := durationEnvironment("VISTO_CATALOG_REFRESH_INTERVAL", 6*time.Hour)
 	activeRefreshTTL := durationEnvironment("VISTO_CATALOG_ACTIVE_TTL", 24*time.Hour)
 	finishedRefreshTTL := durationEnvironment("VISTO_CATALOG_FINISHED_TTL", 30*24*time.Hour)
-	go watchService.RunCatalogRefresher(refreshContext, refreshInterval, activeRefreshTTL, finishedRefreshTTL)
+	startWorker(func(ctx context.Context) {
+		watchService.RunCatalogRefresher(ctx, refreshInterval, activeRefreshTTL, finishedRefreshTTL)
+	})
 	backupInterval := durationEnvironment("VISTO_BACKUP_INTERVAL", 24*time.Hour)
 	backupRetention := durationEnvironment("VISTO_BACKUP_RETENTION", 30*24*time.Hour)
 	backupDirectory := environment("VISTO_BACKUP_DIR", filepath.Join(filepath.Dir(databasePath), "backups"))
-	backupContext, stopBackup := context.WithCancel(context.Background())
-	defer stopBackup()
-	go backupjob.Run(backupContext, databasePath, backupDirectory, backupInterval, backupRetention, log.Default())
+	startWorker(func(ctx context.Context) {
+		backupjob.Run(ctx, databasePath, backupDirectory, backupInterval, backupRetention, log.Default())
+	})
 	appToken := os.Getenv("VISTO_PUSHOVER_APP_TOKEN")
 	encryptionKey := os.Getenv("VISTO_SECRET_ENCRYPTION_KEY")
 	if appToken != "" && encryptionKey == "" {
@@ -93,9 +104,9 @@ func main() {
 			log.Fatalf("configure Pushover: %v", err)
 		}
 		dispatchInterval := durationEnvironment("VISTO_PUSHOVER_INTERVAL", 15*time.Minute)
-		notificationContext, stopNotifications := context.WithCancel(context.Background())
-		defer stopNotifications()
-		go notifications.NewService(store, pushoverClient, secretCipher).Run(notificationContext, dispatchInterval, log.Default())
+		startWorker(func(ctx context.Context) {
+			notifications.NewService(store, pushoverClient, secretCipher).Run(ctx, dispatchInterval, log.Default())
+		})
 	}
 	appHandler := http.NewServeMux()
 	authService := auth.NewService(store)
@@ -103,12 +114,20 @@ func main() {
 	if err := mcpserver.ValidatePublicURL(publicURL); err != nil {
 		log.Fatal(err)
 	}
+	trustedProxies, err := security.ParseTrustedProxies(os.Getenv("VISTO_TRUSTED_PROXY_CIDRS"))
+	if err != nil {
+		log.Fatal(err)
+	}
 	oauthService := oauth.NewService(store)
-	mcpHandler := mcpserver.New(authService, oauthService, publicURL, metadataProvider, library.NewService(store), tracking.NewService(store), watchService)
+	oauthCleanupInterval := durationEnvironment("VISTO_OAUTH_CLEANUP_INTERVAL", 24*time.Hour)
+	startWorker(func(ctx context.Context) {
+		oauthService.RunCleanup(ctx, oauthCleanupInterval, func(err error) { log.Printf("OAuth cleanup failed: %v", err) })
+	})
+	mcpHandler := mcpserver.NewWithTrustedProxies(authService, oauthService, publicURL, metadataProvider, library.NewService(store), tracking.NewService(store), watchService, trustedProxies)
 	appHandler.Handle("/mcp", mcpHandler)
 	appHandler.Handle("/oauth/", mcpHandler)
 	appHandler.Handle("/.well-known/", mcpHandler)
-	appHandler.Handle("/", httpserver.New(authService, metadataProvider, os.Getenv("VISTO_WEB_DIR"), library.NewService(store), tracking.NewService(store), profiles, feed.NewService(store), exportapp.NewService(store), watchService).WithOAuth(oauthService).Handler())
+	appHandler.Handle("/", httpserver.New(authService, metadataProvider, os.Getenv("VISTO_WEB_DIR"), library.NewService(store), tracking.NewService(store), profiles, feed.NewService(store), exportapp.NewService(store), watchService).WithTrustedProxies(trustedProxies).WithOAuth(oauthService).Handler())
 	server := &http.Server{
 		Addr:              environment("VISTO_LISTEN_ADDR", ":8080"),
 		Handler:           appHandler,
@@ -127,8 +146,26 @@ func main() {
 	<-signals
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+	stopBackground()
 	if err := server.Shutdown(ctx); err != nil {
 		log.Printf("shutdown HTTP server: %v", err)
+	}
+	if !waitForWorkers(ctx, &workers) {
+		log.Printf("background workers did not stop before shutdown deadline")
+	}
+}
+
+func waitForWorkers(ctx context.Context, workers *sync.WaitGroup) bool {
+	done := make(chan struct{})
+	go func() {
+		workers.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return true
+	case <-ctx.Done():
+		return false
 	}
 }
 

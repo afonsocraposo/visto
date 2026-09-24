@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -42,6 +43,29 @@ func TestRunBackup_GivenServerDatabase_WhenOperatorRequestsBackup_ThenTheBackupC
 	if value != "saved" {
 		t.Fatalf("backup value=%q, want saved", value)
 	}
+}
+
+func TestWaitForWorkers_GivenFinishedOrBlockedWorkers_WhenShutdownWaits_ThenItReportsCompletionOrDeadline(t *testing.T) {
+	t.Run("Given a worker that exits, When waiting, Then it completes", func(t *testing.T) {
+		var workers sync.WaitGroup
+		workers.Add(1)
+		go func() { workers.Done() }()
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		if !waitForWorkers(ctx, &workers) {
+			t.Fatal("finished worker timed out")
+		}
+	})
+	t.Run("Given a worker that does not exit, When the deadline passes, Then it reports timeout", func(t *testing.T) {
+		var workers sync.WaitGroup
+		workers.Add(1)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
+		defer cancel()
+		if waitForWorkers(ctx, &workers) {
+			t.Fatal("blocked worker unexpectedly completed")
+		}
+		workers.Done()
+	})
 }
 
 func TestParseDuration_GivenEmptyValidOrInvalidSetting_WhenParsed_ThenItUsesOnlyPositiveDurations(t *testing.T) {

@@ -24,11 +24,13 @@ var (
 )
 
 const (
-	ReadScope       = "read"
-	WriteScope      = "write"
-	OfflineScope    = "offline_access"
-	AccessTokenTTL  = time.Hour
-	RefreshTokenTTL = 30 * 24 * time.Hour
+	ReadScope           = "read"
+	WriteScope          = "write"
+	OfflineScope        = "offline_access"
+	AccessTokenTTL      = time.Hour
+	RefreshTokenTTL     = 30 * 24 * time.Hour
+	TokenAuditRetention = 30 * 24 * time.Hour
+	CleanupBatchSize    = 100
 )
 
 var verifierPattern = regexp.MustCompile(`^[A-Za-z0-9._~-]{43,128}$`)
@@ -90,6 +92,7 @@ type Repository interface {
 	ListOAuthConnections(context.Context, string, time.Time) ([]Connection, error)
 	RevokeOAuthConnection(context.Context, string, string, time.Time) error
 	RevokeAllOAuthConnections(context.Context, string, time.Time) error
+	CleanupOAuthRecords(context.Context, time.Time, time.Time, int) (int, error)
 }
 
 type Service struct {
@@ -240,6 +243,36 @@ func (service *Service) RevokeAllConnections(ctx context.Context, userID string)
 		return ErrInvalidRequest
 	}
 	return service.repository.RevokeAllOAuthConnections(ctx, userID, service.now().UTC())
+}
+
+// Cleanup deletes expired authorization codes immediately and removes expired
+// or revoked tokens after the audit retention period. It processes one bounded
+// batch, so callers can safely run it repeatedly.
+func (service *Service) Cleanup(ctx context.Context) (int, error) {
+	now := service.now().UTC()
+	return service.repository.CleanupOAuthRecords(ctx, now, now.Add(-TokenAuditRetention), CleanupBatchSize)
+}
+
+func (service *Service) RunCleanup(ctx context.Context, interval time.Duration, report func(error)) {
+	if interval <= 0 {
+		return
+	}
+	run := func() {
+		if _, err := service.Cleanup(ctx); err != nil && report != nil {
+			report(err)
+		}
+	}
+	run()
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			run()
+		}
+	}
 }
 
 func tokenResponse(access, refresh string, scopes []string) IssuedTokens {

@@ -38,8 +38,9 @@ test("Given a signed-in user, When they move through the app and choose a theme,
   await mockSignedInSession(page);
   await page.goto("/");
 
-  await expect(page.getByRole("button", { name: "Watch", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Watching", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Feed" }).click();
+  await page.getByRole("tab", { name: "Community feed" }).click();
   await expect(page.getByText("No shared activity yet")).toBeVisible();
   await page.getByRole("button", { name: "Discover" }).click();
   await expect(page.getByRole("textbox", { name: "Search TMDB" })).toBeVisible();
@@ -79,15 +80,22 @@ test("Given an unsaved TV show, When the user adds it or chooses Watch later, Th
     }
     await fulfillJSON(route, []);
   });
+  await page.route("**/api/v1/library/**", async route => {
+    if (route.request().method() === "PATCH") {
+      savedStatuses.push(route.request().postDataJSON().status);
+      await fulfillJSON(route, {});
+      return;
+    }
+    await fulfillJSON(route, {});
+  });
   await page.goto("/");
   await page.getByRole("button", { name: "Discover" }).click();
   await page.getByRole("textbox", { name: "Search TMDB" }).fill("Example");
   await expect(page.getByText("The Example Show").first()).toBeVisible();
-  await page.getByRole("button", { name: "Add to watching" }).click();
+  await page.getByRole("button", { name: "Add The Example Show to watching" }).click();
   await expect.poll(() => savedStatuses).toEqual(["watching"]);
 
-  await page.getByRole("link", { name: "Open details for The Example Show" }).click();
-  await page.getByRole("button", { name: "Watch later" }).click();
+  await page.getByRole("button", { name: "Save The Example Show for later" }).click();
   await expect.poll(() => savedStatuses).toEqual(["watching", "watchlist"]);
 });
 
@@ -105,7 +113,7 @@ test("Given the ordinary next episode, When the user taps Watched, Then only tha
   });
   await page.goto("/");
 
-  await page.getByRole("button", { name: "Watched" }).click();
+  await page.locator(".watch-row-action").click();
   await expect.poll(() => singlePlay).toEqual({ episode_id: "tv:42:episode:101" });
   expect(bulkPlayCount).toBe(0);
 });

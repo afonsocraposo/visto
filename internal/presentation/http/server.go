@@ -21,22 +21,25 @@ import (
 	"github.com/afonsocosta/visto/internal/application/tracking"
 	"github.com/afonsocosta/visto/internal/application/watch"
 	"github.com/afonsocosta/visto/internal/domain"
+	"github.com/afonsocosta/visto/internal/presentation/security"
 )
 
 type Server struct {
 	handler     http.Handler
 	mux         *http.ServeMux
 	authService *auth.Service
+	proxies     *security.ProxyResolver
 }
 
 func New(authService *auth.Service, metadataProvider domain.MetadataProvider, webDir string, libraryService *library.Service, trackingService *tracking.Service, profileService *profile.Service, feedService *feed.Service, exportService *exportapp.Service, watchService *watch.Service) *Server {
 	mux := http.NewServeMux()
+	proxies := &security.ProxyResolver{}
 	loginLimiter := newLoginLimiter()
 	mux.HandleFunc("GET /health", health)
 	mux.HandleFunc("POST /api/v1/auth/bootstrap", bootstrap(authService))
 	mux.HandleFunc("GET /api/v1/auth/status", bootstrapStatus(authService))
-	mux.HandleFunc("POST /api/v1/auth/login", login(authService, loginLimiter))
-	mux.HandleFunc("POST /api/v1/auth/logout", logout(authService))
+	mux.HandleFunc("POST /api/v1/auth/login", login(authService, loginLimiter, proxies))
+	mux.HandleFunc("POST /api/v1/auth/logout", logout(authService, proxies))
 	mux.HandleFunc("POST /api/v1/users", createUser(authService))
 	mux.HandleFunc("GET /api/v1/me", currentUser(authService))
 	mux.HandleFunc("GET /api/v1/tokens", listPersonalTokens(authService))
@@ -84,7 +87,14 @@ func New(authService *auth.Service, metadataProvider domain.MetadataProvider, we
 			mux.Handle("GET /", singlePageApp(webDir))
 		}
 	}
-	return &Server{handler: csrfProtection(mux), mux: mux, authService: authService}
+	return &Server{handler: csrfProtection(mux, proxies), mux: mux, authService: authService, proxies: proxies}
+}
+
+func (server *Server) WithTrustedProxies(proxies security.ProxyResolver) *Server {
+	if server.proxies != nil {
+		*server.proxies = proxies
+	}
+	return server
 }
 
 // WithOAuth adds account-management endpoints for OAuth clients. It is kept
@@ -1179,9 +1189,12 @@ func bootstrap(service *auth.Service) http.HandlerFunc {
 		writeJSON(w, http.StatusCreated, user)
 	}
 }
-func login(service *auth.Service, limiter *LoginLimiter) http.HandlerFunc {
+func login(service *auth.Service, limiter *LoginLimiter, proxies *security.ProxyResolver) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ip := clientIP(r)
+		ip := r.RemoteAddr
+		if proxies != nil {
+			ip = proxies.ClientIP(r)
+		}
 		if allowed, retryAfter := limiter.allowed(ip); !allowed {
 			w.Header().Set("Retry-After", strconv.Itoa(max(1, int(retryAfter.Seconds()))))
 			writeError(w, http.StatusTooManyRequests, "too many login attempts")
@@ -1199,12 +1212,12 @@ func login(service *auth.Service, limiter *LoginLimiter) http.HandlerFunc {
 			return
 		}
 		limiter.reset(ip)
-		http.SetCookie(w, &http.Cookie{Name: "visto_session", Value: token, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, Expires: expiresAt, Secure: cookieSecure(r)})
+		http.SetCookie(w, &http.Cookie{Name: "visto_session", Value: token, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, Expires: expiresAt, Secure: cookieSecure(r, proxies)})
 		writeJSON(w, http.StatusOK, user)
 	}
 }
 
-func logout(service *auth.Service) http.HandlerFunc {
+func logout(service *auth.Service, proxies *security.ProxyResolver) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if service == nil {
 			writeError(w, http.StatusServiceUnavailable, "authentication is not configured")
@@ -1216,13 +1229,13 @@ func logout(service *auth.Service) http.HandlerFunc {
 				return
 			}
 		}
-		http.SetCookie(w, &http.Cookie{Name: "visto_session", Value: "", Path: "/", HttpOnly: true, Secure: cookieSecure(r), SameSite: http.SameSiteLaxMode, Expires: time.Unix(1, 0), MaxAge: -1})
+		http.SetCookie(w, &http.Cookie{Name: "visto_session", Value: "", Path: "/", HttpOnly: true, Secure: cookieSecure(r, proxies), SameSite: http.SameSiteLaxMode, Expires: time.Unix(1, 0), MaxAge: -1})
 		w.WriteHeader(http.StatusNoContent)
 	}
 }
 
-func cookieSecure(r *http.Request) bool {
-	return r.TLS != nil || strings.EqualFold(strings.TrimSpace(r.Header.Get("X-Forwarded-Proto")), "https")
+func cookieSecure(r *http.Request, proxies *security.ProxyResolver) bool {
+	return proxies != nil && proxies.IsHTTPS(r) || proxies == nil && r.TLS != nil
 }
 
 func currentUser(service *auth.Service) http.HandlerFunc {

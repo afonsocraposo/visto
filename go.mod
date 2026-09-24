@@ -1,6 +1,8 @@
 module github.com/afonsocosta/visto
 
-go 1.22
+go 1.25.0
+
+toolchain go1.25.13
 
 require (
 	github.com/cyruzin/golang-tmdb v1.6.9

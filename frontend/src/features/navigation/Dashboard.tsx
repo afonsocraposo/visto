@@ -1,18 +1,19 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import { Alert, AppShell, Button, Group, Select, Tabs, Text, Title } from "@mantine/core";
+import { Alert, AppShell, Button, Center, Group, Loader, Select, Tabs, Text, Title } from "@mantine/core";
 import { IconCalendar, IconCompass, IconHome, IconLogout, IconSearch, IconUserCircle } from "@tabler/icons-react";
 import { WatchNow, WatchCalendar } from "../watch/Watch";
-import { SearchPanel } from "../search/SearchPanel";
-import { FeedArea } from "../feed/FeedArea";
-import { LibraryArea } from "../library/LibraryArea";
-import { LibraryListPage } from "../library/LibraryListPage";
-import { MediaDetailPage } from "../details/MediaDetailPage";
-import { PersonDetailPage } from "../people/PersonDetailPage";
 import { activeTabForLocation } from "./activeTab";
 import type { LibraryStatus, MediaDetailTarget, Tab, Theme, User } from "../../types";
 import { connectionUnavailableEvent } from "../../lib/api";
+
+const SearchPanel = lazy(async () => ({ default: (await import("../search/SearchPanel")).SearchPanel }));
+const FeedArea = lazy(async () => ({ default: (await import("../feed/FeedArea")).FeedArea }));
+const LibraryArea = lazy(async () => ({ default: (await import("../library/LibraryArea")).LibraryArea }));
+const LibraryListPage = lazy(async () => ({ default: (await import("../library/LibraryListPage")).LibraryListPage }));
+const MediaDetailPage = lazy(async () => ({ default: (await import("../details/MediaDetailPage")).MediaDetailPage }));
+const PersonDetailPage = lazy(async () => ({ default: (await import("../people/PersonDetailPage")).PersonDetailPage }));
 
 export function Dashboard({ user, theme, setTheme }: { user: User; theme: Theme; setTheme: (theme: Theme) => void }) {
   const queryClient = useQueryClient();
@@ -155,7 +156,7 @@ export function Dashboard({ user, theme, setTheme }: { user: User; theme: Theme;
           </Alert>
         )}
         {logout.isError && <Alert color="red" mb="md">{logout.error.message}</Alert>}
-        {personID ? <PersonDetailPage personID={personID} onBack={() => void navigate({ to: safeReturnPath(returnTo, "/discover") })} onOpenDetail={openDetail} /> : detail ? <MediaDetailPage target={detail} onBack={() => void navigate({ to: safeReturnPath(returnTo, detail.mediaType === "tv" ? "/profile" : "/discover") })} onOpenDetail={openDetail} onOpenPerson={openPerson} /> : listStatus ? <LibraryListPage status={listStatus} onBack={() => void navigate({ to: "/profile" })} onOpenDetail={openDetail} /> : tab === "watch" && (
+        {personID ? <Deferred><PersonDetailPage personID={personID} onBack={() => void navigate({ to: safeReturnPath(returnTo, "/discover") })} onOpenDetail={openDetail} /></Deferred> : detail ? <Deferred><MediaDetailPage target={detail} onBack={() => void navigate({ to: safeReturnPath(returnTo, detail.mediaType === "tv" ? "/profile" : "/discover") })} onOpenDetail={openDetail} onOpenPerson={openPerson} /></Deferred> : listStatus ? <Deferred><LibraryListPage status={listStatus} onBack={() => void navigate({ to: "/profile" })} onOpenDetail={openDetail} /></Deferred> : tab === "watch" && (
           <>
             <Tabs className="watch-tabs" value={view} onChange={value => setView(value || "now")}>
               <Tabs.List>
@@ -166,9 +167,9 @@ export function Dashboard({ user, theme, setTheme }: { user: User; theme: Theme;
             {view === "now" ? <WatchNow onOpenDetail={openDetail} /> : <WatchCalendar />}
           </>
         )}
-        {!detail && !personID && tab === "search" && <SearchPanel onOpenDetail={openDetail} />}
-        {!detail && !personID && tab === "feed" && <FeedArea />}
-        {!detail && !personID && !listStatus && tab === "library" && <LibraryArea user={user} onOpenDetail={openDetail} onOpenList={status => void navigate({ to: `/profile/library/${status}` })} />}
+        {!detail && !personID && tab === "search" && <Deferred><SearchPanel onOpenDetail={openDetail} /></Deferred>}
+        {!detail && !personID && tab === "feed" && <Deferred><FeedArea /></Deferred>}
+        {!detail && !personID && !listStatus && tab === "library" && <Deferred><LibraryArea user={user} onOpenDetail={openDetail} onOpenList={status => void navigate({ to: `/profile/library/${status}` })} /></Deferred>}
       </AppShell.Main>
       <AppShell.Footer className="visto-footer">
         <Group className="bottom-nav" justify="space-around" h="100%">
@@ -180,6 +181,10 @@ export function Dashboard({ user, theme, setTheme }: { user: User; theme: Theme;
       </AppShell.Footer>
     </AppShell>
   );
+}
+
+function Deferred({ children }: { children: ReactNode }) {
+  return <Suspense fallback={<Center py="xl"><Loader size="sm" /></Center>}>{children}</Suspense>;
 }
 
 function safeReturnPath(returnTo: string | null, fallback: string): string {

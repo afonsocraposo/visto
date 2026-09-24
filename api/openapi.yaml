@@ -181,6 +181,16 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '502': { description: TMDB is temporarily unavailable }
         '503': { description: TMDB is not configured }
+  /public/trending:
+    get:
+      summary: Get cached trending movies and TV shows for the sign-in page
+      parameters:
+        - { name: window, in: query, schema: { type: string, enum: [day, week], default: week } }
+      responses:
+        '200': { description: Trending media, content: { application/json: { schema: { $ref: '#/components/schemas/TrendingResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '502': { description: TMDB is temporarily unavailable }
+        '503': { description: TMDB is not configured }
   /discover/movies/{tmdbID}:
     get:
       summary: Get temporary rich movie metadata without adding it to the library

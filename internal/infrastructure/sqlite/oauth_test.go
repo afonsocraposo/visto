@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/afonsocosta/visto/internal/application/auth"
 	"github.com/afonsocosta/visto/internal/application/oauth"
@@ -81,6 +82,52 @@ func TestOAuth_GivenValidPKCEAuthorization_WhenCodeIsExchangedAndRefreshed_ThenT
 	connections, err = service.Connections(context.Background(), user.ID)
 	if err != nil || len(connections) != 0 {
 		t.Fatalf("connections after revocation = %+v, %v; want none", connections, err)
+	}
+}
+
+func TestOAuth_GivenExpiredAndRevokedRecords_WhenCleaned_ThenOnlyRecordsPastRetentionAreDeletedInBatches(t *testing.T) {
+	store, err := sqlite.Open(context.Background(), t.TempDir()+"/oauth-cleanup.db")
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	defer store.Close()
+	user, err := auth.NewService(store).Bootstrap(context.Background(), "cleanup-admin", "Cleanup Admin", "a-strong-test-password")
+	if err != nil {
+		t.Fatalf("create test user: %v", err)
+	}
+	service := oauth.NewService(store)
+	client, err := service.RegisterClient(context.Background(), "Cleanup Client", []string{"https://example.com/callback"})
+	if err != nil {
+		t.Fatalf("register client: %v", err)
+	}
+	now := time.Now().UTC()
+	old := now.Add(-oauth.TokenAuditRetention - time.Hour).Format(time.RFC3339Nano)
+	recent := now.Add(-time.Hour).Format(time.RFC3339Nano)
+	future := now.Add(time.Hour).Format(time.RFC3339Nano)
+	for _, statement := range []struct {
+		query string
+		args  []any
+	}{
+		{`INSERT INTO oauth_authorization_codes(code_hash,client_id,user_id,redirect_uri,code_challenge,scope,resource,expires_at,created_at) VALUES(?,?,?,?,?,?,?,?,?)`, []any{"old-code", client.ID, user.ID, client.RedirectURIs[0], "challenge", "read", "resource", old, old}},
+		{`INSERT INTO oauth_access_tokens(token_hash,client_id,user_id,scope,resource,expires_at,created_at,revoked_at) VALUES(?,?,?,?,?,?,?,?)`, []any{"old-access", client.ID, user.ID, "read", "resource", old, old, nil}},
+		{`INSERT INTO oauth_refresh_tokens(token_hash,client_id,user_id,scope,resource,expires_at,created_at,revoked_at) VALUES(?,?,?,?,?,?,?,?)`, []any{"old-refresh", client.ID, user.ID, "read", "resource", future, old, old}},
+		{`INSERT INTO oauth_access_tokens(token_hash,client_id,user_id,scope,resource,expires_at,created_at,revoked_at) VALUES(?,?,?,?,?,?,?,?)`, []any{"recent-revoked", client.ID, user.ID, "read", "resource", future, recent, recent}},
+		{`INSERT INTO oauth_access_tokens(token_hash,client_id,user_id,scope,resource,expires_at,created_at,revoked_at) VALUES(?,?,?,?,?,?,?,?)`, []any{"live", client.ID, user.ID, "read", "resource", future, recent, nil}},
+	} {
+		if _, err := store.DB.ExecContext(context.Background(), statement.query, statement.args...); err != nil {
+			t.Fatalf("insert OAuth fixture: %v", err)
+		}
+	}
+
+	removed, err := service.Cleanup(context.Background())
+	if err != nil || removed != 3 {
+		t.Fatalf("cleanup = %d, %v; want three removed records", removed, err)
+	}
+	for _, token := range []string{"recent-revoked", "live"} {
+		var count int
+		if err := store.DB.QueryRowContext(context.Background(), `SELECT COUNT(*) FROM oauth_access_tokens WHERE token_hash=?`, token).Scan(&count); err != nil || count != 1 {
+			t.Fatalf("token %q was removed unexpectedly: count=%d err=%v", token, count, err)
+		}
 	}
 }
 

@@ -21,7 +21,7 @@ self.addEventListener("fetch", event => {
     return;
   }
   if (event.request.method === "POST" && url.pathname === "/api/v1/auth/logout") {
-    event.respondWith(fetch(event.request).then(async response => { if (response.ok) await clearActiveUserID(); return response; }));
+    event.respondWith(fetch(event.request).then(async response => { if (response.ok) await clearActiveUserData(); return response; }));
     return;
   }
   if (event.request.method !== "GET") return;
@@ -75,4 +75,9 @@ async function cacheRecentResponse(userID, request, response) {
   }
 }
 async function clearActiveUserID() { await (await caches.open(userIndex)).delete(activeUserRequest); }
+async function clearActiveUserData() {
+  const userID = await activeUserID();
+  if (userID) await caches.delete(userCacheName(userID));
+  await clearActiveUserID();
+}
 async function storeActiveUser(response) { try { const user = await response.json(); if (user.id) await storeActiveUserID(user.id); } catch {} }

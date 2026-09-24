@@ -28,6 +28,12 @@ The command does not overwrite an existing file. It stores the backup with
 owner-only permissions. Copy the backup out of the Docker volume to keep a
 separate copy away from the server.
 
+To restore a backup, stop Visto first and keep a copy of the current database.
+Copy the selected backup to the configured `VISTO_DATABASE_PATH` (normally
+`/data/visto.db` in the container volume), then start Visto and open the app to
+confirm the expected accounts and library appear. Never overwrite the only copy
+of the current database; retain it until the restored instance is verified.
+
 Visto also creates an online SQLite backup every 24 hours in
 `/data/backups` and removes its own backups after 30 days. Set
 `VISTO_BACKUP_DIR`, `VISTO_BACKUP_INTERVAL`, or `VISTO_BACKUP_RETENTION` to
@@ -64,6 +70,11 @@ the `/mcp`, `/oauth/`, and `/.well-known/` paths available through that proxy.
 The server supports PKCE authorization, separate read and write permissions,
 and per-user Visto accounts.
 
+For deployments behind a reverse proxy, set `VISTO_TRUSTED_PROXY_CIDRS` to the
+proxy's IP ranges. Visto trusts forwarded client and HTTPS headers only from
+those ranges. OAuth codes and old tokens are cleaned in bounded daily batches;
+set `VISTO_OAUTH_CLEANUP_INTERVAL` to change that interval.
+
 In ChatGPT web, enable developer mode, create a custom MCP app, and enter
 `https://visto.example.com/mcp` as its endpoint. ChatGPT discovers Visto's
 OAuth endpoints and asks each user to sign in with their Visto account and
@@ -72,7 +83,7 @@ not a `user_id` sent in an MCP tool call. See [OpenAI's MCP app guide](https://h
 
 ## Development
 
-Requirements: Go 1.22+, Node.js 22+, Air, and a TMDB API key for metadata search.
+Requirements: Go 1.25.13+, Node.js 22+, Air, and a TMDB API key for metadata search.
 
 Install Air once:
 

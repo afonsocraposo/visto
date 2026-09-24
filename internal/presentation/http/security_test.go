@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/afonsocosta/visto/internal/presentation/security"
 )
 
 func TestLoginLimiterBDD(t *testing.T) {
@@ -41,6 +43,17 @@ func TestLoginLimiterBDD(t *testing.T) {
 			t.Fatal("expected reset client to be allowed")
 		}
 	})
+
+	t.Run("Given more clients than capacity, When they fail authentication, Then the limiter remains bounded", func(t *testing.T) {
+		limiter := newLoginLimiter()
+		limiter.maxEntries = 2
+		limiter.failed("192.0.2.1")
+		limiter.failed("192.0.2.2")
+		limiter.failed("192.0.2.3")
+		if len(limiter.clients) != 2 {
+			t.Fatalf("tracked clients = %d, want 2", len(limiter.clients))
+		}
+	})
 }
 
 func TestLoginRateLimitResponseBDD(t *testing.T) {
@@ -49,7 +62,7 @@ func TestLoginRateLimitResponseBDD(t *testing.T) {
 		for range loginFailureLimit {
 			limiter.failed("192.0.2.12")
 		}
-		handler := login(nil, limiter)
+		handler := login(nil, limiter, &security.ProxyResolver{})
 		request := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", strings.NewReader(`{"username":"family","password":"wrong"}`))
 		request.RemoteAddr = "192.0.2.12:12345"
 		response := httptest.NewRecorder()
@@ -67,7 +80,7 @@ func TestLoginRateLimitResponseBDD(t *testing.T) {
 func TestCSRFProtectionBDD(t *testing.T) {
 	t.Run("Given a cross-origin form request, When it reaches the API, Then it is rejected", func(t *testing.T) {
 		called := false
-		handler := csrfProtection(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { called = true }))
+		handler := csrfProtection(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { called = true }), &security.ProxyResolver{})
 		request := httptest.NewRequest(http.MethodPost, "http://visto.local/api/v1/plays", nil)
 		request.Header.Set("Origin", "http://attacker.local")
 		response := httptest.NewRecorder()
@@ -83,13 +96,18 @@ func TestCSRFProtectionBDD(t *testing.T) {
 
 	t.Run("Given a same-origin request behind TLS termination, When it reaches the API, Then it is allowed", func(t *testing.T) {
 		called := false
+		proxies, err := security.ParseTrustedProxies("192.0.2.0/24")
+		if err != nil {
+			t.Fatalf("parse proxies: %v", err)
+		}
 		handler := csrfProtection(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			called = true
 			w.WriteHeader(http.StatusNoContent)
-		}))
+		}), &proxies)
 		request := httptest.NewRequest(http.MethodPatch, "http://visto.local/api/v1/profile", nil)
 		request.Header.Set("Origin", "https://visto.local")
 		request.Header.Set("X-Forwarded-Proto", "https")
+		request.RemoteAddr = "192.0.2.10:443"
 		response := httptest.NewRecorder()
 
 		handler.ServeHTTP(response, request)
@@ -101,7 +119,7 @@ func TestCSRFProtectionBDD(t *testing.T) {
 	t.Run("Given a cross-site fetch without Origin, When it reaches the API, Then it is rejected", func(t *testing.T) {
 		handler := csrfProtection(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 			t.Fatal("cross-site request reached the protected handler")
-		}))
+		}), &security.ProxyResolver{})
 		request := httptest.NewRequest(http.MethodPost, "http://visto.local/api/v1/plays", nil)
 		request.Header.Set("Sec-Fetch-Site", "cross-site")
 		response := httptest.NewRecorder()

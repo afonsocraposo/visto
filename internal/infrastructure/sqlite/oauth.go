@@ -271,6 +271,43 @@ func (store *Store) RevokeAllOAuthConnections(ctx context.Context, userID string
 	return nil
 }
 
+func (store *Store) CleanupOAuthRecords(ctx context.Context, now, tokenRetentionCutoff time.Time, limit int) (int, error) {
+	if limit < 1 {
+		return 0, nil
+	}
+	removed := 0
+	deleteBatch := func(query string, args ...any) error {
+		result, err := store.DB.ExecContext(ctx, query, args...)
+		if err != nil {
+			return err
+		}
+		count, err := result.RowsAffected()
+		if err != nil {
+			return err
+		}
+		removed += int(count)
+		return nil
+	}
+	if err := deleteBatch(`DELETE FROM oauth_authorization_codes WHERE rowid IN (SELECT rowid FROM oauth_authorization_codes WHERE expires_at<=? ORDER BY expires_at LIMIT ?)`, stamp(now), limit); err != nil {
+		return removed, fmt.Errorf("clean expired OAuth codes: %w", err)
+	}
+	remaining := limit - removed
+	if remaining <= 0 {
+		return removed, nil
+	}
+	if err := deleteBatch(`DELETE FROM oauth_access_tokens WHERE rowid IN (SELECT rowid FROM oauth_access_tokens WHERE expires_at<=? OR revoked_at IS NOT NULL AND revoked_at<=? ORDER BY expires_at LIMIT ?)`, stamp(tokenRetentionCutoff), stamp(tokenRetentionCutoff), remaining); err != nil {
+		return removed, fmt.Errorf("clean OAuth access tokens: %w", err)
+	}
+	remaining = limit - removed
+	if remaining <= 0 {
+		return removed, nil
+	}
+	if err := deleteBatch(`DELETE FROM oauth_refresh_tokens WHERE rowid IN (SELECT rowid FROM oauth_refresh_tokens WHERE expires_at<=? OR revoked_at IS NOT NULL AND revoked_at<=? ORDER BY expires_at LIMIT ?)`, stamp(tokenRetentionCutoff), stamp(tokenRetentionCutoff), remaining); err != nil {
+		return removed, fmt.Errorf("clean OAuth refresh tokens: %w", err)
+	}
+	return removed, nil
+}
+
 func stamp(value time.Time) string { return value.UTC().Format(time.RFC3339Nano) }
 
 func constantTimeEqual(left, right string) bool {

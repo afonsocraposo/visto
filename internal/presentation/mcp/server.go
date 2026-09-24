@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/afonsocosta/visto/internal/application/auth"
@@ -19,6 +18,7 @@ import (
 	"github.com/afonsocosta/visto/internal/application/tracking"
 	"github.com/afonsocosta/visto/internal/application/watch"
 	"github.com/afonsocosta/visto/internal/domain"
+	"github.com/afonsocosta/visto/internal/presentation/security"
 )
 
 const protocolVersion = "2025-11-25"
@@ -60,12 +60,16 @@ type Server struct {
 	tracking    trackingUseCases
 	watch       watchUseCases
 	metadata    domain.MetadataProvider
-	rateMu      sync.Mutex
-	rateBuckets map[string][]time.Time
+	proxies     security.ProxyResolver
+	rateLimiter *security.RateLimiter
 }
 
 func New(authService *auth.Service, oauthService *oauth.Service, publicURL string, metadata domain.MetadataProvider, libraryService *library.Service, trackingService *tracking.Service, watchService *watch.Service) http.Handler {
-	server := &Server{auth: authService, credentials: authService, oauth: oauthService, publicURL: strings.TrimRight(publicURL, "/"), metadata: metadata, library: libraryService, tracking: trackingService, watch: watchService, rateBuckets: map[string][]time.Time{}}
+	return NewWithTrustedProxies(authService, oauthService, publicURL, metadata, libraryService, trackingService, watchService, security.ProxyResolver{})
+}
+
+func NewWithTrustedProxies(authService *auth.Service, oauthService *oauth.Service, publicURL string, metadata domain.MetadataProvider, libraryService *library.Service, trackingService *tracking.Service, watchService *watch.Service, proxies security.ProxyResolver) http.Handler {
+	server := &Server{auth: authService, credentials: authService, oauth: oauthService, publicURL: strings.TrimRight(publicURL, "/"), metadata: metadata, library: libraryService, tracking: trackingService, watch: watchService, proxies: proxies, rateLimiter: security.NewRateLimiter(10_000)}
 	return server.Handler()
 }
 

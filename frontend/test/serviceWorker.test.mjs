@@ -31,6 +31,7 @@ function createHarness() {
       }
       return undefined;
     },
+    async delete(name) { return cacheStore.delete(name); },
   };
   const self = {
     location: { origin },
@@ -136,7 +137,7 @@ test("Given an offline client, When a write or failed GET is requested, Then it 
   assert.equal(harness.cacheStore.size, 0);
 });
 
-test("Given cached account content, When logout succeeds, Then offline requests cannot reuse that account pointer", async () => {
+test("Given cached account content, When logout succeeds, Then its account cache and offline pointer are removed", async () => {
   const harness = createHarness();
   let online = true;
   harness.setNetworkFetch(async request => {
@@ -154,6 +155,7 @@ test("Given cached account content, When logout succeeds, Then offline requests 
   await harness.dispatchFetch("/api/v1/me");
   await harness.dispatchFetch("/api/v1/library");
   await harness.dispatchFetch("/api/v1/auth/logout", "POST");
+  assert.equal(harness.cacheStore.has("visto-user-v1-alice"), false);
   online = false;
 
   const response = await harness.dispatchFetch("/api/v1/library");

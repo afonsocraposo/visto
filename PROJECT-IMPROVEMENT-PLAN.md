@@ -3,6 +3,26 @@
 Reviewed on 2026-09-24. This is a prioritized plan based on the current
 repository, not a commitment to a release date.
 
+## Implementation status
+
+Completed on 2026-09-24:
+
+- Connected-app controls: users can inspect and revoke one or all OAuth grants.
+- Request controls: bounded login and OAuth throttles plus explicit trusted
+  proxy CIDRs for forwarded client and HTTPS headers.
+- OAuth lifecycle: bounded cleanup of expired codes and retained old tokens.
+- Offline privacy: signing out removes the signed-in account's cached data.
+- Frontend loading: details, people, library, feed, and discovery load by route;
+  the initial JavaScript chunk is below the 500 kB warning threshold.
+- API contract: the public trending route is documented and a test checks that
+  REST route registrations stay represented in OpenAPI.
+- Shutdown: background workers share cancellation and are awaited before SQLite
+  closes.
+- Operations: CI runs static checks, restore coverage, and vulnerability checks;
+  dependency updates are proposed weekly for review; restore instructions are
+  documented. The Go runtime baseline is 1.25.13 to include current
+  standard-library security fixes.
+
 ## Summary
 
 Visto has a solid base: its Go application is split into domain, application,

@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -15,6 +14,7 @@ import (
 	"time"
 
 	"github.com/afonsocosta/visto/internal/application/oauth"
+	"github.com/afonsocosta/visto/internal/presentation/security"
 )
 
 const oauthLoginPage = `<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Connect Visto</title>
@@ -388,44 +388,15 @@ func writeOAuthError(w http.ResponseWriter, status int, code, description string
 }
 
 func (server *Server) rateLimit(w http.ResponseWriter, r *http.Request, bucket string, limit int, window time.Duration) bool {
-	remote := r.RemoteAddr
-	if host, _, err := net.SplitHostPort(remote); err == nil {
-		remote = host
+	if server.rateLimiter == nil {
+		server.rateLimiter = security.NewRateLimiter(10_000)
 	}
-	now := time.Now().UTC()
-	key := bucket + ":" + remote
-	server.rateMu.Lock()
-	defer server.rateMu.Unlock()
-	if server.rateBuckets == nil {
-		server.rateBuckets = map[string][]time.Time{}
-	}
-	for oldKey, values := range server.rateBuckets {
-		kept := values[:0]
-		for _, value := range values {
-			if now.Sub(value) < time.Hour {
-				kept = append(kept, value)
-			}
-		}
-		if len(kept) == 0 {
-			delete(server.rateBuckets, oldKey)
-		} else {
-			server.rateBuckets[oldKey] = kept
-		}
-	}
-	values := server.rateBuckets[key]
-	active := values[:0]
-	for _, value := range values {
-		if now.Sub(value) < window {
-			active = append(active, value)
-		}
-	}
-	if len(active) >= limit {
-		server.rateBuckets[key] = active
-		w.Header().Set("Retry-After", strconv.Itoa(max(1, int(window.Seconds()/2))))
+	allowed, retryAfter := server.rateLimiter.Allow(bucket+":"+server.proxies.ClientIP(r), limit, window)
+	if !allowed {
+		w.Header().Set("Retry-After", strconv.Itoa(max(1, int(retryAfter.Seconds()))))
 		http.Error(w, "Too many OAuth requests", http.StatusTooManyRequests)
 		return false
 	}
-	server.rateBuckets[key] = append(active, now)
 	return true
 }
 
