@@ -103,7 +103,6 @@ export function SearchPanel({ onOpenDetail }: { onOpenDetail?: (target: MediaDet
                 </div>
               </Group>
               <Group className="search-result-actions" gap="xs" onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
-                <Button size="xs" variant="default" onClick={() => onOpenDetail ? onOpenDetail({ mediaType: item.type, tmdbID: item.tmdb_id, seed: item }) : setSelectedMedia(item)}>Details</Button>
                 {saved ? <Button size="xs" disabled>In library</Button> : item.type === "tv" ? (
                   <>
                     <Button size="xs" onClick={() => addToLibrary.mutate({ media: item, status: "watching" })} loading={addToLibrary.isPending}>
