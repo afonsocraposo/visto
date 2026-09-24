@@ -174,6 +174,16 @@ paths:
         '201': { description: Created plays for all episodes }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+  /shows/{showID}/episodes:
+    get:
+      summary: List episodes of a show in the authenticated user's library
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { name: showID, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Episodes with the user's watched state, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ShowEpisode' } } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: Show is not in the authenticated user's library }
   /continue-watching:
     get:
       summary: Derive the authenticated user's next released episodes
@@ -328,6 +338,13 @@ components:
         season_number: { type: integer, minimum: 0 }
         episode_number: { type: integer, minimum: 0 }
         air_date: { type: [string, 'null'], format: date }
+    ShowEpisode:
+      type: object
+      required: [episode, name, watched]
+      properties:
+        episode: { $ref: '#/components/schemas/Episode' }
+        name: { type: string }
+        watched: { type: boolean }
     ContinueEntry:
       type: object
       required: [show_id, title, kind, next_episode]

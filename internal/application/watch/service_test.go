@@ -11,10 +11,32 @@ import (
 type repository struct {
 	shows    []Show
 	timezone string
+	episodes []ShowEpisode
 }
 
 func (r repository) WatchingShows(context.Context, string) ([]Show, error) { return r.shows, nil }
 func (r repository) Timezone(context.Context, string) (string, error)      { return r.timezone, nil }
+func (r repository) ListShowEpisodes(context.Context, string, string) ([]ShowEpisode, error) {
+	return r.episodes, nil
+}
+
+func TestEpisodes_GivenShowInUsersLibrary_WhenEpisodesAreRequested_ThenTheCatalogAndWatchedStateAreReturned(t *testing.T) {
+	episodes := []ShowEpisode{
+		{Episode: domain.Episode{ID: "s1e1", SeasonNumber: 1, EpisodeNumber: 1}, Name: "Pilot", Watched: true},
+		{Episode: domain.Episode{ID: "s15e1", SeasonNumber: 15, EpisodeNumber: 1}, Name: "Premiere"},
+	}
+	service := NewService(repository{episodes: episodes})
+	result, err := service.Episodes(context.Background(), "user", "tv:example")
+	if err != nil {
+		t.Fatalf("list show episodes: %v", err)
+	}
+	if len(result) != 2 || result[0].Episode.SeasonNumber != 1 || result[1].Episode.SeasonNumber != 15 {
+		t.Fatalf("episodes=%+v, want the season 1 and season 15 episodes", result)
+	}
+	if !result[0].Watched || result[1].Watched {
+		t.Fatalf("watched states=%t,%t, want true,false", result[0].Watched, result[1].Watched)
+	}
+}
 
 func TestContinue_GivenLaterEpisodeWatchedAndEarlierEpisodeMissing_WhenLoadingNow_ThenItSuggestsTheEpisodeAfterFurthestWatched(t *testing.T) {
 	now := time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC)

@@ -2,6 +2,7 @@ package watch
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -33,10 +34,22 @@ type CalendarEntry struct {
 	Episode domain.Episode `json:"episode"`
 }
 
+type ShowEpisode struct {
+	Episode domain.Episode `json:"episode"`
+	Name    string         `json:"name"`
+	Watched bool           `json:"watched"`
+}
+
 type Repository interface {
 	WatchingShows(context.Context, string) ([]Show, error)
 	Timezone(context.Context, string) (string, error)
 }
+
+type episodeRepository interface {
+	ListShowEpisodes(context.Context, string, string) ([]ShowEpisode, error)
+}
+
+var ErrShowNotFound = errors.New("show not found")
 
 type refreshRepository interface {
 	ShowsNeedingMetadataRefresh(context.Context, string, time.Duration) ([]int64, error)
@@ -144,6 +157,17 @@ func (service *Service) Calendar(ctx context.Context, userID string, from, to ti
 		}
 	}
 	return entries, nil
+}
+
+func (service *Service) Episodes(ctx context.Context, userID, showID string) ([]ShowEpisode, error) {
+	if userID == "" || showID == "" {
+		return nil, fmt.Errorf("user and show are required")
+	}
+	repository, ok := service.repository.(episodeRepository)
+	if !ok {
+		return nil, fmt.Errorf("show episode storage is not configured")
+	}
+	return repository.ListShowEpisodes(ctx, userID, showID)
 }
 
 func (service *Service) refreshMetadata(ctx context.Context, userID string) error {

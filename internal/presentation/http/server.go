@@ -51,6 +51,7 @@ func New(authService *auth.Service, metadataProvider domain.MetadataProvider, we
 	mux.HandleFunc("DELETE /api/v1/plays/{playID}", deletePlay(authService, trackingService))
 	mux.HandleFunc("GET /api/v1/continue-watching", continueWatching(authService, watchService))
 	mux.HandleFunc("GET /api/v1/calendar", calendar(authService, watchService))
+	mux.HandleFunc("GET /api/v1/shows/{showID}/episodes", showEpisodes(authService, watchService))
 	if webDir != "" {
 		if _, err := os.Stat(webDir); err == nil {
 			mux.Handle("GET /", http.FileServer(http.Dir(webDir)))
@@ -173,6 +174,29 @@ func continueWatching(authService *auth.Service, service *watch.Service) http.Ha
 		entries, err := service.Continue(r.Context(), user.ID)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "watch data is temporarily unavailable")
+			return
+		}
+		writeJSON(w, http.StatusOK, entries)
+	}
+}
+
+func showEpisodes(authService *auth.Service, service *watch.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := authenticatedUser(w, r, authService)
+		if !ok {
+			return
+		}
+		if service == nil {
+			writeError(w, http.StatusServiceUnavailable, "show data is not configured")
+			return
+		}
+		entries, err := service.Episodes(r.Context(), user.ID, r.PathValue("showID"))
+		if err != nil {
+			if errors.Is(err, watch.ErrShowNotFound) {
+				writeError(w, http.StatusNotFound, "show not found")
+				return
+			}
+			writeError(w, http.StatusInternalServerError, "show episodes are temporarily unavailable")
 			return
 		}
 		writeJSON(w, http.StatusOK, entries)

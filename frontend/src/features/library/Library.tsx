@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Button, Group, Loader, Paper, PasswordInput, Select, Text, TextInput, Title } from "@mantine/core";
 import { EmptyState } from "../../components/EmptyState";
 import { useUserQueryKey } from "../auth/SessionContext";
+import { EpisodeBrowser } from "./EpisodeBrowser";
 import type { HistoryEntry, LibraryEntry, User } from "../../types";
 
 export function LibraryPanel() {
@@ -30,6 +31,7 @@ export function LibraryPanel() {
 function LibraryCard({ entry }: { entry: LibraryEntry }) {
   const queryClient = useQueryClient();
   const userQueryKey = useUserQueryKey();
+  const [episodesOpen, setEpisodesOpen] = useState(false);
   const update = useMutation({
     mutationFn: async ({ status, rating }: { status: string; rating: number | null }) => {
       const response = await fetch(`/api/v1/library/${encodeURIComponent(entry.item.media_id)}`, {
@@ -84,9 +86,11 @@ function LibraryCard({ entry }: { entry: LibraryEntry }) {
           ...[1, 2, 3, 4, 5].map(value => ({ value: String(value), label: `${value} / 5 stars` })),
         ]} />
       </Group>
+      {entry.media.type === "tv" && <Button mt="sm" size="xs" variant="default" onClick={() => setEpisodesOpen(true)}>Browse episodes</Button>}
       {entry.media.type === "movie" && <Button mt="sm" size="xs" loading={watched.isPending} onClick={() => watched.mutate()}>Watched</Button>}
       {update.isError && <Alert color="red" mt="sm">{update.error.message}</Alert>}
       {watched.isError && <Alert color="red" mt="sm">{watched.error.message}</Alert>}
+      {episodesOpen && <EpisodeBrowser showID={entry.item.media_id} title={entry.media.title} onClose={() => setEpisodesOpen(false)} />}
     </Paper>
   );
 }

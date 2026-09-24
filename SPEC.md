@@ -165,6 +165,10 @@ In both cases the derived progress point advances to the selected episode. The
 missing earlier episodes remain historically unplayed when the user selects the
 second option.
 
+From a show in their library, a user can browse seasons and episodes and mark
+any episode watched. This supports starting partway through a long-running
+show; it must not force the user to mark earlier episodes watched.
+
 A show appears in Continue Watching only when all of these are true:
 
 1. The user status is `watching`.
@@ -310,6 +314,7 @@ GET  /api/v1/shows/{id}
 GET  /api/v1/shows/{id}/progress
 GET  /api/v1/shows/{id}/seasons
 GET  /api/v1/seasons/{id}/episodes
+GET  /api/v1/shows/{id}/episodes
 
 POST   /api/v1/plays
 PATCH  /api/v1/plays/{play_id}

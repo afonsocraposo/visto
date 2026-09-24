@@ -25,7 +25,7 @@ self.addEventListener("fetch", event => {
     return;
   }
   if (event.request.method !== "GET") return;
-  if (url.pathname.startsWith("/api/") && cacheableAPIPaths.has(url.pathname)) {
+  if (url.pathname.startsWith("/api/") && isCacheableAPIPath(url.pathname)) {
     event.respondWith(fetch(event.request).then(async response => {
       if (url.pathname === "/api/v1/me" && response.ok) {
         const user = await response.clone().json();
@@ -50,6 +50,9 @@ self.addEventListener("fetch", event => {
 });
 
 function userCacheName(userID) { return `visto-user-v1-${encodeURIComponent(userID)}`; }
+function isCacheableAPIPath(path) {
+  return cacheableAPIPaths.has(path) || /^\/api\/v1\/shows\/[^/]+\/episodes$/.test(path);
+}
 async function activeUserID() { const response = await (await caches.open(userIndex)).match(activeUserRequest); return response ? response.text() : null; }
 async function storeActiveUserID(userID) { await (await caches.open(userIndex)).put(activeUserRequest, new Response(userID)); }
 async function cacheRecentResponse(userID, request, response) {
