@@ -116,8 +116,16 @@ func (s *Store) UpsertItem(ctx context.Context, item library.Item) error {
 func (s *Store) ListItems(ctx context.Context, userID string) ([]library.Entry, error) {
 	rows, err := s.DB.QueryContext(ctx, `SELECT um.user_id,um.media_id,um.status,um.rating,um.added_at,um.updated_at,m.media_type,m.tmdb_id,m.title,COALESCE(m.original_title,''),COALESCE(m.overview,''),COALESCE(m.release_date,''),COALESCE(m.poster_path,''),COALESCE(m.original_language,''),COALESCE(m.status,''),
 		((m.media_type='movie' AND EXISTS(SELECT 1 FROM plays p WHERE p.user_id=um.user_id AND p.media_id=um.media_id)) OR
-		 (m.media_type='tv' AND (COALESCE(m.status,'') IN ('Ended','Canceled','Cancelled') OR COALESCE(m.status,'')='') AND EXISTS(SELECT 1 FROM episodes e WHERE e.show_id=m.id AND e.season_number>0) AND NOT EXISTS(SELECT 1 FROM episodes e WHERE e.show_id=m.id AND e.season_number>0 AND (e.air_date IS NULL OR e.air_date<=date('now')) AND NOT EXISTS(SELECT 1 FROM plays p WHERE p.user_id=um.user_id AND p.episode_id=e.id))))
-		FROM user_media um JOIN media m ON m.id=um.media_id WHERE um.user_id=? ORDER BY um.updated_at DESC`, userID)
+		 (m.media_type='tv' AND (COALESCE(m.status,'') IN ('Ended','Canceled','Cancelled') OR COALESCE(m.status,'')='') AND EXISTS(SELECT 1 FROM episodes e WHERE e.show_id=m.id AND e.season_number>0) AND NOT EXISTS(SELECT 1 FROM episodes e WHERE e.show_id=m.id AND e.season_number>0 AND (e.air_date IS NULL OR e.air_date<=date('now')) AND NOT EXISTS(SELECT 1 FROM plays p WHERE p.user_id=um.user_id AND p.episode_id=e.id)))),
+		progress.watched_episodes,progress.total_episodes
+		FROM user_media um JOIN media m ON m.id=um.media_id
+		LEFT JOIN (
+			SELECT e.show_id,COUNT(*) AS total_episodes,COUNT(p.episode_id) AS watched_episodes
+			FROM episodes e
+			LEFT JOIN (SELECT DISTINCT episode_id FROM plays WHERE user_id=?) p ON p.episode_id=e.id
+			WHERE e.season_number>0 GROUP BY e.show_id
+		) progress ON progress.show_id=m.id
+		WHERE um.user_id=? ORDER BY um.updated_at DESC`, userID, userID)
 	if err != nil {
 		return nil, fmt.Errorf("list library items: %w", err)
 	}
@@ -125,10 +133,13 @@ func (s *Store) ListItems(ctx context.Context, userID string) ([]library.Entry, 
 	entries := []library.Entry{}
 	for rows.Next() {
 		var entry library.Entry
-		var rating sql.NullInt64
+		var rating, watchedEpisodes, totalEpisodes sql.NullInt64
 		var addedAt, updatedAt string
-		if err := rows.Scan(&entry.Item.UserID, &entry.Item.MediaID, &entry.Item.Status, &rating, &addedAt, &updatedAt, &entry.Media.Type, &entry.Media.TMDBID, &entry.Media.Title, &entry.Media.OriginalTitle, &entry.Media.Overview, &entry.Media.ReleaseDate, &entry.Media.PosterPath, &entry.Media.OriginalLanguage, &entry.Media.Status, &entry.Completed); err != nil {
+		if err := rows.Scan(&entry.Item.UserID, &entry.Item.MediaID, &entry.Item.Status, &rating, &addedAt, &updatedAt, &entry.Media.Type, &entry.Media.TMDBID, &entry.Media.Title, &entry.Media.OriginalTitle, &entry.Media.Overview, &entry.Media.ReleaseDate, &entry.Media.PosterPath, &entry.Media.OriginalLanguage, &entry.Media.Status, &entry.Completed, &watchedEpisodes, &totalEpisodes); err != nil {
 			return nil, fmt.Errorf("scan library item: %w", err)
+		}
+		if entry.Media.Type == domain.TVMediaType && watchedEpisodes.Valid && totalEpisodes.Valid && totalEpisodes.Int64 > 0 {
+			entry.Progress = &library.ShowProgress{WatchedEpisodes: int(watchedEpisodes.Int64), TotalEpisodes: int(totalEpisodes.Int64)}
 		}
 		entry.Media.ID = entry.Item.MediaID
 		if rating.Valid {

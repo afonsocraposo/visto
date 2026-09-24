@@ -25,6 +25,7 @@ export type LibraryEntry = {
   item: { media_id: string; status: string; rating: number | null; updated_at: string };
   media: SearchMedia & { id: string };
   completed: boolean;
+  progress?: { watched_episodes: number; total_episodes: number };
 };
 
 export type FeedItem = {

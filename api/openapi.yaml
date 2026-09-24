@@ -494,6 +494,14 @@ components:
         item: { $ref: '#/components/schemas/LibraryItem' }
         media: { $ref: '#/components/schemas/MediaSearchResult' }
         completed: { type: boolean, description: Derived movie display state; true when this user has at least one movie play. Never stored as a library status. }
+        progress: { $ref: '#/components/schemas/ShowLibraryProgress' }
+    ShowLibraryProgress:
+      type: object
+      description: Per-user TV progress across regular episodes only; omitted for movies and shows without imported episode metadata.
+      required: [watched_episodes, total_episodes]
+      properties:
+        watched_episodes: { type: integer, minimum: 0 }
+        total_episodes: { type: integer, minimum: 1 }
     CreatePlayRequest:
       type: object
       properties:

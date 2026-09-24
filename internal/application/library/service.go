@@ -40,9 +40,15 @@ type Media struct {
 }
 
 type Entry struct {
-	Item      Item  `json:"item"`
-	Media     Media `json:"media"`
-	Completed bool  `json:"completed"`
+	Item      Item          `json:"item"`
+	Media     Media         `json:"media"`
+	Completed bool          `json:"completed"`
+	Progress  *ShowProgress `json:"progress,omitempty"`
+}
+
+type ShowProgress struct {
+	WatchedEpisodes int `json:"watched_episodes"`
+	TotalEpisodes   int `json:"total_episodes"`
 }
 
 type mediaRepository interface {
