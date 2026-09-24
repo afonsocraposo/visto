@@ -38,7 +38,7 @@ test("Given a signed-in user, When they move through the app and choose a theme,
   await mockSignedInSession(page);
   await page.goto("/");
 
-  await expect(page.getByRole("button", { name: "Watch" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Watch", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Feed" }).click();
   await expect(page.getByText("No shared activity yet")).toBeVisible();
   await page.getByRole("button", { name: "Search" }).click();

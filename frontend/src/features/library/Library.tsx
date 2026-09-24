@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Group, Loader, Title } from "@mantine/core";
+import { Alert, Group, Loader, Text, Title } from "@mantine/core";
 import { EmptyState } from "../../components/EmptyState";
 import { useUserQueryKey } from "../auth/SessionContext";
 import { api } from "../../lib/api";
@@ -16,11 +16,11 @@ export function LibraryPanel() {
   });
   if (library.isPending) return <Group justify="center" mt="xl"><Loader /></Group>;
   if (library.isError) return <Alert color="red" mt="md">Your library is temporarily unavailable.</Alert>;
-  if (!library.data?.length) return <EmptyState title="Your library is empty" />;
+  if (!library.data?.length) return <EmptyState title="Your library is empty" detail="Search for something you want to watch, then make this space your own." />;
 
   return (
     <>
-      <Title order={1}>Library</Title>
+      <div className="page-heading"><Text className="section-kicker">Your collection</Text><Title order={1}>Library</Title></div>
       {library.data.map(entry => <LibraryCard key={entry.item.media_id} entry={entry} />)}
     </>
   );

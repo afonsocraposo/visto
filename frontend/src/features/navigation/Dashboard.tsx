@@ -55,18 +55,24 @@ export function Dashboard({ user, theme, setTheme }: { user: User; theme: Theme;
   }, [user.id]);
 
   const nav = (value: Tab, label: string, Icon: typeof IconHome) => (
-    <Button variant={tab === value ? "light" : "subtle"} leftSection={<Icon size={18} />} onClick={() => setTab(value)}>
+    <Button className="bottom-nav-button" variant={tab === value ? "light" : "subtle"} leftSection={<Icon size={18} stroke={1.8} />} onClick={() => setTab(value)}>
       {label}
     </Button>
   );
 
   return (
-    <AppShell header={{ height: 64 }} footer={{ height: 70 }} padding="md">
-      <AppShell.Header>
-        <Group h="100%" px="md" justify="space-between">
-          <Title order={2}>Visto</Title>
-          <Group>
-            <Text size="sm">Hi, {user.display_name}</Text>
+    <AppShell className="visto-shell" header={{ height: 72 }} footer={{ height: 76 }} padding={0}>
+      <AppShell.Header className="visto-header">
+        <Group className="visto-header-inner" h="100%" justify="space-between">
+          <Group gap="sm">
+            <div className="visto-mark" aria-hidden="true">V</div>
+            <div>
+              <Title className="visto-wordmark" order={2}>Visto</Title>
+              <Text className="visto-subtitle" size="xs">Your watchroom</Text>
+            </div>
+          </Group>
+          <Group gap="xs">
+            <Text className="welcome-name" size="sm">Hi, {user.display_name}</Text>
             <Button size="xs" variant="subtle" leftSection={<IconLogout size={16} />} loading={logout.isPending} onClick={() => logout.mutate()}>
               Sign out
             </Button>
@@ -79,12 +85,13 @@ export function Dashboard({ user, theme, setTheme }: { user: User; theme: Theme;
                 { value: "light", label: "Light" },
                 { value: "dark", label: "Dark" },
               ]}
-              w={110}
+              className="theme-select"
+              w={108}
             />
           </Group>
         </Group>
       </AppShell.Header>
-      <AppShell.Main>
+      <AppShell.Main className="visto-main">
         {!online && (
           <Alert color="yellow" mb="md">
             <Group justify="space-between" align="center">
@@ -98,7 +105,7 @@ export function Dashboard({ user, theme, setTheme }: { user: User; theme: Theme;
         {logout.isError && <Alert color="red" mb="md">{logout.error.message}</Alert>}
         {tab === "watch" && (
           <>
-            <Tabs value={view} onChange={value => setView(value || "now")}>
+            <Tabs className="watch-tabs" value={view} onChange={value => setView(value || "now")}>
               <Tabs.List>
                 <Tabs.Tab value="now">Now</Tabs.Tab>
                 <Tabs.Tab value="calendar" leftSection={<IconCalendar size={16} />}>Calendar</Tabs.Tab>
@@ -111,8 +118,8 @@ export function Dashboard({ user, theme, setTheme }: { user: User; theme: Theme;
         {tab === "feed" && <FeedPanel />}
         {tab === "library" && <LibraryArea user={user} />}
       </AppShell.Main>
-      <AppShell.Footer>
-        <Group justify="space-around" h="100%">
+      <AppShell.Footer className="visto-footer">
+        <Group className="bottom-nav" justify="space-around" h="100%">
           {nav("watch", "Watch", IconHome)}
           {nav("search", "Search", IconSearch)}
           {nav("feed", "Feed", IconCompass)}

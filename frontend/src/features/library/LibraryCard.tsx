@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Badge, Button, Group, Paper, Select, Text } from "@mantine/core";
+import { Alert, Badge, Button, Group, Image, Paper, Select, Stack, Text } from "@mantine/core";
 import { useUserQueryKey } from "../auth/SessionContext";
 import { api } from "../../lib/api";
 import { EpisodeBrowser } from "./EpisodeBrowser";
 import { hasCaughtUpDisplayState } from "./showStatus";
 import type { LibraryEntry, ShowProgress } from "../../types";
+import { posterURL } from "../../lib/artwork";
 
 export function LibraryCard({ entry }: { entry: LibraryEntry }) {
   const queryClient = useQueryClient();
@@ -33,33 +34,43 @@ export function LibraryCard({ entry }: { entry: LibraryEntry }) {
     ]),
   });
 
-  return <Paper withBorder p="md" mt="sm">
-    <Group justify="space-between">
-      <Group gap="xs">
-        <Text fw={700}>{entry.media.title}</Text>
-        {entry.completed && <Badge color="green" variant="light">Completed</Badge>}
-        {entry.media.type === "tv" && hasCaughtUpDisplayState(progress.data) && <Badge color="blue" variant="light">Caught up</Badge>}
-      </Group>
-      <Text size="sm" c="dimmed">{entry.media.type === "tv" ? "TV show" : "Movie"}</Text>
-    </Group>
-    <Group mt="sm" grow>
-      <Select aria-label={`Status for ${entry.media.title}`} value={entry.item.status} onChange={status => {
+  const art = posterURL(entry.media.poster_path, "w342");
+  return <Paper className="library-card" withBorder p="md" mt="sm">
+    <Group align="flex-start" wrap="nowrap" gap="md">
+      <div className="library-poster">
+        {art ? <Image src={art} alt={`${entry.media.title} poster`} /> : <div className="artwork-fallback">{entry.media.title.slice(0, 1)}</div>}
+      </div>
+      <div className="library-card-body">
+        <Group justify="space-between" align="flex-start" gap="xs">
+          <div>
+            <Text className="library-title" fw={750}>{entry.media.title}</Text>
+            <Text size="xs" c="dimmed">{entry.media.type === "tv" ? "TV show" : "Movie"}{entry.media.release_date ? ` · ${entry.media.release_date.slice(0, 4)}` : ""}</Text>
+          </div>
+          <Group gap={4}>
+            {entry.completed && <Badge color="teal" variant="light">Completed</Badge>}
+            {entry.media.type === "tv" && hasCaughtUpDisplayState(progress.data) && <Badge color="blue" variant="light">Caught up</Badge>}
+          </Group>
+        </Group>
+        <Stack className="library-controls" mt="md" gap="xs">
+          <Select aria-label={`Status for ${entry.media.title}`} value={entry.item.status} onChange={status => {
         if (status) update.mutate({ status, rating: entry.item.rating });
       }} data={[
         { value: "watchlist", label: "Watchlist" }, { value: "watching", label: "Watching" },
         { value: "paused", label: "Paused" }, { value: "dropped", label: "Dropped" },
       ]} />
-      <Select aria-label={`Rating for ${entry.media.title}`} value={entry.item.rating ? String(entry.item.rating) : "none"} onChange={value => {
+          <Select aria-label={`Rating for ${entry.media.title}`} value={entry.item.rating ? String(entry.item.rating) : "none"} onChange={value => {
         update.mutate({ status: entry.item.status, rating: value && value !== "none" ? Number(value) : null });
       }} data={[
         { value: "none", label: "Not rated" },
         ...[1, 2, 3, 4, 5].map(value => ({ value: String(value), label: `${value} / 5 stars` })),
-      ]} />
+          ]} />
+        </Stack>
+        {entry.media.type === "tv" && <Button mt="sm" size="xs" variant="default" onClick={() => setEpisodesOpen(true)}>Browse episodes</Button>}
+        {entry.media.type === "movie" && <Button mt="sm" size="xs" loading={watched.isPending} onClick={() => watched.mutate()}>{entry.completed ? "Rewatch" : "Watched"}</Button>}
+        {update.isError && <Alert color="red" mt="sm">{update.error.message}</Alert>}
+        {watched.isError && <Alert color="red" mt="sm">{watched.error.message}</Alert>}
+      </div>
     </Group>
-    {entry.media.type === "tv" && <Button mt="sm" size="xs" variant="default" onClick={() => setEpisodesOpen(true)}>Browse episodes</Button>}
-    {entry.media.type === "movie" && <Button mt="sm" size="xs" loading={watched.isPending} onClick={() => watched.mutate()}>{entry.completed ? "Rewatch" : "Watched"}</Button>}
-    {update.isError && <Alert color="red" mt="sm">{update.error.message}</Alert>}
-    {watched.isError && <Alert color="red" mt="sm">{watched.error.message}</Alert>}
     {episodesOpen && <EpisodeBrowser showID={entry.item.media_id} title={entry.media.title} onClose={() => setEpisodesOpen(false)} />}
   </Paper>;
 }

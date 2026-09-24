@@ -19,18 +19,21 @@ export function FeedPanel() {
   if (feed.isPending) return <Group justify="center" mt="xl"><Loader /></Group>;
   if (feed.isError) return <Alert color="red" mt="md">The feed is temporarily unavailable.</Alert>;
   const items = feed.data.pages.flatMap(page => page.items);
-  if (items.length === 0) return <EmptyState title="No shared activity yet" />;
+  if (items.length === 0) return <EmptyState title="No shared activity yet" detail="When someone opts in, their watches and ratings will appear here." />;
 
   return (
     <>
-      <Title order={1}>Feed</Title>
+      <div className="page-heading"><Text className="section-kicker">From your household</Text><Title order={1}>Feed</Title></div>
       {items.map(item => (
-        <Paper key={item.id} withBorder p="md" mt="sm">
-          <Text>
-            {item.display_name} {item.kind === "rewatch" ? "rewatched" : item.kind === "rating" ? "rated" : item.kind === "bulk_watch" ? `marked ${item.count} episodes of` : "watched"}{" "}
-            <Text component="span" fw={700}>{item.title}</Text>
-            {item.kind === "rating" && item.rating ? ` · ${"★".repeat(item.rating)}` : item.season_number ? ` · S${String(item.season_number).padStart(2, "0")}E${String(item.episode_number).padStart(2, "0")}` : ""}
-          </Text>
+        <Paper className="feed-card" key={item.id} withBorder p="md" mt="sm">
+          <Group wrap="nowrap" align="flex-start">
+            <div className="feed-avatar" aria-hidden="true">{item.display_name.slice(0, 1).toUpperCase()}</div>
+            <Text>
+              <Text component="span" fw={700}>{item.display_name}</Text> {item.kind === "rewatch" ? "rewatched" : item.kind === "rating" ? "rated" : item.kind === "bulk_watch" ? `marked ${item.count} episodes of` : "watched"}{" "}
+              <Text component="span" fw={700}>{item.title}</Text>
+              {item.kind === "rating" && item.rating ? ` · ${"★".repeat(item.rating)}` : item.season_number ? ` · S${String(item.season_number).padStart(2, "0")}E${String(item.episode_number).padStart(2, "0")}` : ""}
+            </Text>
+          </Group>
         </Paper>
       ))}
       {feed.hasNextPage && (

@@ -81,7 +81,8 @@ export function AuthGate() {
   const pending = isFirstRun ? createAdmin.isPending : signIn.isPending;
 
   return (
-    <Paper withBorder radius="md" p="xl" maw={440} mx="auto" mt="xl">
+    <Paper className="auth-card" withBorder radius="xl" p="xl" maw={440} mx="auto" mt="xl">
+      <div className="auth-mark" aria-hidden="true">V</div>
       <Title order={1}>{isFirstRun ? "Set up Visto" : "Welcome to Visto"}</Title>
       <Text c="dimmed" mt="xs">
         {isFirstRun ? "Create the first administrator for this instance." : "Sign in to track what you watch."}

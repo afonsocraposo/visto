@@ -1,11 +1,22 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Group, Loader, MantineProvider } from "@mantine/core";
+import { createTheme, Group, Loader, MantineProvider } from "@mantine/core";
 import { Dashboard } from "../features/navigation/Dashboard";
 import { AuthGate } from "../features/auth/AuthGate";
 import { SessionProvider } from "../features/auth/SessionContext";
 import { forcedColorScheme } from "./theme";
 import type { Theme, User } from "../types";
+
+const themeDefinition = createTheme({
+  primaryColor: "amber",
+  primaryShade: { light: 7, dark: 5 },
+  colors: {
+    amber: ["#fff7e0", "#ffedbd", "#ffe090", "#ffd064", "#fac147", "#f2b544", "#d99420", "#b77316", "#925912", "#77480f"],
+  },
+  fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
+  headings: { fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif", fontWeight: "750" },
+  defaultRadius: "md",
+});
 
 export function App() {
   const session = useQuery({
@@ -22,7 +33,7 @@ export function App() {
   }, [theme]);
 
   return (
-    <MantineProvider defaultColorScheme="auto" forceColorScheme={forcedColorScheme(theme)}>
+    <MantineProvider theme={themeDefinition} defaultColorScheme="auto" forceColorScheme={forcedColorScheme(theme)}>
       {session.isPending ? (
         <Group justify="center" mt="xl"><Loader /></Group>
       ) : session.data ? (

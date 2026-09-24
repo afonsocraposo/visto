@@ -1,9 +1,10 @@
 import { Paper, Text } from "@mantine/core";
 
-export function EmptyState({ title }: { title: string }) {
+export function EmptyState({ title, detail }: { title: string; detail?: string }) {
   return (
-    <Paper withBorder p="xl" mt="md" radius="md" ta="center">
+    <Paper className="empty-state" withBorder p="xl" mt="md" radius="lg" ta="center">
       <Text fw={700}>{title}</Text>
+      {detail && <Text size="sm" c="dimmed" mt={6}>{detail}</Text>}
     </Paper>
   );
 }
