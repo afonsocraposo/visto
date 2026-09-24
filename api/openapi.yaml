@@ -29,8 +29,7 @@ paths:
         '429': { description: Too many login attempts; retry after the supplied Retry-After interval }
   /auth/logout:
     post:
-      summary: Revoke the current web session
-      security: [{ sessionCookie: [] }]
+      summary: Revoke the current web session and clear the cookie; safe to call when already signed out
       responses:
         '204': { description: Session ended and cookie cleared }
         '500': { description: Session could not be revoked }
