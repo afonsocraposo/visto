@@ -135,6 +135,21 @@ func TestContinue_GivenEpisodeArtworkAndName_WhenLoadingWatching_ThenItIncludesB
 	}
 }
 
+func TestRemainingEpisodes_GivenLaterRegularEpisodes_WhenCountingAfterCurrent_ThenItExcludesWatchedEpisodesAndSpecials(t *testing.T) {
+	now := time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC)
+	episodes := []domain.Episode{
+		{ID: "special", SeasonNumber: 0, EpisodeNumber: 1, AirDate: &now},
+		{ID: "current", SeasonNumber: 1, EpisodeNumber: 1, AirDate: &now},
+		{ID: "later", SeasonNumber: 1, EpisodeNumber: 2, AirDate: &now},
+		{ID: "watched-later", SeasonNumber: 1, EpisodeNumber: 3, AirDate: &now},
+		{ID: "next-season", SeasonNumber: 2, EpisodeNumber: 1, AirDate: &now},
+	}
+	plays := []domain.EpisodePlay{{ID: "p1", EpisodeID: "watched-later"}}
+	if got := remainingEpisodesAfter(episodes, plays, episodes[1]); got != 2 {
+		t.Fatalf("remaining episodes=%d, want two later unwatched regular episodes", got)
+	}
+}
+
 func TestCalendar_GivenFutureEpisodeWatchedBeforeAirDate_WhenListingUpcoming_ThenItIsOmitted(t *testing.T) {
 	from := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
 	to := from.AddDate(0, 0, 30)

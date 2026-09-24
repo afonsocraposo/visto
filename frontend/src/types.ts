@@ -53,6 +53,7 @@ export type ContinueEntry = {
   next_episode?: Episode;
   next_episode_name?: string;
   next_episode_still_path?: string;
+  remaining_episodes: number;
   missing_prior_episodes?: Episode[];
 };
 

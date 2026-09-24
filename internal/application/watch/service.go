@@ -37,6 +37,7 @@ type ContinueEntry struct {
 	NextEpisode          *domain.Episode  `json:"next_episode,omitempty"`
 	NextEpisodeName      string           `json:"next_episode_name,omitempty"`
 	NextEpisodeStillPath string           `json:"next_episode_still_path,omitempty"`
+	RemainingEpisodes    int              `json:"remaining_episodes"`
 	MissingPriorEpisodes []domain.Episode `json:"missing_prior_episodes,omitempty"`
 }
 
@@ -137,6 +138,7 @@ func (service *Service) Continue(ctx context.Context, userID string) ([]Continue
 			entry.NextEpisodeName = details.Name
 			entry.NextEpisodeStillPath = details.StillPath
 		}
+		entry.RemainingEpisodes = remainingEpisodesAfter(show.Episodes, show.Plays, *progress.NextEpisode)
 		entry.MissingPriorEpisodes = domain.MissingPriorEpisodes(show.Episodes, show.Plays, *progress.NextEpisode, now)
 		result = append(result, entry)
 	}
@@ -144,6 +146,23 @@ func (service *Service) Continue(ctx context.Context, userID string) ([]Continue
 		return continueActivityTime(shows, result[left], now).After(continueActivityTime(shows, result[right], now))
 	})
 	return result, nil
+}
+
+func remainingEpisodesAfter(episodes []domain.Episode, plays []domain.EpisodePlay, current domain.Episode) int {
+	played := make(map[string]struct{}, len(plays))
+	for _, play := range plays {
+		played[play.EpisodeID] = struct{}{}
+	}
+	remaining := 0
+	for _, episode := range episodes {
+		if !episode.IsRegular() || episode.SeasonNumber < current.SeasonNumber || episode.SeasonNumber == current.SeasonNumber && episode.EpisodeNumber <= current.EpisodeNumber {
+			continue
+		}
+		if _, watched := played[episode.ID]; !watched {
+			remaining++
+		}
+	}
+	return remaining
 }
 
 func continueActivityTime(shows []Show, entry ContinueEntry, now time.Time) time.Time {

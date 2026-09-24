@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ActionIcon, Alert, Button, Group, Image, Loader, Modal, Paper, Text, Title, Tooltip } from "@mantine/core";
+import { ActionIcon, Alert, Badge, Button, Group, Image, Loader, Modal, Paper, Text, Title, Tooltip } from "@mantine/core";
 import { IconEye } from "@tabler/icons-react";
 import { EmptyState } from "../../components/EmptyState";
 import { useUserQueryKey } from "../auth/SessionContext";
@@ -57,8 +57,12 @@ export function WatchNow({ onOpenDetail }: { onOpenDetail?: (target: MediaDetail
           return <Paper key={entry.show_id} className="watch-row" withBorder p={0} role={onOpenDetail ? "button" : undefined} tabIndex={onOpenDetail ? 0 : undefined} onClick={openEpisode} onKeyDown={event => { if ((event.key === "Enter" || event.key === " ") && event.target === event.currentTarget) { event.preventDefault(); openEpisode(); } }}>
             <div className="watch-row-art">{art ? <Image src={art} alt="" /> : <div className="artwork-fallback">{entry.title.slice(0, 1)}</div>}</div>
             <div className="watch-row-content">
-              <Text className="watch-row-title" fw={700} lineClamp={1}>{entry.title}</Text>
-              <Text className="watch-row-episode" lineClamp={1}>{entry.next_episode ? `S${String(entry.next_episode.season_number).padStart(2, "0")} | E${String(entry.next_episode.episode_number).padStart(2, "0")}${entry.next_episode_name ? ` · ${entry.next_episode_name}` : ""}` : "Episode details are pending"}</Text>
+              <Badge className="watch-row-show" size="lg" variant="outline" color="gray" radius="xl">{entry.title}</Badge>
+              <Group className="watch-row-meta" gap="xs" wrap="wrap">
+                <Text className="watch-row-episode">{entry.next_episode ? `S${String(entry.next_episode.season_number).padStart(2, "0")} | E${String(entry.next_episode.episode_number).padStart(2, "0")}` : "Episode details are pending"}</Text>
+                {entry.remaining_episodes > 0 && <Badge size="sm" variant="light" color="gray">+{entry.remaining_episodes} left</Badge>}
+              </Group>
+              {entry.next_episode && <Text className="watch-row-name" lineClamp={1}>{entry.next_episode_name || `Episode ${entry.next_episode.episode_number}`}</Text>}
             </div>
             {entry.next_episode && <Tooltip label="Mark episode watched" withArrow><ActionIcon className="watch-row-action" size="xl" radius="xl" variant="light" color="gray" aria-label={`Mark ${entry.title} season ${entry.next_episode.season_number}, episode ${entry.next_episode.episode_number} watched`} loading={markWatched.isPending} onClick={event => { event.stopPropagation(); entry.missing_prior_episodes?.length ? setConfirmation(entry) : markWatched.mutate({ episodeIDs: [entry.next_episode!.id], bulk: false }); }}><IconEye size={22} stroke={1.8} /></ActionIcon></Tooltip>}
           </Paper>;
