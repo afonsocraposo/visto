@@ -62,6 +62,7 @@ export type MediaDetailTarget = {
   mediaID?: string;
   episodeID?: string;
   episode?: Episode;
+  seasonNumber?: number;
   seed?: SearchMedia;
 };
 

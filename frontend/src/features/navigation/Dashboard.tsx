@@ -105,7 +105,7 @@ export function Dashboard({ user, theme, setTheme }: { user: User; theme: Theme;
           </Alert>
         )}
         {logout.isError && <Alert color="red" mb="md">{logout.error.message}</Alert>}
-        {detail ? <MediaDetailPage target={detail} onBack={() => setDetail(null)} /> : tab === "watch" && (
+        {detail ? <MediaDetailPage target={detail} onBack={() => setDetail(null)} onOpenDetail={setDetail} /> : tab === "watch" && (
           <>
             <Tabs className="watch-tabs" value={view} onChange={value => setView(value || "now")}>
               <Tabs.List>

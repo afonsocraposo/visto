@@ -7,9 +7,9 @@ import { backdropURL, posterURL } from "../../lib/artwork";
 import { useUserQueryKey } from "../auth/SessionContext";
 import type { HistoryEntry, LibraryEntry, MediaDetailTarget, SearchMedia, ShowEpisodeEntry } from "../../types";
 
-type Props = { target: MediaDetailTarget; onBack: () => void };
+type Props = { target: MediaDetailTarget; onBack: () => void; onOpenDetail: (target: MediaDetailTarget) => void };
 
-export function MediaDetailPage({ target, onBack }: Props) {
+export function MediaDetailPage({ target, onBack, onOpenDetail }: Props) {
   const userQueryKey = useUserQueryKey();
   const queryClient = useQueryClient();
   const [season, setSeason] = useState<string | null>(null);
@@ -81,7 +81,7 @@ export function MediaDetailPage({ target, onBack }: Props) {
   const art = posterURL(media.poster_path, "w500");
   const episodeEntries = episodes.data ?? [];
   const seasons = [...new Set(episodeEntries.map(entry => entry.episode.season_number))];
-  const selectedSeason = season ?? (seasons.length ? String(seasons.find(number => number > 0) ?? seasons[0]) : null);
+  const selectedSeason = season ?? (target.seasonNumber ? String(target.seasonNumber) : seasons.length ? String(seasons.find(number => number > 0) ?? seasons[0]) : null);
   const visibleEpisodes = episodeEntries.filter(entry => String(entry.episode.season_number) === selectedSeason);
   const selectedEpisode = target.episodeID ? episodeEntries.find(entry => entry.episode.id === target.episodeID) ?? { episode: target.episode!, name: `Episode ${target.episode?.episode_number ?? ""}`, watched: false } : null;
   const backdrop = (selectedEpisode?.still_path ? backdropURL(selectedEpisode.still_path, "w780") : null) ?? backdropURL((media as SearchMedia & { backdrop_path?: string }).backdrop_path, "w1280") ?? art;
@@ -95,7 +95,7 @@ export function MediaDetailPage({ target, onBack }: Props) {
       <div className="detail-hero-content">
         <Badge className="watch-kind" variant="filled">{media.type === "tv" ? "TV show" : "Movie"}</Badge>
         <Title order={1}>{selectedEpisode ? selectedEpisode.name : media.title}</Title>
-        <Text className="detail-subtitle">{selectedEpisode ? `${media.title} · S${String(selectedEpisode.episode.season_number).padStart(2, "0")}E${String(selectedEpisode.episode.episode_number).padStart(2, "0")}` : `${media.release_date ? media.release_date.slice(0, 4) : ""}${media.original_language ? ` · ${media.original_language.toUpperCase()}` : ""}`}</Text>
+        {selectedEpisode ? <Button className="detail-season-link" variant="subtle" onClick={() => onOpenDetail({ mediaType: "tv", tmdbID: media.tmdb_id, mediaID: showID, seasonNumber: selectedEpisode.episode.season_number })}>{`${media.title} · Season ${selectedEpisode.episode.season_number}`}</Button> : <Text className="detail-subtitle">{`${media.release_date ? media.release_date.slice(0, 4) : ""}${media.original_language ? ` · ${media.original_language.toUpperCase()}` : ""}`}</Text>}
         <Text className="detail-overview">{selectedEpisode ? (selectedEpisode.overview || "Episode details are shown from your local catalog.") : media.overview || "No description is available."}</Text>
         {selectedEpisode?.runtime ? <Text className="detail-runtime" mt="sm"><IconClock size={15} /> {selectedEpisode.runtime} min</Text> : null}
         {selectedEpisode ? <EpisodeActions entry={selectedEpisode} playID={watchedPlay?.play.id} onWatch={() => markEpisodeWatched.mutate(selectedEpisode.episode.id)} onUnwatch={playID => unwatch.mutate(playID)} pending={markEpisodeWatched.isPending || unwatch.isPending} /> : <MediaActions media={media} isSaved={isSaved} status={status} add={add} update={update} watched={Boolean(watchedPlay)} playID={watchedPlay?.play.id} onWatch={() => markMovieWatched.mutate()} onUnwatch={playID => unwatch.mutate(playID)} pending={markMovieWatched.isPending || unwatch.isPending} />}
@@ -107,7 +107,7 @@ export function MediaDetailPage({ target, onBack }: Props) {
       {episodes.isPending && <Group justify="center" py="lg"><Loader /></Group>}
       {episodes.isError && <Alert color="red">Episodes are temporarily unavailable.</Alert>}
       {!episodes.isPending && !episodes.isError && !visibleEpisodes.length && <Text c="dimmed">Episode details are not available yet.</Text>}
-      <Stack gap="xs">{visibleEpisodes.map(entry => <Paper key={entry.episode.id} className="episode-row" withBorder p="sm"><Group justify="space-between" wrap="nowrap"><div><Text fw={650}>{`Episode ${entry.episode.episode_number}${entry.name ? ` · ${entry.name}` : ""}`}</Text><Text size="xs" c="dimmed">{entry.episode.air_date || "Air date not announced"}</Text></div>{entry.watched ? <Badge color="teal" variant="light" leftSection={<IconCheck size={13} />}>Watched</Badge> : <Button size="xs" variant="light" leftSection={<IconPlayerPlay size={14} />} loading={markEpisodeWatched.isPending} onClick={() => markEpisodeWatched.mutate(entry.episode.id)}>Mark watched</Button>}</Group></Paper>)}</Stack>
+      <Stack gap="xs">{visibleEpisodes.map(entry => <Paper key={entry.episode.id} className="episode-row" withBorder p="sm" role="button" tabIndex={0} onClick={() => onOpenDetail({ mediaType: "tv", tmdbID: media.tmdb_id, mediaID: showID, episodeID: entry.episode.id, episode: entry.episode, seasonNumber: entry.episode.season_number })} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") onOpenDetail({ mediaType: "tv", tmdbID: media.tmdb_id, mediaID: showID, episodeID: entry.episode.id, episode: entry.episode, seasonNumber: entry.episode.season_number }); }}><Group justify="space-between" wrap="nowrap" align="flex-start"><Group wrap="nowrap" gap="sm" align="flex-start"><div className="episode-art">{entry.still_path ? <Image src={backdropURL(entry.still_path, "w780")!} alt="" /> : <div className="artwork-fallback">{entry.episode.episode_number}</div>}</div><div><Text fw={650}>{`Episode ${entry.episode.episode_number}${entry.name ? ` · ${entry.name}` : ""}`}</Text><Text size="xs" c="dimmed">{entry.episode.air_date || "Air date not announced"}</Text>{entry.overview && <Text className="episode-description" size="sm" c="dimmed" mt={5}>{entry.overview}</Text>}</div></Group>{entry.watched ? <Badge color="teal" variant="light" leftSection={<IconCheck size={13} />}>Watched</Badge> : <Button size="xs" variant="light" leftSection={<IconPlayerPlay size={14} />} loading={markEpisodeWatched.isPending} onClick={event => { event.stopPropagation(); markEpisodeWatched.mutate(entry.episode.id); }}>Mark watched</Button>}</Group></Paper>)}</Stack>
     </section>}
     {library.isError && seed && <Text className="detail-hint" c="dimmed">Add this title to your library to track episodes and progress.</Text>}
   </div>;
