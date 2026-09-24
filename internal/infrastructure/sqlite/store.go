@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"fmt"
 	"path/filepath"
+
+	_ "modernc.org/sqlite"
 )
 
 type Store struct {

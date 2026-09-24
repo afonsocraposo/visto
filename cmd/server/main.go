@@ -24,6 +24,16 @@ import (
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "backup" {
+		if len(os.Args) != 3 {
+			log.Fatal("usage: visto backup <destination.db>")
+		}
+		if err := runBackup(environment("VISTO_DATABASE_PATH", "./data/visto.db"), os.Args[2]); err != nil {
+			log.Fatalf("create backup: %v", err)
+		}
+		log.Printf("database backup created at %s", os.Args[2])
+		return
+	}
 	databasePath := environment("VISTO_DATABASE_PATH", "./data/visto.db")
 	if err := os.MkdirAll(filepath.Dir(databasePath), 0o750); err != nil {
 		log.Fatalf("create data directory: %v", err)
@@ -62,6 +72,10 @@ func main() {
 	if err := server.Shutdown(ctx); err != nil {
 		log.Printf("shutdown HTTP server: %v", err)
 	}
+}
+
+func runBackup(sourcePath, destinationPath string) error {
+	return sqlite.Backup(context.Background(), sourcePath, destinationPath)
 }
 
 func environment(name, fallback string) string {

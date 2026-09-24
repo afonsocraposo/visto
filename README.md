@@ -17,6 +17,17 @@ in the browser. The administrator can add accounts for other people on the
 instance. The Docker volume `visto-data` keeps the SQLite database across
 restarts.
 
+To make a consistent manual backup while Visto is running, choose a new
+destination path inside the data volume:
+
+```sh
+docker compose exec visto /usr/local/bin/visto backup /data/visto-backup.db
+```
+
+The command does not overwrite an existing file. It stores the backup with
+owner-only permissions. Copy the backup out of the Docker volume to keep a
+separate copy away from the server.
+
 ## Development
 
 Requirements: Go 1.22+, Node.js 22+, and a TMDB API key for metadata search.
