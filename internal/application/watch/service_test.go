@@ -2,11 +2,36 @@ package watch
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/afonsocosta/visto/internal/domain"
 )
+
+type metadataRepository struct {
+	repository
+	showIDs  []int64
+	imported []int64
+}
+
+func (r *metadataRepository) ShowsNeedingMetadataRefresh(context.Context, string, time.Duration) ([]int64, error) {
+	return r.showIDs, nil
+}
+func (r *metadataRepository) ImportShowMetadata(_ context.Context, showID string, metadata domain.TVShowMetadata) error {
+	if showID != fmt.Sprintf("tv:%d", metadata.TMDBID) {
+		return fmt.Errorf("show ID %q does not match metadata ID %d", showID, metadata.TMDBID)
+	}
+	r.imported = append(r.imported, metadata.TMDBID)
+	return nil
+}
+
+type showMetadataProvider struct{ calls []int64 }
+
+func (p *showMetadataProvider) Show(_ context.Context, tmdbID int64) (domain.TVShowMetadata, error) {
+	p.calls = append(p.calls, tmdbID)
+	return domain.TVShowMetadata{TMDBID: tmdbID, Name: fmt.Sprintf("Show %d", tmdbID)}, nil
+}
 
 type repository struct {
 	shows          []Show
@@ -121,5 +146,21 @@ func TestContinue_GivenNoReleasedEpisodeAfterProgress_WhenLoadingNow_ThenCaughtU
 	}
 	if len(entries) != 0 {
 		t.Fatalf("entries=%+v, want caught-up show omitted", entries)
+	}
+}
+
+func TestRefreshMetadata_GivenManyStaleShows_WhenRequestRefreshesCatalog_ThenProviderWorkIsCapped(t *testing.T) {
+	repository := &metadataRepository{showIDs: []int64{10, 11, 12, 13, 14}}
+	provider := &showMetadataProvider{}
+	service := NewService(repository, provider)
+
+	if err := service.refreshMetadata(context.Background(), "user-1"); err != nil {
+		t.Fatal(err)
+	}
+	if len(provider.calls) != maxShowRefreshesPerRequest || len(repository.imported) != maxShowRefreshesPerRequest {
+		t.Fatalf("provider calls=%v imports=%v, want at most %d for one request", provider.calls, repository.imported, maxShowRefreshesPerRequest)
+	}
+	if provider.calls[0] != 10 || provider.calls[1] != 11 {
+		t.Fatalf("refresh order=%v, want most recently tracked shows first", provider.calls)
 	}
 }

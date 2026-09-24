@@ -9,6 +9,8 @@ import (
 	"github.com/afonsocosta/visto/internal/domain"
 )
 
+const maxShowRefreshesPerRequest = 2
+
 type Show struct {
 	ID         string               `json:"id"`
 	Title      string               `json:"title"`
@@ -253,6 +255,9 @@ func (service *Service) refreshMetadata(ctx context.Context, userID string) erro
 	tmdbIDs, err := repository.ShowsNeedingMetadataRefresh(ctx, userID, 24*time.Hour)
 	if err != nil {
 		return err
+	}
+	if len(tmdbIDs) > maxShowRefreshesPerRequest {
+		tmdbIDs = tmdbIDs[:maxShowRefreshesPerRequest]
 	}
 	for _, tmdbID := range tmdbIDs {
 		metadata, err := service.metadataProvider.Show(ctx, tmdbID)
