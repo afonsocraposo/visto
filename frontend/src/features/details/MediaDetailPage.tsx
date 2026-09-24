@@ -10,6 +10,7 @@ import { RatingStars } from "../../components/RatingStars";
 import { MediaQuickActions } from "../../components/MediaQuickActions";
 import { CastSection } from "../../components/CastSection";
 import { regularSeasonsThrough, selectUnwatchedEpisodes } from "./watchSelection";
+import { resolveMediaID } from "./mediaIdentity";
 import type { EpisodeRating, HistoryEntry, LibraryEntry, MediaDetailTarget, SearchMedia, ShowEpisodeEntry, TemporaryEpisodeDetails, TemporaryMovieDetails, TemporaryShowDetails } from "../../types";
 
 type Props = { target: MediaDetailTarget; onBack: () => void; onOpenDetail: (target: MediaDetailTarget) => void };
@@ -46,8 +47,8 @@ export function MediaDetailPage({ target, onBack, onOpenDetail }: Props) {
   const media = library.data?.media
     ? { ...library.data.media, backdrop_path: library.data.media.backdrop_path ?? temporary.data?.media.backdrop_path }
     : target.mediaType === "movie" ? movieDetails.data?.media ?? seed : temporary.data?.media ?? seed;
-  const savedMediaID = library.data?.item.media_id;
-  const showID = target.mediaID ?? savedMediaID ?? (media ? `${media.type}:${media.tmdb_id}` : undefined);
+  const savedMediaID = library.data?.item.media_id || undefined;
+  const showID = resolveMediaID(target.mediaID, savedMediaID, media);
   const episodes = useQuery({
     queryKey: userQueryKey("detail-episodes", showID),
     enabled: target.mediaType === "tv" && Boolean(savedMediaID),
