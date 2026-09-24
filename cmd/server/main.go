@@ -13,6 +13,7 @@ import (
 
 	"github.com/afonsocosta/visto/internal/application/auth"
 	"github.com/afonsocosta/visto/internal/application/library"
+	"github.com/afonsocosta/visto/internal/application/profile"
 	"github.com/afonsocosta/visto/internal/application/tracking"
 	"github.com/afonsocosta/visto/internal/infrastructure/sqlite"
 	"github.com/afonsocosta/visto/internal/infrastructure/tmdb"
@@ -39,7 +40,7 @@ func main() {
 	}
 	server := &http.Server{
 		Addr:              environment("VISTO_LISTEN_ADDR", ":8080"),
-		Handler:           httpserver.New(auth.NewService(store), metadataProvider, os.Getenv("VISTO_WEB_DIR"), library.NewService(store), tracking.NewService(store)).Handler(),
+		Handler:           httpserver.New(auth.NewService(store), metadataProvider, os.Getenv("VISTO_WEB_DIR"), library.NewService(store), tracking.NewService(store), profile.NewService(store)).Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}

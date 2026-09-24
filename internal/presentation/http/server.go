@@ -9,6 +9,7 @@ import (
 
 	"github.com/afonsocosta/visto/internal/application/auth"
 	"github.com/afonsocosta/visto/internal/application/library"
+	"github.com/afonsocosta/visto/internal/application/profile"
 	"github.com/afonsocosta/visto/internal/application/tracking"
 	"github.com/afonsocosta/visto/internal/domain"
 )
@@ -17,13 +18,15 @@ type Server struct {
 	handler http.Handler
 }
 
-func New(authService *auth.Service, metadataProvider domain.MetadataProvider, webDir string, libraryService *library.Service, trackingService *tracking.Service) *Server {
+func New(authService *auth.Service, metadataProvider domain.MetadataProvider, webDir string, libraryService *library.Service, trackingService *tracking.Service, profileService *profile.Service) *Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", health)
 	mux.HandleFunc("POST /api/v1/auth/bootstrap", bootstrap(authService))
 	mux.HandleFunc("POST /api/v1/auth/login", login(authService))
 	mux.HandleFunc("POST /api/v1/users", createUser(authService))
 	mux.HandleFunc("GET /api/v1/me", currentUser(authService))
+	mux.HandleFunc("GET /api/v1/profile/activity-settings", activitySettings(authService, profileService))
+	mux.HandleFunc("PATCH /api/v1/profile/activity-settings", setActivitySettings(authService, profileService))
 	mux.HandleFunc("GET /api/v1/search", search(authService, metadataProvider))
 	mux.HandleFunc("GET /api/v1/library", listLibrary(authService, libraryService))
 	mux.HandleFunc("POST /api/v1/library", saveLibrary(authService, libraryService))
@@ -36,6 +39,48 @@ func New(authService *auth.Service, metadataProvider domain.MetadataProvider, we
 		}
 	}
 	return &Server{handler: mux}
+}
+
+func activitySettings(authService *auth.Service, service *profile.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := authenticatedUser(w, r, authService)
+		if !ok {
+			return
+		}
+		if service == nil {
+			writeError(w, http.StatusServiceUnavailable, "profile is not configured")
+			return
+		}
+		settings, err := service.Get(r.Context(), user.ID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "profile is temporarily unavailable")
+			return
+		}
+		writeJSON(w, http.StatusOK, settings)
+	}
+}
+
+func setActivitySettings(authService *auth.Service, service *profile.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := authenticatedUser(w, r, authService)
+		if !ok {
+			return
+		}
+		if service == nil {
+			writeError(w, http.StatusServiceUnavailable, "profile is not configured")
+			return
+		}
+		var request profile.Settings
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid JSON")
+			return
+		}
+		if err := service.SetActivityVisibility(r.Context(), user.ID, request.ActivityVisibility); err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
 }
 
 func createUser(service *auth.Service) http.HandlerFunc {

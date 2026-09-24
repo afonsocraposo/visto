@@ -38,6 +38,21 @@ paths:
       responses:
         '200': { description: Current user, content: { application/json: { schema: { $ref: '#/components/schemas/User' } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
+  /profile/activity-settings:
+    get:
+      summary: Get the authenticated user's activity-feed visibility
+      security: [{ sessionCookie: [] }]
+      responses:
+        '200': { description: Activity settings, content: { application/json: { schema: { $ref: '#/components/schemas/ActivitySettings' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    patch:
+      summary: Change the authenticated user's activity-feed visibility
+      security: [{ sessionCookie: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ActivitySettings' } } } }
+      responses:
+        '204': { description: Activity setting updated }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
   /search:
     get:
       summary: Search movies and TV shows through the instance TMDB provider
@@ -123,6 +138,11 @@ components:
         display_name: { type: string }
         role: { type: string, enum: [admin, user] }
         created_at: { type: string, format: date-time }
+    ActivitySettings:
+      type: object
+      required: [activity_visibility]
+      properties:
+        activity_visibility: { type: string, enum: [private, instance] }
     MediaSearchResult:
       type: object
       required: [tmdb_id, type, title]

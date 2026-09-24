@@ -13,7 +13,7 @@ func TestHealth_GivenRunningServer_WhenHealthIsRequested_ThenItReportsOK(t *test
 	request := httptest.NewRequest(http.MethodGet, "/health", nil)
 	response := httptest.NewRecorder()
 
-	httpserver.New(auth.NewService(nil), nil, "", nil, nil).Handler().ServeHTTP(response, request)
+	httpserver.New(auth.NewService(nil), nil, "", nil, nil, nil).Handler().ServeHTTP(response, request)
 
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", response.Code, http.StatusOK)
@@ -27,7 +27,7 @@ func TestCurrentUser_GivenNoSession_WhenRequested_ThenItRejectsTheRequest(t *tes
 	request := httptest.NewRequest(http.MethodGet, "/api/v1/me", nil)
 	response := httptest.NewRecorder()
 
-	httpserver.New(nil, nil, "", nil, nil).Handler().ServeHTTP(response, request)
+	httpserver.New(nil, nil, "", nil, nil, nil).Handler().ServeHTTP(response, request)
 
 	if response.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d, want %d", response.Code, http.StatusUnauthorized)
