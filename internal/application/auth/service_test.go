@@ -8,6 +8,46 @@ import (
 	"github.com/afonsocosta/visto/internal/domain"
 )
 
+type createUserRepository struct {
+	createdUser  domain.User
+	passwordHash string
+}
+
+func (*createUserRepository) BootstrapAdmin(context.Context, domain.User, string) error { return nil }
+func (repository *createUserRepository) CreateUser(_ context.Context, user domain.User, passwordHash string) error {
+	repository.createdUser = user
+	repository.passwordHash = passwordHash
+	return nil
+}
+func (*createUserRepository) FindUserByUsername(context.Context, string) (domain.User, string, error) {
+	return domain.User{}, "", nil
+}
+func (*createUserRepository) CreateSession(context.Context, string, string, string, time.Time) error {
+	return nil
+}
+func (*createUserRepository) FindUserBySessionToken(context.Context, string, time.Time) (domain.User, error) {
+	return domain.User{}, nil
+}
+func (*createUserRepository) RevokeSession(context.Context, string) error { return nil }
+
+func TestCreateUser_GivenValidAccount_WhenCreatedByAdministrator_ThenItStoresARegularUserWithHashedPassword(t *testing.T) {
+	repository := &createUserRepository{}
+	service := NewService(repository)
+	user, err := service.CreateUser(context.Background(), " family ", " Family Member ", "correct-horse-battery-staple")
+	if err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	if user.ID == "" || user.Username != "family" || user.DisplayName != "Family Member" || user.Role != domain.UserRole {
+		t.Fatalf("created user = %+v", user)
+	}
+	if repository.createdUser.ID != user.ID || repository.createdUser.Role != domain.UserRole {
+		t.Fatalf("stored user = %+v", repository.createdUser)
+	}
+	if repository.passwordHash == "" || repository.passwordHash == "correct-horse-battery-staple" || !verifyPassword(repository.passwordHash, "correct-horse-battery-staple") {
+		t.Fatal("password must be stored as a verifiable hash, never as plaintext")
+	}
+}
+
 type logoutRepository struct {
 	revokedTokenHash string
 }

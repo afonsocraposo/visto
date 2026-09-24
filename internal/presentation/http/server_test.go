@@ -1,13 +1,73 @@
 package httpserver_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/afonsocosta/visto/internal/application/auth"
+	"github.com/afonsocosta/visto/internal/domain"
 	httpserver "github.com/afonsocosta/visto/internal/presentation/http"
 )
+
+type accountHTTPRepository struct {
+	actor        domain.User
+	createdUser  domain.User
+	passwordHash string
+}
+
+func (*accountHTTPRepository) BootstrapAdmin(context.Context, domain.User, string) error { return nil }
+func (repository *accountHTTPRepository) CreateUser(_ context.Context, user domain.User, passwordHash string) error {
+	repository.createdUser = user
+	repository.passwordHash = passwordHash
+	return nil
+}
+func (*accountHTTPRepository) FindUserByUsername(context.Context, string) (domain.User, string, error) {
+	return domain.User{}, "", nil
+}
+func (*accountHTTPRepository) CreateSession(context.Context, string, string, string, time.Time) error {
+	return nil
+}
+func (repository *accountHTTPRepository) FindUserBySessionToken(context.Context, string, time.Time) (domain.User, error) {
+	return repository.actor, nil
+}
+func (*accountHTTPRepository) RevokeSession(context.Context, string) error { return nil }
+
+func TestCreateUser_GivenAdministratorSession_WhenCreatingAnAccount_ThenItCreatesARegularUser(t *testing.T) {
+	repository := &accountHTTPRepository{actor: domain.User{ID: "admin-1", Role: domain.AdminRole}}
+	handler := httpserver.New(auth.NewService(repository), nil, "", nil, nil, nil, nil, nil, nil).Handler()
+	request := httptest.NewRequest(http.MethodPost, "http://visto.local/api/v1/users", strings.NewReader(`{"username":"family","display_name":"Family Member","password":"correct-horse-battery-staple"}`))
+	request.AddCookie(&http.Cookie{Name: "visto_session", Value: "session-1"})
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d: %s", response.Code, http.StatusCreated, response.Body.String())
+	}
+	if repository.createdUser.Role != domain.UserRole || repository.createdUser.Username != "family" {
+		t.Fatalf("created account = %+v, want regular user family", repository.createdUser)
+	}
+	if repository.passwordHash == "" || strings.Contains(repository.passwordHash, "correct-horse-battery-staple") {
+		t.Fatal("new account password was not stored as a hash")
+	}
+}
+
+func TestCreateUser_GivenRegularUserSession_WhenCreatingAnAccount_ThenItIsForbidden(t *testing.T) {
+	repository := &accountHTTPRepository{actor: domain.User{ID: "user-1", Role: domain.UserRole}}
+	handler := httpserver.New(auth.NewService(repository), nil, "", nil, nil, nil, nil, nil, nil).Handler()
+	request := httptest.NewRequest(http.MethodPost, "http://visto.local/api/v1/users", strings.NewReader(`{"username":"family","display_name":"Family Member","password":"correct-horse-battery-staple"}`))
+	request.AddCookie(&http.Cookie{Name: "visto_session", Value: "session-1"})
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want %d", response.Code, http.StatusForbidden)
+	}
+	if repository.createdUser.ID != "" {
+		t.Fatalf("regular user created an account: %+v", repository.createdUser)
+	}
+}
 
 func TestHealth_GivenRunningServer_WhenHealthIsRequested_ThenItReportsOK(t *testing.T) {
 	request := httptest.NewRequest(http.MethodGet, "/health", nil)
