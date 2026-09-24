@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Badge, Button, Group, Paper, Select, Text } from "@mantine/core";
 import { useUserQueryKey } from "../auth/SessionContext";
+import { api } from "../../lib/api";
 import { EpisodeBrowser } from "./EpisodeBrowser";
 import { hasCaughtUpDisplayState } from "./showStatus";
 import type { LibraryEntry, ShowProgress } from "../../types";
@@ -13,20 +14,10 @@ export function LibraryCard({ entry }: { entry: LibraryEntry }) {
   const progress = useQuery({
     queryKey: userQueryKey("show-progress", entry.item.media_id),
     enabled: entry.media.type === "tv" && entry.item.status === "watching",
-    queryFn: async () => {
-      const response = await fetch(`/api/v1/shows/${encodeURIComponent(entry.item.media_id)}/progress`);
-      if (!response.ok) throw new Error("Could not load show progress.");
-      return response.json() as Promise<ShowProgress>;
-    },
+    queryFn: () => api.get<ShowProgress>(`/api/v1/shows/${encodeURIComponent(entry.item.media_id)}/progress`, "Could not load show progress."),
   });
   const update = useMutation({
-    mutationFn: async ({ status, rating }: { status: string; rating: number | null }) => {
-      const response = await fetch(`/api/v1/library/${encodeURIComponent(entry.item.media_id)}`, {
-        method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status, rating }),
-      });
-      if (!response.ok) throw new Error("Could not update this title.");
-    },
+    mutationFn: ({ status, rating }: { status: string; rating: number | null }) => api.patch(`/api/v1/library/${encodeURIComponent(entry.item.media_id)}`, { status, rating }, "Could not update this title."),
     onSuccess: async () => Promise.all([
       queryClient.invalidateQueries({ queryKey: userQueryKey("library") }),
       queryClient.invalidateQueries({ queryKey: userQueryKey("continue") }),
@@ -35,13 +26,7 @@ export function LibraryCard({ entry }: { entry: LibraryEntry }) {
     ]),
   });
   const watched = useMutation({
-    mutationFn: async () => {
-      const response = await fetch("/api/v1/plays", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ media_id: entry.item.media_id }),
-      });
-      if (!response.ok) throw new Error("Could not record this watch.");
-    }, onSuccess: async () => Promise.all([
+    mutationFn: () => api.post("/api/v1/plays", { media_id: entry.item.media_id }, "Could not record this watch."), onSuccess: async () => Promise.all([
       queryClient.invalidateQueries({ queryKey: userQueryKey("history") }),
       queryClient.invalidateQueries({ queryKey: userQueryKey("library") }),
       queryClient.invalidateQueries({ queryKey: userQueryKey("feed") }),

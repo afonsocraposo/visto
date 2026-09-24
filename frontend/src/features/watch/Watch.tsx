@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Button, Group, Loader, Modal, Paper, Text } from "@mantine/core";
 import { EmptyState } from "../../components/EmptyState";
 import { useUserQueryKey } from "../auth/SessionContext";
+import { api } from "../../lib/api";
 import type { CalendarEntry, ContinueEntry } from "../../types";
 
 export function WatchNow() {
@@ -11,21 +12,11 @@ export function WatchNow() {
   const [confirmation, setConfirmation] = useState<ContinueEntry | null>(null);
   const entries = useQuery({
     queryKey: userQueryKey("continue"),
-    queryFn: async () => {
-      const response = await fetch("/api/v1/continue-watching");
-      if (!response.ok) throw new Error();
-      return response.json() as Promise<ContinueEntry[]>;
-    },
+    queryFn: () => api.get<ContinueEntry[]>("/api/v1/continue-watching", "Watch data is temporarily unavailable."),
   });
   const markWatched = useMutation({
-    mutationFn: async ({ episodeIDs, bulk }: { episodeIDs: string[]; bulk: boolean }) => {
-      const response = await fetch(bulk ? "/api/v1/plays/bulk" : "/api/v1/plays", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(bulk ? { episode_ids: episodeIDs } : { episode_id: episodeIDs[0] }),
-      });
-      if (!response.ok) throw new Error("Could not mark episode watched.");
-    },
+    mutationFn: ({ episodeIDs, bulk }: { episodeIDs: string[]; bulk: boolean }) =>
+      api.post(bulk ? "/api/v1/plays/bulk" : "/api/v1/plays", bulk ? { episode_ids: episodeIDs } : { episode_id: episodeIDs[0] }, "Could not mark episode watched."),
     onSuccess: async () => {
       setConfirmation(null);
       await Promise.all([
@@ -75,11 +66,7 @@ export function WatchCalendar() {
   const userQueryKey = useUserQueryKey();
   const calendar = useQuery({
     queryKey: userQueryKey("calendar"),
-    queryFn: async () => {
-      const response = await fetch("/api/v1/calendar");
-      if (!response.ok) throw new Error();
-      return response.json() as Promise<CalendarEntry[]>;
-    },
+    queryFn: () => api.get<CalendarEntry[]>("/api/v1/calendar", "Calendar is temporarily unavailable."),
   });
   if (calendar.isPending) return <Group justify="center" mt="xl"><Loader /></Group>;
   if (calendar.isError) return <Alert color="red" mt="md">Calendar is temporarily unavailable.</Alert>;

@@ -2,17 +2,14 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Button, Group, Loader, Paper, Text, TextInput, Title } from "@mantine/core";
 import { useUserQueryKey } from "../auth/SessionContext";
+import { api } from "../../lib/api";
 import type { HistoryEntry } from "../../types";
 
 export function HistoryPanel() {
   const userQueryKey = useUserQueryKey();
   const history = useQuery({
     queryKey: userQueryKey("history"),
-    queryFn: async () => {
-      const response = await fetch("/api/v1/plays?limit=100");
-      if (!response.ok) throw new Error();
-      return response.json() as Promise<HistoryEntry[]>;
-    },
+    queryFn: () => api.get<HistoryEntry[]>("/api/v1/plays?limit=100", "Watch history is temporarily unavailable."),
   });
   if (history.isPending) return <Group justify="center" mt="xl"><Loader /></Group>;
   if (history.isError) return <Alert color="red" mt="lg">Watch history is temporarily unavailable.</Alert>;
@@ -42,26 +39,18 @@ function HistoryCard({ entry }: { entry: HistoryEntry }) {
   ]);
   const save = useMutation({
     mutationFn: async () => {
-      const response = await fetch(`/api/v1/plays/${encodeURIComponent(entry.play.id)}`, {
-        method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ watched_at: new Date(watchedAt).toISOString() }),
-      });
-      if (!response.ok) throw new Error("Could not correct this watch.");
+      await api.patch(`/api/v1/plays/${encodeURIComponent(entry.play.id)}`, { watched_at: new Date(watchedAt).toISOString() }, "Could not correct this watch.");
     }, onSuccess: refreshHistory,
   });
   const remove = useMutation({
     mutationFn: async () => {
-      const response = await fetch(`/api/v1/plays/${encodeURIComponent(entry.play.id)}`, { method: "DELETE" });
-      if (!response.ok) throw new Error("Could not delete this watch.");
+      await api.delete(`/api/v1/plays/${encodeURIComponent(entry.play.id)}`, "Could not delete this watch.");
     }, onSuccess: refreshHistory,
   });
   const rewatch = useMutation({
     mutationFn: async () => {
       const body = entry.play.media_id ? { media_id: entry.play.media_id } : { episode_id: entry.play.episode_id };
-      const response = await fetch("/api/v1/plays", {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-      });
-      if (!response.ok) throw new Error("Could not record the rewatch.");
+      await api.post("/api/v1/plays", body, "Could not record the rewatch.");
     }, onSuccess: async () => Promise.all([
       queryClient.invalidateQueries({ queryKey: userQueryKey("history") }),
       queryClient.invalidateQueries({ queryKey: userQueryKey("library") }),

@@ -4,6 +4,7 @@ import { useDebouncedValue } from "@mantine/hooks";
 import { Alert, Button, Group, Image, Modal, Paper, Text, TextInput, Title } from "@mantine/core";
 import { IconSearch } from "@tabler/icons-react";
 import { useUserQueryKey } from "../auth/SessionContext";
+import { api } from "../../lib/api";
 import type { LibraryEntry, SearchMedia } from "../../types";
 
 export function SearchPanel() {
@@ -14,30 +15,15 @@ export function SearchPanel() {
   const [selectedMedia, setSelectedMedia] = useState<SearchMedia | null>(null);
   const library = useQuery({
     queryKey: userQueryKey("library"),
-    queryFn: async () => {
-      const response = await fetch("/api/v1/library");
-      if (!response.ok) throw new Error();
-      return response.json() as Promise<LibraryEntry[]>;
-    },
+    queryFn: () => api.get<LibraryEntry[]>("/api/v1/library", "Could not load your library."),
   });
   const results = useQuery({
     queryKey: userQueryKey("search", debouncedQuery),
     enabled: debouncedQuery.length > 1,
-    queryFn: async () => {
-      const response = await fetch(`/api/v1/search?q=${encodeURIComponent(debouncedQuery)}`);
-      if (!response.ok) throw new Error();
-      return response.json() as Promise<SearchMedia[]>;
-    },
+    queryFn: () => api.get<SearchMedia[]>(`/api/v1/search?q=${encodeURIComponent(debouncedQuery)}`, "Search is temporarily unavailable."),
   });
   const addToLibrary = useMutation({
-    mutationFn: async (media: SearchMedia) => {
-      const response = await fetch("/api/v1/library", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ media, status: "watchlist" }),
-      });
-      if (!response.ok) throw new Error("Could not add this title.");
-    },
+    mutationFn: (media: SearchMedia) => api.post("/api/v1/library", { media, status: "watchlist" }, "Could not add this title."),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: userQueryKey("library") }),
   });
   const libraryIDs = new Set(library.data?.map(entry => entry.item.media_id) ?? []);

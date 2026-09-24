@@ -2,6 +2,7 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import { Alert, Button, Group, Loader, Paper, Text, Title } from "@mantine/core";
 import { EmptyState } from "../../components/EmptyState";
 import { useUserQueryKey } from "../auth/SessionContext";
+import { api } from "../../lib/api";
 import type { FeedItem } from "../../types";
 
 export function FeedPanel() {
@@ -11,9 +12,7 @@ export function FeedPanel() {
     initialPageParam: undefined as string | undefined,
     queryFn: async ({ pageParam }) => {
       const query = pageParam ? `?cursor=${encodeURIComponent(pageParam)}` : "";
-      const response = await fetch(`/api/v1/feed${query}`);
-      if (!response.ok) throw new Error();
-      return response.json() as Promise<{ items: FeedItem[]; next_cursor: string | null }>;
+      return api.get<{ items: FeedItem[]; next_cursor: string | null }>(`/api/v1/feed${query}`, "The feed is temporarily unavailable.");
     },
     getNextPageParam: page => page.next_cursor ?? undefined,
   });

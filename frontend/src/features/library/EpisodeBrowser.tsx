@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Button, Group, Loader, Modal, Paper, Select, Text } from "@mantine/core";
 import { useUserQueryKey } from "../auth/SessionContext";
+import { api } from "../../lib/api";
 import { findMissingPriorEpisodes } from "./episodeSelection";
 import type { ShowEpisodeEntry } from "../../types";
 
@@ -14,21 +15,11 @@ export function EpisodeBrowser({ showID, title, onClose }: { showID: string; tit
   const [confirmation, setConfirmation] = useState<PendingSkippedEpisodes | null>(null);
   const episodes = useQuery({
     queryKey: userQueryKey("episodes", showID),
-    queryFn: async () => {
-      const response = await fetch(`/api/v1/shows/${encodeURIComponent(showID)}/episodes`);
-      if (!response.ok) throw new Error("Could not load episodes.");
-      return response.json() as Promise<ShowEpisodeEntry[]>;
-    },
+    queryFn: () => api.get<ShowEpisodeEntry[]>(`/api/v1/shows/${encodeURIComponent(showID)}/episodes`, "Could not load episodes."),
   });
   const recordPlays = useMutation({
-    mutationFn: async ({ episodeIDs, bulk }: { episodeIDs: string[]; bulk: boolean }) => {
-      const response = await fetch(bulk ? "/api/v1/plays/bulk" : "/api/v1/plays", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(bulk ? { episode_ids: episodeIDs } : { episode_id: episodeIDs[0] }),
-      });
-      if (!response.ok) throw new Error("Could not record this watch.");
-    },
+    mutationFn: ({ episodeIDs, bulk }: { episodeIDs: string[]; bulk: boolean }) =>
+      api.post(bulk ? "/api/v1/plays/bulk" : "/api/v1/plays", bulk ? { episode_ids: episodeIDs } : { episode_id: episodeIDs[0] }, "Could not record this watch."),
     onSuccess: async () => {
       setConfirmation(null);
       await Promise.all([

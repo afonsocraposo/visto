@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Alert, Group, Loader, Title } from "@mantine/core";
 import { EmptyState } from "../../components/EmptyState";
 import { useUserQueryKey } from "../auth/SessionContext";
+import { api } from "../../lib/api";
 import { LibraryCard } from "./LibraryCard";
 import type { LibraryEntry } from "../../types";
 export { HistoryPanel } from "./HistoryPanel";
@@ -11,11 +12,7 @@ export function LibraryPanel() {
   const userQueryKey = useUserQueryKey();
   const library = useQuery({
     queryKey: userQueryKey("library"),
-    queryFn: async () => {
-      const response = await fetch("/api/v1/library");
-      if (!response.ok) throw new Error();
-      return response.json() as Promise<LibraryEntry[]>;
-    },
+    queryFn: () => api.get<LibraryEntry[]>("/api/v1/library", "Your library is temporarily unavailable."),
   });
   if (library.isPending) return <Group justify="center" mt="xl"><Loader /></Group>;
   if (library.isError) return <Alert color="red" mt="md">Your library is temporarily unavailable.</Alert>;
