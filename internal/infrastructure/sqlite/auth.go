@@ -50,6 +50,14 @@ func (store *Store) CreateUser(ctx context.Context, user domain.User, passwordHa
 	return tx.Commit()
 }
 
+func (store *Store) UserCount(ctx context.Context) (int, error) {
+	var count int
+	if err := store.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM users`).Scan(&count); err != nil {
+		return 0, fmt.Errorf("count users: %w", err)
+	}
+	return count, nil
+}
+
 func (store *Store) FindUserByUsername(ctx context.Context, username string) (domain.User, string, error) {
 	row := store.DB.QueryRowContext(ctx, `SELECT id,username,display_name,password_hash,role,created_at FROM users WHERE username = ?`, username)
 	return scanUser(row)

@@ -28,6 +28,7 @@ func New(authService *auth.Service, metadataProvider domain.MetadataProvider, we
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", health)
 	mux.HandleFunc("POST /api/v1/auth/bootstrap", bootstrap(authService))
+	mux.HandleFunc("GET /api/v1/auth/status", bootstrapStatus(authService))
 	mux.HandleFunc("POST /api/v1/auth/login", login(authService))
 	mux.HandleFunc("POST /api/v1/users", createUser(authService))
 	mux.HandleFunc("GET /api/v1/me", currentUser(authService))
@@ -52,6 +53,21 @@ func New(authService *auth.Service, metadataProvider domain.MetadataProvider, we
 		}
 	}
 	return &Server{handler: mux}
+}
+
+func bootstrapStatus(service *auth.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if service == nil {
+			writeError(w, http.StatusServiceUnavailable, "authentication is not configured")
+			return
+		}
+		available, err := service.BootstrapAvailable(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "authentication status is unavailable")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]bool{"bootstrap_available": available})
+	}
 }
 
 func updateLibrary(authService *auth.Service, service *library.Service) http.HandlerFunc {

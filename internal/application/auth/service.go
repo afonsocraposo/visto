@@ -27,6 +27,10 @@ type Repository interface {
 	FindUserBySessionToken(context.Context, string, time.Time) (domain.User, error)
 }
 
+type accountCounter interface {
+	UserCount(context.Context) (int, error)
+}
+
 func (service *Service) CreateUser(ctx context.Context, username, displayName, password string) (domain.User, error) {
 	username, displayName, err := validateAccount(username, displayName, password)
 	if err != nil {
@@ -50,6 +54,18 @@ type Service struct {
 
 func NewService(repository Repository) *Service {
 	return &Service{repository: repository, now: time.Now}
+}
+
+func (service *Service) BootstrapAvailable(ctx context.Context) (bool, error) {
+	repository, ok := service.repository.(accountCounter)
+	if !ok {
+		return false, fmt.Errorf("account status is not configured")
+	}
+	count, err := repository.UserCount(ctx)
+	if err != nil {
+		return false, err
+	}
+	return count == 0, nil
 }
 
 func (service *Service) Bootstrap(ctx context.Context, username, displayName, password string) (domain.User, error) {

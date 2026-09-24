@@ -10,9 +10,9 @@ const (
 )
 
 type User struct {
-	ID          string
-	Username    string
-	DisplayName string
-	Role        Role
-	CreatedAt   time.Time
+	ID          string    `json:"id"`
+	Username    string    `json:"username"`
+	DisplayName string    `json:"display_name"`
+	Role        Role      `json:"role"`
+	CreatedAt   time.Time `json:"created_at"`
 }

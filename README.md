@@ -12,9 +12,10 @@ export VISTO_TMDB_API_KEY=your_tmdb_api_key
 docker compose up -d --build
 ```
 
-Open `http://localhost:8080`. The first account created through the bootstrap
-endpoint becomes the instance administrator. The Docker volume `visto-data`
-keeps the SQLite database across restarts.
+Open `http://localhost:8080`. On first use, create the instance administrator
+in the browser. The administrator can add accounts for other people on the
+instance. The Docker volume `visto-data` keeps the SQLite database across
+restarts.
 
 ## Development
 
