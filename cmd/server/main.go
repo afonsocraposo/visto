@@ -13,6 +13,7 @@ import (
 
 	"github.com/afonsocosta/visto/internal/application/auth"
 	"github.com/afonsocosta/visto/internal/infrastructure/sqlite"
+	"github.com/afonsocosta/visto/internal/infrastructure/tmdb"
 	httpserver "github.com/afonsocosta/visto/internal/presentation/http"
 )
 
@@ -27,9 +28,16 @@ func main() {
 	}
 	defer store.Close()
 
+	var metadataProvider *tmdb.Client
+	if apiKey := os.Getenv("VISTO_TMDB_API_KEY"); apiKey != "" {
+		metadataProvider, err = tmdb.New(apiKey, nil)
+		if err != nil {
+			log.Fatalf("configure TMDB: %v", err)
+		}
+	}
 	server := &http.Server{
 		Addr:              environment("VISTO_LISTEN_ADDR", ":8080"),
-		Handler:           httpserver.New(auth.NewService(store)).Handler(),
+		Handler:           httpserver.New(auth.NewService(store), metadataProvider).Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}

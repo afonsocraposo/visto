@@ -6,19 +6,44 @@ import (
 	"time"
 
 	"github.com/afonsocosta/visto/internal/application/auth"
+	"github.com/afonsocosta/visto/internal/domain"
 )
 
 type Server struct {
 	handler http.Handler
 }
 
-func New(authService *auth.Service) *Server {
+func New(authService *auth.Service, metadataProvider domain.MetadataProvider) *Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", health)
 	mux.HandleFunc("POST /api/v1/auth/bootstrap", bootstrap(authService))
 	mux.HandleFunc("POST /api/v1/auth/login", login(authService))
 	mux.HandleFunc("GET /api/v1/me", currentUser(authService))
+	mux.HandleFunc("GET /api/v1/search", search(authService, metadataProvider))
 	return &Server{handler: mux}
+}
+
+func search(authService *auth.Service, provider domain.MetadataProvider) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := authenticatedUser(w, r, authService); !ok {
+			return
+		}
+		if provider == nil {
+			writeError(w, http.StatusServiceUnavailable, "metadata search is not configured")
+			return
+		}
+		query := r.URL.Query().Get("q")
+		if query == "" {
+			writeError(w, http.StatusBadRequest, "q is required")
+			return
+		}
+		results, err := provider.Search(r.Context(), query, r.URL.Query().Get("language"))
+		if err != nil {
+			writeError(w, http.StatusBadGateway, "metadata search is temporarily unavailable")
+			return
+		}
+		writeJSON(w, http.StatusOK, results)
+	}
 }
 
 type credentialsRequest struct {
@@ -65,18 +90,26 @@ func login(service *auth.Service) http.HandlerFunc {
 
 func currentUser(service *auth.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		cookie, err := r.Cookie("visto_session")
-		if err != nil {
-			writeError(w, http.StatusUnauthorized, "authentication required")
-			return
-		}
-		user, err := service.Authenticate(r.Context(), cookie.Value)
-		if err != nil {
-			writeError(w, http.StatusUnauthorized, "authentication required")
+		user, ok := authenticatedUser(w, r, service)
+		if !ok {
 			return
 		}
 		writeJSON(w, http.StatusOK, user)
 	}
+}
+
+func authenticatedUser(w http.ResponseWriter, r *http.Request, service *auth.Service) (domain.User, bool) {
+	cookie, err := r.Cookie("visto_session")
+	if err != nil || service == nil {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return domain.User{}, false
+	}
+	user, err := service.Authenticate(r.Context(), cookie.Value)
+	if err != nil {
+		writeError(w, http.StatusUnauthorized, "authentication required")
+		return domain.User{}, false
+	}
+	return user, true
 }
 func writeError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]string{"error": message})
