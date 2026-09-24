@@ -50,6 +50,7 @@ func New(authService *auth.Service, metadataProvider domain.MetadataProvider, we
 	mux.HandleFunc("GET /api/v1/trending", trending(authService, metadataProvider))
 	mux.HandleFunc("GET /api/v1/public/trending", publicTrending(metadataProvider))
 	mux.HandleFunc("GET /api/v1/discover/shows/{tmdbID}", temporaryShowDetails(authService, metadataProvider))
+	mux.HandleFunc("GET /api/v1/discover/{mediaType}/{tmdbID}/related", relatedMedia(authService, metadataProvider))
 	mux.HandleFunc("GET /api/v1/discover/shows/{tmdbID}/seasons/{seasonNumber}", temporaryShowSeasonEpisodes(authService, metadataProvider))
 	mux.HandleFunc("GET /api/v1/discover/shows/{tmdbID}/seasons/{seasonNumber}/episodes/{episodeNumber}", temporaryEpisodeDetails(authService, metadataProvider))
 	mux.HandleFunc("GET /api/v1/discover/movies/{tmdbID}", temporaryMovieDetails(authService, metadataProvider))
@@ -136,6 +137,35 @@ func trending(authService *auth.Service, provider domain.MetadataProvider) http.
 func publicTrending(provider domain.MetadataProvider) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		serveTrending(w, r, provider)
+	}
+}
+
+func relatedMedia(authService *auth.Service, provider domain.MetadataProvider) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := authenticatedUser(w, r, authService); !ok {
+			return
+		}
+		relatedProvider, ok := provider.(domain.RelatedMetadataProvider)
+		if !ok {
+			writeError(w, http.StatusServiceUnavailable, "related media metadata is not configured")
+			return
+		}
+		mediaType := domain.MediaType(r.PathValue("mediaType"))
+		if mediaType != domain.MovieMediaType && mediaType != domain.TVMediaType {
+			writeError(w, http.StatusBadRequest, "media type must be movie or tv")
+			return
+		}
+		tmdbID, err := strconv.ParseInt(r.PathValue("tmdbID"), 10, 64)
+		if err != nil || tmdbID <= 0 {
+			writeError(w, http.StatusBadRequest, "invalid TMDB ID")
+			return
+		}
+		results, err := relatedProvider.Related(r.Context(), mediaType, tmdbID)
+		if err != nil {
+			writeError(w, http.StatusBadGateway, "related titles are temporarily unavailable")
+			return
+		}
+		writeJSON(w, http.StatusOK, results)
 	}
 }
 

@@ -22,6 +22,64 @@ func TestLatestRegularSeasonNumber_GivenSpecialsAndRegularSeasons_ReturnsHighest
 	}
 }
 
+func TestRelated_GivenMovieRecommendations_WhenRequestedTwice_ThenItFiltersAndCachesResults(t *testing.T) {
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		if r.URL.Path != "/3/movie/42/recommendations" {
+			t.Errorf("request path=%q, want movie recommendations", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"page":1,"results":[{"id":42,"title":"Current title","adult":false},{"id":43,"title":"Adult title","adult":true},{"id":44,"title":"Recommended","original_title":"Recommended","overview":"A related film.","release_date":"2025-01-01","poster_path":"/recommended.jpg","backdrop_path":"/backdrop.jpg","original_language":"en","adult":false}]}`))
+	}))
+	defer server.Close()
+	client, err := New("test-key", server.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	previous := client.client.GetBaseURL()
+	client.client.SetCustomBaseURL(server.URL + "/3")
+	defer client.client.SetCustomBaseURL(previous)
+
+	first, err := client.Related(context.Background(), domain.MovieMediaType, 42)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := client.Related(context.Background(), domain.MovieMediaType, 42)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(first) != 1 || first[0].TMDBID != 44 || first[0].Type != domain.MovieMediaType || first[0].PosterPath != "/recommended.jpg" {
+		t.Fatalf("related media=%+v, want only the valid recommended movie", first)
+	}
+	if len(second) != 1 || calls.Load() != 1 {
+		t.Fatalf("cached media=%+v requests=%d, want one cached request", second, calls.Load())
+	}
+}
+
+func TestRelated_GivenTVRecommendations_WhenRequested_ThenItMapsTVFields(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"page":1,"results":[{"id":51,"name":"Related Show","original_name":"Related Show Original","overview":"A related series.","first_air_date":"2024-04-01","poster_path":"/show.jpg","backdrop_path":"/show-backdrop.jpg","original_language":"fr"}]}`))
+	}))
+	defer server.Close()
+	client, err := New("test-key", server.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	previous := client.client.GetBaseURL()
+	client.client.SetCustomBaseURL(server.URL + "/3")
+	defer client.client.SetCustomBaseURL(previous)
+
+	results, err := client.Related(context.Background(), domain.TVMediaType, 42)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 1 || results[0].Type != domain.TVMediaType || results[0].Title != "Related Show" || results[0].ReleaseDate != "2024-04-01" {
+		t.Fatalf("related media=%+v, want mapped TV recommendation", results)
+	}
+}
+
 func TestSearch_GivenTMDBReturns429_WhenRetryAfterExpires_ThenItRetriesWithinTheConfiguredCap(t *testing.T) {
 	var calls atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

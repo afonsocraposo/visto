@@ -167,6 +167,19 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '502': { description: TMDB is temporarily unavailable }
+  /discover/{mediaType}/{tmdbID}/related:
+    get:
+      summary: Get cached TMDB recommendations for a movie or TV show
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      parameters:
+        - { name: mediaType, in: path, required: true, schema: { type: string, enum: [movie, tv] } }
+        - { name: tmdbID, in: path, required: true, schema: { type: integer, format: int64, minimum: 1 } }
+      responses:
+        '200': { description: Up to 12 related titles, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/MediaSearchResult' } } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '502': { description: TMDB is temporarily unavailable }
+        '503': { description: TMDB recommendations are not configured }
   /people/{tmdbID}:
     get:
       summary: Get a person's biography and combined movie and TV cast credits

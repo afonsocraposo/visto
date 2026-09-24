@@ -9,6 +9,7 @@ import { findMissingPriorEpisodes } from "../library/episodeSelection";
 import { RatingStars } from "../../components/RatingStars";
 import { MediaQuickActions } from "../../components/MediaQuickActions";
 import { CastSection } from "../../components/CastSection";
+import { MediaPosterCard } from "../../components/MediaPosterCard";
 import { regularSeasonsThrough, selectUnwatchedEpisodes, selectWatchedEpisodes } from "./watchSelection";
 import { resolveMediaID } from "./mediaIdentity";
 import { heroArtworkLayers } from "./heroArtwork";
@@ -44,6 +45,14 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
     queryFn: () => api.get<TemporaryMovieDetails>(`/api/v1/discover/movies/${target.tmdbID}`, "Could not load movie details."),
     retry: retryTransientRequest,
     retryDelay: attempt => Math.min(500 * 2 ** attempt, 3000),
+  });
+  const related = useQuery({
+    queryKey: userQueryKey("related-media", target.mediaType, target.tmdbID),
+    enabled: !target.episodeID,
+    staleTime: 12 * 60 * 60 * 1000,
+    retry: retryTransientRequest,
+    retryDelay: attempt => Math.min(500 * 2 ** attempt, 3000),
+    queryFn: () => api.get<SearchMedia[]>(`/api/v1/discover/${target.mediaType}/${target.tmdbID}/related`, "Could not load related titles."),
   });
   const seed = target.seed;
   const media = library.data?.media
@@ -355,6 +364,12 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
     </section>}
     {target.mediaType === "movie" && !selectedEpisode && movieDetails.data?.genres?.length ? <section className="detail-section"><Text className="section-kicker">About this film</Text><Group gap="xs">{movieDetails.data.genres.map(genre => <Badge key={genre} variant="light">{genre}</Badge>)}{movieDetails.data.vote_average ? <Badge variant="light">TMDB {movieDetails.data.vote_average.toFixed(1)} / 10</Badge> : null}</Group></section> : null}
     {!selectedEpisode && <CastSection members={target.mediaType === "tv" ? temporary.data?.cast ?? [] : movieDetails.data?.cast ?? []} title="Cast" kicker="People" onOpenPerson={onOpenPerson} />}
+    {!target.episodeID && (related.isPending || related.isError || Boolean(related.data?.length)) && <section className="detail-section">
+      <Text className="section-kicker">More to explore</Text><Title order={2}>More like this</Title>
+      {related.isPending && <Group justify="center" py="lg"><Loader size="sm" /></Group>}
+      {related.isError && <Alert color="yellow" mt="sm">Related titles are temporarily unavailable.</Alert>}
+      {related.data?.length ? <div className="related-media-grid">{related.data.map(item => <MediaPosterCard key={`${item.type}:${item.tmdb_id}`} media={item} onOpenDetail={onOpenDetail} />)}</div> : null}
+    </section>}
     {selectedEpisode && <CastSection members={episodeDetails.data?.guest_stars ?? []} title="Guest stars" kicker="Episode cast" fallbackRole="Guest star" onOpenPerson={onOpenPerson} />}
     {selectedEpisode && episodeDetails.data?.crew?.length ? <section className="detail-section"><Text className="section-kicker">Episode crew</Text><Group gap="xs">{episodeDetails.data.crew.filter(member => ["Director", "Writer", "Screenplay"].includes(member.job)).slice(0, 8).map(member => <Badge key={`${member.id}-${member.job}`} variant="light">{member.job}: {member.name}</Badge>)}</Group></section> : null}
     {!isSaved && <Text className="detail-hint" c="dimmed">This is a temporary preview. Mark an episode watched to add the show to Watching.</Text>}

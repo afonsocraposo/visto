@@ -18,12 +18,14 @@ import (
 )
 
 const (
-	defaultRequestTimeout = 10 * time.Second
-	searchCacheTTL        = 5 * time.Minute
-	showCacheTTL          = 24 * time.Hour
-	maxAttempts           = 3
-	maxSearchCacheEntries = 500
-	maxShowCacheEntries   = 100
+	defaultRequestTimeout  = 10 * time.Second
+	searchCacheTTL         = 5 * time.Minute
+	showCacheTTL           = 24 * time.Hour
+	maxAttempts            = 3
+	maxSearchCacheEntries  = 500
+	maxShowCacheEntries    = 100
+	relatedCacheTTL        = 12 * time.Hour
+	maxRelatedCacheEntries = 300
 )
 
 // Client is Visto's TMDB adapter. The third-party client is deliberately kept
@@ -48,6 +50,8 @@ type Client struct {
 	episodeCalls map[string]*episodeCall
 	personCache  map[int64]cachedPerson
 	personCalls  map[int64]*personCall
+	relatedCache map[string]cachedSearch
+	relatedCalls map[string]*searchCall
 }
 
 type cachedSearch struct {
@@ -141,7 +145,7 @@ func New(apiKey string, httpClient *http.Client) (*Client, error) {
 		bounded.MaxIdleConnsPerHost = 4
 		httpClient.Transport = bounded
 	}
-	vistoClient := &Client{client: client, requests: make(chan struct{}, 4), searchCache: map[string]cachedSearch{}, searchCalls: map[string]*searchCall{}, showCache: map[int64]cachedShow{}, showCalls: map[int64]*showCall{}, summaryCache: map[int64]cachedShow{}, summaryCalls: map[int64]*showCall{}, seasonCache: map[string]cachedSeason{}, seasonCalls: map[string]*seasonCall{}, movieCache: map[int64]cachedMovie{}, movieCalls: map[int64]*movieCall{}, episodeCache: map[string]cachedEpisode{}, episodeCalls: map[string]*episodeCall{}, personCache: map[int64]cachedPerson{}, personCalls: map[int64]*personCall{}}
+	vistoClient := &Client{client: client, requests: make(chan struct{}, 4), searchCache: map[string]cachedSearch{}, searchCalls: map[string]*searchCall{}, showCache: map[int64]cachedShow{}, showCalls: map[int64]*showCall{}, summaryCache: map[int64]cachedShow{}, summaryCalls: map[int64]*showCall{}, seasonCache: map[string]cachedSeason{}, seasonCalls: map[string]*seasonCall{}, movieCache: map[int64]cachedMovie{}, movieCalls: map[int64]*movieCall{}, episodeCache: map[string]cachedEpisode{}, episodeCalls: map[string]*episodeCall{}, personCache: map[int64]cachedPerson{}, personCalls: map[int64]*personCall{}, relatedCache: map[string]cachedSearch{}, relatedCalls: map[string]*searchCall{}}
 	baseTransport := httpClient.Transport
 	if baseTransport == nil {
 		baseTransport = http.DefaultTransport
@@ -242,6 +246,108 @@ func (client *Client) Trending(ctx context.Context, mediaType, timeWindow string
 	close(call.done)
 	client.mu.Unlock()
 	return results, err
+}
+
+func (client *Client) Related(ctx context.Context, mediaType domain.MediaType, tmdbID int64) ([]domain.MediaSearchResult, error) {
+	if (mediaType != domain.MovieMediaType && mediaType != domain.TVMediaType) || tmdbID <= 0 {
+		return nil, fmt.Errorf("related media type and TMDB ID must be valid")
+	}
+	cacheKey := fmt.Sprintf("%s:%d", mediaType, tmdbID)
+	client.mu.Lock()
+	if cached, ok := client.relatedCache[cacheKey]; ok && time.Now().Before(cached.expiresAt) {
+		client.mu.Unlock()
+		return append([]domain.MediaSearchResult(nil), cached.results...), nil
+	}
+	if call, ok := client.relatedCalls[cacheKey]; ok {
+		client.mu.Unlock()
+		select {
+		case <-call.done:
+			return append([]domain.MediaSearchResult(nil), call.results...), call.err
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	call := &searchCall{done: make(chan struct{})}
+	client.relatedCalls[cacheKey] = call
+	client.mu.Unlock()
+
+	results, err := client.fetchRelated(ctx, mediaType, tmdbID)
+	client.mu.Lock()
+	call.results = append([]domain.MediaSearchResult(nil), results...)
+	call.err = err
+	if err == nil {
+		now := time.Now()
+		for key, cached := range client.relatedCache {
+			if !now.Before(cached.expiresAt) {
+				delete(client.relatedCache, key)
+			}
+		}
+		client.relatedCache[cacheKey] = cachedSearch{results: append([]domain.MediaSearchResult(nil), results...), expiresAt: now.Add(relatedCacheTTL)}
+		for len(client.relatedCache) > maxRelatedCacheEntries {
+			for key := range client.relatedCache {
+				if key != cacheKey {
+					delete(client.relatedCache, key)
+					break
+				}
+			}
+		}
+	}
+	delete(client.relatedCalls, cacheKey)
+	close(call.done)
+	client.mu.Unlock()
+	return results, err
+}
+
+func (client *Client) fetchRelated(ctx context.Context, mediaType domain.MediaType, tmdbID int64) ([]domain.MediaSearchResult, error) {
+	if err := client.acquire(ctx); err != nil {
+		return nil, err
+	}
+	defer func() { <-client.requests }()
+	results := make([]domain.MediaSearchResult, 0, 12)
+	if mediaType == domain.MovieMediaType {
+		var response *tmdbapi.MovieRecommendations
+		if err := client.requestHeld(ctx, func() error {
+			var requestErr error
+			response, requestErr = client.client.GetMovieRecommendations(int(tmdbID), nil)
+			return requestErr
+		}); err != nil {
+			return nil, err
+		}
+		if response.MovieRecommendationsResults == nil {
+			return results, nil
+		}
+		for _, item := range response.Results {
+			if item.Adult || item.ID <= 0 || item.ID == tmdbID || strings.TrimSpace(item.Title) == "" {
+				continue
+			}
+			results = append(results, domain.MediaSearchResult{TMDBID: item.ID, Type: domain.MovieMediaType, Title: item.Title, OriginalTitle: item.OriginalTitle, Overview: item.Overview, ReleaseDate: item.ReleaseDate, PosterPath: item.PosterPath, OriginalLanguage: item.OriginalLanguage, BackdropPath: item.BackdropPath})
+			if len(results) == 12 {
+				break
+			}
+		}
+		return results, nil
+	}
+	var response *tmdbapi.TVRecommendations
+	if err := client.requestHeld(ctx, func() error {
+		var requestErr error
+		response, requestErr = client.client.GetTVRecommendations(int(tmdbID), nil)
+		return requestErr
+	}); err != nil {
+		return nil, err
+	}
+	if response.TVRecommendationsResults == nil {
+		return results, nil
+	}
+	for _, item := range response.Results {
+		if item.ID <= 0 || item.ID == tmdbID || strings.TrimSpace(item.Name) == "" {
+			continue
+		}
+		results = append(results, domain.MediaSearchResult{TMDBID: item.ID, Type: domain.TVMediaType, Title: item.Name, OriginalTitle: item.OriginalName, Overview: item.Overview, ReleaseDate: item.FirstAirDate, PosterPath: item.PosterPath, OriginalLanguage: item.OriginalLanguage, BackdropPath: item.BackdropPath})
+		if len(results) == 12 {
+			break
+		}
+	}
+	return results, nil
 }
 
 func (client *Client) fetchTrending(ctx context.Context, mediaType, timeWindow string) ([]domain.MediaSearchResult, error) {
@@ -919,3 +1025,4 @@ var _ domain.MetadataProvider = (*Client)(nil)
 var _ domain.TVShowMetadataProvider = (*Client)(nil)
 var _ domain.ScheduledTVShowMetadataProvider = (*Client)(nil)
 var _ domain.PersonMetadataProvider = (*Client)(nil)
+var _ domain.RelatedMetadataProvider = (*Client)(nil)

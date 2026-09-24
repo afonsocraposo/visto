@@ -156,6 +156,7 @@ select {
 .person-filmography-heading { margin-bottom: 14px; }
 .person-filmography-heading h2 { letter-spacing: -.04em; }
 .person-credit-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
+.related-media-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
 .media-poster-card-subtitle { color: rgb(255 255 255 / .78); }
 .library-clickable { cursor: pointer; }
 .library-clickable:hover { color: var(--mantine-color-yellow-7); }
@@ -227,6 +228,7 @@ select {
   .person-biography h1 { font-size: clamp(2rem, 11vw, 3rem); }
   .person-facts { justify-content: center; }
   .person-credit-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .related-media-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
   .detail-overview { font-size: .95rem; line-height: 1.5; }
   .episode-row-layout { min-height: 104px; }
   .episode-art { width: 112px; min-height: 104px; flex-basis: 112px; }

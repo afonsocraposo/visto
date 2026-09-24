@@ -13,6 +13,10 @@ type TrendingMetadataProvider interface {
 	Trending(ctx context.Context, mediaType, timeWindow string) ([]MediaSearchResult, error)
 }
 
+type RelatedMetadataProvider interface {
+	Related(ctx context.Context, mediaType MediaType, tmdbID int64) ([]MediaSearchResult, error)
+}
+
 type TVShowMetadataProvider interface {
 	Show(ctx context.Context, tmdbID int64) (TVShowMetadata, error)
 }
