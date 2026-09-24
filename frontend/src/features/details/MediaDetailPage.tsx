@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ActionIcon, Alert, Avatar, Badge, Button, Group, Image, Loader, Modal, Paper, Select, SimpleGrid, Stack, Switch, Text, Title, Tooltip } from "@mantine/core";
+import { ActionIcon, Alert, Badge, Button, Group, Image, Loader, Modal, Paper, Select, Stack, Switch, Text, Title, Tooltip } from "@mantine/core";
 import { IconArrowLeft, IconCheck, IconClock, IconEye, IconEyeCheck } from "@tabler/icons-react";
 import { api } from "../../lib/api";
 import { backdropURL, posterURL } from "../../lib/artwork";
@@ -8,6 +8,7 @@ import { useUserQueryKey } from "../auth/SessionContext";
 import { findMissingPriorEpisodes } from "../library/episodeSelection";
 import { RatingStars } from "../../components/RatingStars";
 import { MediaQuickActions } from "../../components/MediaQuickActions";
+import { CastSection } from "../../components/CastSection";
 import { selectUnwatchedEpisodes } from "./watchSelection";
 import type { EpisodeRating, HistoryEntry, LibraryEntry, MediaDetailTarget, SearchMedia, ShowEpisodeEntry, TemporaryEpisodeDetails, TemporaryMovieDetails, TemporaryShowDetails } from "../../types";
 
@@ -284,8 +285,8 @@ export function MediaDetailPage({ target, onBack, onOpenDetail }: Props) {
       })}</Stack>
     </section>}
     {target.mediaType === "movie" && !selectedEpisode && movieDetails.data?.genres?.length ? <section className="detail-section"><Text className="section-kicker">About this film</Text><Group gap="xs">{movieDetails.data.genres.map(genre => <Badge key={genre} variant="light">{genre}</Badge>)}{movieDetails.data.vote_average ? <Badge variant="light">TMDB {movieDetails.data.vote_average.toFixed(1)} / 10</Badge> : null}</Group></section> : null}
-    {!selectedEpisode && ((target.mediaType === "tv" ? temporary.data?.cast : movieDetails.data?.cast)?.length ?? 0) > 0 && <section className="detail-section"><Text className="section-kicker">People</Text><Title order={2} mb="sm">Cast</Title><SimpleGrid cols={{ base: 2, sm: 4, md: 6 }} spacing="sm">{(target.mediaType === "tv" ? temporary.data!.cast : movieDetails.data!.cast).slice(0, 12).map(member => <Paper key={`${member.id}-${member.character}`} className="cast-card" withBorder p="sm"><Avatar src={member.profile_path ? posterURL(member.profile_path, "w185") : undefined} radius="xl" size="lg" mb="xs">{member.name.slice(0, 1)}</Avatar><Text fw={650} size="sm" lineClamp={2}>{member.name}</Text><Text size="xs" c="dimmed" lineClamp={2}>{member.character || "Cast"}</Text></Paper>)}</SimpleGrid></section>}
-    {selectedEpisode && episodeDetails.data?.guest_stars?.length ? <section className="detail-section"><Text className="section-kicker">Episode guest stars</Text><SimpleGrid cols={{ base: 2, sm: 4, md: 6 }} spacing="sm">{episodeDetails.data.guest_stars.slice(0, 12).map(member => <Paper key={`${member.id}-${member.character}`} className="cast-card" withBorder p="sm"><Avatar src={member.profile_path ? posterURL(member.profile_path, "w185") : undefined} radius="xl" size="lg" mb="xs">{member.name.slice(0, 1)}</Avatar><Text fw={650} size="sm" lineClamp={2}>{member.name}</Text><Text size="xs" c="dimmed" lineClamp={2}>{member.character || "Guest star"}</Text></Paper>)}</SimpleGrid></section> : null}
+    {!selectedEpisode && <CastSection members={target.mediaType === "tv" ? temporary.data?.cast ?? [] : movieDetails.data?.cast ?? []} title="Cast" kicker="People" />}
+    {selectedEpisode && <CastSection members={episodeDetails.data?.guest_stars ?? []} title="Guest stars" kicker="Episode cast" fallbackRole="Guest star" />}
     {selectedEpisode && episodeDetails.data?.crew?.length ? <section className="detail-section"><Text className="section-kicker">Episode crew</Text><Group gap="xs">{episodeDetails.data.crew.filter(member => ["Director", "Writer", "Screenplay"].includes(member.job)).slice(0, 8).map(member => <Badge key={`${member.id}-${member.job}`} variant="light">{member.job}: {member.name}</Badge>)}</Group></section> : null}
     {!isSaved && <Text className="detail-hint" c="dimmed">This is a temporary preview. Mark an episode watched to add the show to Watching.</Text>}
   </div>;

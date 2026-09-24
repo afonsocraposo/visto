@@ -126,8 +126,13 @@ select {
 .episode-row-action { align-self: center; flex: 0 0 auto; margin-right: 16px; }
 .episode-description { display: -webkit-box; max-width: 610px; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-height: 1.4; }
 .detail-hint { margin-top: 20px; }
-.cast-card { min-height: 150px; background: var(--mantine-color-body); }
-.cast-card .mantine-Avatar-root { background: var(--mantine-color-default); }
+.cast-member-card { min-width: 0; overflow: hidden; background: var(--mantine-color-body); transition: border-color 150ms ease, transform 150ms ease; }
+.cast-member-card:hover { border-color: #48b7ae; transform: translateY(-2px); }
+.cast-member-photo { aspect-ratio: 3 / 4; overflow: hidden; background: #1b2430; }
+.cast-member-photo .mantine-Image-root, .cast-member-photo img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center 24%; }
+.cast-member-fallback { display: grid; place-items: center; width: 100%; height: 100%; background: linear-gradient(135deg, #334155, #19212b); color: #f2b544; font-size: 2.5rem; font-weight: 800; }
+.cast-member-copy { display: grid; align-content: start; gap: 3px; min-height: 66px; padding: 9px 10px 11px; }
+.cast-member-name, .cast-member-character { line-height: 1.25; }
 .library-clickable { cursor: pointer; }
 .library-clickable:hover { color: var(--mantine-color-yellow-7); }
 .feed-card { border-left: 3px solid #48b7ae; }
