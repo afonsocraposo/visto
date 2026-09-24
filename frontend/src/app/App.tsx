@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Group, Loader, MantineProvider } from "@mantine/core";
 import { Dashboard } from "../features/navigation/Dashboard";
 import { AuthGate } from "../features/auth/AuthGate";
+import { SessionProvider } from "../features/auth/SessionContext";
 import type { Theme, User } from "../types";
 
 export function App() {
@@ -24,7 +25,9 @@ export function App() {
       {session.isPending ? (
         <Group justify="center" mt="xl"><Loader /></Group>
       ) : session.data ? (
-        <Dashboard user={session.data} theme={theme} setTheme={setTheme} />
+        <SessionProvider user={session.data}>
+          <Dashboard user={session.data} theme={theme} setTheme={setTheme} />
+        </SessionProvider>
       ) : (
         <AuthGate />
       )}

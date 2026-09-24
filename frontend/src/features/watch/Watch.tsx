@@ -2,13 +2,15 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Button, Group, Loader, Modal, Paper, Text } from "@mantine/core";
 import { EmptyState } from "../../components/EmptyState";
+import { useUserQueryKey } from "../auth/SessionContext";
 import type { CalendarEntry, ContinueEntry } from "../../types";
 
 export function WatchNow() {
   const queryClient = useQueryClient();
+  const userQueryKey = useUserQueryKey();
   const [confirmation, setConfirmation] = useState<ContinueEntry | null>(null);
   const entries = useQuery({
-    queryKey: ["continue"],
+    queryKey: userQueryKey("continue"),
     queryFn: async () => {
       const response = await fetch("/api/v1/continue-watching");
       if (!response.ok) throw new Error();
@@ -27,10 +29,10 @@ export function WatchNow() {
     onSuccess: async () => {
       setConfirmation(null);
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["continue"] }),
-        queryClient.invalidateQueries({ queryKey: ["calendar"] }),
-        queryClient.invalidateQueries({ queryKey: ["feed"] }),
-        queryClient.invalidateQueries({ queryKey: ["library"] }),
+        queryClient.invalidateQueries({ queryKey: userQueryKey("continue") }),
+        queryClient.invalidateQueries({ queryKey: userQueryKey("calendar") }),
+        queryClient.invalidateQueries({ queryKey: userQueryKey("feed") }),
+        queryClient.invalidateQueries({ queryKey: userQueryKey("library") }),
       ]);
     },
   });
@@ -68,8 +70,9 @@ export function WatchNow() {
 }
 
 export function WatchCalendar() {
+  const userQueryKey = useUserQueryKey();
   const calendar = useQuery({
-    queryKey: ["calendar"],
+    queryKey: userQueryKey("calendar"),
     queryFn: async () => {
       const response = await fetch("/api/v1/calendar");
       if (!response.ok) throw new Error();

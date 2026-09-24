@@ -2,13 +2,15 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Button, Group, Paper, Text, TextInput, Title } from "@mantine/core";
 import { IconSearch } from "@tabler/icons-react";
+import { useUserQueryKey } from "../auth/SessionContext";
 import type { LibraryEntry, SearchMedia } from "../../types";
 
 export function SearchPanel() {
   const queryClient = useQueryClient();
+  const userQueryKey = useUserQueryKey();
   const [query, setQuery] = useState("");
   const library = useQuery({
-    queryKey: ["library"],
+    queryKey: userQueryKey("library"),
     queryFn: async () => {
       const response = await fetch("/api/v1/library");
       if (!response.ok) throw new Error();
@@ -16,7 +18,7 @@ export function SearchPanel() {
     },
   });
   const results = useQuery({
-    queryKey: ["search", query],
+    queryKey: userQueryKey("search", query),
     enabled: query.trim().length > 1,
     queryFn: async () => {
       const response = await fetch(`/api/v1/search?q=${encodeURIComponent(query)}`);
@@ -33,7 +35,7 @@ export function SearchPanel() {
       });
       if (!response.ok) throw new Error("Could not add this title.");
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["library"] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: userQueryKey("library") }),
   });
   const libraryIDs = new Set(library.data?.map(entry => entry.item.media_id) ?? []);
 

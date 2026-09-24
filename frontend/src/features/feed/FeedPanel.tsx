@@ -1,11 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { Alert, Group, Loader, Paper, Text, Title } from "@mantine/core";
 import { EmptyState } from "../../components/EmptyState";
+import { useUserQueryKey } from "../auth/SessionContext";
 import type { FeedItem } from "../../types";
 
 export function FeedPanel() {
+  const userQueryKey = useUserQueryKey();
   const feed = useQuery({
-    queryKey: ["feed"],
+    queryKey: userQueryKey("feed"),
     queryFn: async () => {
       const response = await fetch("/api/v1/feed");
       if (!response.ok) throw new Error();

@@ -2,11 +2,13 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Button, Group, Loader, Paper, PasswordInput, Select, Text, TextInput, Title } from "@mantine/core";
 import { EmptyState } from "../../components/EmptyState";
+import { useUserQueryKey } from "../auth/SessionContext";
 import type { HistoryEntry, LibraryEntry, User } from "../../types";
 
 export function LibraryPanel() {
+  const userQueryKey = useUserQueryKey();
   const library = useQuery({
-    queryKey: ["library"],
+    queryKey: userQueryKey("library"),
     queryFn: async () => {
       const response = await fetch("/api/v1/library");
       if (!response.ok) throw new Error();
@@ -27,6 +29,7 @@ export function LibraryPanel() {
 
 function LibraryCard({ entry }: { entry: LibraryEntry }) {
   const queryClient = useQueryClient();
+  const userQueryKey = useUserQueryKey();
   const update = useMutation({
     mutationFn: async ({ status, rating }: { status: string; rating: number | null }) => {
       const response = await fetch(`/api/v1/library/${encodeURIComponent(entry.item.media_id)}`, {
@@ -38,10 +41,10 @@ function LibraryCard({ entry }: { entry: LibraryEntry }) {
     },
     onSuccess: async () => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["library"] }),
-        queryClient.invalidateQueries({ queryKey: ["continue"] }),
-        queryClient.invalidateQueries({ queryKey: ["calendar"] }),
-        queryClient.invalidateQueries({ queryKey: ["feed"] }),
+        queryClient.invalidateQueries({ queryKey: userQueryKey("library") }),
+        queryClient.invalidateQueries({ queryKey: userQueryKey("continue") }),
+        queryClient.invalidateQueries({ queryKey: userQueryKey("calendar") }),
+        queryClient.invalidateQueries({ queryKey: userQueryKey("feed") }),
       ]);
     },
   });
@@ -54,7 +57,7 @@ function LibraryCard({ entry }: { entry: LibraryEntry }) {
       });
       if (!response.ok) throw new Error("Could not record this watch.");
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["history"] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: userQueryKey("history") }),
   });
   const setStatus = (status: string | null) => {
     if (status) update.mutate({ status, rating: entry.item.rating });
@@ -89,8 +92,9 @@ function LibraryCard({ entry }: { entry: LibraryEntry }) {
 }
 
 export function HistoryPanel() {
+  const userQueryKey = useUserQueryKey();
   const history = useQuery({
-    queryKey: ["history"],
+    queryKey: userQueryKey("history"),
     queryFn: async () => {
       const response = await fetch("/api/v1/plays?limit=100");
       if (!response.ok) throw new Error();
@@ -112,15 +116,16 @@ export function HistoryPanel() {
 
 function HistoryCard({ entry }: { entry: HistoryEntry }) {
   const queryClient = useQueryClient();
+  const userQueryKey = useUserQueryKey();
   const [watchedAt, setWatchedAt] = useState(() => {
     const date = new Date(entry.play.watched_at);
     return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
   });
   const refreshHistory = () => Promise.all([
-    queryClient.invalidateQueries({ queryKey: ["history"] }),
-    queryClient.invalidateQueries({ queryKey: ["continue"] }),
-    queryClient.invalidateQueries({ queryKey: ["calendar"] }),
-    queryClient.invalidateQueries({ queryKey: ["feed"] }),
+    queryClient.invalidateQueries({ queryKey: userQueryKey("history") }),
+    queryClient.invalidateQueries({ queryKey: userQueryKey("continue") }),
+    queryClient.invalidateQueries({ queryKey: userQueryKey("calendar") }),
+    queryClient.invalidateQueries({ queryKey: userQueryKey("feed") }),
   ]);
   const save = useMutation({
     mutationFn: async () => {
@@ -150,7 +155,7 @@ function HistoryCard({ entry }: { entry: HistoryEntry }) {
       });
       if (!response.ok) throw new Error("Could not record the rewatch.");
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["history"] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: userQueryKey("history") }),
   });
 
   return (
@@ -172,10 +177,11 @@ function HistoryCard({ entry }: { entry: HistoryEntry }) {
 
 export function ProfilePanel({ user }: { user: User }) {
   const queryClient = useQueryClient();
+  const userQueryKey = useUserQueryKey();
   const [visibility, setVisibility] = useState("private");
   const [timezone, setTimezone] = useState("UTC");
   const settings = useQuery({
-    queryKey: ["profile-settings"],
+    queryKey: userQueryKey("profile-settings"),
     queryFn: async () => {
       const response = await fetch("/api/v1/profile/activity-settings");
       if (!response.ok) throw new Error();
@@ -197,7 +203,7 @@ export function ProfilePanel({ user }: { user: User }) {
       });
       if (!response.ok) throw new Error("Could not save settings.");
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["profile-settings"] }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: userQueryKey("profile-settings") }),
   });
 
   return (
