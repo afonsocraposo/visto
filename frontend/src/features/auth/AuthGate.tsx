@@ -14,7 +14,7 @@ import {
 import { backdropURL } from "../../lib/artwork";
 import { api } from "../../lib/api";
 import type { TrendingResponse, User } from "../../types";
-import { pickLoginBackdrop, readLoginBackdrop, saveLoginBackdrop, type LoginBackdrop } from "./loginBackdrop";
+import { pickLoginBackdrop, readLoginBackdrop, saveLoginBackdrop, tmdbTitleURL, type LoginBackdrop } from "./loginBackdrop";
 
 function cachedBackdrop(): LoginBackdrop | null {
   try { return readLoginBackdrop(window.localStorage, Date.now()); } catch { return null; }
@@ -129,7 +129,7 @@ export function AuthGate() {
         </Button>
       </form>}
       </Paper></div>
-      {backdrop && <div className="auth-feature-caption"><Text size="xs" fw={700}>Trending on TMDB</Text><Text fw={650}>{backdrop.title}</Text></div>}
+      {backdrop && <div className="auth-feature-caption"><Text size="xs" fw={700}>Trending on TMDB</Text><Text component="a" className="auth-feature-title" fw={650} href={tmdbTitleURL(backdrop)} target="_blank" rel="noopener noreferrer" aria-label={`View ${backdrop.title} on TMDB`}>{backdrop.title}</Text></div>}
     </div>
   );
 }

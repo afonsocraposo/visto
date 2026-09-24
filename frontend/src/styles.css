@@ -169,6 +169,9 @@ select {
 .auth-mark { width: 44px; height: 44px; border-radius: 14px; margin-bottom: 22px; font-size: 1.35rem; }
 .auth-feature-caption { position: absolute; right: max(24px, calc((100vw - 1120px) / 2)); bottom: 28px; max-width: min(320px, 30vw); color: #fff; text-align: right; text-shadow: 0 2px 12px rgb(0 0 0 / .7); }
 .auth-feature-caption p:first-child { color: rgb(255 255 255 / .75); }
+.auth-feature-title { display: inline-block; color: #fff; text-decoration: underline; text-decoration-color: transparent; text-underline-offset: 3px; transition: color 120ms ease, text-decoration-color 120ms ease; }
+.auth-feature-title:hover { color: #ffd16a; text-decoration-color: currentColor; }
+.auth-feature-title:focus-visible { border-radius: 3px; outline: 2px solid #f2b544; outline-offset: 3px; }
 
 @media (max-width: 680px) {
   .auth-screen-inner { width: min(100% - 32px, 440px); padding: 44px 0 88px; }
