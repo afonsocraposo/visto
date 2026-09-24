@@ -112,6 +112,7 @@ test("Given a signed-in user, When an allowed GET is cached, Then offline reads 
   await harness.dispatchFetch("/api/v1/me");
   online = false;
   assert.equal((await harness.dispatchFetch("/api/v1/library")).status, 503);
+  assert.equal((await harness.dispatchFetch("/api/v1/library")).headers.get("X-Visto-Offline"), "true");
 
   // Only successful GETs from the explicit allow-list are retained, with a hard cap.
   online = true;
@@ -157,5 +158,6 @@ test("Given cached account content, When logout succeeds, Then offline requests 
 
   const response = await harness.dispatchFetch("/api/v1/library");
   assert.equal(response.status, 503);
+  assert.equal(response.headers.get("X-Visto-Offline"), "true");
   assert.match(await response.text(), /no cached account data/);
 });

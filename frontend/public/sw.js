@@ -41,15 +41,21 @@ self.addEventListener("fetch", event => {
       return response;
     }).catch(async () => {
       const userID = await activeUserID();
-      if (!userID) return new Response(JSON.stringify({ error: "offline and no cached account data" }), { status: 503, headers: { "Content-Type": "application/json" } });
+      if (!userID) return offlineResponse("offline and no cached account data");
       const cachedResponse = await (await caches.open(userCacheName(userID))).match(event.request);
-      return cachedResponse || new Response(JSON.stringify({ error: "offline and content is not cached" }), { status: 503, headers: { "Content-Type": "application/json" } });
+      return cachedResponse || offlineResponse("offline and content is not cached");
     }));
     return;
   }
   if (event.request.mode === "navigate") event.respondWith(fetch(event.request).catch(() => caches.match("/")));
 });
 
+function offlineResponse(message) {
+  return new Response(JSON.stringify({ error: message }), {
+    status: 503,
+    headers: { "Content-Type": "application/json", "X-Visto-Offline": "true" },
+  });
+}
 function userCacheName(userID) { return `visto-user-v1-${encodeURIComponent(userID)}`; }
 function isCacheableAPIPath(path) {
   return cacheableAPIPaths.has(path)

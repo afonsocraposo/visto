@@ -1,7 +1,22 @@
 type APIError = { error?: string };
 
+export const connectionUnavailableEvent = "visto:connection-unavailable";
+
+function reportConnectionUnavailable() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(connectionUnavailableEvent));
+  }
+}
+
 async function request<T>(path: string, init: RequestInit, fallback: string): Promise<T> {
-  const response = await fetch(path, init);
+  let response: Response;
+  try {
+    response = await fetch(path, init);
+  } catch (error) {
+    reportConnectionUnavailable();
+    throw error;
+  }
+  if (response.headers.get("X-Visto-Offline") === "true") reportConnectionUnavailable();
   if (!response.ok) {
     const body = await response.json().catch(() => ({})) as APIError;
     throw new Error(body.error || fallback);

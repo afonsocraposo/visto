@@ -7,6 +7,7 @@ import { SearchPanel } from "../search/SearchPanel";
 import { FeedPanel } from "../feed/FeedPanel";
 import { LibraryArea } from "../library/LibraryArea";
 import type { Tab, Theme, User } from "../../types";
+import { connectionUnavailableEvent } from "../../lib/api";
 
 export function Dashboard({ user, theme, setTheme }: { user: User; theme: Theme; setTheme: (theme: Theme) => void }) {
   const queryClient = useQueryClient();
@@ -40,15 +41,18 @@ export function Dashboard({ user, theme, setTheme }: { user: User; theme: Theme;
   };
 
   useEffect(() => {
-    const onlineHandler = () => setOnline(true);
+    const onlineHandler = () => void retryConnection();
     const offlineHandler = () => setOnline(false);
+    const unavailableHandler = () => setOnline(false);
     window.addEventListener("online", onlineHandler);
     window.addEventListener("offline", offlineHandler);
+    window.addEventListener(connectionUnavailableEvent, unavailableHandler);
     return () => {
       window.removeEventListener("online", onlineHandler);
       window.removeEventListener("offline", offlineHandler);
+      window.removeEventListener(connectionUnavailableEvent, unavailableHandler);
     };
-  }, []);
+  }, [user.id]);
 
   const nav = (value: Tab, label: string, Icon: typeof IconHome) => (
     <Button variant={tab === value ? "light" : "subtle"} leftSection={<Icon size={18} />} onClick={() => setTab(value)}>

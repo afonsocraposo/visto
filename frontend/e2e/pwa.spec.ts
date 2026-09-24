@@ -76,6 +76,25 @@ test("Given the ordinary next episode, When the user taps Watched, Then only tha
   expect(bulkPlayCount).toBe(0);
 });
 
+test("Given the Visto server is unreachable, When the user retries after it recovers, Then the connection notice clears and data reloads", async ({ page }) => {
+  await mockSignedInSession(page);
+  let continueRequests = 0;
+  await page.route("**/api/v1/continue-watching", async route => {
+    continueRequests++;
+    if (continueRequests === 1) return route.abort("failed");
+    await fulfillJSON(route, [continueEntry]);
+  });
+  await page.route("**/health", route => fulfillJSON(route, { status: "ok" }));
+  await page.goto("/");
+
+  const notice = page.getByText("You are offline. Saved information may be out of date, and changes need a connection.");
+  await expect(notice).toBeVisible();
+  await page.getByRole("button", { name: "Retry connection" }).click();
+  await expect(notice).toBeHidden();
+  await expect(page.getByText("The Example Show")).toBeVisible();
+  expect(continueRequests).toBeGreaterThanOrEqual(2);
+});
+
 test("Given an installed service worker, When the app shell loads, Then the PWA manifest advertises standalone installation", async ({ browser }) => {
   const context = await browser.newContext({ serviceWorkers: "allow" });
   const page = await context.newPage();
