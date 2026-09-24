@@ -22,6 +22,7 @@ const (
 	showCacheTTL          = 24 * time.Hour
 	maxAttempts           = 3
 	maxSearchCacheEntries = 500
+	maxShowCacheEntries   = 100
 )
 
 // Client is Visto's TMDB adapter. The third-party client is deliberately kept
@@ -222,12 +223,33 @@ func (client *Client) Show(ctx context.Context, tmdbID int64) (domain.TVShowMeta
 	call.show = cloneShow(show)
 	call.err = err
 	if err == nil {
-		client.showCache[tmdbID] = cachedShow{show: cloneShow(show), expiresAt: time.Now().Add(showCacheTTL)}
+		client.cacheShowLocked(tmdbID, show, time.Now().Add(showCacheTTL))
 	}
 	delete(client.showCalls, tmdbID)
 	close(call.done)
 	client.mu.Unlock()
 	return cloneShow(show), err
+}
+
+// cacheShowLocked bounds retained show metadata in addition to its TTL. Search
+// and show results can be large, so arbitrary browsing must not grow memory
+// without limit. The caller must hold client.mu.
+func (client *Client) cacheShowLocked(tmdbID int64, show domain.TVShowMetadata, expiresAt time.Time) {
+	client.showCache[tmdbID] = cachedShow{show: cloneShow(show), expiresAt: expiresAt}
+	now := time.Now()
+	for id, cached := range client.showCache {
+		if !now.Before(cached.expiresAt) {
+			delete(client.showCache, id)
+		}
+	}
+	for len(client.showCache) > maxShowCacheEntries {
+		for id := range client.showCache {
+			if id != tmdbID {
+				delete(client.showCache, id)
+				break
+			}
+		}
+	}
 }
 
 func cloneShow(show domain.TVShowMetadata) domain.TVShowMetadata {

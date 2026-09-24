@@ -8,6 +8,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/afonsocosta/visto/internal/domain"
 )
 
 func TestSearch_GivenTMDBReturns429_WhenRetryAfterExpires_ThenItRetriesWithinTheConfiguredCap(t *testing.T) {
@@ -160,5 +162,22 @@ func TestSearch_GivenDifferentRequestsReceive429_WhenRetried_ThenTheInstancePaus
 	defer mu.Unlock()
 	if callsByQuery["first"] != 2 || callsByQuery["second"] != 2 || callsByQuery["third"] != 1 {
 		t.Fatalf("provider calls by query=%v, want one initial request and retry for limited queries, one for new query", callsByQuery)
+	}
+}
+
+func TestShowCache_GivenMoreThanTheConfiguredLimit_WhenShowsAreCached_ThenMemoryUseStaysBounded(t *testing.T) {
+	client := &Client{showCache: make(map[int64]cachedShow)}
+	expiresAt := time.Now().Add(time.Hour)
+	for tmdbID := int64(1); tmdbID <= maxShowCacheEntries+1; tmdbID++ {
+		client.mu.Lock()
+		client.cacheShowLocked(tmdbID, domain.TVShowMetadata{TMDBID: tmdbID, Name: "Example"}, expiresAt)
+		client.mu.Unlock()
+	}
+
+	if len(client.showCache) != maxShowCacheEntries {
+		t.Fatalf("cached shows=%d, want max %d", len(client.showCache), maxShowCacheEntries)
+	}
+	if _, ok := client.showCache[maxShowCacheEntries+1]; !ok {
+		t.Fatal("newly cached show should be retained")
 	}
 }
