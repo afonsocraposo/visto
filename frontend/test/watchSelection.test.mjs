@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { selectUnwatchedEpisodes } from "../src/features/details/watchSelection.ts";
+import { regularSeasonsThrough, selectUnwatchedEpisodes } from "../src/features/details/watchSelection.ts";
 
 const entry = (id, season, watched = false, airDate = "2026-09-01") => ({
   episode: { id, season_number: season, episode_number: 1, air_date: airDate },
@@ -15,4 +15,8 @@ test("Given a show with specials and unreleased episodes, When regular seasons a
 
 test("Given specials are selected, When a show is marked watched, Then specials are included", () => {
   assert.deepEqual(selectUnwatchedEpisodes([entry("special", 0), entry("regular", 1)], [0, 1], "2026-09-24"), ["special", "regular"]);
+});
+
+test("Given a later season is selected, When previous seasons are included, Then all earlier regular seasons are selected but specials are excluded", () => {
+  assert.deepEqual(regularSeasonsThrough([0, 1, 2, 4], 4), [1, 2, 4]);
 });

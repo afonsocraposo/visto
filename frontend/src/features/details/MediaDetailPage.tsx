@@ -9,11 +9,11 @@ import { findMissingPriorEpisodes } from "../library/episodeSelection";
 import { RatingStars } from "../../components/RatingStars";
 import { MediaQuickActions } from "../../components/MediaQuickActions";
 import { CastSection } from "../../components/CastSection";
-import { selectUnwatchedEpisodes } from "./watchSelection";
+import { regularSeasonsThrough, selectUnwatchedEpisodes } from "./watchSelection";
 import type { EpisodeRating, HistoryEntry, LibraryEntry, MediaDetailTarget, SearchMedia, ShowEpisodeEntry, TemporaryEpisodeDetails, TemporaryMovieDetails, TemporaryShowDetails } from "../../types";
 
 type Props = { target: MediaDetailTarget; onBack: () => void; onOpenDetail: (target: MediaDetailTarget) => void };
-type PendingWatch = { target: ShowEpisodeEntry | null; episodes: ShowEpisodeEntry[] };
+type PendingWatch = { target: ShowEpisodeEntry | null; episodes: ShowEpisodeEntry[]; seasonNumber?: number };
 
 export function MediaDetailPage({ target, onBack, onOpenDetail }: Props) {
   const userQueryKey = useUserQueryKey();
@@ -210,20 +210,30 @@ export function MediaDetailPage({ target, onBack, onOpenDetail }: Props) {
     setShowWatchModal(true);
   };
   const requestEpisodeWatch = (entry: ShowEpisodeEntry) => prepareEpisodeWatch.mutate(entry);
-  const confirmWatch = (includeTarget: boolean) => {
+  const confirmWatch = (includeTarget: boolean, includePreviousSeasons = false) => {
     if (!pendingWatch) return;
+    if (pendingWatch.seasonNumber !== undefined) {
+      const seasonNumbers = includePreviousSeasons
+        ? regularSeasonsThrough(seasonGroups.map(group => group.number), pendingWatch.seasonNumber)
+        : [pendingWatch.seasonNumber];
+      markEpisodesWatched.mutate({ selectedSeasons: seasonNumbers });
+      return;
+    }
     const entries = includeTarget && pendingWatch.target ? [...pendingWatch.episodes, pendingWatch.target] : pendingWatch.episodes;
     markEpisodesWatched.mutate({ episodeIDs: entries.map(entry => entry.episode.id) });
   };
+  const requestSeasonWatch = () => setPendingWatch({ target: null, episodes: releasedSeasonEpisodes, seasonNumber: Number(selectedSeason) });
+  const hasPreviousSeasons = pendingWatch?.seasonNumber !== undefined && seasonGroups.some(group => group.number > 0 && group.number < pendingWatch.seasonNumber!);
 
   return <div className="detail-page">
     <Modal opened={pendingWatch !== null} onClose={() => setPendingWatch(null)} title={pendingWatch?.target ? "Skipped episodes" : "Mark season watched"} centered>
-      {pendingWatch?.target ? <Text mb="md">There are {pendingWatch.episodes.length} earlier unwatched episodes. How would you like to continue?</Text> : <Text mb="md">Mark {pendingWatch?.episodes.length ?? 0} released episodes in this season as watched?</Text>}
+      {pendingWatch?.target ? <Text mb="md">There are {pendingWatch.episodes.length} earlier unwatched episodes. How would you like to continue?</Text> : <Text mb="md">Mark {pendingWatch?.episodes.length ?? 0} released episodes in this season as watched?{hasPreviousSeasons ? " Would you also like to mark previous seasons? Specials will not be included." : ""}</Text>}
       {markEpisodesWatched.isError && <Alert color="red" mb="md">{markEpisodesWatched.error.message}</Alert>}
       {markEpisodeWatched.isError && <Alert color="red" mb="md">{markEpisodeWatched.error.message}</Alert>}
       <Group justify="flex-end">
         {pendingWatch?.target && <Button variant="default" onClick={() => markEpisodeWatched.mutate(pendingWatch.target!.episode.id)} loading={markEpisodeWatched.isPending || markEpisodesWatched.isPending}>Only this episode</Button>}
-        <Button onClick={() => confirmWatch(Boolean(pendingWatch?.target))} loading={markEpisodeWatched.isPending || markEpisodesWatched.isPending}>{pendingWatch?.target ? "Mark all as watched" : "Mark season watched"}</Button>
+        <Button onClick={() => confirmWatch(Boolean(pendingWatch?.target))} loading={markEpisodeWatched.isPending || markEpisodesWatched.isPending}>{pendingWatch?.target ? "Mark all as watched" : hasPreviousSeasons ? "Only this season" : "Mark season watched"}</Button>
+        {hasPreviousSeasons && <Button onClick={() => confirmWatch(false, true)} loading={markEpisodesWatched.isPending}>This and previous seasons</Button>}
       </Group>
     </Modal>
     <Modal opened={showWatchModal} onClose={() => setShowWatchModal(false)} title={`Mark ${media.title} watched`} centered>
@@ -252,14 +262,14 @@ export function MediaDetailPage({ target, onBack, onOpenDetail }: Props) {
       {art && <Image className="detail-poster" src={art} alt={`${media.title} poster`} />}
     </section>
     {selectedEpisode && <Group className="detail-actions" mt="md" gap="xs">
-      {releasedSeasonEpisodes.length > 0 && <Button size="xs" variant="light" onClick={() => setPendingWatch({ target: null, episodes: releasedSeasonEpisodes })}>Mark season watched</Button>}
+      {releasedSeasonEpisodes.length > 0 && <Button size="xs" variant="light" onClick={requestSeasonWatch}>Mark season watched</Button>}
       {seasonGroups.length > 0 && (!isSaved || releasedShowEpisodes.length > 0) && <Button size="xs" variant="light" onClick={openShowWatchModal}>Mark show watched</Button>}
     </Group>}
     {selectedEpisode && prepareEpisodeWatch.isError && <Alert color="red" mt="sm">{prepareEpisodeWatch.error.message}</Alert>}
     {selectedEpisode && markEpisodeWatched.isError && <Alert color="red" mt="sm">{markEpisodeWatched.error.message}</Alert>}
     {selectedEpisode && markEpisodesWatched.isError && !pendingWatch && !showWatchModal && <Alert color="red" mt="sm">{markEpisodesWatched.error.message}</Alert>}
     {target.mediaType === "tv" && !selectedEpisode && <section className="detail-section">
-      <Group justify="space-between" align="end" mb="sm"><div><Text className="section-kicker">{isSaved ? "Your catalog" : "From TMDB"}</Text><Title order={2}>Seasons & episodes</Title></div><Group gap="xs">{seasonGroups.length > 0 && (!isSaved || releasedShowEpisodes.length > 0) && <Button size="xs" onClick={openShowWatchModal}>Mark show watched</Button>}{releasedSeasonEpisodes.length > 0 && <Button size="xs" variant="light" onClick={() => setPendingWatch({ target: null, episodes: releasedSeasonEpisodes })}>Mark season watched</Button>}{seasons.length > 0 && <Select aria-label="Season" value={selectedSeason} onChange={setSeason} data={seasons.map(number => ({ value: String(number), label: number === 0 ? "Specials" : `Season ${number}` }))} w={150} />}</Group></Group>
+      <Group justify="space-between" align="end" mb="sm"><div><Text className="section-kicker">{isSaved ? "Your catalog" : "From TMDB"}</Text><Title order={2}>Seasons & episodes</Title></div><Group gap="xs">{seasonGroups.length > 0 && (!isSaved || releasedShowEpisodes.length > 0) && <Button size="xs" onClick={openShowWatchModal}>Mark show watched</Button>}{releasedSeasonEpisodes.length > 0 && <Button size="xs" variant="light" onClick={requestSeasonWatch}>Mark season watched</Button>}{seasons.length > 0 && <Select aria-label="Season" value={selectedSeason} onChange={setSeason} data={seasons.map(number => ({ value: String(number), label: number === 0 ? "Specials" : `Season ${number}` }))} w={150} />}</Group></Group>
       {((isSaved && episodes.isPending) || (!isSaved && (temporary.isPending || temporaryEpisodes.isPending))) && <Group justify="center" py="lg"><Loader /></Group>}
       {episodes.isError && isSaved && <Alert color="red">Episodes are temporarily unavailable.</Alert>}
       {temporary.isError && !isSaved && <Alert color="red">TV details are temporarily unavailable.</Alert>}

@@ -11,3 +11,7 @@ export function selectUnwatchedEpisodes(
       && (!entry.episode.air_date || entry.episode.air_date <= today))
     .map(entry => entry.episode.id);
 }
+
+export function regularSeasonsThrough(seasonNumbers: number[], selectedSeason: number): number[] {
+  return [...new Set(seasonNumbers.filter(number => number > 0 && number <= selectedSeason))].sort((a, b) => a - b);
+}
