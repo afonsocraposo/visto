@@ -21,10 +21,17 @@ type Play struct {
 	WatchedAt time.Time `json:"watched_at"`
 }
 
+type EpisodeRating struct {
+	EpisodeID string    `json:"episode_id"`
+	Rating    *int      `json:"rating"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 type Data struct {
-	ExportedAt time.Time     `json:"exported_at"`
-	Library    []LibraryItem `json:"library"`
-	Plays      []Play        `json:"plays"`
+	ExportedAt     time.Time       `json:"exported_at"`
+	Library        []LibraryItem   `json:"library"`
+	Plays          []Play          `json:"plays"`
+	EpisodeRatings []EpisodeRating `json:"episode_ratings"`
 }
 
 type Repository interface {

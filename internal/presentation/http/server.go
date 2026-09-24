@@ -42,6 +42,10 @@ func New(authService *auth.Service, metadataProvider domain.MetadataProvider, we
 	mux.HandleFunc("GET /api/v1/export/json", jsonExport(authService, exportService))
 	mux.HandleFunc("GET /api/v1/export/csv", csvExport(authService, exportService))
 	mux.HandleFunc("GET /api/v1/search", search(authService, metadataProvider))
+	mux.HandleFunc("GET /api/v1/discover/shows/{tmdbID}", temporaryShowDetails(authService, metadataProvider))
+	mux.HandleFunc("GET /api/v1/discover/shows/{tmdbID}/seasons/{seasonNumber}", temporaryShowSeasonEpisodes(authService, metadataProvider))
+	mux.HandleFunc("GET /api/v1/discover/shows/{tmdbID}/seasons/{seasonNumber}/episodes/{episodeNumber}", temporaryEpisodeDetails(authService, metadataProvider))
+	mux.HandleFunc("GET /api/v1/discover/movies/{tmdbID}", temporaryMovieDetails(authService, metadataProvider))
 	mux.HandleFunc("GET /api/v1/movies/{tmdbID}", mediaDetails(authService, libraryService, metadataProvider, domain.MovieMediaType))
 	mux.HandleFunc("GET /api/v1/shows/{tmdbID}", mediaDetails(authService, libraryService, metadataProvider, domain.TVMediaType))
 	mux.HandleFunc("GET /api/v1/library", listLibrary(authService, libraryService))
@@ -52,6 +56,8 @@ func New(authService *auth.Service, metadataProvider domain.MetadataProvider, we
 	mux.HandleFunc("POST /api/v1/plays/bulk", createBulkPlays(authService, trackingService))
 	mux.HandleFunc("PATCH /api/v1/plays/{playID}", correctPlay(authService, trackingService))
 	mux.HandleFunc("DELETE /api/v1/plays/{playID}", deletePlay(authService, trackingService))
+	mux.HandleFunc("GET /api/v1/episodes/{episodeID}/rating", episodeRating(authService, trackingService))
+	mux.HandleFunc("PUT /api/v1/episodes/{episodeID}/rating", setEpisodeRating(authService, trackingService))
 	mux.HandleFunc("GET /api/v1/continue-watching", continueWatching(authService, watchService))
 	mux.HandleFunc("GET /api/v1/calendar", calendar(authService, watchService))
 	mux.HandleFunc("GET /api/v1/shows/{showID}/progress", showProgress(authService, watchService))
@@ -104,6 +110,51 @@ func playHistory(authService *auth.Service, service *tracking.Service) http.Hand
 			return
 		}
 		writeJSON(w, http.StatusOK, entries)
+	}
+}
+
+func episodeRating(authService *auth.Service, service *tracking.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := authenticatedUser(w, r, authService)
+		if !ok {
+			return
+		}
+		if service == nil {
+			writeError(w, http.StatusServiceUnavailable, "tracking is not configured")
+			return
+		}
+		rating, err := service.EpisodeRating(r.Context(), user.ID, r.PathValue("episodeID"))
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, rating)
+	}
+}
+
+func setEpisodeRating(authService *auth.Service, service *tracking.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := authenticatedUser(w, r, authService)
+		if !ok {
+			return
+		}
+		if service == nil {
+			writeError(w, http.StatusServiceUnavailable, "tracking is not configured")
+			return
+		}
+		var request struct {
+			Rating *int `json:"rating"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid JSON")
+			return
+		}
+		rating, err := service.RateEpisode(r.Context(), user.ID, r.PathValue("episodeID"), request.Rating)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, rating)
 	}
 }
 
@@ -382,6 +433,13 @@ func csvExport(authService *auth.Service, service *exportapp.Service) http.Handl
 			}
 			_ = writer.Write([]string{"play", play.ID, mediaID, episodeID, "", "", "", "", play.WatchedAt.Format(time.RFC3339Nano)})
 		}
+		for _, rating := range data.EpisodeRatings {
+			value := ""
+			if rating.Rating != nil {
+				value = strconv.Itoa(*rating.Rating)
+			}
+			_ = writer.Write([]string{"episode_rating", "", "", rating.EpisodeID, "", "episode", "", value, rating.UpdatedAt.Format(time.RFC3339Nano)})
+		}
 		writer.Flush()
 	}
 }
@@ -650,6 +708,15 @@ func mediaDetails(authService *auth.Service, service *library.Service, provider 
 						}
 					}
 				}
+				if mediaType == domain.MovieMediaType {
+					if movieProvider, ok := provider.(domain.MovieMetadataProvider); ok {
+						movie, providerErr := movieProvider.Movie(r.Context(), tmdbID)
+						if providerErr == nil {
+							writeJSON(w, http.StatusOK, library.Entry{Media: library.Media{ID: fmt.Sprintf("movie:%d", movie.TMDBID), Type: domain.MovieMediaType, TMDBID: movie.TMDBID, Title: movie.Title, OriginalTitle: movie.OriginalTitle, Overview: movie.Overview, ReleaseDate: movie.ReleaseDate, PosterPath: movie.PosterPath, BackdropPath: movie.BackdropPath, OriginalLanguage: movie.OriginalLanguage, Status: movie.Status}})
+							return
+						}
+					}
+				}
 				writeError(w, http.StatusNotFound, "media not found")
 				return
 			}
@@ -657,6 +724,159 @@ func mediaDetails(authService *auth.Service, service *library.Service, provider 
 			return
 		}
 		writeJSON(w, http.StatusOK, entry)
+	}
+}
+
+type temporaryShowDetailsResponse struct {
+	Media   library.Media         `json:"media"`
+	Seasons []temporaryShowSeason `json:"seasons"`
+	Cast    []domain.TVCastMember `json:"cast"`
+}
+
+type temporaryShowSeason struct {
+	TMDBID     int64               `json:"tmdb_id"`
+	Number     int                 `json:"season_number"`
+	Name       string              `json:"name"`
+	Overview   string              `json:"overview,omitempty"`
+	PosterPath string              `json:"poster_path,omitempty"`
+	AirDate    string              `json:"air_date,omitempty"`
+	Episodes   []watch.ShowEpisode `json:"episodes"`
+}
+
+type temporaryMovieDetailsResponse struct {
+	Media       library.Media         `json:"media"`
+	Runtime     int                   `json:"runtime,omitempty"`
+	VoteAverage float32               `json:"vote_average,omitempty"`
+	Genres      []string              `json:"genres,omitempty"`
+	Cast        []domain.TVCastMember `json:"cast"`
+}
+
+type temporaryEpisodeDetailsResponse struct {
+	Name           string                `json:"name"`
+	Overview       string                `json:"overview,omitempty"`
+	AirDate        string                `json:"air_date,omitempty"`
+	Runtime        int                   `json:"runtime,omitempty"`
+	StillPath      string                `json:"still_path,omitempty"`
+	VoteAverage    float32               `json:"vote_average,omitempty"`
+	ProductionCode string                `json:"production_code,omitempty"`
+	GuestStars     []domain.TVCastMember `json:"guest_stars,omitempty"`
+	Crew           []domain.TVCrewMember `json:"crew,omitempty"`
+}
+
+func temporaryShowDetails(authService *auth.Service, provider domain.MetadataProvider) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := authenticatedUser(w, r, authService); !ok {
+			return
+		}
+		tvProvider, ok := provider.(domain.TVShowSummaryProvider)
+		if !ok {
+			writeError(w, http.StatusServiceUnavailable, "TV summary metadata is not configured")
+			return
+		}
+		tmdbID, err := strconv.ParseInt(r.PathValue("tmdbID"), 10, 64)
+		if err != nil || tmdbID <= 0 {
+			writeError(w, http.StatusBadRequest, "invalid TMDB ID")
+			return
+		}
+		show, err := tvProvider.ShowSummary(r.Context(), tmdbID)
+		if err != nil {
+			writeError(w, http.StatusBadGateway, "TV details are temporarily unavailable")
+			return
+		}
+		response := temporaryShowDetailsResponse{
+			Media: library.Media{ID: fmt.Sprintf("tv:%d", show.TMDBID), Type: domain.TVMediaType, TMDBID: show.TMDBID, Title: show.Name, OriginalTitle: show.Name, Overview: show.Overview, ReleaseDate: show.FirstAirDate, PosterPath: show.PosterPath, BackdropPath: show.BackdropPath, OriginalLanguage: show.OriginalLanguage, Status: show.Status},
+			Cast:  show.Cast,
+		}
+		for _, season := range show.Seasons {
+			response.Seasons = append(response.Seasons, temporaryShowSeason{TMDBID: season.TMDBID, Number: season.Number, Name: season.Name, Overview: season.Overview, PosterPath: season.PosterPath, AirDate: season.AirDate, Episodes: nil})
+		}
+		writeJSON(w, http.StatusOK, response)
+	}
+}
+
+func temporaryShowSeasonEpisodes(authService *auth.Service, provider domain.MetadataProvider) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := authenticatedUser(w, r, authService); !ok {
+			return
+		}
+		tvProvider, ok := provider.(domain.TVShowSummaryProvider)
+		if !ok {
+			writeError(w, http.StatusServiceUnavailable, "TV season metadata is not configured")
+			return
+		}
+		tmdbID, err := strconv.ParseInt(r.PathValue("tmdbID"), 10, 64)
+		seasonNumber, seasonErr := strconv.Atoi(r.PathValue("seasonNumber"))
+		if err != nil || tmdbID <= 0 || seasonErr != nil || seasonNumber < 0 {
+			writeError(w, http.StatusBadRequest, "invalid TMDB show or season")
+			return
+		}
+		season, err := tvProvider.Season(r.Context(), tmdbID, seasonNumber)
+		if err != nil {
+			writeError(w, http.StatusBadGateway, "TV season details are temporarily unavailable")
+			return
+		}
+		response := temporaryShowSeason{TMDBID: season.TMDBID, Number: season.Number, Name: season.Name, Overview: season.Overview, PosterPath: season.PosterPath, AirDate: season.AirDate, Episodes: []watch.ShowEpisode{}}
+		for _, episode := range season.Episodes {
+			var airDate *time.Time
+			if parsed, parseErr := time.Parse(time.DateOnly, episode.AirDate); parseErr == nil {
+				airDate = &parsed
+			}
+			response.Episodes = append(response.Episodes, watch.ShowEpisode{Episode: domain.Episode{ID: fmt.Sprintf("tv:%d:episode:%d", tmdbID, episode.TMDBID), ShowID: fmt.Sprintf("tv:%d", tmdbID), SeasonNumber: episode.SeasonNumber, EpisodeNumber: episode.EpisodeNumber, AirDate: airDate}, Name: episode.Name, Overview: episode.Overview, Runtime: episode.Runtime, StillPath: episode.StillPath})
+		}
+		writeJSON(w, http.StatusOK, response)
+	}
+}
+
+func temporaryMovieDetails(authService *auth.Service, provider domain.MetadataProvider) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := authenticatedUser(w, r, authService); !ok {
+			return
+		}
+		movieProvider, ok := provider.(domain.MovieMetadataProvider)
+		if !ok {
+			writeError(w, http.StatusServiceUnavailable, "movie metadata is not configured")
+			return
+		}
+		tmdbID, err := strconv.ParseInt(r.PathValue("tmdbID"), 10, 64)
+		if err != nil || tmdbID <= 0 {
+			writeError(w, http.StatusBadRequest, "invalid TMDB ID")
+			return
+		}
+		movie, err := movieProvider.Movie(r.Context(), tmdbID)
+		if err != nil {
+			writeError(w, http.StatusBadGateway, "movie details are temporarily unavailable")
+			return
+		}
+		writeJSON(w, http.StatusOK, temporaryMovieDetailsResponse{
+			Media:   library.Media{ID: fmt.Sprintf("movie:%d", movie.TMDBID), Type: domain.MovieMediaType, TMDBID: movie.TMDBID, Title: movie.Title, OriginalTitle: movie.OriginalTitle, Overview: movie.Overview, ReleaseDate: movie.ReleaseDate, PosterPath: movie.PosterPath, BackdropPath: movie.BackdropPath, OriginalLanguage: movie.OriginalLanguage, Status: movie.Status},
+			Runtime: movie.Runtime, VoteAverage: movie.VoteAverage, Genres: movie.Genres, Cast: movie.Cast,
+		})
+	}
+}
+
+func temporaryEpisodeDetails(authService *auth.Service, provider domain.MetadataProvider) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := authenticatedUser(w, r, authService); !ok {
+			return
+		}
+		episodeProvider, ok := provider.(domain.TVEpisodeMetadataProvider)
+		if !ok {
+			writeError(w, http.StatusServiceUnavailable, "episode metadata is not configured")
+			return
+		}
+		showID, showErr := strconv.ParseInt(r.PathValue("tmdbID"), 10, 64)
+		seasonNumber, seasonErr := strconv.Atoi(r.PathValue("seasonNumber"))
+		episodeNumber, episodeErr := strconv.Atoi(r.PathValue("episodeNumber"))
+		if showErr != nil || showID <= 0 || seasonErr != nil || seasonNumber < 0 || episodeErr != nil || episodeNumber <= 0 {
+			writeError(w, http.StatusBadRequest, "invalid TV episode")
+			return
+		}
+		episode, err := episodeProvider.Episode(r.Context(), showID, seasonNumber, episodeNumber)
+		if err != nil {
+			writeError(w, http.StatusBadGateway, "episode details are temporarily unavailable")
+			return
+		}
+		writeJSON(w, http.StatusOK, temporaryEpisodeDetailsResponse{Name: episode.Name, Overview: episode.Overview, AirDate: episode.AirDate, Runtime: episode.Runtime, StillPath: episode.StillPath, VoteAverage: episode.VoteAverage, ProductionCode: episode.ProductionCode, GuestStars: episode.GuestStars, Crew: episode.Crew})
 	}
 }
 

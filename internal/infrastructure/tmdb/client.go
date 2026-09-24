@@ -28,15 +28,23 @@ const (
 // Client is Visto's TMDB adapter. The third-party client is deliberately kept
 // inside this package, so it cannot leak into application or domain code.
 type Client struct {
-	client      *tmdbapi.Client
-	requests    chan struct{}
-	mu          sync.Mutex
-	pausedUntil time.Time
-	retryAfter  time.Duration
-	searchCache map[string]cachedSearch
-	searchCalls map[string]*searchCall
-	showCache   map[int64]cachedShow
-	showCalls   map[int64]*showCall
+	client       *tmdbapi.Client
+	requests     chan struct{}
+	mu           sync.Mutex
+	pausedUntil  time.Time
+	retryAfter   time.Duration
+	searchCache  map[string]cachedSearch
+	searchCalls  map[string]*searchCall
+	showCache    map[int64]cachedShow
+	showCalls    map[int64]*showCall
+	summaryCache map[int64]cachedShow
+	summaryCalls map[int64]*showCall
+	seasonCache  map[string]cachedSeason
+	seasonCalls  map[string]*seasonCall
+	movieCache   map[int64]cachedMovie
+	movieCalls   map[int64]*movieCall
+	episodeCache map[string]cachedEpisode
+	episodeCalls map[string]*episodeCall
 }
 
 type cachedSearch struct {
@@ -57,6 +65,33 @@ type showCall struct {
 	done chan struct{}
 	show domain.TVShowMetadata
 	err  error
+}
+type cachedSeason struct {
+	season    domain.TVSeasonMetadata
+	expiresAt time.Time
+}
+type seasonCall struct {
+	done   chan struct{}
+	season domain.TVSeasonMetadata
+	err    error
+}
+type cachedMovie struct {
+	movie     domain.MovieMetadata
+	expiresAt time.Time
+}
+type movieCall struct {
+	done  chan struct{}
+	movie domain.MovieMetadata
+	err   error
+}
+type cachedEpisode struct {
+	episode   domain.TVEpisodeMetadata
+	expiresAt time.Time
+}
+type episodeCall struct {
+	done    chan struct{}
+	episode domain.TVEpisodeMetadata
+	err     error
 }
 
 type retryAfterTransport struct {
@@ -94,7 +129,7 @@ func New(apiKey string, httpClient *http.Client) (*Client, error) {
 		bounded.MaxIdleConnsPerHost = 4
 		httpClient.Transport = bounded
 	}
-	vistoClient := &Client{client: client, requests: make(chan struct{}, 4), searchCache: map[string]cachedSearch{}, searchCalls: map[string]*searchCall{}, showCache: map[int64]cachedShow{}, showCalls: map[int64]*showCall{}}
+	vistoClient := &Client{client: client, requests: make(chan struct{}, 4), searchCache: map[string]cachedSearch{}, searchCalls: map[string]*searchCall{}, showCache: map[int64]cachedShow{}, showCalls: map[int64]*showCall{}, summaryCache: map[int64]cachedShow{}, summaryCalls: map[int64]*showCall{}, seasonCache: map[string]cachedSeason{}, seasonCalls: map[string]*seasonCall{}, movieCache: map[int64]cachedMovie{}, movieCalls: map[int64]*movieCall{}, episodeCache: map[string]cachedEpisode{}, episodeCalls: map[string]*episodeCall{}}
 	baseTransport := httpClient.Transport
 	if baseTransport == nil {
 		baseTransport = http.DefaultTransport
@@ -231,6 +266,176 @@ func (client *Client) Show(ctx context.Context, tmdbID int64) (domain.TVShowMeta
 	return cloneShow(show), err
 }
 
+func (client *Client) ShowSummary(ctx context.Context, tmdbID int64) (domain.TVShowMetadata, error) {
+	if tmdbID <= 0 {
+		return domain.TVShowMetadata{}, fmt.Errorf("TMDB show ID must be positive")
+	}
+	client.mu.Lock()
+	if cached, ok := client.showCache[tmdbID]; ok && time.Now().Before(cached.expiresAt) {
+		client.mu.Unlock()
+		return cloneShow(cached.show), nil
+	}
+	if cached, ok := client.summaryCache[tmdbID]; ok && time.Now().Before(cached.expiresAt) {
+		client.mu.Unlock()
+		return cloneShow(cached.show), nil
+	}
+	if call, ok := client.summaryCalls[tmdbID]; ok {
+		client.mu.Unlock()
+		select {
+		case <-call.done:
+			return cloneShow(call.show), call.err
+		case <-ctx.Done():
+			return domain.TVShowMetadata{}, ctx.Err()
+		}
+	}
+	call := &showCall{done: make(chan struct{})}
+	client.summaryCalls[tmdbID] = call
+	client.mu.Unlock()
+	show, err := client.fetchShowSummary(ctx, tmdbID)
+	client.mu.Lock()
+	call.show = cloneShow(show)
+	call.err = err
+	if err == nil {
+		client.summaryCache[tmdbID] = cachedShow{show: cloneShow(show), expiresAt: time.Now().Add(showCacheTTL)}
+		now := time.Now()
+		for id, cached := range client.summaryCache {
+			if !now.Before(cached.expiresAt) {
+				delete(client.summaryCache, id)
+			}
+		}
+		for len(client.summaryCache) > maxShowCacheEntries {
+			for id := range client.summaryCache {
+				if id != tmdbID {
+					delete(client.summaryCache, id)
+					break
+				}
+			}
+		}
+	}
+	delete(client.summaryCalls, tmdbID)
+	close(call.done)
+	client.mu.Unlock()
+	return cloneShow(show), err
+}
+
+func (client *Client) Season(ctx context.Context, tmdbID int64, seasonNumber int) (domain.TVSeasonMetadata, error) {
+	if tmdbID <= 0 || seasonNumber < 0 {
+		return domain.TVSeasonMetadata{}, fmt.Errorf("TMDB show and season IDs must be valid")
+	}
+	cacheKey := fmt.Sprintf("%d:%d", tmdbID, seasonNumber)
+	client.mu.Lock()
+	if cached, ok := client.seasonCache[cacheKey]; ok && time.Now().Before(cached.expiresAt) {
+		client.mu.Unlock()
+		return cloneSeason(cached.season), nil
+	}
+	if call, ok := client.seasonCalls[cacheKey]; ok {
+		client.mu.Unlock()
+		select {
+		case <-call.done:
+			return cloneSeason(call.season), call.err
+		case <-ctx.Done():
+			return domain.TVSeasonMetadata{}, ctx.Err()
+		}
+	}
+	call := &seasonCall{done: make(chan struct{})}
+	client.seasonCalls[cacheKey] = call
+	client.mu.Unlock()
+	season, err := client.fetchSeason(ctx, tmdbID, seasonNumber)
+	client.mu.Lock()
+	call.season = cloneSeason(season)
+	call.err = err
+	if err == nil {
+		client.seasonCache[cacheKey] = cachedSeason{season: cloneSeason(season), expiresAt: time.Now().Add(showCacheTTL)}
+		now := time.Now()
+		for key, cached := range client.seasonCache {
+			if !now.Before(cached.expiresAt) {
+				delete(client.seasonCache, key)
+			}
+		}
+		for len(client.seasonCache) > maxShowCacheEntries*10 {
+			for key := range client.seasonCache {
+				if key != cacheKey {
+					delete(client.seasonCache, key)
+					break
+				}
+			}
+		}
+	}
+	delete(client.seasonCalls, cacheKey)
+	close(call.done)
+	client.mu.Unlock()
+	return cloneSeason(season), err
+}
+
+func (client *Client) Movie(ctx context.Context, tmdbID int64) (domain.MovieMetadata, error) {
+	if tmdbID <= 0 {
+		return domain.MovieMetadata{}, fmt.Errorf("TMDB movie ID must be positive")
+	}
+	client.mu.Lock()
+	if cached, ok := client.movieCache[tmdbID]; ok && time.Now().Before(cached.expiresAt) {
+		client.mu.Unlock()
+		return cloneMovie(cached.movie), nil
+	}
+	if call, ok := client.movieCalls[tmdbID]; ok {
+		client.mu.Unlock()
+		select {
+		case <-call.done:
+			return cloneMovie(call.movie), call.err
+		case <-ctx.Done():
+			return domain.MovieMetadata{}, ctx.Err()
+		}
+	}
+	call := &movieCall{done: make(chan struct{})}
+	client.movieCalls[tmdbID] = call
+	client.mu.Unlock()
+	movie, err := client.fetchMovie(ctx, tmdbID)
+	client.mu.Lock()
+	call.movie = cloneMovie(movie)
+	call.err = err
+	if err == nil {
+		client.movieCache[tmdbID] = cachedMovie{movie: cloneMovie(movie), expiresAt: time.Now().Add(showCacheTTL)}
+	}
+	delete(client.movieCalls, tmdbID)
+	close(call.done)
+	client.mu.Unlock()
+	return cloneMovie(movie), err
+}
+
+func (client *Client) Episode(ctx context.Context, showID int64, seasonNumber int, episodeNumber int) (domain.TVEpisodeMetadata, error) {
+	if showID <= 0 || seasonNumber < 0 || episodeNumber <= 0 {
+		return domain.TVEpisodeMetadata{}, fmt.Errorf("TMDB show, season, and episode must be valid")
+	}
+	cacheKey := fmt.Sprintf("%d:%d:%d", showID, seasonNumber, episodeNumber)
+	client.mu.Lock()
+	if cached, ok := client.episodeCache[cacheKey]; ok && time.Now().Before(cached.expiresAt) {
+		client.mu.Unlock()
+		return cloneEpisode(cached.episode), nil
+	}
+	if call, ok := client.episodeCalls[cacheKey]; ok {
+		client.mu.Unlock()
+		select {
+		case <-call.done:
+			return cloneEpisode(call.episode), call.err
+		case <-ctx.Done():
+			return domain.TVEpisodeMetadata{}, ctx.Err()
+		}
+	}
+	call := &episodeCall{done: make(chan struct{})}
+	client.episodeCalls[cacheKey] = call
+	client.mu.Unlock()
+	episode, err := client.fetchEpisode(ctx, showID, seasonNumber, episodeNumber)
+	client.mu.Lock()
+	call.episode = cloneEpisode(episode)
+	call.err = err
+	if err == nil {
+		client.episodeCache[cacheKey] = cachedEpisode{episode: cloneEpisode(episode), expiresAt: time.Now().Add(showCacheTTL)}
+	}
+	delete(client.episodeCalls, cacheKey)
+	close(call.done)
+	client.mu.Unlock()
+	return cloneEpisode(episode), err
+}
+
 // cacheShowLocked bounds retained show metadata in addition to its TTL. Search
 // and show results can be large, so arbitrary browsing must not grow memory
 // without limit. The caller must hold client.mu.
@@ -259,40 +464,138 @@ func cloneShow(show domain.TVShowMetadata) domain.TVShowMetadata {
 		clone.Seasons[index] = season
 		clone.Seasons[index].Episodes = append([]domain.TVEpisodeMetadata(nil), season.Episodes...)
 	}
+	clone.Cast = append([]domain.TVCastMember(nil), show.Cast...)
+	return clone
+}
+
+func cloneSeason(season domain.TVSeasonMetadata) domain.TVSeasonMetadata {
+	clone := season
+	clone.Episodes = append([]domain.TVEpisodeMetadata(nil), season.Episodes...)
+	return clone
+}
+
+func cloneEpisode(episode domain.TVEpisodeMetadata) domain.TVEpisodeMetadata {
+	clone := episode
+	clone.GuestStars = append([]domain.TVCastMember(nil), episode.GuestStars...)
+	clone.Crew = append([]domain.TVCrewMember(nil), episode.Crew...)
+	return clone
+}
+
+func cloneMovie(movie domain.MovieMetadata) domain.MovieMetadata {
+	clone := movie
+	clone.Genres = append([]string(nil), movie.Genres...)
+	clone.Cast = append([]domain.TVCastMember(nil), movie.Cast...)
 	return clone
 }
 
 func (client *Client) fetchShow(ctx context.Context, tmdbID int64) (domain.TVShowMetadata, error) {
+	show, err := client.fetchShowSummary(ctx, tmdbID)
+	if err != nil {
+		return domain.TVShowMetadata{}, err
+	}
+	for index := range show.Seasons {
+		season, err := client.fetchSeason(ctx, tmdbID, show.Seasons[index].Number)
+		if err != nil {
+			return domain.TVShowMetadata{}, err
+		}
+		show.Seasons[index].Episodes = season.Episodes
+	}
+	return show, nil
+}
+
+func (client *Client) fetchShowSummary(ctx context.Context, tmdbID int64) (domain.TVShowMetadata, error) {
 	if err := client.acquire(ctx); err != nil {
 		return domain.TVShowMetadata{}, err
 	}
 	defer func() { <-client.requests }()
-	showID := int(tmdbID)
 	var details *tmdbapi.TVDetails
 	if err := client.requestHeld(ctx, func() error {
 		var requestErr error
-		details, requestErr = client.client.GetTVDetails(showID, nil)
+		details, requestErr = client.client.GetTVDetails(int(tmdbID), map[string]string{"append_to_response": "credits"})
 		return requestErr
 	}); err != nil {
 		return domain.TVShowMetadata{}, err
 	}
-	show := domain.TVShowMetadata{TMDBID: details.ID, Name: details.Name, Overview: details.Overview, PosterPath: details.PosterPath, FirstAirDate: details.FirstAirDate, OriginalLanguage: details.OriginalLanguage, Status: details.Status}
+	show := domain.TVShowMetadata{TMDBID: details.ID, Name: details.Name, Overview: details.Overview, PosterPath: details.PosterPath, BackdropPath: details.BackdropPath, FirstAirDate: details.FirstAirDate, OriginalLanguage: details.OriginalLanguage, Status: details.Status}
+	if details.TVCreditsAppend != nil && details.Credits.TVCredits != nil {
+		for _, member := range details.Credits.Cast {
+			show.Cast = append(show.Cast, domain.TVCastMember{ID: member.ID, Name: member.Name, Character: member.Character, ProfilePath: member.ProfilePath})
+		}
+	}
 	for _, season := range details.Seasons {
-		seasonMetadata := domain.TVSeasonMetadata{TMDBID: season.ID, Number: season.SeasonNumber, Name: season.Name, Overview: season.Overview, PosterPath: season.PosterPath, AirDate: season.AirDate}
-		var seasonDetails *tmdbapi.TVSeasonDetails
-		if err := client.requestHeld(ctx, func() error {
-			var requestErr error
-			seasonDetails, requestErr = client.client.GetTVSeasonDetails(showID, season.SeasonNumber, nil)
-			return requestErr
-		}); err != nil {
-			return domain.TVShowMetadata{}, err
-		}
-		for _, episode := range seasonDetails.Episodes {
-			seasonMetadata.Episodes = append(seasonMetadata.Episodes, domain.TVEpisodeMetadata{TMDBID: episode.ID, SeasonNumber: episode.SeasonNumber, EpisodeNumber: episode.EpisodeNumber, Name: episode.Name, Overview: episode.Overview, AirDate: episode.AirDate, Runtime: episode.Runtime, StillPath: episode.StillPath})
-		}
-		show.Seasons = append(show.Seasons, seasonMetadata)
+		show.Seasons = append(show.Seasons, domain.TVSeasonMetadata{TMDBID: season.ID, Number: season.SeasonNumber, Name: season.Name, Overview: season.Overview, PosterPath: season.PosterPath, AirDate: season.AirDate})
 	}
 	return show, nil
+}
+
+func (client *Client) fetchSeason(ctx context.Context, tmdbID int64, seasonNumber int) (domain.TVSeasonMetadata, error) {
+	if err := client.acquire(ctx); err != nil {
+		return domain.TVSeasonMetadata{}, err
+	}
+	defer func() { <-client.requests }()
+	var seasonDetails *tmdbapi.TVSeasonDetails
+	if err := client.requestHeld(ctx, func() error {
+		var requestErr error
+		seasonDetails, requestErr = client.client.GetTVSeasonDetails(int(tmdbID), seasonNumber, nil)
+		return requestErr
+	}); err != nil {
+		return domain.TVSeasonMetadata{}, err
+	}
+	season := domain.TVSeasonMetadata{TMDBID: seasonDetails.ID, Number: seasonDetails.SeasonNumber, Name: seasonDetails.Name, Overview: seasonDetails.Overview, PosterPath: seasonDetails.PosterPath, AirDate: seasonDetails.AirDate}
+	for _, episode := range seasonDetails.Episodes {
+		season.Episodes = append(season.Episodes, domain.TVEpisodeMetadata{TMDBID: episode.ID, SeasonNumber: episode.SeasonNumber, EpisodeNumber: episode.EpisodeNumber, Name: episode.Name, Overview: episode.Overview, AirDate: episode.AirDate, Runtime: episode.Runtime, StillPath: episode.StillPath})
+	}
+	return season, nil
+}
+
+func (client *Client) fetchMovie(ctx context.Context, tmdbID int64) (domain.MovieMetadata, error) {
+	if err := client.acquire(ctx); err != nil {
+		return domain.MovieMetadata{}, err
+	}
+	defer func() { <-client.requests }()
+	var details *tmdbapi.MovieDetails
+	if err := client.requestHeld(ctx, func() error {
+		var requestErr error
+		details, requestErr = client.client.GetMovieDetails(int(tmdbID), map[string]string{"append_to_response": "credits"})
+		return requestErr
+	}); err != nil {
+		return domain.MovieMetadata{}, err
+	}
+	movie := domain.MovieMetadata{TMDBID: details.ID, Title: details.Title, OriginalTitle: details.OriginalTitle, Overview: details.Overview, PosterPath: details.PosterPath, BackdropPath: details.BackdropPath, ReleaseDate: details.ReleaseDate, OriginalLanguage: details.OriginalLanguage, Runtime: details.Runtime, Status: details.Status, VoteAverage: details.VoteAverage}
+	for _, genre := range details.Genres {
+		movie.Genres = append(movie.Genres, genre.Name)
+	}
+	if details.MovieCreditsAppend != nil && details.Credits.MovieCredits != nil {
+		for _, member := range details.Credits.Cast {
+			movie.Cast = append(movie.Cast, domain.TVCastMember{ID: member.ID, Name: member.Name, Character: member.Character, ProfilePath: member.ProfilePath})
+		}
+	}
+	return movie, nil
+}
+
+func (client *Client) fetchEpisode(ctx context.Context, showID int64, seasonNumber int, episodeNumber int) (domain.TVEpisodeMetadata, error) {
+	if err := client.acquire(ctx); err != nil {
+		return domain.TVEpisodeMetadata{}, err
+	}
+	defer func() { <-client.requests }()
+	var details *tmdbapi.TVEpisodeDetails
+	if err := client.requestHeld(ctx, func() error {
+		var requestErr error
+		details, requestErr = client.client.GetTVEpisodeDetails(int(showID), seasonNumber, episodeNumber, map[string]string{"append_to_response": "credits"})
+		return requestErr
+	}); err != nil {
+		return domain.TVEpisodeMetadata{}, err
+	}
+	episode := domain.TVEpisodeMetadata{TMDBID: details.ID, SeasonNumber: details.SeasonNumber, EpisodeNumber: details.EpisodeNumber, Name: details.Name, Overview: details.Overview, AirDate: details.AirDate, Runtime: details.Runtime, StillPath: details.StillPath, VoteAverage: details.VoteAverage, ProductionCode: details.ProductionCode}
+	for _, member := range details.GuestStars {
+		episode.GuestStars = append(episode.GuestStars, domain.TVCastMember{ID: member.ID, Name: member.Name, Character: member.Character, ProfilePath: member.ProfilePath})
+	}
+	if details.TVEpisodeCreditsAppend != nil && details.Credits != nil {
+		for _, member := range details.Credits.Crew {
+			episode.Crew = append(episode.Crew, domain.TVCrewMember{ID: member.ID, Name: member.Name, Job: member.Job, Department: member.Department, ProfilePath: member.ProfilePath})
+		}
+	}
+	return episode, nil
 }
 
 func (client *Client) request(ctx context.Context, operation func() error) error {

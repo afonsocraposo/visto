@@ -102,6 +102,53 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '502': { description: TMDB is temporarily unavailable }
         '503': { description: TMDB is not configured }
+  /discover/movies/{tmdbID}:
+    get:
+      summary: Get temporary rich movie metadata without adding it to the library
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { name: tmdbID, in: path, required: true, schema: { type: integer, format: int64, minimum: 1 } }
+      responses:
+        '200': { description: Temporary movie details, content: { application/json: { schema: { $ref: '#/components/schemas/TemporaryMovieDetails' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '502': { description: TMDB is temporarily unavailable }
+  /discover/shows/{tmdbID}:
+    get:
+      summary: Get temporary rich TV metadata and season summaries without adding it to the library
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { name: tmdbID, in: path, required: true, schema: { type: integer, format: int64, minimum: 1 } }
+      responses:
+        '200': { description: Temporary TV details, content: { application/json: { schema: { $ref: '#/components/schemas/TemporaryShowDetails' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '502': { description: TMDB is temporarily unavailable }
+  /discover/shows/{tmdbID}/seasons/{seasonNumber}:
+    get:
+      summary: Load one temporary TV season's episodes
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { name: tmdbID, in: path, required: true, schema: { type: integer, format: int64, minimum: 1 } }
+        - { name: seasonNumber, in: path, required: true, schema: { type: integer, minimum: 0 } }
+      responses:
+        '200': { description: Temporary season episodes, content: { application/json: { schema: { $ref: '#/components/schemas/TemporarySeasonDetails' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '502': { description: TMDB is temporarily unavailable }
+  /discover/shows/{tmdbID}/seasons/{seasonNumber}/episodes/{episodeNumber}:
+    get:
+      summary: Load temporary rich TV episode metadata
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { name: tmdbID, in: path, required: true, schema: { type: integer, format: int64, minimum: 1 } }
+        - { name: seasonNumber, in: path, required: true, schema: { type: integer, minimum: 0 } }
+        - { name: episodeNumber, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      responses:
+        '200': { description: Temporary episode details, content: { application/json: { schema: { $ref: '#/components/schemas/TemporaryEpisodeDetails' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '502': { description: TMDB is temporarily unavailable }
   /movies/{tmdbID}:
     get:
       summary: Get a movie in the authenticated user's library
@@ -158,6 +205,25 @@ paths:
         - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 500, default: 100 } }
       responses:
         '200': { description: Recent plays, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/HistoryEntry' } } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /episodes/{episodeID}/rating:
+    get:
+      summary: Get the authenticated user's episode rating
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { name: episodeID, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Episode rating, content: { application/json: { schema: { $ref: '#/components/schemas/EpisodeRating' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    put:
+      summary: Set or clear the authenticated user's episode rating
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { name: episodeID, in: path, required: true, schema: { type: string } }
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SetEpisodeRatingRequest' } } } }
+      responses:
+        '200': { description: Updated episode rating, content: { application/json: { schema: { $ref: '#/components/schemas/EpisodeRating' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
     post:
       summary: Record one movie or episode watch
@@ -319,6 +385,54 @@ components:
         release_date: { type: string, format: date }
         poster_path: { type: string }
         original_language: { type: string }
+    CastMember:
+      type: object
+      required: [id, name, character]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        character: { type: string }
+        profile_path: { type: string }
+    TemporaryMovieDetails:
+      type: object
+      required: [media, cast, genres]
+      properties:
+        media: { $ref: '#/components/schemas/MediaSearchResult' }
+        runtime: { type: integer, minimum: 0 }
+        vote_average: { type: number, minimum: 0, maximum: 10 }
+        genres: { type: array, items: { type: string } }
+        cast: { type: array, items: { $ref: '#/components/schemas/CastMember' } }
+    TemporaryShowDetails:
+      type: object
+      required: [media, seasons, cast]
+      properties:
+        media: { $ref: '#/components/schemas/MediaSearchResult' }
+        seasons: { type: array, items: { $ref: '#/components/schemas/TemporarySeasonDetails' } }
+        cast: { type: array, items: { $ref: '#/components/schemas/CastMember' } }
+    TemporarySeasonDetails:
+      type: object
+      required: [tmdb_id, season_number, name]
+      properties:
+        tmdb_id: { type: integer, format: int64 }
+        season_number: { type: integer, minimum: 0 }
+        name: { type: string }
+        overview: { type: string }
+        poster_path: { type: string }
+        air_date: { type: string, format: date }
+        episodes: { type: array, items: { $ref: '#/components/schemas/ShowEpisode' } }
+    TemporaryEpisodeDetails:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        overview: { type: string }
+        air_date: { type: string, format: date }
+        runtime: { type: integer, minimum: 0 }
+        still_path: { type: string }
+        vote_average: { type: number, minimum: 0, maximum: 10 }
+        production_code: { type: string }
+        guest_stars: { type: array, items: { $ref: '#/components/schemas/CastMember' } }
+        crew: { type: array, items: { type: object } }
     SaveLibraryRequest:
       type: object
       required: [media, status]
@@ -331,6 +445,18 @@ components:
       required: [status, rating]
       properties:
         status: { type: string, enum: [watchlist, watching, paused, dropped] }
+        rating: { type: [integer, 'null'], minimum: 1, maximum: 5 }
+    EpisodeRating:
+      type: object
+      required: [episode_id, rating]
+      properties:
+        episode_id: { type: string }
+        rating: { type: [integer, 'null'], minimum: 1, maximum: 5 }
+        updated_at: { type: string, format: date-time }
+    SetEpisodeRatingRequest:
+      type: object
+      required: [rating]
+      properties:
         rating: { type: [integer, 'null'], minimum: 1, maximum: 5 }
     LibraryItem:
       type: object

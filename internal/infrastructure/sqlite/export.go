@@ -10,7 +10,7 @@ import (
 )
 
 func (store *Store) Export(ctx context.Context, userID string) (exportapp.Data, error) {
-	data := exportapp.Data{Library: []exportapp.LibraryItem{}, Plays: []exportapp.Play{}}
+	data := exportapp.Data{Library: []exportapp.LibraryItem{}, Plays: []exportapp.Play{}, EpisodeRatings: []exportapp.EpisodeRating{}}
 	libraryRows, err := store.DB.QueryContext(ctx, `SELECT um.media_id,m.title,m.media_type,um.status,um.rating FROM user_media um JOIN media m ON m.id=um.media_id WHERE um.user_id=? ORDER BY um.updated_at DESC`, userID)
 	if err != nil {
 		return data, fmt.Errorf("export library: %w", err)
@@ -59,6 +59,28 @@ func (store *Store) Export(ctx context.Context, userID string) (exportapp.Data, 
 	}
 	if err := playRows.Err(); err != nil {
 		return data, fmt.Errorf("iterate export plays: %w", err)
+	}
+	ratingRows, err := store.DB.QueryContext(ctx, `SELECT episode_id,rating,updated_at FROM episode_ratings WHERE user_id=? AND rating IS NOT NULL ORDER BY updated_at DESC,episode_id`, userID)
+	if err != nil {
+		return data, fmt.Errorf("export episode ratings: %w", err)
+	}
+	defer ratingRows.Close()
+	for ratingRows.Next() {
+		var item exportapp.EpisodeRating
+		var rating int
+		var updatedAt string
+		if err := ratingRows.Scan(&item.EpisodeID, &rating, &updatedAt); err != nil {
+			return data, fmt.Errorf("scan export episode rating: %w", err)
+		}
+		item.Rating = &rating
+		item.UpdatedAt, err = time.Parse(time.RFC3339Nano, updatedAt)
+		if err != nil {
+			return data, fmt.Errorf("parse export episode rating time: %w", err)
+		}
+		data.EpisodeRatings = append(data.EpisodeRatings, item)
+	}
+	if err := ratingRows.Err(); err != nil {
+		return data, fmt.Errorf("iterate export episode ratings: %w", err)
 	}
 	return data, nil
 }

@@ -31,6 +31,12 @@ type HistoryEntry struct {
 	ArtworkPath  string `json:"artwork_path,omitempty"`
 }
 
+type EpisodeRating struct {
+	EpisodeID string    `json:"episode_id"`
+	Rating    *int      `json:"rating"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 type Repository interface {
 	CreatePlay(context.Context, Play) error
 	CreateBulkPlays(context.Context, []Play) error
@@ -40,6 +46,11 @@ type Repository interface {
 
 type historyRepository interface {
 	ListPlays(context.Context, string, int) ([]HistoryEntry, error)
+}
+
+type episodeRatingRepository interface {
+	GetEpisodeRating(context.Context, string, string) (EpisodeRating, error)
+	SaveEpisodeRating(context.Context, string, string, *int) (EpisodeRating, error)
 }
 
 type Service struct {
@@ -151,6 +162,31 @@ func (service *Service) History(ctx context.Context, userID string, limit int) (
 		return nil, fmt.Errorf("history storage is not configured")
 	}
 	return repository.ListPlays(ctx, userID, limit)
+}
+
+func (service *Service) EpisodeRating(ctx context.Context, userID, episodeID string) (EpisodeRating, error) {
+	if userID == "" || episodeID == "" {
+		return EpisodeRating{}, fmt.Errorf("user and episode are required")
+	}
+	repository, ok := service.repository.(episodeRatingRepository)
+	if !ok {
+		return EpisodeRating{}, fmt.Errorf("episode rating storage is not configured")
+	}
+	return repository.GetEpisodeRating(ctx, userID, episodeID)
+}
+
+func (service *Service) RateEpisode(ctx context.Context, userID, episodeID string, rating *int) (EpisodeRating, error) {
+	if userID == "" || episodeID == "" {
+		return EpisodeRating{}, fmt.Errorf("user and episode are required")
+	}
+	if rating != nil && (*rating < 1 || *rating > 5) {
+		return EpisodeRating{}, fmt.Errorf("rating must be from 1 to 5")
+	}
+	repository, ok := service.repository.(episodeRatingRepository)
+	if !ok {
+		return EpisodeRating{}, fmt.Errorf("episode rating storage is not configured")
+	}
+	return repository.SaveEpisodeRating(ctx, userID, episodeID, rating)
 }
 
 func newID() string {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/afonsocosta/visto/internal/domain"
@@ -18,6 +19,7 @@ type Show struct {
 	Status     domain.LibraryStatus `json:"status"`
 	Episodes   []domain.Episode     `json:"-"`
 	Plays      []domain.EpisodePlay `json:"-"`
+	UpdatedAt  time.Time            `json:"-"`
 }
 
 type ContinueEntry struct {
@@ -126,7 +128,29 @@ func (service *Service) Continue(ctx context.Context, userID string) ([]Continue
 		entry.MissingPriorEpisodes = domain.MissingPriorEpisodes(show.Episodes, show.Plays, *progress.NextEpisode, now)
 		result = append(result, entry)
 	}
+	sort.SliceStable(result, func(left, right int) bool {
+		return continueActivityTime(shows, result[left], now).After(continueActivityTime(shows, result[right], now))
+	})
 	return result, nil
+}
+
+func continueActivityTime(shows []Show, entry ContinueEntry, now time.Time) time.Time {
+	for _, show := range shows {
+		if show.ID != entry.ShowID {
+			continue
+		}
+		latest := show.UpdatedAt
+		for _, play := range show.Plays {
+			if play.WatchedAt.After(latest) {
+				latest = play.WatchedAt
+			}
+		}
+		if entry.NextEpisode != nil && entry.NextEpisode.AirDate != nil && entry.NextEpisode.IsReleasedAt(now) && entry.NextEpisode.AirDate.After(latest) {
+			latest = *entry.NextEpisode.AirDate
+		}
+		return latest
+	}
+	return time.Time{}
 }
 
 func (service *Service) Calendar(ctx context.Context, userID string, from, to time.Time) ([]CalendarEntry, error) {

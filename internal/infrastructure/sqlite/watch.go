@@ -12,16 +12,22 @@ import (
 )
 
 func (store *Store) WatchingShows(ctx context.Context, userID string) ([]watch.Show, error) {
-	rows, err := store.DB.QueryContext(ctx, `SELECT m.id,m.title,COALESCE(m.poster_path,'') FROM user_media um JOIN media m ON m.id=um.media_id WHERE um.user_id=? AND um.status='watching' AND m.media_type='tv' ORDER BY um.updated_at DESC`, userID)
+	rows, err := store.DB.QueryContext(ctx, `SELECT m.id,m.title,COALESCE(m.poster_path,''),um.updated_at FROM user_media um JOIN media m ON m.id=um.media_id WHERE um.user_id=? AND um.status='watching' AND m.media_type='tv' ORDER BY um.updated_at DESC`, userID)
 	if err != nil {
 		return nil, fmt.Errorf("list watching shows: %w", err)
 	}
 	shows := []watch.Show{}
 	for rows.Next() {
 		var show watch.Show
-		if err := rows.Scan(&show.ID, &show.Title, &show.PosterPath); err != nil {
+		var updatedAt string
+		if err := rows.Scan(&show.ID, &show.Title, &show.PosterPath, &updatedAt); err != nil {
 			rows.Close()
 			return nil, fmt.Errorf("scan watching show: %w", err)
+		}
+		show.UpdatedAt, err = time.Parse(time.RFC3339Nano, updatedAt)
+		if err != nil {
+			rows.Close()
+			return nil, fmt.Errorf("parse show update time: %w", err)
 		}
 		show.Status = domain.WatchingStatus
 		shows = append(shows, show)

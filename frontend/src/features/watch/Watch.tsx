@@ -50,9 +50,9 @@ export function WatchNow({ onOpenDetail }: { onOpenDetail?: (target: MediaDetail
         <Title order={1}>Pick up where you left off</Title>
       </div>
       <div className="watch-grid">
-        {entries.data.map((entry, index) => {
+        {entries.data.map(entry => {
           const art = posterURL(entry.poster_path, "w500");
-          return <Paper key={entry.show_id} className={`watch-card ${index === 0 ? "watch-card-featured" : ""}`} withBorder p={0} role={onOpenDetail ? "button" : undefined} tabIndex={onOpenDetail ? 0 : undefined} onClick={() => onOpenDetail?.({ mediaType: "tv", tmdbID: Number(entry.show_id.split(":")[1]), mediaID: entry.show_id, episodeID: entry.next_episode?.id, episode: entry.next_episode })} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") onOpenDetail?.({ mediaType: "tv", tmdbID: Number(entry.show_id.split(":")[1]), mediaID: entry.show_id, episodeID: entry.next_episode?.id, episode: entry.next_episode }); }}>
+          return <Paper key={entry.show_id} className="watch-card" withBorder p={0} role={onOpenDetail ? "button" : undefined} tabIndex={onOpenDetail ? 0 : undefined} onClick={() => onOpenDetail?.({ mediaType: "tv", tmdbID: Number(entry.show_id.split(":")[1]), mediaID: entry.show_id, episodeID: entry.next_episode?.id, episode: entry.next_episode })} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") onOpenDetail?.({ mediaType: "tv", tmdbID: Number(entry.show_id.split(":")[1]), mediaID: entry.show_id, episodeID: entry.next_episode?.id, episode: entry.next_episode }); }}>
             <div className="watch-card-art" style={art ? { backgroundImage: `url(${art})` } as CSSProperties : undefined}>
               {!art && <div className="artwork-fallback">{entry.title.slice(0, 1)}</div>}
               <div className="artwork-scrim" />

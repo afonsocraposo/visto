@@ -43,6 +43,9 @@ export const api = {
   patch<T = void>(path: string, body: unknown, fallback = "Request failed."): Promise<T> {
     return request<T>(path, jsonInit("PATCH", body), fallback);
   },
+  put<T = void>(path: string, body: unknown, fallback = "Request failed."): Promise<T> {
+    return request<T>(path, jsonInit("PUT", body), fallback);
+  },
   delete(path: string, fallback = "Request failed."): Promise<void> {
     return request<void>(path, { method: "DELETE" }, fallback);
   },

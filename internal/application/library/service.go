@@ -32,6 +32,7 @@ type Media struct {
 	Overview         string           `json:"overview"`
 	ReleaseDate      string           `json:"release_date"`
 	PosterPath       string           `json:"poster_path"`
+	BackdropPath     string           `json:"backdrop_path,omitempty"`
 	OriginalLanguage string           `json:"original_language"`
 	Status           string           `json:"status,omitempty"`
 	Type             domain.MediaType `json:"type"`

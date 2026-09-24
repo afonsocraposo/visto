@@ -17,6 +17,7 @@ export type SearchMedia = {
   release_date: string;
   poster_path: string;
   original_language: string;
+  backdrop_path?: string;
 };
 
 export type LibraryEntry = {
@@ -54,6 +55,16 @@ export type ContinueEntry = {
 
 export type CalendarEntry = { show_id: string; title: string; episode: Episode };
 export type ShowEpisodeEntry = { episode: Episode; name: string; overview?: string; runtime?: number; still_path?: string; watched: boolean };
+export type EpisodeRating = { episode_id: string; rating: number | null; updated_at?: string };
+export type TVCastMember = { id: number; name: string; character: string; profile_path?: string };
+export type TVCrewMember = { id: number; name: string; job: string; department: string; profile_path?: string };
+export type TemporaryShowDetails = {
+  media: SearchMedia & { id: string; status?: string };
+  seasons: { tmdb_id: number; season_number: number; name: string; overview?: string; poster_path?: string; air_date?: string; episodes?: ShowEpisodeEntry[] }[];
+  cast: TVCastMember[];
+};
+export type TemporaryMovieDetails = { media: SearchMedia & { id: string; status?: string }; runtime?: number; vote_average?: number; genres: string[]; cast: TVCastMember[] };
+export type TemporaryEpisodeDetails = { name: string; overview?: string; air_date?: string; runtime?: number; still_path?: string; vote_average?: number; production_code?: string; guest_stars?: TVCastMember[]; crew?: TVCrewMember[] };
 export type ShowProgress = { cursor: Episode | null; is_caught_up: boolean };
 
 export type MediaDetailTarget = {

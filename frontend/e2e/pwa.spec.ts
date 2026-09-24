@@ -86,8 +86,8 @@ test("Given an unsaved TV show, When the user adds it or chooses Watch later, Th
   await page.getByRole("button", { name: "Add to watching" }).click();
   await expect.poll(() => savedStatuses).toEqual(["watching"]);
 
-  await page.getByRole("button", { name: "Details" }).click();
-  await page.getByRole("dialog").getByRole("button", { name: "Watch later" }).click();
+  await page.getByRole("link", { name: "Open details for The Example Show" }).click();
+  await page.getByRole("button", { name: "Watch later" }).click();
   await expect.poll(() => savedStatuses).toEqual(["watching", "watchlist"]);
 });
 

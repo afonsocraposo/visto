@@ -149,6 +149,27 @@ func TestContinue_GivenNoReleasedEpisodeAfterProgress_WhenLoadingNow_ThenCaughtU
 	}
 }
 
+func TestContinue_GivenRecentWatchAndNewRelease_WhenLoadingNow_ThenMostRecentActivityIsFirst(t *testing.T) {
+	now := time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC)
+	recentRelease := now.Add(-30 * time.Minute)
+	recentWatch := now.Add(-2 * time.Hour)
+	oldWatchedAirDate := now.Add(-48 * time.Hour)
+	oldNextAirDate := now.Add(-24 * time.Hour)
+	shows := []Show{
+		{ID: "tv:older-watch", Title: "Older watch", UpdatedAt: now.Add(-72 * time.Hour), Episodes: []domain.Episode{{ID: "old-watched", SeasonNumber: 1, EpisodeNumber: 1, AirDate: &oldWatchedAirDate}, {ID: "old-next", SeasonNumber: 1, EpisodeNumber: 2, AirDate: &oldNextAirDate}}, Plays: []domain.EpisodePlay{{ID: "old-play", EpisodeID: "old-watched", WatchedAt: recentWatch}}},
+		{ID: "tv:new-release", Title: "New release", UpdatedAt: now.Add(-7 * 24 * time.Hour), Episodes: []domain.Episode{{ID: "new-next", SeasonNumber: 1, EpisodeNumber: 1, AirDate: &recentRelease}}},
+	}
+	service := NewService(repository{shows: shows, timezone: "UTC"})
+	service.now = func() time.Time { return now }
+	entries, err := service.Continue(context.Background(), "user")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 2 || entries[0].ShowID != "tv:new-release" || entries[1].ShowID != "tv:older-watch" {
+		t.Fatalf("order=%v, want new-release before older-watch", []string{entries[0].ShowID, entries[1].ShowID})
+	}
+}
+
 func TestRefreshCatalog_GivenManyStaleShows_WhenSchedulerRefreshesCatalog_ThenProviderWorkIsCapped(t *testing.T) {
 	repository := &metadataRepository{showIDs: []int64{10, 11, 12, 13, 14}}
 	provider := &showMetadataProvider{}
