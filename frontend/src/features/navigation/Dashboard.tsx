@@ -4,7 +4,6 @@ import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { Alert, AppShell, Button, Center, Group, Loader, Select, Tabs, Text, Title } from "@mantine/core";
 import { IconCalendar, IconCompass, IconHome, IconLogout, IconSearch, IconUserCircle } from "@tabler/icons-react";
 import { WatchNow, WatchCalendar } from "../watch/Watch";
-import { activeTabForLocation } from "./activeTab";
 import type { LibraryStatus, MediaDetailTarget, Tab, Theme, User } from "../../types";
 import { connectionUnavailableEvent } from "../../lib/api";
 
@@ -15,37 +14,21 @@ const LibraryListPage = lazy(async () => ({ default: (await import("../library/L
 const MediaDetailPage = lazy(async () => ({ default: (await import("../details/MediaDetailPage")).MediaDetailPage }));
 const PersonDetailPage = lazy(async () => ({ default: (await import("../people/PersonDetailPage")).PersonDetailPage }));
 
-export function Dashboard({ user, theme, setTheme }: { user: User; theme: Theme; setTheme: (theme: Theme) => void }) {
+export type DashboardPage =
+  | { kind: "watch" | "discover" | "feed" | "profile" }
+  | { kind: "library-list"; status: LibraryStatus }
+  | { kind: "media"; target: MediaDetailTarget; returnTo?: string }
+  | { kind: "person"; personID: number; returnTo?: string };
+
+export function Dashboard({ user, theme, setTheme, page }: { user: User; theme: Theme; setTheme: (theme: Theme) => void; page: DashboardPage }) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
-  const pathname = useRouterState({ select: state => state.location.pathname });
   const currentHref = useRouterState({ select: state => state.location.href });
-  const detailSearch = new URLSearchParams(window.location.search);
-  const returnTo = detailSearch.get("from");
-  const tab: Tab = activeTabForLocation(pathname, window.location.search, window.location.origin);
-  const detailMatch = pathname.match(/^\/media\/(movie|tv)\/(\d+)$/);
-  const personMatch = pathname.match(/^\/people\/(\d+)$/);
-  const personID = personMatch ? Number(personMatch[1]) : undefined;
-  const listMatch = pathname.match(/^\/profile\/library\/(watching|completed|watchlist|paused|dropped)$/);
-  const listStatus = listMatch?.[1] as LibraryStatus | undefined;
-  const seedTitle = detailSearch.get("title");
-  const detail: MediaDetailTarget | null = detailMatch ? {
-    mediaType: detailMatch[1] as "movie" | "tv",
-    tmdbID: Number(detailMatch[2]),
-    mediaID: detailSearch.get("media") || undefined,
-    episodeID: detailSearch.get("episode") || undefined,
-    seasonNumber: detailSearch.get("season") ? Number(detailSearch.get("season")) : undefined,
-    seed: seedTitle ? {
-      tmdb_id: Number(detailMatch[2]),
-      type: (detailSearch.get("type") as "movie" | "tv") || (detailMatch[1] as "movie" | "tv"),
-      title: seedTitle,
-      original_title: detailSearch.get("original_title") || seedTitle,
-      overview: detailSearch.get("overview") || "",
-      release_date: detailSearch.get("release_date") || "",
-      poster_path: detailSearch.get("poster_path") || "",
-      original_language: detailSearch.get("original_language") || "",
-    } : undefined,
-  } : null;
+  const detail = page.kind === "media" ? page.target : null;
+  const personID = page.kind === "person" ? page.personID : undefined;
+  const listStatus = page.kind === "library-list" ? page.status : undefined;
+  const returnTo = page.kind === "media" || page.kind === "person" ? page.returnTo : undefined;
+  const tab: Tab = page.kind === "discover" ? "search" : page.kind === "feed" ? "feed" : page.kind === "profile" || page.kind === "library-list" ? "library" : "watch";
   const openDetail = (target: MediaDetailTarget) => void navigate({
     to: `/media/${target.mediaType}/${target.tmdbID}`,
     search: {
@@ -187,7 +170,7 @@ function Deferred({ children }: { children: ReactNode }) {
   return <Suspense fallback={<Center py="xl"><Loader size="sm" /></Center>}>{children}</Suspense>;
 }
 
-function safeReturnPath(returnTo: string | null, fallback: string): string {
+function safeReturnPath(returnTo: string | null | undefined, fallback: string): string {
   if (!returnTo) return fallback;
   try {
     const url = new URL(returnTo, window.location.origin);
