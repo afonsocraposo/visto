@@ -51,9 +51,13 @@ func main() {
 			log.Fatalf("configure TMDB: %v", err)
 		}
 	}
+	watchService := watch.NewService(store, metadataProvider)
+	refreshContext, stopRefresh := context.WithCancel(context.Background())
+	defer stopRefresh()
+	go watchService.RunCatalogRefresher(refreshContext, 6*time.Hour, 24*time.Hour, 30*24*time.Hour)
 	server := &http.Server{
 		Addr:              environment("VISTO_LISTEN_ADDR", ":8080"),
-		Handler:           httpserver.New(auth.NewService(store), metadataProvider, os.Getenv("VISTO_WEB_DIR"), library.NewService(store), tracking.NewService(store), profile.NewService(store), feed.NewService(store), exportapp.NewService(store), watch.NewService(store, metadataProvider)).Handler(),
+		Handler:           httpserver.New(auth.NewService(store), metadataProvider, os.Getenv("VISTO_WEB_DIR"), library.NewService(store), tracking.NewService(store), profile.NewService(store), feed.NewService(store), exportapp.NewService(store), watchService).Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}

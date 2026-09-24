@@ -37,12 +37,12 @@ type CalendarEntry struct {
 }
 
 type ShowEpisode struct {
-	Episode domain.Episode `json:"episode"`
-	Name    string         `json:"name"`
-	Overview string        `json:"overview,omitempty"`
-	Runtime int            `json:"runtime,omitempty"`
-	StillPath string       `json:"still_path,omitempty"`
-	Watched bool           `json:"watched"`
+	Episode   domain.Episode `json:"episode"`
+	Name      string         `json:"name"`
+	Overview  string         `json:"overview,omitempty"`
+	Runtime   int            `json:"runtime,omitempty"`
+	StillPath string         `json:"still_path,omitempty"`
+	Watched   bool           `json:"watched"`
 }
 
 type Season struct {
@@ -75,8 +75,8 @@ type episodeRepository interface {
 
 var ErrShowNotFound = errors.New("show not found")
 
-type refreshRepository interface {
-	ShowsNeedingMetadataRefresh(context.Context, string, time.Duration) ([]int64, error)
+type catalogRefreshRepository interface {
+	ShowsNeedingCatalogRefresh(context.Context, time.Duration, time.Duration) ([]int64, error)
 	ImportShowMetadata(context.Context, string, domain.TVShowMetadata) error
 }
 
@@ -98,7 +98,6 @@ func (service *Service) Continue(ctx context.Context, userID string) ([]Continue
 	if userID == "" {
 		return nil, fmt.Errorf("user is required")
 	}
-	_ = service.refreshMetadata(ctx, userID)
 	shows, err := service.repository.WatchingShows(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -134,7 +133,6 @@ func (service *Service) Calendar(ctx context.Context, userID string, from, to ti
 	if userID == "" {
 		return nil, fmt.Errorf("user is required")
 	}
-	_ = service.refreshMetadata(ctx, userID)
 	fromProvided, toProvided := !from.IsZero(), !to.IsZero()
 	zoneName, err := service.repository.Timezone(ctx, userID)
 	if err != nil {
@@ -181,6 +179,52 @@ func (service *Service) Calendar(ctx context.Context, userID string, from, to ti
 		}
 	}
 	return entries, nil
+}
+
+// RefreshCatalog refreshes a bounded batch of TV catalogs. It is called by a
+// backend scheduler, not by a frontend request.
+func (service *Service) RefreshCatalog(ctx context.Context, activeTTL, finishedTTL time.Duration) error {
+	if service.metadataProvider == nil {
+		return nil
+	}
+	repository, ok := service.repository.(catalogRefreshRepository)
+	if !ok {
+		return nil
+	}
+	tmdbIDs, err := repository.ShowsNeedingCatalogRefresh(ctx, activeTTL, finishedTTL)
+	if err != nil {
+		return err
+	}
+	if len(tmdbIDs) > maxShowRefreshesPerRequest {
+		tmdbIDs = tmdbIDs[:maxShowRefreshesPerRequest]
+	}
+	for _, tmdbID := range tmdbIDs {
+		metadata, err := service.metadataProvider.Show(ctx, tmdbID)
+		if err != nil {
+			return err
+		}
+		if err := repository.ImportShowMetadata(ctx, fmt.Sprintf("tv:%d", tmdbID), metadata); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// RunCatalogRefresher keeps local metadata current without coupling TMDB
+// traffic to page visits. The caller owns ctx and controls shutdown.
+func (service *Service) RunCatalogRefresher(ctx context.Context, interval, activeTTL, finishedTTL time.Duration) {
+	refresh := func() { _ = service.RefreshCatalog(ctx, activeTTL, finishedTTL) }
+	refresh()
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			refresh()
+		}
+	}
 }
 
 func (service *Service) Episodes(ctx context.Context, userID, showID string) ([]ShowEpisode, error) {
@@ -245,31 +289,4 @@ func (service *Service) ShowProgress(ctx context.Context, userID, showID string)
 		LatestReleasedEpisode: progress.ReleasedEpisode,
 		IsCaughtUp:            progress.IsCaughtUp,
 	}, nil
-}
-
-func (service *Service) refreshMetadata(ctx context.Context, userID string) error {
-	if service.metadataProvider == nil {
-		return nil
-	}
-	repository, ok := service.repository.(refreshRepository)
-	if !ok {
-		return nil
-	}
-	tmdbIDs, err := repository.ShowsNeedingMetadataRefresh(ctx, userID, 24*time.Hour)
-	if err != nil {
-		return err
-	}
-	if len(tmdbIDs) > maxShowRefreshesPerRequest {
-		tmdbIDs = tmdbIDs[:maxShowRefreshesPerRequest]
-	}
-	for _, tmdbID := range tmdbIDs {
-		metadata, err := service.metadataProvider.Show(ctx, tmdbID)
-		if err != nil {
-			return err
-		}
-		if err := repository.ImportShowMetadata(ctx, fmt.Sprintf("tv:%d", tmdbID), metadata); err != nil {
-			return err
-		}
-	}
-	return nil
 }

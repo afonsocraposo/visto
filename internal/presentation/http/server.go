@@ -44,7 +44,7 @@ func New(authService *auth.Service, metadataProvider domain.MetadataProvider, we
 	mux.HandleFunc("GET /api/v1/search", search(authService, metadataProvider))
 	mux.HandleFunc("GET /api/v1/movies/{tmdbID}", mediaDetails(authService, libraryService, domain.MovieMediaType))
 	mux.HandleFunc("GET /api/v1/shows/{tmdbID}", mediaDetails(authService, libraryService, domain.TVMediaType))
-	mux.HandleFunc("GET /api/v1/library", listLibrary(authService, libraryService, watchService))
+	mux.HandleFunc("GET /api/v1/library", listLibrary(authService, libraryService))
 	mux.HandleFunc("POST /api/v1/library", saveLibrary(authService, libraryService, metadataProvider))
 	mux.HandleFunc("PATCH /api/v1/library/{mediaID}", updateLibrary(authService, libraryService))
 	mux.HandleFunc("POST /api/v1/plays", createPlay(authService, trackingService))
@@ -604,7 +604,7 @@ func saveLibrary(authService *auth.Service, service *library.Service, provider d
 	}
 }
 
-func listLibrary(authService *auth.Service, service *library.Service, watchService *watch.Service) http.HandlerFunc {
+func listLibrary(authService *auth.Service, service *library.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		user, ok := authenticatedUser(w, r, authService)
 		if !ok {
@@ -613,11 +613,6 @@ func listLibrary(authService *auth.Service, service *library.Service, watchServi
 		if service == nil {
 			writeError(w, http.StatusServiceUnavailable, "library is not configured")
 			return
-		}
-		// Refresh a small, rate-limited batch of watched shows before deriving
-		// completion. This keeps older library entries in sync with TMDB status.
-		if watchService != nil {
-			_, _ = watchService.Continue(r.Context(), user.ID)
 		}
 		items, err := service.List(r.Context(), user.ID)
 		if err != nil {

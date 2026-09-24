@@ -210,23 +210,27 @@ func (store *Store) Timezone(ctx context.Context, userID string) (string, error)
 	return timezone, nil
 }
 
-func (store *Store) ShowsNeedingMetadataRefresh(ctx context.Context, userID string, ttl time.Duration) ([]int64, error) {
-	cutoff := time.Now().UTC().Add(-ttl).Format(time.RFC3339Nano)
-	rows, err := store.DB.QueryContext(ctx, `SELECT m.tmdb_id FROM user_media um JOIN media m ON m.id=um.media_id WHERE um.user_id=? AND um.status='watching' AND m.media_type='tv' AND (m.catalog_updated_at IS NULL OR m.catalog_updated_at<?) ORDER BY um.updated_at DESC`, userID, cutoff)
+func (store *Store) ShowsNeedingCatalogRefresh(ctx context.Context, activeTTL, finishedTTL time.Duration) ([]int64, error) {
+	activeCutoff := time.Now().UTC().Add(-activeTTL).Format(time.RFC3339Nano)
+	finishedCutoff := time.Now().UTC().Add(-finishedTTL).Format(time.RFC3339Nano)
+	rows, err := store.DB.QueryContext(ctx, `SELECT DISTINCT m.tmdb_id FROM user_media um JOIN media m ON m.id=um.media_id
+		WHERE m.media_type='tv' AND ((m.status IN ('Ended','Canceled','Cancelled') AND (m.catalog_updated_at IS NULL OR m.catalog_updated_at<?)) OR
+		(COALESCE(m.status,'') NOT IN ('Ended','Canceled','Cancelled') AND (m.catalog_updated_at IS NULL OR m.catalog_updated_at<?)))
+		ORDER BY m.catalog_updated_at IS NOT NULL, m.catalog_updated_at`, finishedCutoff, activeCutoff)
 	if err != nil {
-		return nil, fmt.Errorf("list shows needing metadata refresh: %w", err)
+		return nil, fmt.Errorf("list catalog refresh IDs: %w", err)
 	}
 	defer rows.Close()
 	ids := []int64{}
 	for rows.Next() {
 		var id int64
 		if err := rows.Scan(&id); err != nil {
-			return nil, fmt.Errorf("scan show refresh ID: %w", err)
+			return nil, fmt.Errorf("scan catalog refresh ID: %w", err)
 		}
 		ids = append(ids, id)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate show refresh IDs: %w", err)
+		return nil, fmt.Errorf("iterate catalog refresh IDs: %w", err)
 	}
 	return ids, nil
 }
@@ -238,6 +242,6 @@ var _ interface {
 	ListSeasonEpisodes(context.Context, string, string) ([]watch.ShowEpisode, error)
 } = (*Store)(nil)
 var _ interface {
-	ShowsNeedingMetadataRefresh(context.Context, string, time.Duration) ([]int64, error)
+	ShowsNeedingCatalogRefresh(context.Context, time.Duration, time.Duration) ([]int64, error)
 	ImportShowMetadata(context.Context, string, domain.TVShowMetadata) error
 } = (*Store)(nil)

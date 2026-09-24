@@ -15,7 +15,7 @@ type metadataRepository struct {
 	imported []int64
 }
 
-func (r *metadataRepository) ShowsNeedingMetadataRefresh(context.Context, string, time.Duration) ([]int64, error) {
+func (r *metadataRepository) ShowsNeedingCatalogRefresh(context.Context, time.Duration, time.Duration) ([]int64, error) {
 	return r.showIDs, nil
 }
 func (r *metadataRepository) ImportShowMetadata(_ context.Context, showID string, metadata domain.TVShowMetadata) error {
@@ -149,12 +149,12 @@ func TestContinue_GivenNoReleasedEpisodeAfterProgress_WhenLoadingNow_ThenCaughtU
 	}
 }
 
-func TestRefreshMetadata_GivenManyStaleShows_WhenRequestRefreshesCatalog_ThenProviderWorkIsCapped(t *testing.T) {
+func TestRefreshCatalog_GivenManyStaleShows_WhenSchedulerRefreshesCatalog_ThenProviderWorkIsCapped(t *testing.T) {
 	repository := &metadataRepository{showIDs: []int64{10, 11, 12, 13, 14}}
 	provider := &showMetadataProvider{}
 	service := NewService(repository, provider)
 
-	if err := service.refreshMetadata(context.Background(), "user-1"); err != nil {
+	if err := service.RefreshCatalog(context.Background(), 24*time.Hour, 30*24*time.Hour); err != nil {
 		t.Fatal(err)
 	}
 	if len(provider.calls) != maxShowRefreshesPerRequest || len(repository.imported) != maxShowRefreshesPerRequest {
