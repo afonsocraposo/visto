@@ -10,12 +10,12 @@ type MetadataProvider interface {
 }
 
 type MediaSearchResult struct {
-	TMDBID           int64
-	Type             MediaType
-	Title            string
-	OriginalTitle    string
-	Overview         string
-	ReleaseDate      string
-	PosterPath       string
-	OriginalLanguage string
+	TMDBID           int64     `json:"tmdb_id"`
+	Type             MediaType `json:"type"`
+	Title            string    `json:"title"`
+	OriginalTitle    string    `json:"original_title"`
+	Overview         string    `json:"overview"`
+	ReleaseDate      string    `json:"release_date"`
+	PosterPath       string    `json:"poster_path"`
+	OriginalLanguage string    `json:"original_language"`
 }
