@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Badge, Button, Group, Image, Loader, Modal, Paper, Select, Stack, Text, Title } from "@mantine/core";
+import { Alert, Badge, Button, Group, Image, Loader, Modal, Paper, Select, Stack, Switch, Text, Title } from "@mantine/core";
 import { IconArrowLeft, IconCheck, IconClock, IconPlayerPlay, IconPlus } from "@tabler/icons-react";
 import { api } from "../../lib/api";
 import { backdropURL, posterURL } from "../../lib/artwork";
@@ -16,6 +16,8 @@ export function MediaDetailPage({ target, onBack, onOpenDetail }: Props) {
   const queryClient = useQueryClient();
   const [season, setSeason] = useState<string | null>(null);
   const [pendingWatch, setPendingWatch] = useState<PendingWatch | null>(null);
+  const [showWatchModal, setShowWatchModal] = useState(false);
+  const [selectedShowSeasons, setSelectedShowSeasons] = useState<Record<number, boolean>>({});
   const library = useQuery({
     queryKey: userQueryKey("media-detail", target.mediaType, target.tmdbID),
     queryFn: () => api.get<LibraryEntry>(`/api/v1/${target.mediaType === "tv" ? "shows" : "movies"}/${target.tmdbID}`, "Could not load media details."),
@@ -102,6 +104,13 @@ export function MediaDetailPage({ target, onBack, onOpenDetail }: Props) {
   const status = library.data?.item.status;
   const today = new Date().toISOString().slice(0, 10);
   const releasedSeasonEpisodes = visibleEpisodes.filter(entry => !entry.watched && (!entry.episode.air_date || entry.episode.air_date <= today));
+  const seasonGroups = [...new Set(episodeEntries.map(entry => entry.episode.season_number))].sort((a, b) => a - b).map(number => ({ number, episodes: episodeEntries.filter(entry => entry.episode.season_number === number) }));
+  const releasedShowEpisodes = episodeEntries.filter(entry => !entry.watched && (!entry.episode.air_date || entry.episode.air_date <= today));
+  const selectedShowEpisodes = releasedShowEpisodes.filter(entry => selectedShowSeasons[entry.episode.season_number] === true);
+  const openShowWatchModal = () => {
+    setSelectedShowSeasons(Object.fromEntries(seasonGroups.map(group => [group.number, group.number > 0])));
+    setShowWatchModal(true);
+  };
   const requestEpisodeWatch = (entry: ShowEpisodeEntry) => {
     const missing = findMissingPriorEpisodes(episodeEntries, entry, today);
     if (missing.length > 0) setPendingWatch({ target: entry, episodes: missing });
@@ -122,6 +131,16 @@ export function MediaDetailPage({ target, onBack, onOpenDetail }: Props) {
         <Button onClick={() => confirmWatch(Boolean(pendingWatch?.target))} loading={markEpisodeWatched.isPending || markEpisodesWatched.isPending}>{pendingWatch?.target ? "Mark all as watched" : "Mark season watched"}</Button>
       </Group>
     </Modal>
+    <Modal opened={showWatchModal} onClose={() => setShowWatchModal(false)} title={`Mark ${media.title} watched`} centered>
+      <Text size="sm" c="dimmed" mb="md">Choose the seasons to include. Specials are off by default.</Text>
+      <Stack gap="xs">
+        {seasonGroups.map(group => {
+          const remaining = group.episodes.filter(entry => !entry.watched && (!entry.episode.air_date || entry.episode.air_date <= today)).length;
+          return <Paper key={group.number} withBorder p="sm"><Group justify="space-between"><div><Text fw={650}>{group.number === 0 ? "Specials" : `Season ${group.number}`}</Text><Text size="xs" c="dimmed">{remaining} episodes remaining</Text></div><Switch aria-label={`Include ${group.number === 0 ? "specials" : `season ${group.number}`}`} checked={selectedShowSeasons[group.number] === true} onChange={event => setSelectedShowSeasons(current => ({ ...current, [group.number]: event.currentTarget.checked }))} /></Group></Paper>;
+        })}
+      </Stack>
+      <Group justify="flex-end" mt="lg"><Button variant="default" onClick={() => setShowWatchModal(false)}>Cancel</Button><Button disabled={selectedShowEpisodes.length === 0} loading={markEpisodesWatched.isPending} onClick={() => { markEpisodesWatched.mutate(selectedShowEpisodes.map(entry => entry.episode.id)); setShowWatchModal(false); }}>Mark {selectedShowEpisodes.length} episodes watched</Button></Group>
+    </Modal>
     <Button className="detail-back" variant="subtle" leftSection={<IconArrowLeft size={17} />} onClick={onBack}>Back</Button>
     <section className="detail-hero" style={{ backgroundImage: `linear-gradient(90deg, rgba(9,13,18,.96) 0%, rgba(9,13,18,.84) 43%, rgba(9,13,18,.35) 100%), url(${backdrop})` }}>
       <div className="detail-hero-content">
@@ -135,7 +154,7 @@ export function MediaDetailPage({ target, onBack, onOpenDetail }: Props) {
       {art && <Image className="detail-poster" src={art} alt={`${media.title} poster`} />}
     </section>
     {target.mediaType === "tv" && !selectedEpisode && isSaved && <section className="detail-section">
-      <Group justify="space-between" align="end" mb="sm"><div><Text className="section-kicker">Your catalog</Text><Title order={2}>Seasons & episodes</Title></div><Group gap="xs">{releasedSeasonEpisodes.length > 0 && <Button size="xs" variant="light" onClick={() => setPendingWatch({ target: null, episodes: releasedSeasonEpisodes })}>Mark season watched</Button>}{seasons.length > 0 && <Select aria-label="Season" value={selectedSeason} onChange={setSeason} data={seasons.map(number => ({ value: String(number), label: number === 0 ? "Specials" : `Season ${number}` }))} w={150} />}</Group></Group>
+      <Group justify="space-between" align="end" mb="sm"><div><Text className="section-kicker">Your catalog</Text><Title order={2}>Seasons & episodes</Title></div><Group gap="xs">{releasedShowEpisodes.length > 0 && <Button size="xs" onClick={openShowWatchModal}>Mark show watched</Button>}{releasedSeasonEpisodes.length > 0 && <Button size="xs" variant="light" onClick={() => setPendingWatch({ target: null, episodes: releasedSeasonEpisodes })}>Mark season watched</Button>}{seasons.length > 0 && <Select aria-label="Season" value={selectedSeason} onChange={setSeason} data={seasons.map(number => ({ value: String(number), label: number === 0 ? "Specials" : `Season ${number}` }))} w={150} />}</Group></Group>
       {episodes.isPending && <Group justify="center" py="lg"><Loader /></Group>}
       {episodes.isError && <Alert color="red">Episodes are temporarily unavailable.</Alert>}
       {!episodes.isPending && !episodes.isError && !visibleEpisodes.length && <Text c="dimmed">Episode details are not available yet.</Text>}
