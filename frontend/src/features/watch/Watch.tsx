@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ActionIcon, Alert, Badge, Button, Group, Image, Loader, Modal, Paper, Text, Title, Tooltip } from "@mantine/core";
-import { IconEye } from "@tabler/icons-react";
+import { IconCheck, IconEye } from "@tabler/icons-react";
 import { EmptyState } from "../../components/EmptyState";
 import { useUserQueryKey } from "../auth/SessionContext";
 import { api } from "../../lib/api";
@@ -13,17 +13,18 @@ export function WatchNow({ onOpenDetail }: { onOpenDetail?: (target: MediaDetail
   const queryClient = useQueryClient();
   const userQueryKey = useUserQueryKey();
   const [confirmation, setConfirmation] = useState<ContinueEntry | null>(null);
+  const [completedShowID, setCompletedShowID] = useState<string | null>(null);
   const entries = useQuery({
     queryKey: userQueryKey("continue"),
     queryFn: () => api.get<ContinueEntry[]>("/api/v1/continue-watching", "Watch data is temporarily unavailable."),
   });
   const markWatched = useMutation({
-    mutationFn: ({ episodeIDs, bulk }: { episodeIDs: string[]; bulk: boolean }) =>
+    mutationFn: ({ episodeIDs, bulk }: { episodeIDs: string[]; bulk: boolean; showID: string }) =>
       api.post(bulk ? "/api/v1/plays/bulk" : "/api/v1/plays", bulk ? { episode_ids: episodeIDs } : { episode_id: episodeIDs[0] }, "Could not mark episode watched."),
-    onSuccess: async () => {
+    onSuccess: async (_result, variables) => {
       setConfirmation(null);
+      setCompletedShowID(variables.showID);
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: userQueryKey("continue") }),
         queryClient.invalidateQueries({ queryKey: userQueryKey("show-progress") }),
         queryClient.invalidateQueries({ queryKey: userQueryKey("calendar") }),
         queryClient.invalidateQueries({ queryKey: userQueryKey("feed") }),
@@ -37,13 +38,18 @@ export function WatchNow({ onOpenDetail }: { onOpenDetail?: (target: MediaDetail
   if (entries.isError) return <Alert color="red" mt="md">Watch data is temporarily unavailable.</Alert>;
   if (!entries.data?.length) return <EmptyState title="Nothing to continue yet" detail="Add a show to Watching to see the next released episode here." />;
 
+  const finishWatchedAnimation = (showID: string) => {
+    if (completedShowID !== showID) return;
+    void queryClient.invalidateQueries({ queryKey: userQueryKey("continue") }).finally(() => setCompletedShowID(null));
+  };
+
   return (
     <>
       <Modal opened={confirmation !== null} onClose={() => setConfirmation(null)} title="Skipped episodes" centered>
         <Text mb="md">You have {confirmation?.missing_prior_episodes?.length} earlier unplayed episodes of {confirmation?.title}. How would you like to continue?</Text>
         <Group justify="flex-end">
-          <Button variant="default" onClick={() => confirmation?.next_episode && markWatched.mutate({ episodeIDs: [confirmation.next_episode.id], bulk: false })} loading={markWatched.isPending}>Only this episode</Button>
-          <Button onClick={() => confirmation?.next_episode && markWatched.mutate({ episodeIDs: [...(confirmation.missing_prior_episodes || []).map(episode => episode.id), confirmation.next_episode.id], bulk: true })} loading={markWatched.isPending}>Mark all as watched</Button>
+          <Button variant="default" onClick={() => confirmation?.next_episode && markWatched.mutate({ episodeIDs: [confirmation.next_episode.id], bulk: false, showID: confirmation.show_id })} loading={markWatched.isPending}>Only this episode</Button>
+          <Button onClick={() => confirmation?.next_episode && markWatched.mutate({ episodeIDs: [...(confirmation.missing_prior_episodes || []).map(episode => episode.id), confirmation.next_episode.id], bulk: true, showID: confirmation.show_id })} loading={markWatched.isPending}>Mark all as watched</Button>
         </Group>
       </Modal>
       <div className="watch-intro">
@@ -53,19 +59,20 @@ export function WatchNow({ onOpenDetail }: { onOpenDetail?: (target: MediaDetail
       <div className="watch-list">
         {entries.data.map(entry => {
           const art = backdropURL(entry.next_episode_still_path, "w780") ?? posterURL(entry.poster_path, "w500");
+          const isCompleted = completedShowID === entry.show_id;
           const openEpisode = () => onOpenDetail?.({ mediaType: "tv", tmdbID: Number(entry.show_id.split(":")[1]), mediaID: entry.show_id, episodeID: entry.next_episode?.id, episode: entry.next_episode });
           const openShow = () => onOpenDetail?.({ mediaType: "tv", tmdbID: Number(entry.show_id.split(":")[1]), mediaID: entry.show_id, seasonNumber: entry.next_episode?.season_number });
-          return <Paper key={entry.show_id} className="watch-row" withBorder p={0} role={onOpenDetail ? "button" : undefined} tabIndex={onOpenDetail ? 0 : undefined} onClick={openEpisode} onKeyDown={event => { if ((event.key === "Enter" || event.key === " ") && event.target === event.currentTarget) { event.preventDefault(); openEpisode(); } }}>
+          return <Paper key={entry.show_id} className={`watch-row${isCompleted ? " watch-row-completed" : ""}`} withBorder p={0} role={onOpenDetail && !isCompleted ? "button" : undefined} tabIndex={onOpenDetail && !isCompleted ? 0 : undefined} onAnimationEnd={event => { if (event.target === event.currentTarget) finishWatchedAnimation(entry.show_id); }} onClick={isCompleted ? undefined : openEpisode} onKeyDown={event => { if (!isCompleted && (event.key === "Enter" || event.key === " ") && event.target === event.currentTarget) { event.preventDefault(); openEpisode(); } }}>
             <div className="watch-row-art">{art ? <Image src={art} alt="" /> : <div className="artwork-fallback">{entry.title.slice(0, 1)}</div>}</div>
             <div className="watch-row-content">
-              <Badge component="button" type="button" className="watch-row-show" size="lg" variant="outline" color="gray" radius="xl" aria-label={`Open ${entry.title} at season ${entry.next_episode?.season_number ?? 1}`} disabled={!onOpenDetail} onClick={event => { event.stopPropagation(); openShow(); }}>{entry.title}</Badge>
+              <Badge component="button" type="button" className="watch-row-show" size="lg" variant="outline" color="gray" radius="xl" aria-label={`Open ${entry.title} at season ${entry.next_episode?.season_number ?? 1}`} disabled={!onOpenDetail || isCompleted} onClick={event => { event.stopPropagation(); openShow(); }}>{entry.title}</Badge>
               <Group className="watch-row-meta" gap="xs" wrap="wrap">
                 <Text className="watch-row-episode">{entry.next_episode ? `S${String(entry.next_episode.season_number).padStart(2, "0")} | E${String(entry.next_episode.episode_number).padStart(2, "0")}` : "Episode details are pending"}</Text>
                 {entry.remaining_episodes > 0 && <Badge size="sm" variant="light" color="gray">+{entry.remaining_episodes} left</Badge>}
               </Group>
               {entry.next_episode && <Text className="watch-row-name" lineClamp={1}>{entry.next_episode_name || `Episode ${entry.next_episode.episode_number}`}</Text>}
             </div>
-            {entry.next_episode && <Tooltip label="Mark episode watched" withArrow><ActionIcon className="watch-row-action" size="xl" radius="xl" variant="light" color="gray" aria-label={`Mark ${entry.title} season ${entry.next_episode.season_number}, episode ${entry.next_episode.episode_number} watched`} loading={markWatched.isPending} onClick={event => { event.stopPropagation(); entry.missing_prior_episodes?.length ? setConfirmation(entry) : markWatched.mutate({ episodeIDs: [entry.next_episode!.id], bulk: false }); }}><IconEye size={22} stroke={1.8} /></ActionIcon></Tooltip>}
+            {isCompleted ? <Badge className="watch-row-complete-indicator" color="teal" variant="light" leftSection={<IconCheck size={15} />}>Watched</Badge> : entry.next_episode && <Tooltip label="Mark episode watched" withArrow><ActionIcon className="watch-row-action" size="xl" radius="xl" variant="light" color="gray" aria-label={`Mark ${entry.title} season ${entry.next_episode.season_number}, episode ${entry.next_episode.episode_number} watched`} loading={markWatched.isPending} onClick={event => { event.stopPropagation(); entry.missing_prior_episodes?.length ? setConfirmation(entry) : markWatched.mutate({ episodeIDs: [entry.next_episode!.id], bulk: false, showID: entry.show_id }); }}><IconEye size={22} stroke={1.8} /></ActionIcon></Tooltip>}
           </Paper>;
         })}
       </div>
