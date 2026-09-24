@@ -1,14 +1,24 @@
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Badge, Button, Group, Paper, Select, Text } from "@mantine/core";
 import { useUserQueryKey } from "../auth/SessionContext";
 import { EpisodeBrowser } from "./EpisodeBrowser";
-import type { LibraryEntry } from "../../types";
+import { hasCaughtUpDisplayState } from "./showStatus";
+import type { LibraryEntry, ShowProgress } from "../../types";
 
 export function LibraryCard({ entry }: { entry: LibraryEntry }) {
   const queryClient = useQueryClient();
   const userQueryKey = useUserQueryKey();
   const [episodesOpen, setEpisodesOpen] = useState(false);
+  const progress = useQuery({
+    queryKey: userQueryKey("show-progress", entry.item.media_id),
+    enabled: entry.media.type === "tv" && entry.item.status === "watching",
+    queryFn: async () => {
+      const response = await fetch(`/api/v1/shows/${encodeURIComponent(entry.item.media_id)}/progress`);
+      if (!response.ok) throw new Error("Could not load show progress.");
+      return response.json() as Promise<ShowProgress>;
+    },
+  });
   const update = useMutation({
     mutationFn: async ({ status, rating }: { status: string; rating: number | null }) => {
       const response = await fetch(`/api/v1/library/${encodeURIComponent(entry.item.media_id)}`, {
@@ -43,6 +53,7 @@ export function LibraryCard({ entry }: { entry: LibraryEntry }) {
       <Group gap="xs">
         <Text fw={700}>{entry.media.title}</Text>
         {entry.completed && <Badge color="green" variant="light">Completed</Badge>}
+        {entry.media.type === "tv" && hasCaughtUpDisplayState(progress.data) && <Badge color="blue" variant="light">Caught up</Badge>}
       </Group>
       <Text size="sm" c="dimmed">{entry.media.type === "tv" ? "TV show" : "Movie"}</Text>
     </Group>

@@ -34,6 +34,7 @@ export function EpisodeBrowser({ showID, title, onClose }: { showID: string; tit
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: userQueryKey("episodes", showID) }),
         queryClient.invalidateQueries({ queryKey: userQueryKey("continue") }),
+        queryClient.invalidateQueries({ queryKey: userQueryKey("show-progress") }),
         queryClient.invalidateQueries({ queryKey: userQueryKey("calendar") }),
         queryClient.invalidateQueries({ queryKey: userQueryKey("feed") }),
         queryClient.invalidateQueries({ queryKey: userQueryKey("history") }),
