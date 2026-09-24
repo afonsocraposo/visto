@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Paper, PasswordInput, Select, Text, TextInput, Title } from "@mantine/core";
+import { Alert, Button, Group, Paper, PasswordInput, Select, Text, TextInput, Title } from "@mantine/core";
+import { IconDownload } from "@tabler/icons-react";
 import { useUserQueryKey } from "../auth/SessionContext";
 import type { User } from "../../types";
 
@@ -44,6 +45,17 @@ export function ProfilePanel({ user }: { user: User }) {
       <TextInput mt="md" label="Time zone" description="Use a time zone such as Europe/Lisbon or America/New_York." value={timezone} onChange={event => setTimezone(event.currentTarget.value)} />
       {save.isError && <Alert color="red" mt="md">{save.error.message}</Alert>}
       <Button mt="md" loading={save.isPending} onClick={() => save.mutate()}>Save settings</Button>
+
+      <Title order={3} mt="xl">Export your data</Title>
+      <Text size="sm" c="dimmed" mt="xs">These downloads include only your library, ratings, and watch history.</Text>
+      <Group mt="md">
+        <Button component="a" href="/api/v1/export/json" download="visto-export.json" variant="default" leftSection={<IconDownload size={16} />}>
+          Download JSON
+        </Button>
+        <Button component="a" href="/api/v1/export/csv" download="visto-export.csv" variant="default" leftSection={<IconDownload size={16} />}>
+          Download CSV
+        </Button>
+      </Group>
     </Paper>
     {user.role === "admin" && <CreateUserPanel />}
   </>;
