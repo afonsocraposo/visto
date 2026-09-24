@@ -89,6 +89,18 @@ select {
 .library-clickable { cursor: pointer; }
 .library-clickable:hover { color: var(--mantine-color-yellow-7); }
 .feed-card { border-left: 3px solid #48b7ae; }
+.history-intro { margin-top: 6px; }
+.history-list { position: relative; display: grid; gap: 12px; }
+.history-list::before { position: absolute; top: 18px; bottom: 18px; left: 19px; width: 1px; background: color-mix(in srgb, #48b7ae 45%, var(--mantine-color-gray-3)); content: ""; }
+.history-entry { position: relative; padding-left: 48px !important; background: var(--mantine-color-body); transition: border-color 150ms ease, transform 150ms ease; }
+.history-entry:hover { border-color: #48b7ae; transform: translateX(2px); }
+.history-entry-marker { position: absolute; top: 18px; left: 8px; display: grid; place-items: center; width: 24px; height: 24px; border: 4px solid var(--mantine-color-body); border-radius: 50%; background: #48b7ae; color: #0f3f3b; }
+.history-entry-title { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; }
+.history-episode { color: #12675f; background: #dff4f1; }
+.history-date { white-space: nowrap; }
+.history-time { display: inline-flex; align-items: center; gap: 6px; }
+.history-edit { padding-top: 8px; border-top: 1px solid var(--mantine-color-gray-3); }
+.history-empty { text-align: center; }
 .feed-avatar { display: grid; place-items: center; width: 30px; height: 30px; flex: 0 0 30px; border-radius: 50%; background: #dff4f1; color: #12675f; font-weight: 800; }
 .empty-state { background: linear-gradient(135deg, color-mix(in srgb, var(--mantine-color-body) 90%, #f2b544), var(--mantine-color-body)); border-style: dashed; }
 .auth-card { margin-top: clamp(48px, 14vh, 140px); box-shadow: 0 24px 70px rgb(23 34 48 / .13); }
@@ -122,6 +134,13 @@ select {
   .episode-row .mantine-Badge-root, .episode-row .mantine-Button-root { flex: 0 0 auto; }
   .detail-actions { align-items: stretch; flex-direction: column; }
   .detail-actions > * { width: 100%; }
+  .history-list::before { left: 15px; }
+  .history-entry { padding-left: 38px !important; }
+  .history-entry-marker { left: 4px; }
+  .history-date { font-size: .78rem; }
+  .history-entry-content > .mantine-Group-root { align-items: flex-start; }
+  .history-edit { align-items: stretch; flex-direction: column; }
+  .history-edit > * { width: 100%; }
 }
 
 @media (prefers-reduced-motion: reduce) { .search-result-card { transition: none; } .search-result-card:hover { transform: none; } }
