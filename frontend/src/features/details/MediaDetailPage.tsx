@@ -11,6 +11,7 @@ import { MediaQuickActions } from "../../components/MediaQuickActions";
 import { CastSection } from "../../components/CastSection";
 import { regularSeasonsThrough, selectUnwatchedEpisodes, selectWatchedEpisodes } from "./watchSelection";
 import { resolveMediaID } from "./mediaIdentity";
+import { heroArtworkLayers } from "./heroArtwork";
 import type { EpisodeRating, HistoryEntry, LibraryEntry, MediaDetailTarget, SearchMedia, ShowEpisodeEntry, TemporaryEpisodeDetails, TemporaryMovieDetails, TemporaryShowDetails } from "../../types";
 
 type Props = { target: MediaDetailTarget; onBack: () => void; onOpenDetail: (target: MediaDetailTarget) => void; onOpenPerson: (personID: number) => void };
@@ -229,7 +230,15 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
   const seasons = availableSeasonNumbers;
   const visibleEpisodes = episodeEntries.filter(entry => String(entry.episode.season_number) === selectedSeason);
   const selectedEpisode = target.episodeID ? episodeEntries.find(entry => entry.episode.id === target.episodeID) ?? (target.episode ? { episode: target.episode, name: `Episode ${target.episode.episode_number}`, watched: false } : null) : null;
-  const backdrop = (selectedEpisode?.still_path ? backdropURL(selectedEpisode.still_path, "w780") : null) ?? backdropURL(media.backdrop_path, "w1280") ?? art;
+  const episodeStill = episodeDetails.data?.still_path || selectedEpisode?.still_path;
+  const episodeArtwork = episodeStill ? backdropURL(episodeStill, "w780") : null;
+  const episodeArtworkPending = Boolean(target.episodeID) && !episodeArtwork && (episodeDetails.isFetching || (isSaved ? episodes.isFetching : temporaryEpisodes.isFetching));
+  const artLayers = heroArtworkLayers(Boolean(target.episodeID), episodeArtwork, episodeArtworkPending, backdropURL(media.backdrop_path, "w1280") ?? art);
+  const heroBackground = [
+    "linear-gradient(0deg, rgba(9,13,18,.94) 0%, rgba(9,13,18,.52) 28%, rgba(9,13,18,.08) 72%)",
+    "linear-gradient(90deg, rgba(9,13,18,.55) 0%, rgba(9,13,18,.2) 60%, rgba(9,13,18,.08) 100%)",
+    ...artLayers.map(layer => `url(${layer})`),
+  ].join(", ");
   const watchedPlay = history.data?.find(item => selectedEpisode ? item.play.episode_id === selectedEpisode.episode.id : item.play.media_id === showID);
   const status = library.data?.item.status;
   const today = new Date().toISOString().slice(0, 10);
@@ -300,7 +309,7 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
       <Group justify="flex-end" mt="lg"><Button variant="default" onClick={() => setShowWatchModal(false)}>Cancel</Button><Button disabled={!Object.values(selectedShowSeasons).some(Boolean) || (isSaved && selectedShowEpisodes.length === 0)} loading={markEpisodesWatched.isPending || removeEpisodesWatched.isPending} onClick={confirmShowAction}>{isSaved ? showWatchAction === "unwatch" ? `Mark ${selectedShowEpisodes.length} unwatched` : showWatchAction === "rewatch" ? `Rewatch ${selectedShowEpisodes.length} episodes` : `Mark ${selectedShowEpisodes.length} episodes watched` : "Mark selected seasons watched"}</Button></Group>
     </Modal>
     <Button className="detail-back" variant="subtle" leftSection={<IconArrowLeft size={17} />} onClick={onBack}>Back</Button>
-    <section className="detail-hero" style={{ backgroundImage: `linear-gradient(0deg, rgba(9,13,18,.94) 0%, rgba(9,13,18,.52) 28%, rgba(9,13,18,.08) 72%), linear-gradient(90deg, rgba(9,13,18,.55) 0%, rgba(9,13,18,.2) 60%, rgba(9,13,18,.08) 100%), url(${backdrop})` }}>
+    <section className="detail-hero" style={{ backgroundImage: heroBackground }}>
       <div className="detail-hero-content">
         <Badge className="watch-kind" variant="filled">{media.type === "tv" ? "TV show" : "Movie"}</Badge>
         <Title order={1}>{selectedEpisode ? selectedEpisode.name : media.title}</Title>
