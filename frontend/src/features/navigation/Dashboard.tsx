@@ -9,6 +9,7 @@ import { FeedArea } from "../feed/FeedArea";
 import { LibraryArea } from "../library/LibraryArea";
 import { LibraryListPage } from "../library/LibraryListPage";
 import { MediaDetailPage } from "../details/MediaDetailPage";
+import { activeTabForLocation } from "./activeTab";
 import type { LibraryStatus, MediaDetailTarget, Tab, Theme, User } from "../../types";
 import { connectionUnavailableEvent } from "../../lib/api";
 
@@ -17,12 +18,12 @@ export function Dashboard({ user, theme, setTheme }: { user: User; theme: Theme;
   const navigate = useNavigate();
   const pathname = useRouterState({ select: state => state.location.pathname });
   const currentHref = useRouterState({ select: state => state.location.href });
-  const tab: Tab = pathname.startsWith("/discover") ? "search" : pathname.startsWith("/feed") ? "feed" : pathname.startsWith("/profile") ? "library" : "watch";
+  const detailSearch = new URLSearchParams(window.location.search);
+  const returnTo = detailSearch.get("from");
+  const tab: Tab = activeTabForLocation(pathname, window.location.search, window.location.origin);
   const detailMatch = pathname.match(/^\/media\/(movie|tv)\/(\d+)$/);
   const listMatch = pathname.match(/^\/profile\/library\/(watching|completed|watchlist|paused|dropped)$/);
   const listStatus = listMatch?.[1] as LibraryStatus | undefined;
-  const detailSearch = new URLSearchParams(window.location.search);
-  const returnTo = detailSearch.get("from");
   const seedTitle = detailSearch.get("title");
   const detail: MediaDetailTarget | null = detailMatch ? {
     mediaType: detailMatch[1] as "movie" | "tv",
