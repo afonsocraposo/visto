@@ -42,7 +42,8 @@ self.addEventListener("fetch", event => {
     }).catch(async () => {
       const userID = await activeUserID();
       if (!userID) return new Response(JSON.stringify({ error: "offline and no cached account data" }), { status: 503, headers: { "Content-Type": "application/json" } });
-      return (await caches.open(userCacheName(userID))).match(event.request) || new Response(JSON.stringify({ error: "offline and content is not cached" }), { status: 503, headers: { "Content-Type": "application/json" } });
+      const cachedResponse = await (await caches.open(userCacheName(userID))).match(event.request);
+      return cachedResponse || new Response(JSON.stringify({ error: "offline and content is not cached" }), { status: 503, headers: { "Content-Type": "application/json" } });
     }));
     return;
   }
