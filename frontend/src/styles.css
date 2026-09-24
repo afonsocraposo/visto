@@ -54,6 +54,9 @@ select {
 .artwork-fallback { display: grid; place-items: center; height: 100%; min-height: 100%; background: linear-gradient(135deg, #334155, #19212b); color: #f2b544; font-size: 2.5rem; font-weight: 800; }
 .calendar-card { border-left: 3px solid #48b7ae; }
 .library-card, .search-result-card, .feed-card { background: var(--mantine-color-body); }
+.library-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.library-grid .library-card { margin-top: 0; height: 100%; }
+.library-status-tabs { margin-bottom: 2px; }
 .library-poster { width: 78px; height: 112px; flex: 0 0 78px; overflow: hidden; border-radius: 10px; background: #1b2430; }
 .library-poster img, .search-poster img { width: 100%; height: 100%; object-fit: cover; }
 .library-card-body { flex: 1; min-width: 0; }
@@ -128,6 +131,7 @@ select {
   .search-result-card > .mantine-Group-root { flex-wrap: wrap; }
   .library-controls { display: grid; grid-template-columns: 1fr; align-items: stretch; gap: 8px; }
   .library-controls > * { width: 100%; }
+  .library-grid { grid-template-columns: 1fr; }
   .detail-hero { min-height: 560px; align-items: flex-end; padding: 22px; }
   .detail-poster { position: absolute; top: 22px; right: 22px; width: 112px; max-height: 168px; opacity: .9; }
   .detail-hero-content { max-width: 100%; }
