@@ -16,11 +16,13 @@ export function Dashboard({ user, theme, setTheme }: { user: User; theme: Theme;
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const pathname = useRouterState({ select: state => state.location.pathname });
+  const currentHref = useRouterState({ select: state => state.location.href });
   const tab: Tab = pathname.startsWith("/discover") ? "search" : pathname.startsWith("/feed") ? "feed" : pathname.startsWith("/profile") ? "library" : "watch";
   const detailMatch = pathname.match(/^\/media\/(movie|tv)\/(\d+)$/);
   const listMatch = pathname.match(/^\/profile\/library\/(watching|completed|watchlist|paused|dropped)$/);
   const listStatus = listMatch?.[1] as LibraryStatus | undefined;
   const detailSearch = new URLSearchParams(window.location.search);
+  const returnTo = detailSearch.get("from");
   const seedTitle = detailSearch.get("title");
   const detail: MediaDetailTarget | null = detailMatch ? {
     mediaType: detailMatch[1] as "movie" | "tv",
@@ -42,6 +44,7 @@ export function Dashboard({ user, theme, setTheme }: { user: User; theme: Theme;
   const openDetail = (target: MediaDetailTarget) => void navigate({
     to: `/media/${target.mediaType}/${target.tmdbID}`,
     search: {
+      from: currentHref,
       ...(target.mediaID ? { media: target.mediaID } : {}),
       ...(target.episodeID ? { episode: target.episodeID } : {}),
       ...(target.seasonNumber !== undefined ? { season: target.seasonNumber } : {}),
@@ -147,7 +150,7 @@ export function Dashboard({ user, theme, setTheme }: { user: User; theme: Theme;
           </Alert>
         )}
         {logout.isError && <Alert color="red" mb="md">{logout.error.message}</Alert>}
-        {detail ? <MediaDetailPage target={detail} onBack={() => void navigate({ to: detail.mediaType === "tv" ? "/profile" : "/discover" })} onOpenDetail={openDetail} /> : listStatus ? <LibraryListPage status={listStatus} onBack={() => void navigate({ to: "/profile" })} onOpenDetail={openDetail} /> : tab === "watch" && (
+        {detail ? <MediaDetailPage target={detail} onBack={() => void navigate({ to: safeReturnPath(returnTo, detail.mediaType === "tv" ? "/profile" : "/discover") })} onOpenDetail={openDetail} /> : listStatus ? <LibraryListPage status={listStatus} onBack={() => void navigate({ to: "/profile" })} onOpenDetail={openDetail} /> : tab === "watch" && (
           <>
             <Tabs className="watch-tabs" value={view} onChange={value => setView(value || "now")}>
               <Tabs.List>
@@ -172,4 +175,14 @@ export function Dashboard({ user, theme, setTheme }: { user: User; theme: Theme;
       </AppShell.Footer>
     </AppShell>
   );
+}
+
+function safeReturnPath(returnTo: string | null, fallback: string): string {
+  if (!returnTo) return fallback;
+  try {
+    const url = new URL(returnTo, window.location.origin);
+    return url.origin === window.location.origin ? `${url.pathname}${url.search}${url.hash}` : fallback;
+  } catch {
+    return fallback;
+  }
 }
