@@ -58,9 +58,9 @@ select {
 .library-sections { display: grid; gap: 34px; }
 .library-section-heading { margin-bottom: 12px; }
 .library-section-heading h2 { letter-spacing: -.04em; }
-.media-poster-card { position: relative; display: block; width: 100%; aspect-ratio: 2 / 3; overflow: hidden; padding: 0; border: 1px solid var(--mantine-color-gray-3); border-radius: 12px; background: #1b2430; color: #fff; text-align: left; cursor: pointer; transition: transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease; }
+.media-poster-card { position: relative; display: block; width: 100%; aspect-ratio: 2 / 3; overflow: hidden; padding: 0; border: 1px solid var(--mantine-color-gray-3); border-radius: 12px; background-color: #1b2430; background-position: center; background-size: cover; color: #fff; text-align: left; cursor: pointer; transition: transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease; }
 .media-poster-card:hover, .media-poster-card:focus-visible { transform: translateY(-3px); border-color: #48b7ae; box-shadow: 0 12px 28px rgb(23 34 48 / .16); outline: none; }
-.media-poster-card img, .media-poster-card .artwork-fallback { width: 100%; height: 100%; object-fit: cover; }
+.media-poster-card .artwork-fallback { width: 100%; height: 100%; object-fit: cover; }
 .media-poster-card-scrim { position: absolute; inset: 35% 0 0; background: linear-gradient(transparent, rgb(7 10 14 / .94)); }
 .media-poster-card-title { position: absolute; right: 10px; bottom: 10px; left: 10px; display: grid; gap: 2px; overflow: hidden; color: #fff; line-height: 1.15; }
 .library-list-page { padding-bottom: 24px; }
