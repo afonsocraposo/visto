@@ -5,10 +5,10 @@ import { EmptyState } from "../../components/EmptyState";
 import { useUserQueryKey } from "../auth/SessionContext";
 import { api } from "../../lib/api";
 import { calendarMonthRange, dateInTimezone, formatCalendarDate, formatCalendarMonth, groupCalendarEntries, monthInTimezone, shiftCalendarMonth } from "./calendar";
-import type { CalendarEntry, ContinueEntry } from "../../types";
+import type { CalendarEntry, ContinueEntry, MediaDetailTarget } from "../../types";
 import { posterURL } from "../../lib/artwork";
 
-export function WatchNow() {
+export function WatchNow({ onOpenDetail }: { onOpenDetail?: (target: MediaDetailTarget) => void }) {
   const queryClient = useQueryClient();
   const userQueryKey = useUserQueryKey();
   const [confirmation, setConfirmation] = useState<ContinueEntry | null>(null);
@@ -52,7 +52,7 @@ export function WatchNow() {
       <div className="watch-grid">
         {entries.data.map((entry, index) => {
           const art = posterURL(entry.poster_path, "w500");
-          return <Paper key={entry.show_id} className={`watch-card ${index === 0 ? "watch-card-featured" : ""}`} withBorder p={0}>
+          return <Paper key={entry.show_id} className={`watch-card ${index === 0 ? "watch-card-featured" : ""}`} withBorder p={0} role={onOpenDetail ? "button" : undefined} tabIndex={onOpenDetail ? 0 : undefined} onClick={() => onOpenDetail?.({ mediaType: "tv", tmdbID: Number(entry.show_id.split(":")[1]), mediaID: entry.show_id, episodeID: entry.next_episode?.id, episode: entry.next_episode })} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") onOpenDetail?.({ mediaType: "tv", tmdbID: Number(entry.show_id.split(":")[1]), mediaID: entry.show_id, episodeID: entry.next_episode?.id, episode: entry.next_episode }); }}>
             <div className="watch-card-art" style={art ? { backgroundImage: `url(${art})` } as CSSProperties : undefined}>
               {!art && <div className="artwork-fallback">{entry.title.slice(0, 1)}</div>}
               <div className="artwork-scrim" />
@@ -61,7 +61,7 @@ export function WatchNow() {
               <Badge className="watch-kind" variant="filled">{entry.kind === "start" ? "Ready to start" : "Continue"}</Badge>
               <Title order={2}>{entry.title}</Title>
               <Text className="watch-episode" c="dimmed">{entry.next_episode ? `S${String(entry.next_episode.season_number).padStart(2, "0")}E${String(entry.next_episode.episode_number).padStart(2, "0")} is waiting` : "Episode details are pending"}</Text>
-              {entry.next_episode && <Button className="watch-action" loading={markWatched.isPending} onClick={() => (entry.missing_prior_episodes?.length ? setConfirmation(entry) : markWatched.mutate({ episodeIDs: [entry.next_episode!.id], bulk: false }))}>Mark watched</Button>}
+              {entry.next_episode && <Button className="watch-action" loading={markWatched.isPending} onClick={event => { event.stopPropagation(); entry.missing_prior_episodes?.length ? setConfirmation(entry) : markWatched.mutate({ episodeIDs: [entry.next_episode!.id], bulk: false }); }}>Mark watched</Button>}
             </div>
           </Paper>;
         })}

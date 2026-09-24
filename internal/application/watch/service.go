@@ -39,6 +39,9 @@ type CalendarEntry struct {
 type ShowEpisode struct {
 	Episode domain.Episode `json:"episode"`
 	Name    string         `json:"name"`
+	Overview string        `json:"overview,omitempty"`
+	Runtime int            `json:"runtime,omitempty"`
+	StillPath string       `json:"still_path,omitempty"`
 	Watched bool           `json:"watched"`
 }
 

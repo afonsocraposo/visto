@@ -4,11 +4,11 @@ import { EmptyState } from "../../components/EmptyState";
 import { useUserQueryKey } from "../auth/SessionContext";
 import { api } from "../../lib/api";
 import { LibraryCard } from "./LibraryCard";
-import type { LibraryEntry } from "../../types";
+import type { LibraryEntry, MediaDetailTarget } from "../../types";
 export { HistoryPanel } from "./HistoryPanel";
 export { ProfilePanel } from "./ProfilePanel";
 
-export function LibraryPanel() {
+export function LibraryPanel({ onOpenDetail }: { onOpenDetail?: (target: MediaDetailTarget) => void }) {
   const userQueryKey = useUserQueryKey();
   const library = useQuery({
     queryKey: userQueryKey("library"),
@@ -21,7 +21,7 @@ export function LibraryPanel() {
   return (
     <>
       <div className="page-heading"><Text className="section-kicker">Your collection</Text><Title order={1}>Library</Title></div>
-      {library.data.map(entry => <LibraryCard key={entry.item.media_id} entry={entry} />)}
+      {library.data.map(entry => <LibraryCard key={entry.item.media_id} entry={entry} onOpenDetail={onOpenDetail} />)}
     </>
   );
 }

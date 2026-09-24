@@ -5,10 +5,10 @@ import { useUserQueryKey } from "../auth/SessionContext";
 import { api } from "../../lib/api";
 import { EpisodeBrowser } from "./EpisodeBrowser";
 import { hasCaughtUpDisplayState } from "./showStatus";
-import type { LibraryEntry, ShowProgress } from "../../types";
+import type { LibraryEntry, MediaDetailTarget, ShowProgress } from "../../types";
 import { posterURL } from "../../lib/artwork";
 
-export function LibraryCard({ entry }: { entry: LibraryEntry }) {
+export function LibraryCard({ entry, onOpenDetail }: { entry: LibraryEntry; onOpenDetail?: (target: MediaDetailTarget) => void }) {
   const queryClient = useQueryClient();
   const userQueryKey = useUserQueryKey();
   const [episodesOpen, setEpisodesOpen] = useState(false);
@@ -37,13 +37,13 @@ export function LibraryCard({ entry }: { entry: LibraryEntry }) {
   const art = posterURL(entry.media.poster_path, "w342");
   return <Paper className="library-card" withBorder p="md" mt="sm">
     <Group align="flex-start" wrap="nowrap" gap="md">
-      <div className="library-poster">
+      <div className="library-poster library-clickable" role={onOpenDetail ? "button" : undefined} tabIndex={onOpenDetail ? 0 : undefined} onClick={() => onOpenDetail?.({ mediaType: entry.media.type, tmdbID: entry.media.tmdb_id, mediaID: entry.item.media_id })}>
         {art ? <Image src={art} alt={`${entry.media.title} poster`} /> : <div className="artwork-fallback">{entry.media.title.slice(0, 1)}</div>}
       </div>
       <div className="library-card-body">
         <Group justify="space-between" align="flex-start" gap="xs">
           <div>
-            <Text className="library-title" fw={750}>{entry.media.title}</Text>
+            <Text className="library-title library-clickable" fw={750} role={onOpenDetail ? "link" : undefined} onClick={() => onOpenDetail?.({ mediaType: entry.media.type, tmdbID: entry.media.tmdb_id, mediaID: entry.item.media_id })}>{entry.media.title}</Text>
             <Text size="xs" c="dimmed">{entry.media.type === "tv" ? "TV show" : "Movie"}{entry.media.release_date ? ` · ${entry.media.release_date.slice(0, 4)}` : ""}</Text>
           </div>
           <Group gap={4}>

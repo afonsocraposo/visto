@@ -97,7 +97,7 @@ func (store *Store) ListShowEpisodes(ctx context.Context, userID, showID string)
 	if !hasAccess {
 		return nil, watch.ErrShowNotFound
 	}
-	rows, err := store.DB.QueryContext(ctx, `SELECT e.id,e.show_id,e.season_number,e.episode_number,e.air_date,e.name,
+	rows, err := store.DB.QueryContext(ctx, `SELECT e.id,e.show_id,e.season_number,e.episode_number,e.air_date,e.name,e.overview,e.runtime,e.still_path,
 		EXISTS(SELECT 1 FROM plays p WHERE p.user_id=? AND p.episode_id=e.id)
 		FROM episodes e WHERE e.show_id=? ORDER BY e.season_number,e.episode_number`, userID, showID)
 	if err != nil {
@@ -107,10 +107,14 @@ func (store *Store) ListShowEpisodes(ctx context.Context, userID, showID string)
 	entries := []watch.ShowEpisode{}
 	for rows.Next() {
 		var entry watch.ShowEpisode
-		var airDate sql.NullString
-		if err := rows.Scan(&entry.Episode.ID, &entry.Episode.ShowID, &entry.Episode.SeasonNumber, &entry.Episode.EpisodeNumber, &airDate, &entry.Name, &entry.Watched); err != nil {
+		var airDate, overview, stillPath sql.NullString
+		var runtime sql.NullInt64
+		if err := rows.Scan(&entry.Episode.ID, &entry.Episode.ShowID, &entry.Episode.SeasonNumber, &entry.Episode.EpisodeNumber, &airDate, &entry.Name, &overview, &runtime, &stillPath, &entry.Watched); err != nil {
 			return nil, fmt.Errorf("scan show episode: %w", err)
 		}
+		if overview.Valid { entry.Overview = overview.String }
+		if runtime.Valid { entry.Runtime = int(runtime.Int64) }
+		if stillPath.Valid { entry.StillPath = stillPath.String }
 		if airDate.Valid {
 			parsed, err := time.Parse(time.DateOnly, airDate.String)
 			if err != nil {

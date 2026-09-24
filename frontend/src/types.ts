@@ -53,8 +53,17 @@ export type ContinueEntry = {
 };
 
 export type CalendarEntry = { show_id: string; title: string; episode: Episode };
-export type ShowEpisodeEntry = { episode: Episode; name: string; watched: boolean };
+export type ShowEpisodeEntry = { episode: Episode; name: string; overview?: string; runtime?: number; still_path?: string; watched: boolean };
 export type ShowProgress = { cursor: Episode | null; is_caught_up: boolean };
+
+export type MediaDetailTarget = {
+  mediaType: "movie" | "tv";
+  tmdbID: number;
+  mediaID?: string;
+  episodeID?: string;
+  episode?: Episode;
+  seed?: SearchMedia;
+};
 
 export type HistoryEntry = {
   play: {

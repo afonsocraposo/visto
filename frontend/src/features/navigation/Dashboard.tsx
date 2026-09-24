@@ -6,13 +6,15 @@ import { WatchNow, WatchCalendar } from "../watch/Watch";
 import { SearchPanel } from "../search/SearchPanel";
 import { FeedPanel } from "../feed/FeedPanel";
 import { LibraryArea } from "../library/LibraryArea";
-import type { Tab, Theme, User } from "../../types";
+import { MediaDetailPage } from "../details/MediaDetailPage";
+import type { MediaDetailTarget, Tab, Theme, User } from "../../types";
 import { connectionUnavailableEvent } from "../../lib/api";
 
 export function Dashboard({ user, theme, setTheme }: { user: User; theme: Theme; setTheme: (theme: Theme) => void }) {
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>("watch");
   const [view, setView] = useState("now");
+  const [detail, setDetail] = useState<MediaDetailTarget | null>(null);
   const [online, setOnline] = useState(() => navigator.onLine);
   const [checkingConnection, setCheckingConnection] = useState(false);
   const logout = useMutation({
@@ -103,7 +105,7 @@ export function Dashboard({ user, theme, setTheme }: { user: User; theme: Theme;
           </Alert>
         )}
         {logout.isError && <Alert color="red" mb="md">{logout.error.message}</Alert>}
-        {tab === "watch" && (
+        {detail ? <MediaDetailPage target={detail} onBack={() => setDetail(null)} /> : tab === "watch" && (
           <>
             <Tabs className="watch-tabs" value={view} onChange={value => setView(value || "now")}>
               <Tabs.List>
@@ -111,12 +113,12 @@ export function Dashboard({ user, theme, setTheme }: { user: User; theme: Theme;
                 <Tabs.Tab value="calendar" leftSection={<IconCalendar size={16} />}>Calendar</Tabs.Tab>
               </Tabs.List>
             </Tabs>
-            {view === "now" ? <WatchNow /> : <WatchCalendar />}
+            {view === "now" ? <WatchNow onOpenDetail={setDetail} /> : <WatchCalendar />}
           </>
         )}
-        {tab === "search" && <SearchPanel />}
-        {tab === "feed" && <FeedPanel />}
-        {tab === "library" && <LibraryArea user={user} />}
+        {!detail && tab === "search" && <SearchPanel onOpenDetail={setDetail} />}
+        {!detail && tab === "feed" && <FeedPanel />}
+        {!detail && tab === "library" && <LibraryArea user={user} onOpenDetail={setDetail} />}
       </AppShell.Main>
       <AppShell.Footer className="visto-footer">
         <Group className="bottom-nav" justify="space-around" h="100%">

@@ -5,10 +5,10 @@ import { Alert, Button, Group, Image, Modal, Paper, Text, TextInput, Title } fro
 import { IconSearch } from "@tabler/icons-react";
 import { useUserQueryKey } from "../auth/SessionContext";
 import { api } from "../../lib/api";
-import type { LibraryEntry, SearchMedia } from "../../types";
+import type { LibraryEntry, MediaDetailTarget, SearchMedia } from "../../types";
 import { posterURL } from "../../lib/artwork";
 
-export function SearchPanel() {
+export function SearchPanel({ onOpenDetail }: { onOpenDetail?: (target: MediaDetailTarget) => void }) {
   const queryClient = useQueryClient();
   const userQueryKey = useUserQueryKey();
   const [query, setQuery] = useState("");
@@ -94,7 +94,7 @@ export function SearchPanel() {
                 </div>
               </Group>
               <Group className="search-result-actions" gap="xs">
-                <Button size="xs" variant="default" onClick={() => setSelectedMedia(item)}>Details</Button>
+                <Button size="xs" variant="default" onClick={() => onOpenDetail ? onOpenDetail({ mediaType: item.type, tmdbID: item.tmdb_id, seed: item }) : setSelectedMedia(item)}>Details</Button>
                 {saved ? <Button size="xs" disabled>In library</Button> : item.type === "tv" ? (
                   <>
                     <Button size="xs" onClick={() => addToLibrary.mutate({ media: item, status: "watching" })} loading={addToLibrary.isPending}>
