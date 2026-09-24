@@ -1,27 +1,31 @@
-import { useQuery } from "@tanstack/react-query";
-import { Alert, Group, Loader, Paper, Text, Title } from "@mantine/core";
+import { useInfiniteQuery } from "@tanstack/react-query";
+import { Alert, Button, Group, Loader, Paper, Text, Title } from "@mantine/core";
 import { EmptyState } from "../../components/EmptyState";
 import { useUserQueryKey } from "../auth/SessionContext";
 import type { FeedItem } from "../../types";
 
 export function FeedPanel() {
   const userQueryKey = useUserQueryKey();
-  const feed = useQuery({
+  const feed = useInfiniteQuery({
     queryKey: userQueryKey("feed"),
-    queryFn: async () => {
-      const response = await fetch("/api/v1/feed");
+    initialPageParam: undefined as string | undefined,
+    queryFn: async ({ pageParam }) => {
+      const query = pageParam ? `?cursor=${encodeURIComponent(pageParam)}` : "";
+      const response = await fetch(`/api/v1/feed${query}`);
       if (!response.ok) throw new Error();
-      return response.json() as Promise<{ items: FeedItem[] }>;
+      return response.json() as Promise<{ items: FeedItem[]; next_cursor: string | null }>;
     },
+    getNextPageParam: page => page.next_cursor ?? undefined,
   });
   if (feed.isPending) return <Group justify="center" mt="xl"><Loader /></Group>;
   if (feed.isError) return <Alert color="red" mt="md">The feed is temporarily unavailable.</Alert>;
-  if (!feed.data?.items.length) return <EmptyState title="No shared activity yet" />;
+  const items = feed.data.pages.flatMap(page => page.items);
+  if (items.length === 0) return <EmptyState title="No shared activity yet" />;
 
   return (
     <>
       <Title order={1}>Feed</Title>
-      {feed.data.items.map(item => (
+      {items.map(item => (
         <Paper key={item.id} withBorder p="md" mt="sm">
           <Text>
             {item.display_name} {item.kind === "rewatch" ? "rewatched" : item.kind === "rating" ? "rated" : item.kind === "bulk_watch" ? `marked ${item.count} episodes of` : "watched"}{" "}
@@ -30,6 +34,14 @@ export function FeedPanel() {
           </Text>
         </Paper>
       ))}
+      {feed.hasNextPage && (
+        <Group justify="center" mt="md">
+          <Button variant="light" onClick={() => void feed.fetchNextPage()} loading={feed.isFetchingNextPage}>
+            Load more activity
+          </Button>
+        </Group>
+      )}
+      {feed.isFetchNextPageError && <Alert color="red" mt="md">Could not load more activity. Try again.</Alert>}
     </>
   );
 }
