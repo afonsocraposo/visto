@@ -22,3 +22,14 @@ func TestHealth_GivenRunningServer_WhenHealthIsRequested_ThenItReportsOK(t *test
 		t.Fatalf("content type = %q, want application/json", contentType)
 	}
 }
+
+func TestCurrentUser_GivenNoSession_WhenRequested_ThenItRejectsTheRequest(t *testing.T) {
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/me", nil)
+	response := httptest.NewRecorder()
+
+	httpserver.New(nil).Handler().ServeHTTP(response, request)
+
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want %d", response.Code, http.StatusUnauthorized)
+	}
+}

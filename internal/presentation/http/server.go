@@ -17,6 +17,7 @@ func New(authService *auth.Service) *Server {
 	mux.HandleFunc("GET /health", health)
 	mux.HandleFunc("POST /api/v1/auth/bootstrap", bootstrap(authService))
 	mux.HandleFunc("POST /api/v1/auth/login", login(authService))
+	mux.HandleFunc("GET /api/v1/me", currentUser(authService))
 	return &Server{handler: mux}
 }
 
@@ -58,6 +59,22 @@ func login(service *auth.Service) http.HandlerFunc {
 			return
 		}
 		http.SetCookie(w, &http.Cookie{Name: "visto_session", Value: token, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, Expires: expiresAt, Secure: r.TLS != nil})
+		writeJSON(w, http.StatusOK, user)
+	}
+}
+
+func currentUser(service *auth.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		cookie, err := r.Cookie("visto_session")
+		if err != nil {
+			writeError(w, http.StatusUnauthorized, "authentication required")
+			return
+		}
+		user, err := service.Authenticate(r.Context(), cookie.Value)
+		if err != nil {
+			writeError(w, http.StatusUnauthorized, "authentication required")
+			return
+		}
 		writeJSON(w, http.StatusOK, user)
 	}
 }
