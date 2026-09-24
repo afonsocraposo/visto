@@ -4,16 +4,70 @@ import (
 	"encoding/json"
 	"net/http"
 	"time"
+
+	"github.com/afonsocosta/visto/internal/application/auth"
 )
 
 type Server struct {
 	handler http.Handler
 }
 
-func New() *Server {
+func New(authService *auth.Service) *Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", health)
+	mux.HandleFunc("POST /api/v1/auth/bootstrap", bootstrap(authService))
+	mux.HandleFunc("POST /api/v1/auth/login", login(authService))
 	return &Server{handler: mux}
+}
+
+type credentialsRequest struct {
+	Username    string `json:"username"`
+	DisplayName string `json:"display_name"`
+	Password    string `json:"password"`
+}
+
+func bootstrap(service *auth.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var request credentialsRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid JSON")
+			return
+		}
+		user, err := service.Bootstrap(r.Context(), request.Username, request.DisplayName, request.Password)
+		if err != nil {
+			if err == auth.ErrBootstrapComplete {
+				writeError(w, http.StatusConflict, err.Error())
+				return
+			}
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusCreated, user)
+	}
+}
+func login(service *auth.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var request credentialsRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid JSON")
+			return
+		}
+		user, token, expiresAt, err := service.Login(r.Context(), request.Username, request.Password)
+		if err != nil {
+			writeError(w, http.StatusUnauthorized, "invalid username or password")
+			return
+		}
+		http.SetCookie(w, &http.Cookie{Name: "visto_session", Value: token, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, Expires: expiresAt, Secure: r.TLS != nil})
+		writeJSON(w, http.StatusOK, user)
+	}
+}
+func writeError(w http.ResponseWriter, status int, message string) {
+	writeJSON(w, status, map[string]string{"error": message})
+}
+func writeJSON(w http.ResponseWriter, status int, value any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(value)
 }
 
 func (server *Server) Handler() http.Handler {
@@ -21,8 +75,7 @@ func (server *Server) Handler() http.Handler {
 }
 
 func health(response http.ResponseWriter, _ *http.Request) {
-	response.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(response).Encode(map[string]string{
+	writeJSON(response, http.StatusOK, map[string]string{
 		"status": "ok",
 		"time":   time.Now().UTC().Format(time.RFC3339),
 	})

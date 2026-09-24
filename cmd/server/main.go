@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/afonsocosta/visto/internal/application/auth"
 	"github.com/afonsocosta/visto/internal/infrastructure/sqlite"
 	httpserver "github.com/afonsocosta/visto/internal/presentation/http"
 )
@@ -28,7 +29,7 @@ func main() {
 
 	server := &http.Server{
 		Addr:              environment("VISTO_LISTEN_ADDR", ":8080"),
-		Handler:           httpserver.New().Handler(),
+		Handler:           httpserver.New(auth.NewService(store)).Handler(),
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}

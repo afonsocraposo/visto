@@ -4,6 +4,7 @@ go 1.22
 
 require (
 	github.com/cyruzin/golang-tmdb v1.6.9
+	golang.org/x/crypto v0.25.0
 	modernc.org/sqlite v1.34.5
 )
 

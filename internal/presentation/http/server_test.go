@@ -5,6 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/afonsocosta/visto/internal/application/auth"
 	httpserver "github.com/afonsocosta/visto/internal/presentation/http"
 )
 
@@ -12,7 +13,7 @@ func TestHealth_GivenRunningServer_WhenHealthIsRequested_ThenItReportsOK(t *test
 	request := httptest.NewRequest(http.MethodGet, "/health", nil)
 	response := httptest.NewRecorder()
 
-	httpserver.New().Handler().ServeHTTP(response, request)
+	httpserver.New(auth.NewService(nil)).Handler().ServeHTTP(response, request)
 
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d, want %d", response.Code, http.StatusOK)
