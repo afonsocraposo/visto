@@ -63,6 +63,20 @@ paths:
       responses:
         '200': { description: Activity page, content: { application/json: { schema: { $ref: '#/components/schemas/FeedPage' } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
+  /export/json:
+    get:
+      summary: Download the authenticated user's library and plays as JSON
+      security: [{ sessionCookie: [] }]
+      responses:
+        '200': { description: JSON export }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /export/csv:
+    get:
+      summary: Download the authenticated user's library and plays as CSV
+      security: [{ sessionCookie: [] }]
+      responses:
+        '200': { description: CSV export }
+        '401': { $ref: '#/components/responses/Unauthorized' }
   /search:
     get:
       summary: Search movies and TV shows through the instance TMDB provider
