@@ -267,8 +267,15 @@ episodes confirmation is the only routine exception.
 The Feed tab is positioned between Search and Library. Profile settings are
 part of Library, accessed through its account/settings entry point.
 
-The frontend uses React, TypeScript, and Vite. It is simple, clean, responsive,
-and accessible. It supports light and dark themes, defaults to the operating
+The frontend uses React, TypeScript, and Vite, with Mantine for UI components
+and TanStack Query (React Query) for server-state fetching, caching, mutation
+state, and invalidation. API data must use the shared query cache rather than
+duplicated per-screen fetch state. Query keys must include the signed-in user
+scope where data can differ by user, and logout must clear private cached data.
+Automatic retries are disabled by default; any retry policy must respect
+`Retry-After` and avoid retrying non-recoverable responses such as HTTP 429
+before the advised time. The interface is simple, clean, responsive, and
+accessible. It supports light and dark themes, defaults to the operating
 system preference, and lets the user choose a persistent override.
 
 The service worker caches the application shell and recently viewed read-only
@@ -335,8 +342,8 @@ and `get_watch_history`.
 ## 10. Architecture
 
 The backend uses Go, SQLite, REST/OpenAPI, and Docker. The frontend uses React,
-TypeScript, and Vite. It remains a client of the same backend API and
-application layer.
+TypeScript, Vite, Mantine, and TanStack Query. It remains a client of the same
+backend API and application layer.
 
 ```text
 Presentation (web, REST, MCP)
@@ -359,7 +366,22 @@ internal/domain/
 internal/application/
 internal/infrastructure/{sqlite,tmdb,backup,oauth,pushover}/
 internal/presentation/{http,mcp}/
+frontend/src/
+  app/                 # application entry and composition
+  components/          # small shared UI components
+  features/            # feature-owned screens and behavior
+    auth/
+    feed/
+    library/
+    navigation/
+    search/
+    watch/
+  types.ts             # shared API and UI types
 ```
+
+Frontend screens and behavior should stay in their feature folders. Keep the
+application entry focused on session/theme setup and composition; do not grow
+it into a page or feature implementation file.
 
 ## 11. Data model
 
