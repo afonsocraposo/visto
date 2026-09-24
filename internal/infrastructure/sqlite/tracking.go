@@ -33,6 +33,15 @@ func (store *Store) CreatePlay(ctx context.Context, play tracking.Play) error {
 		return fmt.Errorf("check prior plays: %w", err)
 	}
 	createdAt := time.Now().UTC()
+	trackedMediaID := ""
+	if play.MediaID != nil {
+		trackedMediaID = *play.MediaID
+	} else if err := tx.QueryRowContext(ctx, `SELECT show_id FROM episodes WHERE id=?`, *play.EpisodeID).Scan(&trackedMediaID); err != nil {
+		return fmt.Errorf("find show for episode play: %w", err)
+	}
+	if err := ensureWatchingRelationship(ctx, tx, play.UserID, trackedMediaID, createdAt); err != nil {
+		return err
+	}
 	_, err = tx.ExecContext(ctx, `INSERT INTO plays(id,user_id,media_id,episode_id,watched_at,source,created_at) VALUES(?,?,?,?,?,?,?)`, play.ID, play.UserID, mediaID, episodeID, play.WatchedAt.Format(time.RFC3339Nano), play.Source, createdAt.Format(time.RFC3339Nano))
 	if err != nil {
 		return fmt.Errorf("create play: %w", err)
@@ -81,7 +90,11 @@ func (store *Store) CreateBulkPlays(ctx context.Context, plays []tracking.Play) 
 			return fmt.Errorf("bulk episodes must belong to one show")
 		}
 	}
-	createdAt := time.Now().UTC().Format(time.RFC3339Nano)
+	createdAtTime := time.Now().UTC()
+	createdAt := createdAtTime.Format(time.RFC3339Nano)
+	if err := ensureWatchingRelationship(ctx, tx, plays[0].UserID, showID, createdAtTime); err != nil {
+		return err
+	}
 	for _, play := range plays {
 		if _, err := tx.ExecContext(ctx, `INSERT INTO plays(id,user_id,episode_id,watched_at,source,created_at) VALUES(?,?,?,?,?,?)`, play.ID, play.UserID, *play.EpisodeID, play.WatchedAt.Format(time.RFC3339Nano), play.Source, createdAt); err != nil {
 			return fmt.Errorf("create bulk play: %w", err)
@@ -108,6 +121,16 @@ func (store *Store) CreateBulkPlays(ctx context.Context, plays []tracking.Play) 
 	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit bulk plays: %w", err)
+	}
+	return nil
+}
+
+func ensureWatchingRelationship(ctx context.Context, tx *sql.Tx, userID, mediaID string, createdAt time.Time) error {
+	timestamp := createdAt.Format(time.RFC3339Nano)
+	_, err := tx.ExecContext(ctx, `INSERT INTO user_media(id,user_id,media_id,status,added_at,updated_at)
+		VALUES(?,?,?,'watching',?,?) ON CONFLICT(user_id,media_id) DO NOTHING`, userID+":"+mediaID, userID, mediaID, timestamp, timestamp)
+	if err != nil {
+		return fmt.Errorf("ensure library relationship for tracked media: %w", err)
 	}
 	return nil
 }
