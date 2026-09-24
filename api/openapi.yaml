@@ -75,6 +75,31 @@ paths:
         '204': { description: Token revoked }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { description: Token not found for this user }
+  /connected-apps:
+    get:
+      summary: List OAuth apps connected to the authenticated user's Visto account
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      responses:
+        '200': { description: Connected OAuth apps, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ConnectedApp' } } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '503': { description: OAuth is not configured }
+    delete:
+      summary: Revoke every OAuth app connected to the authenticated user's account
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      responses:
+        '204': { description: All OAuth grants revoked }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '503': { description: OAuth is not configured }
+  /connected-apps/{clientID}:
+    delete:
+      summary: Revoke one OAuth app connected to the authenticated user's account
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      parameters:
+        - { name: clientID, in: path, required: true, schema: { type: string } }
+      responses:
+        '204': { description: OAuth grant revoked }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '503': { description: OAuth is not configured }
   /profile/activity-settings:
     get:
       summary: Get the authenticated user's activity-feed visibility
@@ -487,6 +512,16 @@ components:
           required: [token]
           properties:
             token: { type: string, description: One-time secret. Store securely; subsequent responses never include it. }
+    ConnectedApp:
+      type: object
+      required: [client_id, client_name, scopes, expires_at]
+      properties:
+        client_id: { type: string }
+        client_name: { type: string }
+        scopes: { type: array, items: { type: string, enum: [read, write, offline_access] } }
+        connected_at: { type: string, format: date-time }
+        last_used_at: { type: string, format: date-time }
+        expires_at: { type: string, format: date-time }
     User:
       type: object
       required: [id, username, display_name, role, created_at]

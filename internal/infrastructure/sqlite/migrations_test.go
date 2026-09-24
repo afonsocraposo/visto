@@ -31,8 +31,8 @@ func TestMigrator_GivenFreshDatabase_WhenAppliedTwice_ThenSchemaIsCreatedAndSeco
 	if err := db.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&count); err != nil {
 		t.Fatalf("count migrations: %v", err)
 	}
-	if count != 7 {
-		t.Fatalf("migration count = %d, want 7", count)
+	if count != 8 {
+		t.Fatalf("migration count = %d, want 8", count)
 	}
 	for _, table := range []string{"users", "media", "episodes", "plays", "activity_events", "episode_ratings", "personal_api_tokens", "notification_deliveries", "oauth_clients", "oauth_authorization_codes", "oauth_access_tokens", "oauth_refresh_tokens"} {
 		var name string
@@ -43,6 +43,9 @@ func TestMigrator_GivenFreshDatabase_WhenAppliedTwice_ThenSchemaIsCreatedAndSeco
 	var column string
 	if err := db.QueryRow(`SELECT name FROM pragma_table_info('media') WHERE name='catalog_updated_at'`).Scan(&column); err != nil {
 		t.Fatalf("expected catalog refresh timestamp migration: %v", err)
+	}
+	if err := db.QueryRow(`SELECT name FROM pragma_table_info('oauth_access_tokens') WHERE name='last_used_at'`).Scan(&column); err != nil {
+		t.Fatalf("expected OAuth connection metadata migration: %v", err)
 	}
 }
 

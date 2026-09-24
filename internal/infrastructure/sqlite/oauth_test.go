@@ -49,6 +49,13 @@ func TestOAuth_GivenValidPKCEAuthorization_WhenCodeIsExchangedAndRefreshed_ThenT
 	if identity.UserID != user.ID || !containsScope(identity.Scopes, oauth.ReadScope) || !containsScope(identity.Scopes, oauth.WriteScope) {
 		t.Fatalf("unexpected identity: %+v", identity)
 	}
+	connections, err := service.Connections(context.Background(), user.ID)
+	if err != nil || len(connections) != 1 {
+		t.Fatalf("connections = %+v, %v; want one connection", connections, err)
+	}
+	if connections[0].ClientID != client.ID || connections[0].ClientName != "ChatGPT" || !containsScope(connections[0].Scopes, oauth.WriteScope) || connections[0].ConnectedAt == nil || connections[0].LastUsedAt == nil {
+		t.Fatalf("unexpected connection: %+v", connections[0])
+	}
 	if _, err := service.ExchangeCode(context.Background(), code, client.ID, client.RedirectURIs[0], verifier, resource); err == nil {
 		t.Fatal("authorization code was reusable")
 	}
@@ -64,6 +71,16 @@ func TestOAuth_GivenValidPKCEAuthorization_WhenCodeIsExchangedAndRefreshed_ThenT
 	}
 	if _, err := service.Authenticate(context.Background(), refreshed.AccessToken, resource); err == nil {
 		t.Fatal("revoked access token remained valid")
+	}
+	if err := service.RevokeConnection(context.Background(), user.ID, client.ID); err != nil {
+		t.Fatalf("revoke connection: %v", err)
+	}
+	if _, err := service.Refresh(context.Background(), refreshed.RefreshToken, client.ID, resource); err == nil {
+		t.Fatal("revoked connection refresh token remained valid")
+	}
+	connections, err = service.Connections(context.Background(), user.ID)
+	if err != nil || len(connections) != 0 {
+		t.Fatalf("connections after revocation = %+v, %v; want none", connections, err)
 	}
 }
 

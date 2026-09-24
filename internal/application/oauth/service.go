@@ -68,6 +68,17 @@ type IssuedTokens struct {
 	Scope        string `json:"scope"`
 }
 
+// Connection is an OAuth client that currently has access to a user's Visto
+// account. Tokens are never included in this response.
+type Connection struct {
+	ClientID    string     `json:"client_id"`
+	ClientName  string     `json:"client_name"`
+	Scopes      []string   `json:"scopes"`
+	ConnectedAt *time.Time `json:"connected_at,omitempty"`
+	LastUsedAt  *time.Time `json:"last_used_at,omitempty"`
+	ExpiresAt   time.Time  `json:"expires_at"`
+}
+
 type Repository interface {
 	RegisterOAuthClient(context.Context, Client) error
 	FindOAuthClient(context.Context, string) (Client, error)
@@ -76,6 +87,9 @@ type Repository interface {
 	RotateOAuthRefreshToken(context.Context, string, string, string, string, string, time.Time, time.Time, time.Time) (Identity, error)
 	FindOAuthAccessToken(context.Context, string, string, time.Time) (Identity, error)
 	RevokeOAuthToken(context.Context, string, time.Time) error
+	ListOAuthConnections(context.Context, string, time.Time) ([]Connection, error)
+	RevokeOAuthConnection(context.Context, string, string, time.Time) error
+	RevokeAllOAuthConnections(context.Context, string, time.Time) error
 }
 
 type Service struct {
@@ -205,6 +219,27 @@ func (service *Service) Revoke(ctx context.Context, token string) error {
 		return nil
 	}
 	return service.repository.RevokeOAuthToken(ctx, hashToken(token), service.now().UTC())
+}
+
+func (service *Service) Connections(ctx context.Context, userID string) ([]Connection, error) {
+	if userID == "" {
+		return nil, ErrInvalidRequest
+	}
+	return service.repository.ListOAuthConnections(ctx, userID, service.now().UTC())
+}
+
+func (service *Service) RevokeConnection(ctx context.Context, userID, clientID string) error {
+	if userID == "" || clientID == "" {
+		return ErrInvalidRequest
+	}
+	return service.repository.RevokeOAuthConnection(ctx, userID, clientID, service.now().UTC())
+}
+
+func (service *Service) RevokeAllConnections(ctx context.Context, userID string) error {
+	if userID == "" {
+		return ErrInvalidRequest
+	}
+	return service.repository.RevokeAllOAuthConnections(ctx, userID, service.now().UTC())
 }
 
 func tokenResponse(access, refresh string, scopes []string) IssuedTokens {

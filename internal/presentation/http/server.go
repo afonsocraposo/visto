@@ -16,6 +16,7 @@ import (
 	exportapp "github.com/afonsocosta/visto/internal/application/export"
 	"github.com/afonsocosta/visto/internal/application/feed"
 	"github.com/afonsocosta/visto/internal/application/library"
+	"github.com/afonsocosta/visto/internal/application/oauth"
 	"github.com/afonsocosta/visto/internal/application/profile"
 	"github.com/afonsocosta/visto/internal/application/tracking"
 	"github.com/afonsocosta/visto/internal/application/watch"
@@ -23,7 +24,9 @@ import (
 )
 
 type Server struct {
-	handler http.Handler
+	handler     http.Handler
+	mux         *http.ServeMux
+	authService *auth.Service
 }
 
 func New(authService *auth.Service, metadataProvider domain.MetadataProvider, webDir string, libraryService *library.Service, trackingService *tracking.Service, profileService *profile.Service, feedService *feed.Service, exportService *exportapp.Service, watchService *watch.Service) *Server {
@@ -81,7 +84,16 @@ func New(authService *auth.Service, metadataProvider domain.MetadataProvider, we
 			mux.Handle("GET /", singlePageApp(webDir))
 		}
 	}
-	return &Server{handler: csrfProtection(mux)}
+	return &Server{handler: csrfProtection(mux), mux: mux, authService: authService}
+}
+
+// WithOAuth adds account-management endpoints for OAuth clients. It is kept
+// optional so Visto can run without an OAuth configuration.
+func (server *Server) WithOAuth(service *oauth.Service) *Server {
+	server.mux.HandleFunc("GET /api/v1/connected-apps", listConnectedApps(server.authService, service))
+	server.mux.HandleFunc("DELETE /api/v1/connected-apps", revokeAllConnectedApps(server.authService, service))
+	server.mux.HandleFunc("DELETE /api/v1/connected-apps/{clientID}", revokeConnectedApp(server.authService, service))
+	return server
 }
 
 func singlePageApp(webDir string) http.Handler {
@@ -1339,6 +1351,62 @@ func revokePersonalToken(service *auth.Service) http.HandlerFunc {
 		w.WriteHeader(http.StatusNoContent)
 	}
 }
+
+func listConnectedApps(authService *auth.Service, service *oauth.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := authenticatedUser(w, r, authService)
+		if !ok {
+			return
+		}
+		if service == nil {
+			writeError(w, http.StatusServiceUnavailable, "connected apps are not configured")
+			return
+		}
+		connections, err := service.Connections(r.Context(), user.ID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "could not list connected apps")
+			return
+		}
+		writeJSON(w, http.StatusOK, connections)
+	}
+}
+
+func revokeConnectedApp(authService *auth.Service, service *oauth.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := authenticatedUser(w, r, authService)
+		if !ok {
+			return
+		}
+		if service == nil {
+			writeError(w, http.StatusServiceUnavailable, "connected apps are not configured")
+			return
+		}
+		if err := service.RevokeConnection(r.Context(), user.ID, r.PathValue("clientID")); err != nil {
+			writeError(w, http.StatusBadRequest, "could not revoke connected app")
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+func revokeAllConnectedApps(authService *auth.Service, service *oauth.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := authenticatedUser(w, r, authService)
+		if !ok {
+			return
+		}
+		if service == nil {
+			writeError(w, http.StatusServiceUnavailable, "connected apps are not configured")
+			return
+		}
+		if err := service.RevokeAllConnections(r.Context(), user.ID); err != nil {
+			writeError(w, http.StatusInternalServerError, "could not revoke connected apps")
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
 func writeError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]string{"error": message})
 }

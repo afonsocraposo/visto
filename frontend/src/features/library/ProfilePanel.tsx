@@ -4,6 +4,7 @@ import { Alert, Button, Group, Paper, PasswordInput, Select, Text, TextInput, Ti
 import { IconDownload } from "@tabler/icons-react";
 import { useUserQueryKey } from "../auth/SessionContext";
 import { PersonalTokensPanel } from "./PersonalTokensPanel";
+import { ConnectedAppsPanel } from "./ConnectedAppsPanel";
 import type { User } from "../../types";
 
 export function ProfilePanel({ user }: { user: User }) {
@@ -113,6 +114,7 @@ export function ProfilePanel({ user }: { user: User }) {
       </Group>
     </Paper>
     <PersonalTokensPanel />
+    <ConnectedAppsPanel />
     {user.role === "admin" && <CreateUserPanel />}
   </>;
 }

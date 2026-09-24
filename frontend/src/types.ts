@@ -16,6 +16,14 @@ export type PersonalAPIToken = {
   expires_at?: string;
 };
 export type IssuedPersonalAPIToken = PersonalAPIToken & { token: string };
+export type ConnectedApp = {
+  client_id: string;
+  client_name: string;
+  scopes: string[];
+  connected_at?: string;
+  last_used_at?: string;
+  expires_at: string;
+};
 
 export type SearchMedia = {
   tmdb_id: number;

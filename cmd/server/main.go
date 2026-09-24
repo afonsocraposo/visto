@@ -103,11 +103,12 @@ func main() {
 	if err := mcpserver.ValidatePublicURL(publicURL); err != nil {
 		log.Fatal(err)
 	}
-	mcpHandler := mcpserver.New(authService, oauth.NewService(store), publicURL, metadataProvider, library.NewService(store), tracking.NewService(store), watchService)
+	oauthService := oauth.NewService(store)
+	mcpHandler := mcpserver.New(authService, oauthService, publicURL, metadataProvider, library.NewService(store), tracking.NewService(store), watchService)
 	appHandler.Handle("/mcp", mcpHandler)
 	appHandler.Handle("/oauth/", mcpHandler)
 	appHandler.Handle("/.well-known/", mcpHandler)
-	appHandler.Handle("/", httpserver.New(authService, metadataProvider, os.Getenv("VISTO_WEB_DIR"), library.NewService(store), tracking.NewService(store), profiles, feed.NewService(store), exportapp.NewService(store), watchService).Handler())
+	appHandler.Handle("/", httpserver.New(authService, metadataProvider, os.Getenv("VISTO_WEB_DIR"), library.NewService(store), tracking.NewService(store), profiles, feed.NewService(store), exportapp.NewService(store), watchService).WithOAuth(oauthService).Handler())
 	server := &http.Server{
 		Addr:              environment("VISTO_LISTEN_ADDR", ":8080"),
 		Handler:           appHandler,
