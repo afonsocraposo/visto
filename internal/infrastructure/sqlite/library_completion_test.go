@@ -28,7 +28,9 @@ func TestLibrary_GivenMovieAndShowPlays_WhenLibraryIsRead_ThenOnlyWatchedMoviesA
 	if _, err := store.DB.Exec(`INSERT INTO seasons(id,show_id,season_number,name) VALUES('tv:42:season:1','tv:42',1,'Season 1')`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.DB.Exec(`INSERT INTO episodes(id,show_id,season_id,season_number,episode_number,name) VALUES('tv:42:episode:101','tv:42','tv:42:season:1',1,1,'Pilot')`); err != nil {
+	if _, err := store.DB.Exec(`INSERT INTO episodes(id,show_id,season_id,season_number,episode_number,name) VALUES
+		('tv:42:episode:101','tv:42','tv:42:season:1',1,1,'Pilot'),
+		('tv:42:episode:102','tv:42','tv:42:season:1',1,2,'Second Episode')`); err != nil {
 		t.Fatal(err)
 	}
 	for _, mediaID := range []string{"movie:10", "movie:11", "tv:42"} {
