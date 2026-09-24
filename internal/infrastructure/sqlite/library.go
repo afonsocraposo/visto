@@ -114,7 +114,7 @@ func (s *Store) UpsertItem(ctx context.Context, item library.Item) error {
 }
 
 func (s *Store) ListItems(ctx context.Context, userID string) ([]library.Entry, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT um.user_id,um.media_id,um.status,um.rating,um.added_at,um.updated_at,m.media_type,m.tmdb_id,m.title,m.original_title,m.overview,m.release_date,m.poster_path,m.original_language,
+	rows, err := s.DB.QueryContext(ctx, `SELECT um.user_id,um.media_id,um.status,um.rating,um.added_at,um.updated_at,m.media_type,m.tmdb_id,m.title,COALESCE(m.original_title,''),COALESCE(m.overview,''),COALESCE(m.release_date,''),COALESCE(m.poster_path,''),COALESCE(m.original_language,''),
 		(m.media_type='movie' AND EXISTS(SELECT 1 FROM plays p WHERE p.user_id=um.user_id AND p.media_id=um.media_id))
 		FROM user_media um JOIN media m ON m.id=um.media_id WHERE um.user_id=? ORDER BY um.updated_at DESC`, userID)
 	if err != nil {
@@ -155,7 +155,7 @@ func (s *Store) GetMediaByTMDBID(ctx context.Context, userID string, mediaType d
 	var rating sql.NullInt64
 	var addedAt, updatedAt string
 	err := s.DB.QueryRowContext(ctx, `SELECT um.user_id,um.media_id,um.status,um.rating,um.added_at,um.updated_at,
-		m.media_type,m.tmdb_id,m.title,m.original_title,m.overview,m.release_date,m.poster_path,m.original_language,
+		m.media_type,m.tmdb_id,m.title,COALESCE(m.original_title,''),COALESCE(m.overview,''),COALESCE(m.release_date,''),COALESCE(m.poster_path,''),COALESCE(m.original_language,''),
 		(m.media_type='movie' AND EXISTS(SELECT 1 FROM plays p WHERE p.user_id=um.user_id AND p.media_id=um.media_id))
 		FROM user_media um JOIN media m ON m.id=um.media_id
 		WHERE um.user_id=? AND m.media_type=? AND m.tmdb_id=?`, userID, mediaType, tmdbID).Scan(

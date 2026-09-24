@@ -23,11 +23,15 @@ func TestOpen_GivenNewDatabasePath_WhenOpened_ThenItMigratesAndEnablesForeignKey
 	if foreignKeys != 1 {
 		t.Fatalf("foreign_keys = %d, want 1", foreignKeys)
 	}
+	migrator, err := sqlite.NewMigrator()
+	if err != nil {
+		t.Fatalf("load migrations: %v", err)
+	}
 	var migrations int
 	if err := store.DB.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&migrations); err != nil {
 		t.Fatalf("count migrations: %v", err)
 	}
-	if migrations != 1 {
-		t.Fatalf("migrations = %d, want 1", migrations)
+	if migrations != len(migrator.Migrations) {
+		t.Fatalf("migrations = %d, want %d", migrations, len(migrator.Migrations))
 	}
 }
