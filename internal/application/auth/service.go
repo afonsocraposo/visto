@@ -25,6 +25,7 @@ type Repository interface {
 	FindUserByUsername(context.Context, string) (domain.User, string, error)
 	CreateSession(context.Context, string, string, string, time.Time) error
 	FindUserBySessionToken(context.Context, string, time.Time) (domain.User, error)
+	RevokeSession(context.Context, string) error
 }
 
 type accountCounter interface {
@@ -105,6 +106,13 @@ func (service *Service) Authenticate(ctx context.Context, token string) (domain.
 		return domain.User{}, ErrInvalidCredentials
 	}
 	return service.repository.FindUserBySessionToken(ctx, hashToken(token), service.now().UTC())
+}
+
+func (service *Service) Logout(ctx context.Context, token string) error {
+	if token == "" {
+		return nil
+	}
+	return service.repository.RevokeSession(ctx, hashToken(token))
 }
 
 func validateAccount(username, displayName, password string) (string, string, error) {

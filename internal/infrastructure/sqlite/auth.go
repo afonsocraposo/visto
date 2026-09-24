@@ -74,6 +74,13 @@ func (store *Store) FindUserBySessionToken(ctx context.Context, tokenHash string
 	return user, err
 }
 
+func (store *Store) RevokeSession(ctx context.Context, tokenHash string) error {
+	if _, err := store.DB.ExecContext(ctx, `DELETE FROM sessions WHERE token_hash=?`, tokenHash); err != nil {
+		return fmt.Errorf("revoke session: %w", err)
+	}
+	return nil
+}
+
 type scanner interface{ Scan(...any) error }
 
 func scanUser(row scanner) (domain.User, string, error) {

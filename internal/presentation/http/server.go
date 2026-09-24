@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/afonsocosta/visto/internal/application/auth"
@@ -26,10 +27,12 @@ type Server struct {
 
 func New(authService *auth.Service, metadataProvider domain.MetadataProvider, webDir string, libraryService *library.Service, trackingService *tracking.Service, profileService *profile.Service, feedService *feed.Service, exportService *exportapp.Service, watchService *watch.Service) *Server {
 	mux := http.NewServeMux()
+	loginLimiter := newLoginLimiter()
 	mux.HandleFunc("GET /health", health)
 	mux.HandleFunc("POST /api/v1/auth/bootstrap", bootstrap(authService))
 	mux.HandleFunc("GET /api/v1/auth/status", bootstrapStatus(authService))
-	mux.HandleFunc("POST /api/v1/auth/login", login(authService))
+	mux.HandleFunc("POST /api/v1/auth/login", login(authService, loginLimiter))
+	mux.HandleFunc("POST /api/v1/auth/logout", logout(authService))
 	mux.HandleFunc("POST /api/v1/users", createUser(authService))
 	mux.HandleFunc("GET /api/v1/me", currentUser(authService))
 	mux.HandleFunc("GET /api/v1/profile/activity-settings", activitySettings(authService, profileService))
@@ -53,7 +56,7 @@ func New(authService *auth.Service, metadataProvider domain.MetadataProvider, we
 			mux.Handle("GET /", http.FileServer(http.Dir(webDir)))
 		}
 	}
-	return &Server{handler: mux}
+	return &Server{handler: csrfProtection(mux)}
 }
 
 func playHistory(authService *auth.Service, service *tracking.Service) http.HandlerFunc {
@@ -556,8 +559,14 @@ func bootstrap(service *auth.Service) http.HandlerFunc {
 		writeJSON(w, http.StatusCreated, user)
 	}
 }
-func login(service *auth.Service) http.HandlerFunc {
+func login(service *auth.Service, limiter *LoginLimiter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		ip := clientIP(r)
+		if allowed, retryAfter := limiter.allowed(ip); !allowed {
+			w.Header().Set("Retry-After", strconv.Itoa(max(1, int(retryAfter.Seconds()))))
+			writeError(w, http.StatusTooManyRequests, "too many login attempts")
+			return
+		}
 		var request credentialsRequest
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid JSON")
@@ -565,12 +574,35 @@ func login(service *auth.Service) http.HandlerFunc {
 		}
 		user, token, expiresAt, err := service.Login(r.Context(), request.Username, request.Password)
 		if err != nil {
+			limiter.failed(ip)
 			writeError(w, http.StatusUnauthorized, "invalid username or password")
 			return
 		}
-		http.SetCookie(w, &http.Cookie{Name: "visto_session", Value: token, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, Expires: expiresAt, Secure: r.TLS != nil})
+		limiter.reset(ip)
+		http.SetCookie(w, &http.Cookie{Name: "visto_session", Value: token, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, Expires: expiresAt, Secure: cookieSecure(r)})
 		writeJSON(w, http.StatusOK, user)
 	}
+}
+
+func logout(service *auth.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if service == nil {
+			writeError(w, http.StatusServiceUnavailable, "authentication is not configured")
+			return
+		}
+		if cookie, err := r.Cookie("visto_session"); err == nil {
+			if err := service.Logout(r.Context(), cookie.Value); err != nil {
+				writeError(w, http.StatusInternalServerError, "could not end session")
+				return
+			}
+		}
+		http.SetCookie(w, &http.Cookie{Name: "visto_session", Value: "", Path: "/", HttpOnly: true, Secure: cookieSecure(r), SameSite: http.SameSiteLaxMode, Expires: time.Unix(1, 0), MaxAge: -1})
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+func cookieSecure(r *http.Request) bool {
+	return r.TLS != nil || strings.EqualFold(strings.TrimSpace(r.Header.Get("X-Forwarded-Proto")), "https")
 }
 
 func currentUser(service *auth.Service) http.HandlerFunc {

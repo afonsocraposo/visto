@@ -26,6 +26,14 @@ paths:
       responses:
         '200': { description: Authenticated user and session cookie, content: { application/json: { schema: { $ref: '#/components/schemas/User' } } } }
         '401': { description: Invalid credentials }
+        '429': { description: Too many login attempts; retry after the supplied Retry-After interval }
+  /auth/logout:
+    post:
+      summary: Revoke the current web session
+      security: [{ sessionCookie: [] }]
+      responses:
+        '204': { description: Session ended and cookie cleared }
+        '500': { description: Session could not be revoked }
   /users:
     post:
       summary: Create a local user account as an administrator
