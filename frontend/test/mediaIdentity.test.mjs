@@ -7,6 +7,10 @@ test("Given a media details response with an empty library ID, When a show is ad
   assert.equal(resolveMediaID(undefined, "", { type: "tv", tmdb_id: 67136 }), "tv:67136");
 });
 
+test("Given a media details response with an empty library ID, When a movie is marked watched, Then its TMDB media ID is used", () => {
+  assert.equal(resolveMediaID(undefined, "", { type: "movie", tmdb_id: 1493 }), "movie:1493");
+});
+
 test("Given an existing media ID, When resolving the show ID, Then the existing ID is preserved", () => {
   assert.equal(resolveMediaID("tv:67136", undefined, { type: "tv", tmdb_id: 67136 }), "tv:67136");
 });
