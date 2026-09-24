@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Avatar, Badge, Button, Group, Image, Loader, Modal, Paper, Select, SimpleGrid, Stack, Switch, Text, Title } from "@mantine/core";
-import { IconArrowLeft, IconCheck, IconClock, IconPlayerPlay, IconPlus } from "@tabler/icons-react";
+import { ActionIcon, Alert, Avatar, Badge, Button, Group, Image, Loader, Modal, Paper, Select, SimpleGrid, Stack, Switch, Text, Title, Tooltip } from "@mantine/core";
+import { IconArrowLeft, IconBookmark, IconCheck, IconClock, IconEye, IconPlayerPlay } from "@tabler/icons-react";
 import { api } from "../../lib/api";
 import { backdropURL, posterURL } from "../../lib/artwork";
 import { useUserQueryKey } from "../auth/SessionContext";
 import { findMissingPriorEpisodes } from "../library/episodeSelection";
+import { RatingStars } from "../../components/RatingStars";
 import type { EpisodeRating, HistoryEntry, LibraryEntry, MediaDetailTarget, SearchMedia, ShowEpisodeEntry, TemporaryEpisodeDetails, TemporaryMovieDetails, TemporaryShowDetails } from "../../types";
 
 type Props = { target: MediaDetailTarget; onBack: () => void; onOpenDetail: (target: MediaDetailTarget) => void };
@@ -38,7 +39,7 @@ export function MediaDetailPage({ target, onBack, onOpenDetail }: Props) {
     ? { ...library.data.media, backdrop_path: library.data.media.backdrop_path ?? temporary.data?.media.backdrop_path }
     : target.mediaType === "movie" ? movieDetails.data?.media ?? seed : temporary.data?.media ?? seed;
   const savedMediaID = library.data?.item.media_id;
-  const showID = target.mediaID ?? savedMediaID ?? (media?.type === "tv" ? (media as SearchMedia & { id: string }).id : undefined);
+  const showID = target.mediaID ?? savedMediaID ?? (media ? `${media.type}:${media.tmdb_id}` : undefined);
   const episodes = useQuery({
     queryKey: userQueryKey("detail-episodes", showID),
     enabled: target.mediaType === "tv" && Boolean(savedMediaID),
@@ -64,12 +65,16 @@ export function MediaDetailPage({ target, onBack, onOpenDetail }: Props) {
     onSuccess: async () => queryClient.invalidateQueries({ queryKey: userQueryKey("library") }),
   });
   const markMovieWatched = useMutation({
-    mutationFn: () => api.post("/api/v1/plays", { media_id: showID }, "Could not record this watch."),
+    mutationFn: async () => {
+      if (!savedMediaID) await api.post("/api/v1/library", { media, status: "watching" }, "Could not add this title.");
+      return api.post("/api/v1/plays", { media_id: showID }, "Could not record this watch.");
+    },
     onSuccess: async () => Promise.all([
       queryClient.invalidateQueries({ queryKey: userQueryKey("library") }),
       queryClient.invalidateQueries({ queryKey: userQueryKey("history") }),
       queryClient.invalidateQueries({ queryKey: userQueryKey("feed") }),
       queryClient.invalidateQueries({ queryKey: userQueryKey("media-detail", target.mediaType, target.tmdbID) }),
+      queryClient.invalidateQueries({ queryKey: userQueryKey("library") }),
     ]),
   });
   const markEpisodeWatched = useMutation({
@@ -230,11 +235,11 @@ function chunk<T>(values: T[], size: number): T[][] {
 }
 
 function EpisodeActions({ entry, canTrack, canRate, rating, onRate, playID, onWatch, onUnwatch, pending }: { entry: ShowEpisodeEntry; canTrack: boolean; canRate: boolean; rating?: number | null; onRate: (rating: number | null) => void; playID?: string; onWatch: () => void; onUnwatch: (playID: string) => void; pending: boolean }) {
-  return <Group className="detail-actions" mt="lg"><Badge color={entry.watched ? "teal" : "yellow"} variant="light">{entry.watched ? "Watched" : "Not watched"}</Badge><Select aria-label="Episode rating" clearable placeholder={canRate ? "Rate episode" : "Add to library to rate"} value={rating ? String(rating) : null} onChange={value => onRate(value ? Number(value) : null)} data={[1, 2, 3, 4, 5].map(value => ({ value: String(value), label: `${value} ${value === 1 ? "star" : "stars"}` }))} w={150} disabled={!canRate || pending} />{canTrack && entry.watched && playID ? <Button variant="default" leftSection={<IconCheck size={16} />} loading={pending} onClick={() => onUnwatch(playID)}>Mark unwatched</Button> : canTrack && !entry.watched && <Button leftSection={<IconCheck size={16} />} loading={pending} onClick={onWatch}>Mark watched</Button>}</Group>;
+  return <Group className="detail-actions" mt="lg"><Badge color={entry.watched ? "teal" : "yellow"} variant="light">{entry.watched ? "Watched" : "Not watched"}</Badge><RatingStars value={rating} onChange={onRate} label="Episode rating" disabled={!canRate || pending} size="md" />{!canRate && <Text size="xs" c="dimmed">Add to library to rate</Text>}{canTrack && entry.watched && playID ? <Button variant="default" leftSection={<IconCheck size={16} />} loading={pending} onClick={() => onUnwatch(playID)}>Mark unwatched</Button> : canTrack && !entry.watched && <Button leftSection={<IconCheck size={16} />} loading={pending} onClick={onWatch}>Mark watched</Button>}</Group>;
 }
 
 type ActionMutation<T> = { isPending: boolean; mutate: (value: T) => void };
 function MediaActions({ media, isSaved, status, rating, add, update, watched, playID, onWatch, onUnwatch, pending }: { media: SearchMedia; isSaved: boolean; status?: string; rating?: number | null; add: ActionMutation<"watching" | "watchlist">; update: ActionMutation<{ status: string; rating: number | null }>; watched: boolean; playID?: string; onWatch: () => void; onUnwatch: (playID: string) => void; pending: boolean }) {
-  if (!isSaved) return <Group className="detail-actions" mt="lg"><Button leftSection={<IconPlus size={16} />} loading={add.isPending} onClick={() => add.mutate(media.type === "tv" ? "watching" : "watchlist")}>{media.type === "tv" ? "Add to watching" : "Add to watchlist"}</Button>{media.type === "tv" && <Button variant="default" loading={add.isPending} onClick={() => add.mutate("watchlist")}>Watch later</Button>}</Group>;
-  return <Group className="detail-actions" mt="lg"><Select aria-label="Current list" value={status} onChange={value => value && update.mutate({ status: value, rating: rating ?? null })} data={[{ value: "watchlist", label: "Watchlist" }, { value: "watching", label: "Watching" }, { value: "paused", label: "Paused" }, { value: "dropped", label: "Dropped" }]} w={150} /><Select aria-label="Rating" clearable placeholder="Rate" value={rating ? String(rating) : null} onChange={value => update.mutate({ status: status!, rating: value ? Number(value) : null })} data={[1, 2, 3, 4, 5].map(value => ({ value: String(value), label: `${value} ${value === 1 ? "star" : "stars"}` }))} w={130} />{media.type === "movie" && (watched && playID ? <Button variant="default" leftSection={<IconCheck size={16} />} loading={pending} onClick={() => onUnwatch(playID)}>Mark unwatched</Button> : <Button variant="light" leftSection={<IconCheck size={16} />} loading={pending} onClick={onWatch}>Mark watched</Button>)}</Group>;
+  if (!isSaved) return <Group className="detail-actions" mt="lg"><Tooltip label={media.type === "tv" ? "Add to watching" : "Mark watched"} withArrow><ActionIcon color="yellow" variant="filled" size="lg" aria-label={media.type === "tv" ? `Add ${media.title} to watching` : `Mark ${media.title} watched`} loading={add.isPending || pending} onClick={() => media.type === "tv" ? add.mutate("watching") : onWatch()}><IconEye size={19} /></ActionIcon></Tooltip><Tooltip label="Save for later" withArrow><ActionIcon variant="default" size="lg" aria-label={`Save ${media.title} for later`} loading={add.isPending} onClick={() => add.mutate("watchlist")}><IconBookmark size={19} /></ActionIcon></Tooltip></Group>;
+  return <Group className="detail-actions" mt="lg"><Select aria-label="Current list" value={status} onChange={value => value && update.mutate({ status: value, rating: rating ?? null })} data={[{ value: "watchlist", label: "Watchlist" }, { value: "watching", label: "Watching" }, { value: "paused", label: "Paused" }, { value: "dropped", label: "Dropped" }]} w={150} /><RatingStars value={rating} onChange={value => update.mutate({ status: status!, rating: value })} label="Media rating" disabled={pending} size="md" />{media.type === "movie" && (watched && playID ? <Button variant="default" leftSection={<IconCheck size={16} />} loading={pending} onClick={() => onUnwatch(playID)}>Mark unwatched</Button> : <Button variant="light" leftSection={<IconCheck size={16} />} loading={pending} onClick={onWatch}>Mark watched</Button>)}</Group>;
 }

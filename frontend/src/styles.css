@@ -73,6 +73,7 @@ select {
 .search-poster { width: 54px; height: 80px; flex: 0 0 54px; border-radius: 8px; overflow: hidden; background: #1b2430; }
 .search-overview { display: -webkit-box; max-width: 620px; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .search-result-actions { flex-wrap: wrap; justify-content: flex-end; }
+.search-result-actions .mantine-ActionIcon-root { flex: 0 0 auto; }
 .media-detail { align-items: stretch; }
 .detail-page { padding-bottom: 24px; }
 .detail-back { margin: -8px 0 12px -8px; }
@@ -86,6 +87,10 @@ select {
 .detail-runtime { display: inline-flex; align-items: center; gap: 6px; color: rgb(255 255 255 / .72); }
 .detail-poster { position: relative; z-index: 1; width: 190px; max-height: 286px; object-fit: cover; border-radius: 14px; box-shadow: 0 18px 44px rgb(0 0 0 / .36); }
 .detail-actions { align-items: center; }
+.detail-actions .rating-stars { padding: 4px 8px; border: 1px solid rgb(255 255 255 / .16); border-radius: 10px; background: rgb(255 255 255 / .08); }
+.rating-stars { align-items: center; }
+.rating-stars .mantine-ActionIcon-root { transition: color 120ms ease, transform 120ms ease; }
+.rating-stars .mantine-ActionIcon-root:hover { transform: translateY(-1px); }
 .detail-actions .mantine-Select-input { background: rgb(255 255 255 / .12); color: #fff; border-color: rgb(255 255 255 / .2); }
 .detail-section { margin-top: 28px; }
 .episode-row { background: var(--mantine-color-body); transition: transform 150ms ease, border-color 150ms ease; }

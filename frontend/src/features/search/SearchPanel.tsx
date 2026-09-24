@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useDebouncedValue } from "@mantine/hooks";
-import { Alert, Button, Group, Image, Modal, Paper, Text, TextInput, Title } from "@mantine/core";
-import { IconSearch } from "@tabler/icons-react";
+import { ActionIcon, Alert, Group, Image, Paper, Text, TextInput, Title, Tooltip } from "@mantine/core";
+import { IconBookmark, IconEye, IconEyeCheck, IconSearch } from "@tabler/icons-react";
 import { useUserQueryKey } from "../auth/SessionContext";
 import { api } from "../../lib/api";
 import type { LibraryEntry, MediaDetailTarget, SearchMedia } from "../../types";
@@ -13,7 +13,6 @@ export function SearchPanel({ onOpenDetail }: { onOpenDetail?: (target: MediaDet
   const userQueryKey = useUserQueryKey();
   const [query, setQuery] = useState("");
   const [debouncedQuery] = useDebouncedValue(query.trim(), 300);
-  const [selectedMedia, setSelectedMedia] = useState<SearchMedia | null>(null);
   const library = useQuery({
     queryKey: userQueryKey("library"),
     queryFn: () => api.get<LibraryEntry[]>("/api/v1/library", "Could not load your library."),
@@ -52,40 +51,6 @@ export function SearchPanel({ onOpenDetail }: { onOpenDetail?: (target: MediaDet
       {results.isError && <Alert color="red" mt="md">Search is temporarily unavailable.</Alert>}
       {library.isError && <Alert color="red" mt="md">Could not check your library. You can still view search results.</Alert>}
       {addToLibrary.isError && <Alert color="red" mt="md">{addToLibrary.error.message}</Alert>}
-      <Modal opened={selectedMedia !== null} onClose={() => setSelectedMedia(null)} title={selectedMedia?.title} centered>
-        {selectedMedia && (
-          <Group className="media-detail" align="start" wrap="nowrap">
-            {selectedMedia.poster_path && (
-              <Image src={posterURL(selectedMedia.poster_path, "w342")!} alt={`${selectedMedia.title} poster`} w={128} radius="md" />
-            )}
-            <div>
-              <Text size="sm" c="dimmed">
-                {selectedMedia.type === "tv" ? "TV show" : "Movie"}
-                {selectedMedia.release_date ? ` · ${selectedMedia.release_date.slice(0, 4)}` : ""}
-                {selectedMedia.original_language ? ` · ${selectedMedia.original_language.toUpperCase()}` : ""}
-              </Text>
-              {selectedMedia.original_title && selectedMedia.original_title !== selectedMedia.title && (
-                <Text size="sm" mt="xs">Original title: {selectedMedia.original_title}</Text>
-              )}
-              <Text mt="md">{selectedMedia.overview || "No description is available."}</Text>
-              {libraryIDs.has(`${selectedMedia.type}:${selectedMedia.tmdb_id}`) ? (
-                <Button mt="lg" disabled>In library</Button>
-              ) : selectedMedia.type === "tv" ? (
-                <Group mt="lg" gap="xs">
-                  <Button loading={addToLibrary.isPending} onClick={() => addToLibrary.mutate({ media: selectedMedia, status: "watching" })}>
-                    Add to watching
-                  </Button>
-                  <Button variant="default" loading={addToLibrary.isPending} onClick={() => addToLibrary.mutate({ media: selectedMedia, status: "watchlist" })}>
-                    Watch later
-                  </Button>
-                </Group>
-              ) : (
-                <Group mt="lg" gap="xs"><Button loading={addMovieAsWatched.isPending} onClick={() => addMovieAsWatched.mutate(selectedMedia)}>Mark watched</Button><Button variant="default" loading={addToLibrary.isPending} onClick={() => addToLibrary.mutate({ media: selectedMedia, status: "watchlist" })}>Watch later</Button></Group>
-              )}
-            </div>
-          </Group>
-        )}
-      </Modal>
       {results.data?.map(item => {
         const mediaID = `${item.type}:${item.tmdb_id}`;
         const saved = libraryIDs.has(mediaID);
@@ -103,21 +68,18 @@ export function SearchPanel({ onOpenDetail }: { onOpenDetail?: (target: MediaDet
                 </div>
               </Group>
               <Group className="search-result-actions" gap="xs" onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
-                {saved ? <Button size="xs" disabled>In library</Button> : item.type === "tv" ? (
-                  <>
-                    <Button size="xs" onClick={() => addToLibrary.mutate({ media: item, status: "watching" })} loading={addToLibrary.isPending}>
-                      Add to watching
-                    </Button>
-                    <Button size="xs" variant="default" onClick={() => addToLibrary.mutate({ media: item, status: "watchlist" })} loading={addToLibrary.isPending}>
-                      Watch later
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <Button size="xs" onClick={() => addMovieAsWatched.mutate(item)} loading={addMovieAsWatched.isPending}>Mark watched</Button>
-                    <Button size="xs" variant="default" onClick={() => addToLibrary.mutate({ media: item, status: "watchlist" })} loading={addToLibrary.isPending}>Watch later</Button>
-                  </>
-                )}
+                {saved ? <Tooltip label="Already in your library" withArrow><ActionIcon variant="light" color="teal" aria-label={`${item.title} is in your library`}><IconEyeCheck size={17} /></ActionIcon></Tooltip> : <>
+                  <Tooltip label={item.type === "tv" ? "Add to watching" : "Mark watched"} withArrow>
+                    <ActionIcon color="yellow" variant="filled" aria-label={item.type === "tv" ? `Add ${item.title} to watching` : `Mark ${item.title} watched`} onClick={() => item.type === "tv" ? addToLibrary.mutate({ media: item, status: "watching" }) : addMovieAsWatched.mutate(item)} loading={addToLibrary.isPending || addMovieAsWatched.isPending}>
+                      <IconEye size={17} />
+                    </ActionIcon>
+                  </Tooltip>
+                  <Tooltip label="Save for later" withArrow>
+                    <ActionIcon variant="default" aria-label={`Save ${item.title} for later`} onClick={() => addToLibrary.mutate({ media: item, status: "watchlist" })} loading={addToLibrary.isPending}>
+                      <IconBookmark size={17} />
+                    </ActionIcon>
+                  </Tooltip>
+                </>}
               </Group>
             </Group>
           </Paper>
