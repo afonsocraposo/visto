@@ -1,18 +1,21 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Badge, Button, Group, Image, Loader, Paper, Select, Stack, Text, Title } from "@mantine/core";
+import { Alert, Badge, Button, Group, Image, Loader, Modal, Paper, Select, Stack, Text, Title } from "@mantine/core";
 import { IconArrowLeft, IconCheck, IconClock, IconPlayerPlay, IconPlus } from "@tabler/icons-react";
 import { api } from "../../lib/api";
 import { backdropURL, posterURL } from "../../lib/artwork";
 import { useUserQueryKey } from "../auth/SessionContext";
+import { findMissingPriorEpisodes } from "../library/episodeSelection";
 import type { HistoryEntry, LibraryEntry, MediaDetailTarget, SearchMedia, ShowEpisodeEntry } from "../../types";
 
 type Props = { target: MediaDetailTarget; onBack: () => void; onOpenDetail: (target: MediaDetailTarget) => void };
+type PendingWatch = { target: ShowEpisodeEntry | null; episodes: ShowEpisodeEntry[] };
 
 export function MediaDetailPage({ target, onBack, onOpenDetail }: Props) {
   const userQueryKey = useUserQueryKey();
   const queryClient = useQueryClient();
   const [season, setSeason] = useState<string | null>(null);
+  const [pendingWatch, setPendingWatch] = useState<PendingWatch | null>(null);
   const library = useQuery({
     queryKey: userQueryKey("media-detail", target.mediaType, target.tmdbID),
     queryFn: () => api.get<LibraryEntry>(`/api/v1/${target.mediaType === "tv" ? "shows" : "movies"}/${target.tmdbID}`, "Could not load media details."),
@@ -56,12 +59,21 @@ export function MediaDetailPage({ target, onBack, onOpenDetail }: Props) {
   });
   const markEpisodeWatched = useMutation({
     mutationFn: (episodeID: string) => api.post("/api/v1/plays", { episode_id: episodeID }, "Could not record this watch."),
-    onSuccess: async () => Promise.all([
+    onSuccess: async () => { setPendingWatch(null); return Promise.all([
       queryClient.invalidateQueries({ queryKey: userQueryKey("detail-episodes", showID) }),
       queryClient.invalidateQueries({ queryKey: userQueryKey("continue") }),
       queryClient.invalidateQueries({ queryKey: userQueryKey("history") }),
       queryClient.invalidateQueries({ queryKey: userQueryKey("feed") }),
-    ]),
+    ]); },
+  });
+  const markEpisodesWatched = useMutation({
+    mutationFn: (episodeIDs: string[]) => api.post("/api/v1/plays/bulk", { episode_ids: episodeIDs }, "Could not record these watches."),
+    onSuccess: async () => { setPendingWatch(null); return Promise.all([
+      queryClient.invalidateQueries({ queryKey: userQueryKey("detail-episodes", showID) }),
+      queryClient.invalidateQueries({ queryKey: userQueryKey("continue") }),
+      queryClient.invalidateQueries({ queryKey: userQueryKey("history") }),
+      queryClient.invalidateQueries({ queryKey: userQueryKey("feed") }),
+    ]); },
   });
   const unwatch = useMutation({
     mutationFn: (playID: string) => api.delete(`/api/v1/plays/${encodeURIComponent(playID)}`, "Could not mark this item unwatched."),
@@ -88,8 +100,28 @@ export function MediaDetailPage({ target, onBack, onOpenDetail }: Props) {
   const watchedPlay = history.data?.find(item => selectedEpisode ? item.play.episode_id === selectedEpisode.episode.id : item.play.media_id === showID);
   const isSaved = Boolean(library.data);
   const status = library.data?.item.status;
+  const today = new Date().toISOString().slice(0, 10);
+  const releasedSeasonEpisodes = visibleEpisodes.filter(entry => !entry.watched && (!entry.episode.air_date || entry.episode.air_date <= today));
+  const requestEpisodeWatch = (entry: ShowEpisodeEntry) => {
+    const missing = findMissingPriorEpisodes(episodeEntries, entry, today);
+    if (missing.length > 0) setPendingWatch({ target: entry, episodes: missing });
+    else markEpisodeWatched.mutate(entry.episode.id);
+  };
+  const confirmWatch = (includeTarget: boolean) => {
+    if (!pendingWatch) return;
+    const entries = includeTarget && pendingWatch.target ? [...pendingWatch.episodes, pendingWatch.target] : pendingWatch.episodes;
+    markEpisodesWatched.mutate([...new Set(entries.map(entry => entry.episode.id))]);
+    setPendingWatch(null);
+  };
 
   return <div className="detail-page">
+    <Modal opened={pendingWatch !== null} onClose={() => setPendingWatch(null)} title={pendingWatch?.target ? "Skipped episodes" : "Mark season watched"} centered>
+      {pendingWatch?.target ? <Text mb="md">There are {pendingWatch.episodes.length} earlier unwatched episodes. How would you like to continue?</Text> : <Text mb="md">Mark {pendingWatch?.episodes.length ?? 0} released episodes in this season as watched?</Text>}
+      <Group justify="flex-end">
+        {pendingWatch?.target && <Button variant="default" onClick={() => markEpisodeWatched.mutate(pendingWatch.target!.episode.id)} loading={markEpisodeWatched.isPending || markEpisodesWatched.isPending}>Only this episode</Button>}
+        <Button onClick={() => confirmWatch(Boolean(pendingWatch?.target))} loading={markEpisodeWatched.isPending || markEpisodesWatched.isPending}>{pendingWatch?.target ? "Mark all as watched" : "Mark season watched"}</Button>
+      </Group>
+    </Modal>
     <Button className="detail-back" variant="subtle" leftSection={<IconArrowLeft size={17} />} onClick={onBack}>Back</Button>
     <section className="detail-hero" style={{ backgroundImage: `linear-gradient(90deg, rgba(9,13,18,.96) 0%, rgba(9,13,18,.84) 43%, rgba(9,13,18,.35) 100%), url(${backdrop})` }}>
       <div className="detail-hero-content">
@@ -103,11 +135,11 @@ export function MediaDetailPage({ target, onBack, onOpenDetail }: Props) {
       {art && <Image className="detail-poster" src={art} alt={`${media.title} poster`} />}
     </section>
     {target.mediaType === "tv" && !selectedEpisode && isSaved && <section className="detail-section">
-      <Group justify="space-between" align="end" mb="sm"><div><Text className="section-kicker">Your catalog</Text><Title order={2}>Seasons & episodes</Title></div>{seasons.length > 0 && <Select aria-label="Season" value={selectedSeason} onChange={setSeason} data={seasons.map(number => ({ value: String(number), label: number === 0 ? "Specials" : `Season ${number}` }))} w={150} />}</Group>
+      <Group justify="space-between" align="end" mb="sm"><div><Text className="section-kicker">Your catalog</Text><Title order={2}>Seasons & episodes</Title></div><Group gap="xs">{releasedSeasonEpisodes.length > 0 && <Button size="xs" variant="light" onClick={() => setPendingWatch({ target: null, episodes: releasedSeasonEpisodes })}>Mark season watched</Button>}{seasons.length > 0 && <Select aria-label="Season" value={selectedSeason} onChange={setSeason} data={seasons.map(number => ({ value: String(number), label: number === 0 ? "Specials" : `Season ${number}` }))} w={150} />}</Group></Group>
       {episodes.isPending && <Group justify="center" py="lg"><Loader /></Group>}
       {episodes.isError && <Alert color="red">Episodes are temporarily unavailable.</Alert>}
       {!episodes.isPending && !episodes.isError && !visibleEpisodes.length && <Text c="dimmed">Episode details are not available yet.</Text>}
-      <Stack gap="xs">{visibleEpisodes.map(entry => <Paper key={entry.episode.id} className="episode-row" withBorder p="sm" role="button" tabIndex={0} onClick={() => onOpenDetail({ mediaType: "tv", tmdbID: media.tmdb_id, mediaID: showID, episodeID: entry.episode.id, episode: entry.episode, seasonNumber: entry.episode.season_number })} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") onOpenDetail({ mediaType: "tv", tmdbID: media.tmdb_id, mediaID: showID, episodeID: entry.episode.id, episode: entry.episode, seasonNumber: entry.episode.season_number }); }}><Group justify="space-between" wrap="nowrap" align="flex-start"><Group wrap="nowrap" gap="sm" align="flex-start"><div className="episode-art">{entry.still_path ? <Image src={backdropURL(entry.still_path, "w780")!} alt="" /> : <div className="artwork-fallback">{entry.episode.episode_number}</div>}</div><div><Text fw={650}>{`Episode ${entry.episode.episode_number}${entry.name ? ` · ${entry.name}` : ""}`}</Text><Text size="xs" c="dimmed">{entry.episode.air_date || "Air date not announced"}</Text>{entry.overview && <Text className="episode-description" size="sm" c="dimmed" mt={5}>{entry.overview}</Text>}</div></Group>{entry.watched ? <Badge color="teal" variant="light" leftSection={<IconCheck size={13} />}>Watched</Badge> : <Button size="xs" variant="light" leftSection={<IconPlayerPlay size={14} />} loading={markEpisodeWatched.isPending} onClick={event => { event.stopPropagation(); markEpisodeWatched.mutate(entry.episode.id); }}>Mark watched</Button>}</Group></Paper>)}</Stack>
+      <Stack gap="xs">{visibleEpisodes.map(entry => <Paper key={entry.episode.id} className="episode-row" withBorder p="sm" role="button" tabIndex={0} onClick={() => onOpenDetail({ mediaType: "tv", tmdbID: media.tmdb_id, mediaID: showID, episodeID: entry.episode.id, episode: entry.episode, seasonNumber: entry.episode.season_number })} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") onOpenDetail({ mediaType: "tv", tmdbID: media.tmdb_id, mediaID: showID, episodeID: entry.episode.id, episode: entry.episode, seasonNumber: entry.episode.season_number }); }}><Group justify="space-between" wrap="nowrap" align="flex-start"><Group wrap="nowrap" gap="sm" align="flex-start"><div className="episode-art">{entry.still_path ? <Image src={backdropURL(entry.still_path, "w780")!} alt="" /> : <div className="artwork-fallback">{entry.episode.episode_number}</div>}</div><div><Text fw={650}>{`Episode ${entry.episode.episode_number}${entry.name ? ` · ${entry.name}` : ""}`}</Text><Text size="xs" c="dimmed">{entry.episode.air_date || "Air date not announced"}</Text>{entry.overview && <Text className="episode-description" size="sm" c="dimmed" mt={5}>{entry.overview}</Text>}</div></Group>{entry.watched ? <Badge color="teal" variant="light" leftSection={<IconCheck size={13} />}>Watched</Badge> : <Button size="xs" variant="light" leftSection={<IconPlayerPlay size={14} />} loading={markEpisodeWatched.isPending} onClick={event => { event.stopPropagation(); requestEpisodeWatch(entry); }}>Mark watched</Button>}</Group></Paper>)}</Stack>
     </section>}
     {library.isError && seed && <Text className="detail-hint" c="dimmed">Add this title to your library to track episodes and progress.</Text>}
   </div>;
