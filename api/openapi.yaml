@@ -21,6 +21,16 @@ paths:
       responses:
         '200': { description: Authenticated user and session cookie, content: { application/json: { schema: { $ref: '#/components/schemas/User' } } } }
         '401': { description: Invalid credentials }
+  /users:
+    post:
+      summary: Create a local user account as an administrator
+      security: [{ sessionCookie: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/BootstrapRequest' } } } }
+      responses:
+        '201': { description: Local account created, content: { application/json: { schema: { $ref: '#/components/schemas/User' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: Administrator access required }
   /me:
     get:
       summary: Get the authenticated user

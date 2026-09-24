@@ -22,6 +22,7 @@ func New(authService *auth.Service, metadataProvider domain.MetadataProvider, we
 	mux.HandleFunc("GET /health", health)
 	mux.HandleFunc("POST /api/v1/auth/bootstrap", bootstrap(authService))
 	mux.HandleFunc("POST /api/v1/auth/login", login(authService))
+	mux.HandleFunc("POST /api/v1/users", createUser(authService))
 	mux.HandleFunc("GET /api/v1/me", currentUser(authService))
 	mux.HandleFunc("GET /api/v1/search", search(authService, metadataProvider))
 	mux.HandleFunc("GET /api/v1/library", listLibrary(authService, libraryService))
@@ -35,6 +36,30 @@ func New(authService *auth.Service, metadataProvider domain.MetadataProvider, we
 		}
 	}
 	return &Server{handler: mux}
+}
+
+func createUser(service *auth.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		actor, ok := authenticatedUser(w, r, service)
+		if !ok {
+			return
+		}
+		if actor.Role != domain.AdminRole {
+			writeError(w, http.StatusForbidden, "administrator access required")
+			return
+		}
+		var request credentialsRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid JSON")
+			return
+		}
+		user, err := service.CreateUser(r.Context(), request.Username, request.DisplayName, request.Password)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusCreated, user)
+	}
 }
 
 type playRequest struct {

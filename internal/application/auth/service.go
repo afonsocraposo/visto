@@ -21,9 +21,26 @@ var (
 
 type Repository interface {
 	BootstrapAdmin(context.Context, domain.User, string) error
+	CreateUser(context.Context, domain.User, string) error
 	FindUserByUsername(context.Context, string) (domain.User, string, error)
 	CreateSession(context.Context, string, string, string, time.Time) error
 	FindUserBySessionToken(context.Context, string, time.Time) (domain.User, error)
+}
+
+func (service *Service) CreateUser(ctx context.Context, username, displayName, password string) (domain.User, error) {
+	username, displayName, err := validateAccount(username, displayName, password)
+	if err != nil {
+		return domain.User{}, err
+	}
+	hash, err := hashPassword(password)
+	if err != nil {
+		return domain.User{}, err
+	}
+	user := domain.User{ID: newID(), Username: username, DisplayName: displayName, Role: domain.UserRole, CreatedAt: service.now().UTC()}
+	if err := service.repository.CreateUser(ctx, user, hash); err != nil {
+		return domain.User{}, err
+	}
+	return user, nil
 }
 
 type Service struct {

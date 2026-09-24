@@ -34,6 +34,22 @@ func (store *Store) BootstrapAdmin(ctx context.Context, user domain.User, passwo
 	return tx.Commit()
 }
 
+func (store *Store) CreateUser(ctx context.Context, user domain.User, passwordHash string) error {
+	tx, err := store.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	now := user.CreatedAt.Format(time.RFC3339Nano)
+	if _, err := tx.ExecContext(ctx, `INSERT INTO users(id,username,display_name,password_hash,role,created_at,updated_at) VALUES(?,?,?,?,?,?,?)`, user.ID, user.Username, user.DisplayName, passwordHash, user.Role, now, now); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO user_settings(user_id,created_at,updated_at) VALUES(?,?,?)`, user.ID, now, now); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
 func (store *Store) FindUserByUsername(ctx context.Context, username string) (domain.User, string, error) {
 	row := store.DB.QueryRowContext(ctx, `SELECT id,username,display_name,password_hash,role,created_at FROM users WHERE username = ?`, username)
 	return scanUser(row)
