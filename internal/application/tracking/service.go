@@ -23,11 +23,21 @@ type Play struct {
 	Source    string    `json:"source"`
 }
 
+type HistoryEntry struct {
+	Play         Play   `json:"play"`
+	Title        string `json:"title"`
+	EpisodeLabel string `json:"episode_label,omitempty"`
+}
+
 type Repository interface {
 	CreatePlay(context.Context, Play) error
 	CreateBulkPlays(context.Context, []Play) error
 	UpdatePlay(context.Context, string, string, time.Time) error
 	DeletePlay(context.Context, string, string) error
+}
+
+type historyRepository interface {
+	ListPlays(context.Context, string, int) ([]HistoryEntry, error)
 }
 
 type Service struct {
@@ -122,6 +132,23 @@ func (service *Service) Remove(ctx context.Context, userID, playID string) error
 		return fmt.Errorf("user and play are required")
 	}
 	return service.repository.DeletePlay(ctx, userID, playID)
+}
+
+func (service *Service) History(ctx context.Context, userID string, limit int) ([]HistoryEntry, error) {
+	if userID == "" {
+		return nil, fmt.Errorf("user is required")
+	}
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 500 {
+		return nil, fmt.Errorf("limit must not exceed 500")
+	}
+	repository, ok := service.repository.(historyRepository)
+	if !ok {
+		return nil, fmt.Errorf("history storage is not configured")
+	}
+	return repository.ListPlays(ctx, userID, limit)
 }
 
 func newID() string {

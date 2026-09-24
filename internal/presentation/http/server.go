@@ -42,6 +42,7 @@ func New(authService *auth.Service, metadataProvider domain.MetadataProvider, we
 	mux.HandleFunc("POST /api/v1/library", saveLibrary(authService, libraryService, metadataProvider))
 	mux.HandleFunc("PATCH /api/v1/library/{mediaID}", updateLibrary(authService, libraryService))
 	mux.HandleFunc("POST /api/v1/plays", createPlay(authService, trackingService))
+	mux.HandleFunc("GET /api/v1/plays", playHistory(authService, trackingService))
 	mux.HandleFunc("POST /api/v1/plays/bulk", createBulkPlays(authService, trackingService))
 	mux.HandleFunc("PATCH /api/v1/plays/{playID}", correctPlay(authService, trackingService))
 	mux.HandleFunc("DELETE /api/v1/plays/{playID}", deletePlay(authService, trackingService))
@@ -53,6 +54,34 @@ func New(authService *auth.Service, metadataProvider domain.MetadataProvider, we
 		}
 	}
 	return &Server{handler: mux}
+}
+
+func playHistory(authService *auth.Service, service *tracking.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := authenticatedUser(w, r, authService)
+		if !ok {
+			return
+		}
+		if service == nil {
+			writeError(w, http.StatusServiceUnavailable, "tracking is not configured")
+			return
+		}
+		limit := 0
+		if raw := r.URL.Query().Get("limit"); raw != "" {
+			value, err := strconv.Atoi(raw)
+			if err != nil {
+				writeError(w, http.StatusBadRequest, "invalid limit")
+				return
+			}
+			limit = value
+		}
+		entries, err := service.History(r.Context(), user.ID, limit)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, entries)
+	}
 }
 
 func bootstrapStatus(service *auth.Service) http.HandlerFunc {

@@ -122,6 +122,14 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
   /plays:
+    get:
+      summary: List the authenticated user's recent play history
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 500, default: 100 } }
+      responses:
+        '200': { description: Recent plays, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/HistoryEntry' } } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
     post:
       summary: Record one movie or episode watch
       security: [{ sessionCookie: [] }]
@@ -296,6 +304,13 @@ components:
         episode_id: { type: [string, 'null'] }
         watched_at: { type: string, format: date-time }
         source: { type: string, enum: [web, api, mcp, import] }
+    HistoryEntry:
+      type: object
+      required: [play, title]
+      properties:
+        play: { $ref: '#/components/schemas/Play' }
+        title: { type: string }
+        episode_label: { type: string }
     Episode:
       type: object
       required: [id, show_id, season_number, episode_number]

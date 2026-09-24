@@ -2,6 +2,7 @@ package sqlite
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -157,4 +158,45 @@ func (store *Store) DeletePlay(ctx context.Context, userID, playID string) error
 	return tx.Commit()
 }
 
+func (store *Store) ListPlays(ctx context.Context, userID string, limit int) ([]tracking.HistoryEntry, error) {
+	rows, err := store.DB.QueryContext(ctx, `SELECT p.id,p.user_id,p.media_id,p.episode_id,p.watched_at,p.source,COALESCE(movie.title,show.title,''),episode.season_number,episode.episode_number
+		FROM plays p LEFT JOIN media movie ON movie.id=p.media_id LEFT JOIN episodes episode ON episode.id=p.episode_id LEFT JOIN media show ON show.id=episode.show_id
+		WHERE p.user_id=? ORDER BY p.watched_at DESC,p.id DESC LIMIT ?`, userID, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list play history: %w", err)
+	}
+	defer rows.Close()
+	entries := []tracking.HistoryEntry{}
+	for rows.Next() {
+		var entry tracking.HistoryEntry
+		var mediaID, episodeID sql.NullString
+		var watchedAt string
+		var season, number sql.NullInt64
+		if err := rows.Scan(&entry.Play.ID, &entry.Play.UserID, &mediaID, &episodeID, &watchedAt, &entry.Play.Source, &entry.Title, &season, &number); err != nil {
+			return nil, fmt.Errorf("scan play history: %w", err)
+		}
+		if mediaID.Valid {
+			value := mediaID.String
+			entry.Play.MediaID = &value
+		}
+		if episodeID.Valid {
+			value := episodeID.String
+			entry.Play.EpisodeID = &value
+			entry.EpisodeLabel = fmt.Sprintf("S%02dE%02d", season.Int64, number.Int64)
+		}
+		entry.Play.WatchedAt, err = time.Parse(time.RFC3339Nano, watchedAt)
+		if err != nil {
+			return nil, fmt.Errorf("parse play history time: %w", err)
+		}
+		entries = append(entries, entry)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate play history: %w", err)
+	}
+	return entries, nil
+}
+
 var _ tracking.Repository = (*Store)(nil)
+var _ interface {
+	ListPlays(context.Context, string, int) ([]tracking.HistoryEntry, error)
+} = (*Store)(nil)
