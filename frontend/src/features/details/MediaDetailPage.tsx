@@ -93,7 +93,7 @@ export function MediaDetailPage({ target, onBack, onOpenDetail }: Props) {
   });
 
   if (library.isPending && !seed) return <Group justify="center" mt="xl"><Loader /></Group>;
-  if (library.isError && !seed) return <Alert color="red" mt="md">Media details are temporarily unavailable.</Alert>;
+  if (library.isError && !seed) return <Alert color="yellow" mt="md">This title is not in your library. Open it from Discover or add it to your library first.</Alert>;
   if (!media) return <Alert color="yellow" mt="md">This title is no longer available.</Alert>;
 
   const art = posterURL(media.poster_path, "w500");

@@ -21,13 +21,41 @@ export function Dashboard({ user, theme, setTheme }: { user: User; theme: Theme;
   const listMatch = pathname.match(/^\/profile\/library\/(watching|completed|watchlist|paused|dropped)$/);
   const listStatus = listMatch?.[1] as LibraryStatus | undefined;
   const detailSearch = new URLSearchParams(window.location.search);
+  const seedTitle = detailSearch.get("title");
   const detail: MediaDetailTarget | null = detailMatch ? {
     mediaType: detailMatch[1] as "movie" | "tv",
     tmdbID: Number(detailMatch[2]),
     mediaID: detailSearch.get("media") || undefined,
     episodeID: detailSearch.get("episode") || undefined,
     seasonNumber: detailSearch.get("season") ? Number(detailSearch.get("season")) : undefined,
+    seed: seedTitle ? {
+      tmdb_id: Number(detailMatch[2]),
+      type: (detailSearch.get("type") as "movie" | "tv") || (detailMatch[1] as "movie" | "tv"),
+      title: seedTitle,
+      original_title: detailSearch.get("original_title") || seedTitle,
+      overview: detailSearch.get("overview") || "",
+      release_date: detailSearch.get("release_date") || "",
+      poster_path: detailSearch.get("poster_path") || "",
+      original_language: detailSearch.get("original_language") || "",
+    } : undefined,
   } : null;
+  const openDetail = (target: MediaDetailTarget) => void navigate({
+    to: `/media/${target.mediaType}/${target.tmdbID}`,
+    search: {
+      media: target.mediaID,
+      episode: target.episodeID,
+      season: target.seasonNumber,
+      ...(target.seed ? {
+        title: target.seed.title,
+        original_title: target.seed.original_title,
+        overview: target.seed.overview,
+        release_date: target.seed.release_date,
+        poster_path: target.seed.poster_path,
+        original_language: target.seed.original_language,
+        type: target.seed.type,
+      } : {}),
+    },
+  });
   const [view, setView] = useState("now");
   const [online, setOnline] = useState(() => navigator.onLine);
   const [checkingConnection, setCheckingConnection] = useState(false);
@@ -119,7 +147,7 @@ export function Dashboard({ user, theme, setTheme }: { user: User; theme: Theme;
           </Alert>
         )}
         {logout.isError && <Alert color="red" mb="md">{logout.error.message}</Alert>}
-        {detail ? <MediaDetailPage target={detail} onBack={() => void navigate({ to: detail.mediaType === "tv" ? "/profile" : "/discover" })} onOpenDetail={target => void navigate({ to: `/media/${target.mediaType}/${target.tmdbID}`, search: { media: target.mediaID, episode: target.episodeID, season: target.seasonNumber } })} /> : listStatus ? <LibraryListPage status={listStatus} onBack={() => void navigate({ to: "/profile" })} onOpenDetail={target => void navigate({ to: `/media/${target.mediaType}/${target.tmdbID}`, search: { media: target.mediaID, episode: target.episodeID, season: target.seasonNumber } })} /> : tab === "watch" && (
+        {detail ? <MediaDetailPage target={detail} onBack={() => void navigate({ to: detail.mediaType === "tv" ? "/profile" : "/discover" })} onOpenDetail={openDetail} /> : listStatus ? <LibraryListPage status={listStatus} onBack={() => void navigate({ to: "/profile" })} onOpenDetail={openDetail} /> : tab === "watch" && (
           <>
             <Tabs className="watch-tabs" value={view} onChange={value => setView(value || "now")}>
               <Tabs.List>
@@ -127,12 +155,12 @@ export function Dashboard({ user, theme, setTheme }: { user: User; theme: Theme;
                 <Tabs.Tab value="calendar" leftSection={<IconCalendar size={16} />}>Calendar</Tabs.Tab>
               </Tabs.List>
             </Tabs>
-            {view === "now" ? <WatchNow onOpenDetail={target => void navigate({ to: `/media/${target.mediaType}/${target.tmdbID}`, search: { media: target.mediaID, episode: target.episodeID, season: target.seasonNumber } })} /> : <WatchCalendar />}
+            {view === "now" ? <WatchNow onOpenDetail={openDetail} /> : <WatchCalendar />}
           </>
         )}
-        {!detail && tab === "search" && <SearchPanel onOpenDetail={target => void navigate({ to: `/media/${target.mediaType}/${target.tmdbID}`, search: { media: target.mediaID, episode: target.episodeID, season: target.seasonNumber } })} />}
+        {!detail && tab === "search" && <SearchPanel onOpenDetail={openDetail} />}
         {!detail && tab === "feed" && <FeedArea />}
-        {!detail && !listStatus && tab === "library" && <LibraryArea user={user} onOpenDetail={target => void navigate({ to: `/media/${target.mediaType}/${target.tmdbID}`, search: { media: target.mediaID, episode: target.episodeID, season: target.seasonNumber } })} onOpenList={status => void navigate({ to: `/profile/library/${status}` })} />}
+        {!detail && !listStatus && tab === "library" && <LibraryArea user={user} onOpenDetail={openDetail} onOpenList={status => void navigate({ to: `/profile/library/${status}` })} />}
       </AppShell.Main>
       <AppShell.Footer className="visto-footer">
         <Group className="bottom-nav" justify="space-around" h="100%">
