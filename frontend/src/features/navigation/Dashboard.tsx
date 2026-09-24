@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Alert, AppShell, Button, Group, Select, Tabs, Text, Title } from "@mantine/core";
-import { IconCalendar, IconCompass, IconHome, IconLibrary, IconLogout, IconSearch } from "@tabler/icons-react";
+import { IconCalendar, IconCompass, IconHome, IconLogout, IconSearch, IconUserCircle } from "@tabler/icons-react";
 import { WatchNow, WatchCalendar } from "../watch/Watch";
 import { SearchPanel } from "../search/SearchPanel";
-import { FeedPanel } from "../feed/FeedPanel";
+import { FeedArea } from "../feed/FeedArea";
 import { LibraryArea } from "../library/LibraryArea";
 import { MediaDetailPage } from "../details/MediaDetailPage";
 import type { MediaDetailTarget, Tab, Theme, User } from "../../types";
@@ -117,15 +117,15 @@ export function Dashboard({ user, theme, setTheme }: { user: User; theme: Theme;
           </>
         )}
         {!detail && tab === "search" && <SearchPanel onOpenDetail={setDetail} />}
-        {!detail && tab === "feed" && <FeedPanel />}
+        {!detail && tab === "feed" && <FeedArea />}
         {!detail && tab === "library" && <LibraryArea user={user} onOpenDetail={setDetail} />}
       </AppShell.Main>
       <AppShell.Footer className="visto-footer">
         <Group className="bottom-nav" justify="space-around" h="100%">
           {nav("watch", "Watch", IconHome)}
-          {nav("search", "Search", IconSearch)}
+          {nav("search", "Discover", IconSearch)}
           {nav("feed", "Feed", IconCompass)}
-          {nav("library", "Library", IconLibrary)}
+          {nav("library", "Profile", IconUserCircle)}
         </Group>
       </AppShell.Footer>
     </AppShell>

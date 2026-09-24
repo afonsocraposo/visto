@@ -23,7 +23,7 @@ export function FeedPanel() {
 
   return (
     <>
-      <div className="page-heading"><Text className="section-kicker">From your household</Text><Title order={1}>Feed</Title></div>
+      <div className="page-heading"><Text className="section-kicker">From your household</Text><Title order={1}>Community feed</Title></div>
       {items.map(item => (
         <Paper className="feed-card" key={item.id} withBorder p="md" mt="sm">
           <Group wrap="nowrap" align="flex-start">
