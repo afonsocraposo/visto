@@ -16,6 +16,7 @@ import (
 	"github.com/afonsocosta/visto/internal/application/library"
 	"github.com/afonsocosta/visto/internal/application/profile"
 	"github.com/afonsocosta/visto/internal/application/tracking"
+	"github.com/afonsocosta/visto/internal/application/watch"
 	"github.com/afonsocosta/visto/internal/domain"
 )
 
@@ -23,7 +24,7 @@ type Server struct {
 	handler http.Handler
 }
 
-func New(authService *auth.Service, metadataProvider domain.MetadataProvider, webDir string, libraryService *library.Service, trackingService *tracking.Service, profileService *profile.Service, feedService *feed.Service, exportService *exportapp.Service) *Server {
+func New(authService *auth.Service, metadataProvider domain.MetadataProvider, webDir string, libraryService *library.Service, trackingService *tracking.Service, profileService *profile.Service, feedService *feed.Service, exportService *exportapp.Service, watchService *watch.Service) *Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", health)
 	mux.HandleFunc("POST /api/v1/auth/bootstrap", bootstrap(authService))
@@ -37,16 +38,132 @@ func New(authService *auth.Service, metadataProvider domain.MetadataProvider, we
 	mux.HandleFunc("GET /api/v1/export/csv", csvExport(authService, exportService))
 	mux.HandleFunc("GET /api/v1/search", search(authService, metadataProvider))
 	mux.HandleFunc("GET /api/v1/library", listLibrary(authService, libraryService))
-	mux.HandleFunc("POST /api/v1/library", saveLibrary(authService, libraryService))
+	mux.HandleFunc("POST /api/v1/library", saveLibrary(authService, libraryService, metadataProvider))
+	mux.HandleFunc("PATCH /api/v1/library/{mediaID}", updateLibrary(authService, libraryService))
 	mux.HandleFunc("POST /api/v1/plays", createPlay(authService, trackingService))
+	mux.HandleFunc("POST /api/v1/plays/bulk", createBulkPlays(authService, trackingService))
 	mux.HandleFunc("PATCH /api/v1/plays/{playID}", correctPlay(authService, trackingService))
 	mux.HandleFunc("DELETE /api/v1/plays/{playID}", deletePlay(authService, trackingService))
+	mux.HandleFunc("GET /api/v1/continue-watching", continueWatching(authService, watchService))
+	mux.HandleFunc("GET /api/v1/calendar", calendar(authService, watchService))
 	if webDir != "" {
 		if _, err := os.Stat(webDir); err == nil {
 			mux.Handle("GET /", http.FileServer(http.Dir(webDir)))
 		}
 	}
 	return &Server{handler: mux}
+}
+
+func updateLibrary(authService *auth.Service, service *library.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := authenticatedUser(w, r, authService)
+		if !ok {
+			return
+		}
+		if service == nil {
+			writeError(w, http.StatusServiceUnavailable, "library is not configured")
+			return
+		}
+		var request struct {
+			Status domain.LibraryStatus `json:"status"`
+			Rating *int                 `json:"rating"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid JSON")
+			return
+		}
+		item, err := service.Save(r.Context(), user.ID, r.PathValue("mediaID"), request.Status, request.Rating)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, item)
+	}
+}
+
+func createBulkPlays(authService *auth.Service, service *tracking.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := authenticatedUser(w, r, authService)
+		if !ok {
+			return
+		}
+		if service == nil {
+			writeError(w, http.StatusServiceUnavailable, "tracking is not configured")
+			return
+		}
+		var request struct {
+			EpisodeIDs []string   `json:"episode_ids"`
+			WatchedAt  *time.Time `json:"watched_at"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid JSON")
+			return
+		}
+		watchedAt := time.Time{}
+		if request.WatchedAt != nil {
+			watchedAt = *request.WatchedAt
+		}
+		plays, err := service.RecordEpisodes(r.Context(), user.ID, request.EpisodeIDs, watchedAt, "web")
+		if err != nil {
+			writeTrackingError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusCreated, plays)
+	}
+}
+
+func continueWatching(authService *auth.Service, service *watch.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := authenticatedUser(w, r, authService)
+		if !ok {
+			return
+		}
+		if service == nil {
+			writeError(w, http.StatusServiceUnavailable, "watch data is not configured")
+			return
+		}
+		entries, err := service.Continue(r.Context(), user.ID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "watch data is temporarily unavailable")
+			return
+		}
+		writeJSON(w, http.StatusOK, entries)
+	}
+}
+
+func calendar(authService *auth.Service, service *watch.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := authenticatedUser(w, r, authService)
+		if !ok {
+			return
+		}
+		if service == nil {
+			writeError(w, http.StatusServiceUnavailable, "watch data is not configured")
+			return
+		}
+		from, to := time.Time{}, time.Time{}
+		var err error
+		if value := r.URL.Query().Get("from"); value != "" {
+			from, err = time.Parse("2006-01-02", value)
+			if err != nil {
+				writeError(w, http.StatusBadRequest, "from must use YYYY-MM-DD")
+				return
+			}
+		}
+		if value := r.URL.Query().Get("to"); value != "" {
+			to, err = time.Parse("2006-01-02", value)
+			if err != nil {
+				writeError(w, http.StatusBadRequest, "to must use YYYY-MM-DD")
+				return
+			}
+		}
+		entries, err := service.Calendar(r.Context(), user.ID, from, to)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, entries)
+	}
 }
 
 func jsonExport(authService *auth.Service, service *exportapp.Service) http.HandlerFunc {
@@ -168,7 +285,7 @@ func setActivitySettings(authService *auth.Service, service *profile.Service) ht
 			writeError(w, http.StatusBadRequest, "invalid JSON")
 			return
 		}
-		if err := service.SetActivityVisibility(r.Context(), user.ID, request.ActivityVisibility); err != nil {
+		if err := service.Update(r.Context(), user.ID, request); err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
@@ -292,7 +409,7 @@ type libraryRequest struct {
 	Rating *int                 `json:"rating"`
 }
 
-func saveLibrary(authService *auth.Service, service *library.Service) http.HandlerFunc {
+func saveLibrary(authService *auth.Service, service *library.Service, provider domain.MetadataProvider) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		user, ok := authenticatedUser(w, r, authService)
 		if !ok {
@@ -311,6 +428,17 @@ func saveLibrary(authService *auth.Service, service *library.Service) http.Handl
 		if err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
+		}
+		if request.Media.Type == domain.TVMediaType {
+			tvProvider, ok := provider.(domain.TVShowMetadataProvider)
+			if !ok {
+				writeError(w, http.StatusServiceUnavailable, "TV metadata import is not configured")
+				return
+			}
+			if err := service.ImportShow(r.Context(), request.Media.TMDBID, tvProvider); err != nil {
+				writeError(w, http.StatusBadGateway, "could not import TV show metadata")
+				return
+			}
 		}
 		writeJSON(w, http.StatusCreated, item)
 	}
@@ -411,6 +539,8 @@ func currentUser(service *auth.Service) http.HandlerFunc {
 }
 
 func authenticatedUser(w http.ResponseWriter, r *http.Request, service *auth.Service) (domain.User, bool) {
+	w.Header().Set("Cache-Control", "private, no-store")
+	w.Header().Add("Vary", "Cookie")
 	cookie, err := r.Cookie("visto_session")
 	if err != nil || service == nil {
 		writeError(w, http.StatusUnauthorized, "authentication required")

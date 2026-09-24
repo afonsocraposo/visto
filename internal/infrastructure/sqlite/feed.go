@@ -16,7 +16,7 @@ func (store *Store) List(ctx context.Context, cursor string, limit int) (feed.Pa
 		return feed.Page{}, err
 	}
 	arguments = append(arguments, limit+1)
-	rows, err := store.DB.QueryContext(ctx, `SELECT ae.id,u.display_name,ae.kind,COALESCE(movie.title,show.title),ae.rating,episode.season_number,episode.episode_number,ae.occurred_at
+	rows, err := store.DB.QueryContext(ctx, `SELECT ae.id,u.display_name,ae.kind,COALESCE(movie.title,show.title),ae.rating,COALESCE(json_extract(ae.detail_json,'$.count'),0),episode.season_number,episode.episode_number,ae.occurred_at
 		FROM activity_events ae
 		JOIN users u ON u.id=ae.user_id
 		JOIN user_settings settings ON settings.user_id=u.id AND settings.activity_visibility='instance'
@@ -33,7 +33,7 @@ func (store *Store) List(ctx context.Context, cursor string, limit int) (feed.Pa
 		var item feed.Item
 		var rating, season, episode sql.NullInt64
 		var occurredAt string
-		if err := rows.Scan(&item.ID, &item.DisplayName, &item.Kind, &item.Title, &rating, &season, &episode, &occurredAt); err != nil {
+		if err := rows.Scan(&item.ID, &item.DisplayName, &item.Kind, &item.Title, &rating, &item.Count, &season, &episode, &occurredAt); err != nil {
 			return feed.Page{}, fmt.Errorf("scan feed item: %w", err)
 		}
 		if season.Valid {

@@ -12,6 +12,7 @@ type Item struct {
 	Kind          string    `json:"kind"`
 	Title         string    `json:"title"`
 	Rating        *int      `json:"rating,omitempty"`
+	Count         int       `json:"count,omitempty"`
 	SeasonNumber  *int      `json:"season_number,omitempty"`
 	EpisodeNumber *int      `json:"episode_number,omitempty"`
 	OccurredAt    time.Time `json:"occurred_at"`

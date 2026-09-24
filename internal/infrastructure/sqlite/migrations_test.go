@@ -31,14 +31,18 @@ func TestMigrator_GivenFreshDatabase_WhenAppliedTwice_ThenSchemaIsCreatedAndSeco
 	if err := db.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&count); err != nil {
 		t.Fatalf("count migrations: %v", err)
 	}
-	if count != 1 {
-		t.Fatalf("migration count = %d, want 1", count)
+	if count != 2 {
+		t.Fatalf("migration count = %d, want 2", count)
 	}
 	for _, table := range []string{"users", "media", "episodes", "plays", "activity_events"} {
 		var name string
 		if err := db.QueryRow(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?`, table).Scan(&name); err != nil {
 			t.Fatalf("expected table %q: %v", table, err)
 		}
+	}
+	var column string
+	if err := db.QueryRow(`SELECT name FROM pragma_table_info('media') WHERE name='catalog_updated_at'`).Scan(&column); err != nil {
+		t.Fatalf("expected catalog refresh timestamp migration: %v", err)
 	}
 }
 

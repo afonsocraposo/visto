@@ -25,6 +25,7 @@ type Play struct {
 
 type Repository interface {
 	CreatePlay(context.Context, Play) error
+	CreateBulkPlays(context.Context, []Play) error
 	UpdatePlay(context.Context, string, string, time.Time) error
 	DeletePlay(context.Context, string, string) error
 }
@@ -65,6 +66,39 @@ func (service *Service) Record(ctx context.Context, userID string, mediaID, epis
 		return Play{}, err
 	}
 	return play, nil
+}
+
+func (service *Service) RecordEpisodes(ctx context.Context, userID string, episodeIDs []string, watchedAt time.Time, source string) ([]Play, error) {
+	if userID == "" {
+		return nil, fmt.Errorf("user is required")
+	}
+	if len(episodeIDs) == 0 || len(episodeIDs) > 100 {
+		return nil, fmt.Errorf("bulk action must include 1 to 100 episodes")
+	}
+	now := service.now().UTC()
+	if watchedAt.IsZero() {
+		watchedAt = now
+	}
+	if watchedAt.After(now) {
+		return nil, ErrFutureWatchTime
+	}
+	if source == "" {
+		source = "web"
+	}
+	seen := map[string]bool{}
+	plays := make([]Play, 0, len(episodeIDs))
+	for _, episodeID := range episodeIDs {
+		if episodeID == "" || seen[episodeID] {
+			return nil, fmt.Errorf("episode IDs must be non-empty and unique")
+		}
+		seen[episodeID] = true
+		id := episodeID
+		plays = append(plays, Play{ID: service.newID(), UserID: userID, EpisodeID: &id, WatchedAt: watchedAt.UTC(), Source: source})
+	}
+	if err := service.repository.CreateBulkPlays(ctx, plays); err != nil {
+		return nil, err
+	}
+	return plays, nil
 }
 
 func (service *Service) Correct(ctx context.Context, userID, playID string, watchedAt time.Time) error {

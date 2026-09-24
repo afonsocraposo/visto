@@ -45,6 +45,10 @@ type mediaRepository interface {
 type listRepository interface {
 	ListItems(context.Context, string) ([]Entry, error)
 }
+type showMetadataRepository interface {
+	ImportShowMetadata(context.Context, string, domain.TVShowMetadata) error
+	ShowMetadataNeedsRefresh(context.Context, string, time.Duration) (bool, error)
+}
 type Service struct {
 	repository Repository
 	now        func() time.Time
@@ -98,4 +102,29 @@ func (s *Service) List(ctx context.Context, userID string) ([]Entry, error) {
 		return nil, fmt.Errorf("library storage is not configured")
 	}
 	return repository.ListItems(ctx, userID)
+}
+
+func (s *Service) ImportShow(ctx context.Context, tmdbID int64, provider domain.TVShowMetadataProvider) error {
+	if provider == nil {
+		return fmt.Errorf("TV metadata provider is not configured")
+	}
+	repository, ok := s.repository.(showMetadataRepository)
+	if !ok {
+		return fmt.Errorf("show metadata storage is not configured")
+	}
+	needsRefresh, err := repository.ShowMetadataNeedsRefresh(ctx, fmt.Sprintf("tv:%d", tmdbID), 24*time.Hour)
+	if err != nil {
+		return err
+	}
+	if !needsRefresh {
+		return nil
+	}
+	metadata, err := provider.Show(ctx, tmdbID)
+	if err != nil {
+		return err
+	}
+	if metadata.TMDBID != tmdbID || metadata.Name == "" {
+		return fmt.Errorf("TMDB returned invalid show metadata")
+	}
+	return repository.ImportShowMetadata(ctx, fmt.Sprintf("tv:%d", tmdbID), metadata)
 }

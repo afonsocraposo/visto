@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/afonsocosta/visto/internal/application/library"
+	"github.com/afonsocosta/visto/internal/domain"
 )
 
 func (s *Store) UpsertMedia(ctx context.Context, media library.Media) error {
@@ -20,6 +21,59 @@ func (s *Store) UpsertMedia(ctx context.Context, media library.Media) error {
 		return fmt.Errorf("upsert media: %w", err)
 	}
 	return nil
+}
+
+func (s *Store) ImportShowMetadata(ctx context.Context, showID string, show domain.TVShowMetadata) error {
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin show metadata import: %w", err)
+	}
+	defer tx.Rollback()
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	if _, err := tx.ExecContext(ctx, `UPDATE media SET title=?,original_title=?,overview=?,release_date=?,poster_path=?,original_language=?,metadata_updated_at=?,catalog_updated_at=? WHERE id=? AND media_type='tv' AND tmdb_id=?`, show.Name, show.Name, show.Overview, show.FirstAirDate, show.PosterPath, show.OriginalLanguage, now, now, showID, show.TMDBID); err != nil {
+		return fmt.Errorf("update show metadata: %w", err)
+	}
+	for _, season := range show.Seasons {
+		seasonID := fmt.Sprintf("%s:season:%d", showID, season.Number)
+		var seasonTMDB any
+		if season.TMDBID > 0 {
+			seasonTMDB = season.TMDBID
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO seasons(id,show_id,tmdb_id,season_number,name,overview,poster_path,air_date,episode_count) VALUES(?,?,?,?,?,?,?,?,?)
+			ON CONFLICT(show_id,season_number) DO UPDATE SET tmdb_id=excluded.tmdb_id,name=excluded.name,overview=excluded.overview,poster_path=excluded.poster_path,air_date=excluded.air_date,episode_count=excluded.episode_count`, seasonID, showID, seasonTMDB, season.Number, season.Name, season.Overview, season.PosterPath, season.AirDate, len(season.Episodes)); err != nil {
+			return fmt.Errorf("upsert season %d: %w", season.Number, err)
+		}
+		for _, episode := range season.Episodes {
+			episodeID := fmt.Sprintf("%s:episode:%d", showID, episode.TMDBID)
+			var episodeTMDB any
+			if episode.TMDBID > 0 {
+				episodeTMDB = episode.TMDBID
+			} else {
+				episodeID = fmt.Sprintf("%s:episode:%d:%d", showID, episode.SeasonNumber, episode.EpisodeNumber)
+			}
+			if _, err := tx.ExecContext(ctx, `INSERT INTO episodes(id,show_id,season_id,tmdb_id,season_number,episode_number,name,overview,air_date,runtime,still_path,metadata_updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
+				ON CONFLICT(show_id,season_number,episode_number) DO UPDATE SET season_id=excluded.season_id,tmdb_id=excluded.tmdb_id,name=excluded.name,overview=excluded.overview,air_date=excluded.air_date,runtime=excluded.runtime,still_path=excluded.still_path,metadata_updated_at=excluded.metadata_updated_at`, episodeID, showID, seasonID, episodeTMDB, episode.SeasonNumber, episode.EpisodeNumber, episode.Name, episode.Overview, episode.AirDate, episode.Runtime, episode.StillPath, now); err != nil {
+				return fmt.Errorf("upsert S%02dE%02d: %w", episode.SeasonNumber, episode.EpisodeNumber, err)
+			}
+		}
+	}
+	return tx.Commit()
+}
+
+func (s *Store) ShowMetadataNeedsRefresh(ctx context.Context, showID string, ttl time.Duration) (bool, error) {
+	var updated sql.NullString
+	err := s.DB.QueryRowContext(ctx, `SELECT catalog_updated_at FROM media WHERE id=? AND media_type='tv'`, showID).Scan(&updated)
+	if err != nil {
+		return false, fmt.Errorf("get show metadata age: %w", err)
+	}
+	if !updated.Valid {
+		return true, nil
+	}
+	parsed, err := time.Parse(time.RFC3339Nano, updated.String)
+	if err != nil {
+		return true, nil
+	}
+	return time.Since(parsed) >= ttl, nil
 }
 
 func (s *Store) UpsertItem(ctx context.Context, item library.Item) error {

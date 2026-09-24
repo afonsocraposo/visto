@@ -15,6 +15,10 @@ func (repository *repository) CreatePlay(_ context.Context, play tracking.Play) 
 	repository.plays = append(repository.plays, play)
 	return nil
 }
+func (repository *repository) CreateBulkPlays(_ context.Context, plays []tracking.Play) error {
+	repository.plays = append(repository.plays, plays...)
+	return nil
+}
 func (repository *repository) UpdatePlay(_ context.Context, _, _ string, _ time.Time) error {
 	return nil
 }
@@ -46,6 +50,18 @@ func TestRecord_GivenEpisodeAndCurrentTime_WhenRecording_ThenItStoresAnIndividua
 	}
 	if play.ID != "play-1" || len(repository.plays) != 1 || repository.plays[0].EpisodeID == nil {
 		t.Fatalf("play = %#v", play)
+	}
+}
+
+func TestRecordEpisodes_GivenSkippedEpisodes_WhenRecordingBulk_ThenItStoresEachAsAnIndividualPlay(t *testing.T) {
+	repo := &repository{}
+	service := tracking.NewServiceWithID(repo, func() string { return "play" })
+	plays, err := service.RecordEpisodes(context.Background(), "user-1", []string{"episode-1", "episode-2"}, time.Time{}, "web")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plays) != 2 || len(repo.plays) != 2 || repo.plays[0].EpisodeID == nil || repo.plays[1].EpisodeID == nil {
+		t.Fatalf("plays=%+v stored=%+v", plays, repo.plays)
 	}
 }
 

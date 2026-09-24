@@ -9,6 +9,41 @@ type MetadataProvider interface {
 	Search(ctx context.Context, query, language string) ([]MediaSearchResult, error)
 }
 
+type TVShowMetadataProvider interface {
+	Show(ctx context.Context, tmdbID int64) (TVShowMetadata, error)
+}
+
+type TVShowMetadata struct {
+	TMDBID           int64
+	Name             string
+	Overview         string
+	PosterPath       string
+	FirstAirDate     string
+	OriginalLanguage string
+	Seasons          []TVSeasonMetadata
+}
+
+type TVSeasonMetadata struct {
+	TMDBID     int64
+	Number     int
+	Name       string
+	Overview   string
+	PosterPath string
+	AirDate    string
+	Episodes   []TVEpisodeMetadata
+}
+
+type TVEpisodeMetadata struct {
+	TMDBID        int64
+	SeasonNumber  int
+	EpisodeNumber int
+	Name          string
+	Overview      string
+	AirDate       string
+	Runtime       int
+	StillPath     string
+}
+
 type MediaSearchResult struct {
 	TMDBID           int64     `json:"tmdb_id"`
 	Type             MediaType `json:"type"`
