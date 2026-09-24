@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Button, Group, Loader, Modal, Paper, Select, Text } from "@mantine/core";
 import { useUserQueryKey } from "../auth/SessionContext";
+import { findMissingPriorEpisodes } from "./episodeSelection";
 import type { ShowEpisodeEntry } from "../../types";
 
 type PendingSkippedEpisodes = { target: ShowEpisodeEntry; missing: ShowEpisodeEntry[] };
@@ -49,13 +50,7 @@ export function EpisodeBrowser({ showID, title, onClose }: { showID: string; tit
 
   const selectEpisode = (target: ShowEpisodeEntry) => {
     const today = new Date().toISOString().slice(0, 10);
-    const missing = episodeEntries.filter(entry => {
-      const episode = entry.episode;
-      const comesBefore = episode.season_number < target.episode.season_number
-        || (episode.season_number === target.episode.season_number && episode.episode_number < target.episode.episode_number);
-      const released = !episode.air_date || episode.air_date <= today;
-      return comesBefore && episode.season_number > 0 && released && !entry.watched;
-    });
+    const missing = findMissingPriorEpisodes(episodeEntries, target, today);
     if (missing.length > 0) {
       setConfirmation({ target, missing });
       return;

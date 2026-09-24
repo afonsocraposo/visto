@@ -48,7 +48,7 @@ The Vite server proxies `/api` requests to the Go server on port 8080.
 
 ```sh
 go test ./...
-cd frontend && npm run build
+cd frontend && npm test && npm run build
 ```
 
 The project uses BDD-style Given/When/Then test names for domain and application
