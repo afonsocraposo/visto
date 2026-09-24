@@ -34,7 +34,7 @@ export function LibraryPanel({ onOpenDetail, onOpenList }: { onOpenDetail?: (tar
       <SegmentedControl aria-label="Filter library by media type" value={mediaFilter} onChange={value => setMediaFilter(value as "all" | "movie" | "tv")} data={[{ value: "all", label: "All" }, { value: "movie", label: "Movies" }, { value: "tv", label: "TV shows" }]} mb="xl" />
       <div className="library-sections">
         {sections.map(section => {
-          const entries = library.data.filter(entry => (section.status === "completed" ? entry.completed : entry.item.status === section.status) && (mediaFilter === "all" || entry.media.type === mediaFilter)).sort((a, b) => Date.parse(b.item.updated_at) - Date.parse(a.item.updated_at));
+          const entries = library.data.filter(entry => (section.status === "completed" ? entry.completed : !entry.completed && entry.item.status === section.status) && (mediaFilter === "all" || entry.media.type === mediaFilter)).sort((a, b) => Date.parse(b.item.updated_at) - Date.parse(a.item.updated_at));
           if (entries.length === 0) return null;
           const visible = entries.slice(0, PREVIEW_LIMIT);
           return <section className="library-section" key={section.status} aria-labelledby={`library-section-${section.status}`}>

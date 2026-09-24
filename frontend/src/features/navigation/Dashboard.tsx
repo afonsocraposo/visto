@@ -130,7 +130,7 @@ export function Dashboard({ user, theme, setTheme }: { user: User; theme: Theme;
             {view === "now" ? <WatchNow onOpenDetail={target => void navigate({ to: `/media/${target.mediaType}/${target.tmdbID}`, search: { media: target.mediaID, episode: target.episodeID, season: target.seasonNumber } })} /> : <WatchCalendar />}
           </>
         )}
-        {!detail && tab === "search" && <SearchPanel />}
+        {!detail && tab === "search" && <SearchPanel onOpenDetail={target => void navigate({ to: `/media/${target.mediaType}/${target.tmdbID}`, search: { media: target.mediaID, episode: target.episodeID, season: target.seasonNumber } })} />}
         {!detail && tab === "feed" && <FeedArea />}
         {!detail && !listStatus && tab === "library" && <LibraryArea user={user} onOpenDetail={target => void navigate({ to: `/media/${target.mediaType}/${target.tmdbID}`, search: { media: target.mediaID, episode: target.episodeID, season: target.seasonNumber } })} onOpenList={status => void navigate({ to: `/profile/library/${status}` })} />}
       </AppShell.Main>
