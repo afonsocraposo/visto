@@ -279,10 +279,13 @@ accessible. It supports light and dark themes, defaults to the operating
 system preference, and lets the user choose a persistent override.
 
 The service worker caches the application shell and recently viewed read-only
-responses so users can reopen Visto and view cached content while offline. The
-interface clearly shows when cached data may be stale. v0.1 does not queue or
-silently retry offline writes: tracking, ratings, and library changes require a
-network connection and show a clear retry action if unavailable.
+responses so users can reopen Visto and view cached content while offline. It
+must cache only successful GET responses from an explicit allow-list and keep
+at most the 100 most recent API responses per user. Logout clears the active
+user cache pointer. The interface clearly shows when cached data may be stale
+and offers a connection retry action. v0.1 does not queue or silently retry
+offline writes: tracking, ratings, and library changes require a network
+connection and show a clear retry action if unavailable.
 
 ### REST API
 

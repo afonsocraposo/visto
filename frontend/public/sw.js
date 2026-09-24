@@ -1,5 +1,16 @@
 const shell = "visto-shell-v1";
 const userIndex = "visto-user-index-v1";
+const maxCachedAPIEntries = 100;
+const cacheableAPIPaths = new Set([
+  "/api/v1/me",
+  "/api/v1/search",
+  "/api/v1/library",
+  "/api/v1/plays",
+  "/api/v1/feed",
+  "/api/v1/continue-watching",
+  "/api/v1/calendar",
+  "/api/v1/profile/activity-settings",
+]);
 const activeUserRequest = new Request(`${self.location.origin}/__visto_active_user__`);
 self.addEventListener("install", event => event.waitUntil(caches.open(shell).then(cache => cache.addAll(["/", "/manifest.webmanifest", "/icon.svg"]))));
 self.addEventListener("activate", event => event.waitUntil(self.clients.claim()));
@@ -14,20 +25,19 @@ self.addEventListener("fetch", event => {
     return;
   }
   if (event.request.method !== "GET") return;
-  if (url.pathname.startsWith("/api/")) {
+  if (url.pathname.startsWith("/api/") && cacheableAPIPaths.has(url.pathname)) {
     event.respondWith(fetch(event.request).then(async response => {
       if (url.pathname === "/api/v1/me" && response.ok) {
         const user = await response.clone().json();
         if (user.id) {
-          const cache = await caches.open(userCacheName(user.id));
-          await cache.put(event.request, response.clone());
+          await cacheRecentResponse(user.id, event.request, response.clone());
           await storeActiveUserID(user.id);
         }
         return response;
       }
-      if (!response.ok || url.pathname.startsWith("/api/v1/export/")) return response;
+      if (response.status !== 200) return response;
       const userID = await activeUserID();
-      if (userID) await (await caches.open(userCacheName(userID))).put(event.request, response.clone());
+      if (userID) await cacheRecentResponse(userID, event.request, response.clone());
       return response;
     }).catch(async () => {
       const userID = await activeUserID();
@@ -42,5 +52,14 @@ self.addEventListener("fetch", event => {
 function userCacheName(userID) { return `visto-user-v1-${encodeURIComponent(userID)}`; }
 async function activeUserID() { const response = await (await caches.open(userIndex)).match(activeUserRequest); return response ? response.text() : null; }
 async function storeActiveUserID(userID) { await (await caches.open(userIndex)).put(activeUserRequest, new Response(userID)); }
+async function cacheRecentResponse(userID, request, response) {
+  const cache = await caches.open(userCacheName(userID));
+  await cache.delete(request);
+  await cache.put(request, response);
+  const requests = await cache.keys();
+  for (const staleRequest of requests.slice(0, Math.max(0, requests.length - maxCachedAPIEntries))) {
+    await cache.delete(staleRequest);
+  }
+}
 async function clearActiveUserID() { await (await caches.open(userIndex)).delete(activeUserRequest); }
 async function storeActiveUser(response) { try { const user = await response.json(); if (user.id) await storeActiveUserID(user.id); } catch {} }

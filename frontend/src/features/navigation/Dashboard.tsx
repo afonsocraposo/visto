@@ -13,6 +13,7 @@ export function Dashboard({ user, theme, setTheme }: { user: User; theme: Theme;
   const [tab, setTab] = useState<Tab>("watch");
   const [view, setView] = useState("now");
   const [online, setOnline] = useState(() => navigator.onLine);
+  const [checkingConnection, setCheckingConnection] = useState(false);
   const logout = useMutation({
     mutationFn: async () => {
       const response = await fetch("/api/v1/auth/logout", { method: "POST" });
@@ -23,6 +24,20 @@ export function Dashboard({ user, theme, setTheme }: { user: User; theme: Theme;
       queryClient.setQueryData(["session"], null);
     },
   });
+
+  const retryConnection = async () => {
+    setCheckingConnection(true);
+    try {
+      const response = await fetch("/health", { cache: "no-store" });
+      if (!response.ok) throw new Error("Server is not ready.");
+      setOnline(true);
+      await queryClient.invalidateQueries({ queryKey: ["user", user.id] });
+    } catch {
+      setOnline(false);
+    } finally {
+      setCheckingConnection(false);
+    }
+  };
 
   useEffect(() => {
     const onlineHandler = () => setOnline(true);
@@ -66,7 +81,16 @@ export function Dashboard({ user, theme, setTheme }: { user: User; theme: Theme;
         </Group>
       </AppShell.Header>
       <AppShell.Main>
-        {!online && <Alert color="yellow" mb="md">You are offline. Saved information may be out of date, and changes need a connection.</Alert>}
+        {!online && (
+          <Alert color="yellow" mb="md">
+            <Group justify="space-between" align="center">
+              <Text size="sm">You are offline. Saved information may be out of date, and changes need a connection.</Text>
+              <Button size="xs" variant="default" loading={checkingConnection} onClick={() => void retryConnection()}>
+                Retry connection
+              </Button>
+            </Group>
+          </Alert>
+        )}
         {logout.isError && <Alert color="red" mb="md">{logout.error.message}</Alert>}
         {tab === "watch" && (
           <>
