@@ -103,6 +103,28 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '502': { description: TMDB is temporarily unavailable }
         '503': { description: TMDB is not configured }
+  /movies/{tmdbID}:
+    get:
+      summary: Get a movie in the authenticated user's library
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { name: tmdbID, in: path, required: true, schema: { type: integer, format: int64, minimum: 1 } }
+      responses:
+        '200': { description: Movie and the user's library state, content: { application/json: { schema: { $ref: '#/components/schemas/LibraryEntry' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: Movie is not in the authenticated user's library }
+  /shows/{tmdbID}:
+    get:
+      summary: Get a TV show in the authenticated user's library
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { name: tmdbID, in: path, required: true, schema: { type: integer, format: int64, minimum: 1 } }
+      responses:
+        '200': { description: TV show and the user's library state, content: { application/json: { schema: { $ref: '#/components/schemas/LibraryEntry' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: TV show is not in the authenticated user's library }
   /library:
     get:
       summary: List the authenticated user's library
@@ -184,6 +206,36 @@ paths:
         '200': { description: Episodes with the user's watched state, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ShowEpisode' } } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { description: Show is not in the authenticated user's library }
+  /shows/{showID}/seasons:
+    get:
+      summary: List seasons for a show in the authenticated user's library
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { name: showID, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Season summaries, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/Season' } } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: Show is not in the authenticated user's library }
+  /shows/{showID}/progress:
+    get:
+      summary: Derive the authenticated user's show progress
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { name: showID, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Derived progress, content: { application/json: { schema: { $ref: '#/components/schemas/ShowProgress' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: Show is not in the authenticated user's library }
+  /seasons/{seasonID}/episodes:
+    get:
+      summary: List episodes in a season in the authenticated user's library
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { name: seasonID, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Episodes with the user's watched state, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ShowEpisode' } } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: Season is not in the authenticated user's library }
   /continue-watching:
     get:
       summary: Derive the authenticated user's next released episodes
@@ -338,6 +390,16 @@ components:
         season_number: { type: integer, minimum: 0 }
         episode_number: { type: integer, minimum: 0 }
         air_date: { type: [string, 'null'], format: date }
+    Season:
+      type: object
+      required: [id, show_id, season_number, name, episode_count]
+      properties:
+        id: { type: string }
+        show_id: { type: string }
+        season_number: { type: integer, minimum: 0 }
+        name: { type: string }
+        episode_count: { type: integer, minimum: 0 }
+        air_date: { type: string, format: date }
     ShowEpisode:
       type: object
       required: [episode, name, watched]
@@ -345,6 +407,15 @@ components:
         episode: { $ref: '#/components/schemas/Episode' }
         name: { type: string }
         watched: { type: boolean }
+    ShowProgress:
+      type: object
+      required: [show_id, cursor, next_episode, latest_released_episode, is_caught_up]
+      properties:
+        show_id: { type: string }
+        cursor: { anyOf: [{ $ref: '#/components/schemas/Episode' }, { type: 'null' }] }
+        next_episode: { anyOf: [{ $ref: '#/components/schemas/Episode' }, { type: 'null' }] }
+        latest_released_episode: { anyOf: [{ $ref: '#/components/schemas/Episode' }, { type: 'null' }] }
+        is_caught_up: { type: boolean }
     ContinueEntry:
       type: object
       required: [show_id, title, kind, next_episode]

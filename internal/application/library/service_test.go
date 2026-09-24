@@ -2,20 +2,54 @@ package library_test
 
 import (
 	"context"
+	"errors"
+	"testing"
+
 	"github.com/afonsocosta/visto/internal/application/library"
 	"github.com/afonsocosta/visto/internal/domain"
-	"testing"
 )
 
 type repo struct {
 	item    library.Item
 	media   library.Media
 	entries []library.Entry
+	lookup  struct {
+		userID string
+		typeID domain.MediaType
+		tmdbID int64
+	}
 }
 
 func (r *repo) UpsertItem(_ context.Context, item library.Item) error          { r.item = item; return nil }
 func (r *repo) UpsertMedia(_ context.Context, media library.Media) error       { r.media = media; return nil }
 func (r *repo) ListItems(_ context.Context, _ string) ([]library.Entry, error) { return r.entries, nil }
+func (r *repo) GetMediaByTMDBID(_ context.Context, userID string, mediaType domain.MediaType, tmdbID int64) (library.Entry, error) {
+	r.lookup.userID, r.lookup.typeID, r.lookup.tmdbID = userID, mediaType, tmdbID
+	if len(r.entries) == 0 {
+		return library.Entry{}, library.ErrMediaNotFound
+	}
+	return r.entries[0], nil
+}
+
+func TestGetByTMDBID_GivenAnOwnedTVShow_WhenRequested_ThenItUsesTheAuthenticatedUserAndMediaType(t *testing.T) {
+	entry := library.Entry{Item: library.Item{UserID: "owner", MediaID: "tv:42"}, Media: library.Media{ID: "tv:42", Type: domain.TVMediaType, TMDBID: 42, Title: "Example"}}
+	repository := &repo{entries: []library.Entry{entry}}
+	result, err := library.NewService(repository).GetByTMDBID(context.Background(), "owner", domain.TVMediaType, 42)
+	if err != nil {
+		t.Fatalf("get show details: %v", err)
+	}
+	if result.Media.ID != "tv:42" || repository.lookup.userID != "owner" || repository.lookup.typeID != domain.TVMediaType || repository.lookup.tmdbID != 42 {
+		t.Fatalf("result=%+v lookup=%+v", result, repository.lookup)
+	}
+}
+
+func TestGetByTMDBID_GivenUnknownMedia_WhenRequested_ThenItReturnsNotFound(t *testing.T) {
+	_, err := library.NewService(&repo{}).GetByTMDBID(context.Background(), "owner", domain.MovieMediaType, 99)
+	if !errors.Is(err, library.ErrMediaNotFound) {
+		t.Fatalf("error=%v, want not found", err)
+	}
+}
+
 func TestSave_GivenFiveStarRating_WhenSaving_ThenItPersists(t *testing.T) {
 	r := &repo{}
 	rating := 5

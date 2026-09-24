@@ -9,15 +9,51 @@ import (
 )
 
 type repository struct {
-	shows    []Show
-	timezone string
-	episodes []ShowEpisode
+	shows          []Show
+	timezone       string
+	episodes       []ShowEpisode
+	seasons        []Season
+	seasonEpisodes []ShowEpisode
 }
 
 func (r repository) WatchingShows(context.Context, string) ([]Show, error) { return r.shows, nil }
 func (r repository) Timezone(context.Context, string) (string, error)      { return r.timezone, nil }
 func (r repository) ListShowEpisodes(context.Context, string, string) ([]ShowEpisode, error) {
 	return r.episodes, nil
+}
+func (r repository) ListShowSeasons(context.Context, string, string) ([]Season, error) {
+	return r.seasons, nil
+}
+func (r repository) ListSeasonEpisodes(context.Context, string, string) ([]ShowEpisode, error) {
+	return r.seasonEpisodes, nil
+}
+
+func TestShowProgress_GivenASeasonFifteenPlay_WhenProgressIsRequested_ThenTheCursorAndNextEpisodeUseTheFurthestPlay(t *testing.T) {
+	now := time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC)
+	date := func(day int) *time.Time {
+		value := now.AddDate(0, 0, day)
+		return &value
+	}
+	entries := []ShowEpisode{
+		{Episode: domain.Episode{ID: "s1e1", SeasonNumber: 1, EpisodeNumber: 1, AirDate: date(-20)}},
+		{Episode: domain.Episode{ID: "s15e20", SeasonNumber: 15, EpisodeNumber: 20, AirDate: date(-2)}},
+		{Episode: domain.Episode{ID: "s16e1", SeasonNumber: 16, EpisodeNumber: 1, AirDate: date(-1)}},
+		{Episode: domain.Episode{ID: "s16e2", SeasonNumber: 16, EpisodeNumber: 2, AirDate: date(20)}},
+	}
+	entries[1].Watched = true
+	service := NewService(repository{timezone: "UTC", episodes: entries})
+	service.now = func() time.Time { return now }
+
+	progress, err := service.ShowProgress(context.Background(), "user-1", "tv:example")
+	if err != nil {
+		t.Fatalf("get show progress: %v", err)
+	}
+	if progress.Cursor == nil || progress.Cursor.ID != "s15e20" {
+		t.Fatalf("cursor=%+v, want s15e20", progress.Cursor)
+	}
+	if progress.NextEpisode == nil || progress.NextEpisode.ID != "s16e1" || progress.IsCaughtUp {
+		t.Fatalf("progress=%+v, want next episode s16e1 and not caught up", progress)
+	}
 }
 
 func TestEpisodes_GivenShowInUsersLibrary_WhenEpisodesAreRequested_ThenTheCatalogAndWatchedStateAreReturned(t *testing.T) {

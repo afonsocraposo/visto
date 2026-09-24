@@ -44,3 +44,23 @@ func TestShowEpisodes_GivenNoSession_WhenRequested_ThenItRejectsTheRequest(t *te
 		t.Fatalf("status = %d, want %d", response.Code, http.StatusUnauthorized)
 	}
 }
+
+func TestShowCatalog_GivenNoSession_WhenProgressSeasonsOrEpisodesAreRequested_ThenItRejectsEachRequest(t *testing.T) {
+	handler := httpserver.New(nil, nil, "", nil, nil, nil, nil, nil, nil).Handler()
+	for _, path := range []string{
+		"/api/v1/movies/42",
+		"/api/v1/shows/42",
+		"/api/v1/shows/tv%3A42/progress",
+		"/api/v1/shows/tv%3A42/seasons",
+		"/api/v1/seasons/tv%3A42%3Aseason%3A15/episodes",
+	} {
+		t.Run(path, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodGet, path, nil)
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, request)
+			if response.Code != http.StatusUnauthorized {
+				t.Fatalf("status = %d, want %d", response.Code, http.StatusUnauthorized)
+			}
+		})
+	}
+}

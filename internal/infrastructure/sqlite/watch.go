@@ -126,6 +126,70 @@ func (store *Store) ListShowEpisodes(ctx context.Context, userID, showID string)
 	return entries, nil
 }
 
+func (store *Store) ListShowSeasons(ctx context.Context, userID, showID string) ([]watch.Season, error) {
+	var hasAccess bool
+	if err := store.DB.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM user_media WHERE user_id=? AND media_id=?)`, userID, showID).Scan(&hasAccess); err != nil {
+		return nil, fmt.Errorf("check show access: %w", err)
+	}
+	if !hasAccess {
+		return nil, watch.ErrShowNotFound
+	}
+	rows, err := store.DB.QueryContext(ctx, `SELECT id,show_id,season_number,COALESCE(name,''),COALESCE(episode_count,0),COALESCE(air_date,'') FROM seasons WHERE show_id=? ORDER BY season_number`, showID)
+	if err != nil {
+		return nil, fmt.Errorf("list show seasons: %w", err)
+	}
+	defer rows.Close()
+	seasons := []watch.Season{}
+	for rows.Next() {
+		var season watch.Season
+		if err := rows.Scan(&season.ID, &season.ShowID, &season.Number, &season.Name, &season.EpisodeCount, &season.AirDate); err != nil {
+			return nil, fmt.Errorf("scan show season: %w", err)
+		}
+		seasons = append(seasons, season)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate show seasons: %w", err)
+	}
+	return seasons, nil
+}
+
+func (store *Store) ListSeasonEpisodes(ctx context.Context, userID, seasonID string) ([]watch.ShowEpisode, error) {
+	var hasAccess bool
+	if err := store.DB.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM seasons s JOIN user_media um ON um.media_id=s.show_id WHERE s.id=? AND um.user_id=?)`, seasonID, userID).Scan(&hasAccess); err != nil {
+		return nil, fmt.Errorf("check season access: %w", err)
+	}
+	if !hasAccess {
+		return nil, watch.ErrShowNotFound
+	}
+	rows, err := store.DB.QueryContext(ctx, `SELECT e.id,e.show_id,e.season_number,e.episode_number,e.air_date,e.name,
+		EXISTS(SELECT 1 FROM plays p WHERE p.user_id=? AND p.episode_id=e.id)
+		FROM episodes e WHERE e.season_id=? ORDER BY e.episode_number`, userID, seasonID)
+	if err != nil {
+		return nil, fmt.Errorf("list season episodes: %w", err)
+	}
+	defer rows.Close()
+	entries := []watch.ShowEpisode{}
+	for rows.Next() {
+		var entry watch.ShowEpisode
+		var airDate sql.NullString
+		if err := rows.Scan(&entry.Episode.ID, &entry.Episode.ShowID, &entry.Episode.SeasonNumber, &entry.Episode.EpisodeNumber, &airDate, &entry.Name, &entry.Watched); err != nil {
+			return nil, fmt.Errorf("scan season episode: %w", err)
+		}
+		if airDate.Valid {
+			parsed, err := time.Parse(time.DateOnly, airDate.String)
+			if err != nil {
+				return nil, fmt.Errorf("parse season episode air date: %w", err)
+			}
+			entry.Episode.AirDate = &parsed
+		}
+		entries = append(entries, entry)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate season episodes: %w", err)
+	}
+	return entries, nil
+}
+
 func (store *Store) Timezone(ctx context.Context, userID string) (string, error) {
 	var timezone string
 	err := store.DB.QueryRowContext(ctx, `SELECT timezone FROM user_settings WHERE user_id=?`, userID).Scan(&timezone)
@@ -159,6 +223,8 @@ func (store *Store) ShowsNeedingMetadataRefresh(ctx context.Context, userID stri
 var _ watch.Repository = (*Store)(nil)
 var _ interface {
 	ListShowEpisodes(context.Context, string, string) ([]watch.ShowEpisode, error)
+	ListShowSeasons(context.Context, string, string) ([]watch.Season, error)
+	ListSeasonEpisodes(context.Context, string, string) ([]watch.ShowEpisode, error)
 } = (*Store)(nil)
 var _ interface {
 	ShowsNeedingMetadataRefresh(context.Context, string, time.Duration) ([]int64, error)

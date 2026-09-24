@@ -2,10 +2,14 @@ package library
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"github.com/afonsocosta/visto/internal/domain"
 	"time"
+
+	"github.com/afonsocosta/visto/internal/domain"
 )
+
+var ErrMediaNotFound = errors.New("media not found in user's library")
 
 type Item struct {
 	UserID    string               `json:"user_id"`
@@ -44,6 +48,10 @@ type mediaRepository interface {
 
 type listRepository interface {
 	ListItems(context.Context, string) ([]Entry, error)
+}
+
+type getRepository interface {
+	GetMediaByTMDBID(context.Context, string, domain.MediaType, int64) (Entry, error)
 }
 type showMetadataRepository interface {
 	ImportShowMetadata(context.Context, string, domain.TVShowMetadata) error
@@ -102,6 +110,20 @@ func (s *Service) List(ctx context.Context, userID string) ([]Entry, error) {
 		return nil, fmt.Errorf("library storage is not configured")
 	}
 	return repository.ListItems(ctx, userID)
+}
+
+func (s *Service) GetByTMDBID(ctx context.Context, userID string, mediaType domain.MediaType, tmdbID int64) (Entry, error) {
+	if userID == "" || tmdbID <= 0 {
+		return Entry{}, fmt.Errorf("user and a valid TMDB ID are required")
+	}
+	if mediaType != domain.MovieMediaType && mediaType != domain.TVMediaType {
+		return Entry{}, fmt.Errorf("invalid media type")
+	}
+	repository, ok := s.repository.(getRepository)
+	if !ok {
+		return Entry{}, fmt.Errorf("library lookup is not configured")
+	}
+	return repository.GetMediaByTMDBID(ctx, userID, mediaType, tmdbID)
 }
 
 func (s *Service) ImportShow(ctx context.Context, tmdbID int64, provider domain.TVShowMetadataProvider) error {

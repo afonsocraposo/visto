@@ -149,8 +149,43 @@ func (s *Store) ListItems(ctx context.Context, userID string) ([]library.Entry, 
 	return entries, nil
 }
 
+func (s *Store) GetMediaByTMDBID(ctx context.Context, userID string, mediaType domain.MediaType, tmdbID int64) (library.Entry, error) {
+	var entry library.Entry
+	var rating sql.NullInt64
+	var addedAt, updatedAt string
+	err := s.DB.QueryRowContext(ctx, `SELECT um.user_id,um.media_id,um.status,um.rating,um.added_at,um.updated_at,
+		m.media_type,m.tmdb_id,m.title,m.original_title,m.overview,m.release_date,m.poster_path,m.original_language
+		FROM user_media um JOIN media m ON m.id=um.media_id
+		WHERE um.user_id=? AND m.media_type=? AND m.tmdb_id=?`, userID, mediaType, tmdbID).Scan(
+		&entry.Item.UserID, &entry.Item.MediaID, &entry.Item.Status, &rating, &addedAt, &updatedAt,
+		&entry.Media.Type, &entry.Media.TMDBID, &entry.Media.Title, &entry.Media.OriginalTitle,
+		&entry.Media.Overview, &entry.Media.ReleaseDate, &entry.Media.PosterPath, &entry.Media.OriginalLanguage,
+	)
+	if errors.Is(err, sql.ErrNoRows) {
+		return library.Entry{}, library.ErrMediaNotFound
+	}
+	if err != nil {
+		return library.Entry{}, fmt.Errorf("get library media by TMDB ID: %w", err)
+	}
+	entry.Media.ID = entry.Item.MediaID
+	if rating.Valid {
+		value := int(rating.Int64)
+		entry.Item.Rating = &value
+	}
+	entry.Item.AddedAt, err = time.Parse(time.RFC3339Nano, addedAt)
+	if err != nil {
+		return library.Entry{}, fmt.Errorf("parse library added time: %w", err)
+	}
+	entry.Item.UpdatedAt, err = time.Parse(time.RFC3339Nano, updatedAt)
+	if err != nil {
+		return library.Entry{}, fmt.Errorf("parse library updated time: %w", err)
+	}
+	return entry, nil
+}
+
 var _ library.Repository = (*Store)(nil)
 var _ interface {
 	UpsertMedia(context.Context, library.Media) error
 	ListItems(context.Context, string) ([]library.Entry, error)
+	GetMediaByTMDBID(context.Context, string, domain.MediaType, int64) (library.Entry, error)
 } = (*Store)(nil)

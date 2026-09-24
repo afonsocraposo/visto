@@ -76,6 +76,16 @@ func TestListShowEpisodes_GivenTwoUsersAndOneWatchedEpisode_WhenRequested_ThenIt
 	if err != nil {
 		t.Fatal(err)
 	}
+	showEntry, err := store.GetMediaByTMDBID(context.Background(), "owner", domain.TVMediaType, 42)
+	if err != nil {
+		t.Fatalf("get owner's show details: %v", err)
+	}
+	if showEntry.Media.Title != "Example" || showEntry.Item.UserID != "owner" {
+		t.Fatalf("owner show entry=%+v", showEntry)
+	}
+	if _, err := store.GetMediaByTMDBID(context.Background(), "other", domain.TVMediaType, 42); err == nil {
+		t.Fatal("expected another user without the show in their library to be denied details access")
+	}
 
 	entries, err := store.ListShowEpisodes(context.Background(), "owner", "tv:42")
 	if err != nil {
@@ -83,6 +93,26 @@ func TestListShowEpisodes_GivenTwoUsersAndOneWatchedEpisode_WhenRequested_ThenIt
 	}
 	if len(entries) != 2 || !entries[0].Watched || entries[1].Watched || entries[1].Episode.SeasonNumber != 15 {
 		t.Fatalf("owner episodes=%+v", entries)
+	}
+	seasons, err := store.ListShowSeasons(context.Background(), "owner", "tv:42")
+	if err != nil {
+		t.Fatalf("owner season list: %v", err)
+	}
+	if len(seasons) != 2 || seasons[1].Number != 15 || seasons[1].EpisodeCount != 1 {
+		t.Fatalf("owner seasons=%+v", seasons)
+	}
+	seasonEpisodes, err := store.ListSeasonEpisodes(context.Background(), "owner", "tv:42:season:15")
+	if err != nil {
+		t.Fatalf("owner season episodes: %v", err)
+	}
+	if len(seasonEpisodes) != 1 || seasonEpisodes[0].Episode.ID != "tv:42:episode:4351" {
+		t.Fatalf("season 15 episodes=%+v", seasonEpisodes)
+	}
+	if _, err := store.ListShowSeasons(context.Background(), "other", "tv:42"); err == nil {
+		t.Fatal("expected another user without the show in their library to be denied season access")
+	}
+	if _, err := store.ListSeasonEpisodes(context.Background(), "other", "tv:42:season:15"); err == nil {
+		t.Fatal("expected another user without the show in their library to be denied episode access")
 	}
 	if _, err := store.ListShowEpisodes(context.Background(), "other", "tv:42"); err == nil {
 		t.Fatal("expected another user without the show in their library to be denied")

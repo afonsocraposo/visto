@@ -41,6 +41,8 @@ func New(authService *auth.Service, metadataProvider domain.MetadataProvider, we
 	mux.HandleFunc("GET /api/v1/export/json", jsonExport(authService, exportService))
 	mux.HandleFunc("GET /api/v1/export/csv", csvExport(authService, exportService))
 	mux.HandleFunc("GET /api/v1/search", search(authService, metadataProvider))
+	mux.HandleFunc("GET /api/v1/movies/{tmdbID}", mediaDetails(authService, libraryService, domain.MovieMediaType))
+	mux.HandleFunc("GET /api/v1/shows/{tmdbID}", mediaDetails(authService, libraryService, domain.TVMediaType))
 	mux.HandleFunc("GET /api/v1/library", listLibrary(authService, libraryService))
 	mux.HandleFunc("POST /api/v1/library", saveLibrary(authService, libraryService, metadataProvider))
 	mux.HandleFunc("PATCH /api/v1/library/{mediaID}", updateLibrary(authService, libraryService))
@@ -51,7 +53,10 @@ func New(authService *auth.Service, metadataProvider domain.MetadataProvider, we
 	mux.HandleFunc("DELETE /api/v1/plays/{playID}", deletePlay(authService, trackingService))
 	mux.HandleFunc("GET /api/v1/continue-watching", continueWatching(authService, watchService))
 	mux.HandleFunc("GET /api/v1/calendar", calendar(authService, watchService))
+	mux.HandleFunc("GET /api/v1/shows/{showID}/progress", showProgress(authService, watchService))
+	mux.HandleFunc("GET /api/v1/shows/{showID}/seasons", showSeasons(authService, watchService))
 	mux.HandleFunc("GET /api/v1/shows/{showID}/episodes", showEpisodes(authService, watchService))
+	mux.HandleFunc("GET /api/v1/seasons/{seasonID}/episodes", seasonEpisodes(authService, watchService))
 	if webDir != "" {
 		if _, err := os.Stat(webDir); err == nil {
 			mux.Handle("GET /", http.FileServer(http.Dir(webDir)))
@@ -197,6 +202,75 @@ func showEpisodes(authService *auth.Service, service *watch.Service) http.Handle
 				return
 			}
 			writeError(w, http.StatusInternalServerError, "show episodes are temporarily unavailable")
+			return
+		}
+		writeJSON(w, http.StatusOK, entries)
+	}
+}
+
+func showProgress(authService *auth.Service, service *watch.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := authenticatedUser(w, r, authService)
+		if !ok {
+			return
+		}
+		if service == nil {
+			writeError(w, http.StatusServiceUnavailable, "show data is not configured")
+			return
+		}
+		progress, err := service.ShowProgress(r.Context(), user.ID, r.PathValue("showID"))
+		if err != nil {
+			if errors.Is(err, watch.ErrShowNotFound) {
+				writeError(w, http.StatusNotFound, "show not found")
+				return
+			}
+			writeError(w, http.StatusInternalServerError, "show progress is temporarily unavailable")
+			return
+		}
+		writeJSON(w, http.StatusOK, progress)
+	}
+}
+
+func showSeasons(authService *auth.Service, service *watch.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := authenticatedUser(w, r, authService)
+		if !ok {
+			return
+		}
+		if service == nil {
+			writeError(w, http.StatusServiceUnavailable, "show data is not configured")
+			return
+		}
+		seasons, err := service.Seasons(r.Context(), user.ID, r.PathValue("showID"))
+		if err != nil {
+			if errors.Is(err, watch.ErrShowNotFound) {
+				writeError(w, http.StatusNotFound, "show not found")
+				return
+			}
+			writeError(w, http.StatusInternalServerError, "show seasons are temporarily unavailable")
+			return
+		}
+		writeJSON(w, http.StatusOK, seasons)
+	}
+}
+
+func seasonEpisodes(authService *auth.Service, service *watch.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := authenticatedUser(w, r, authService)
+		if !ok {
+			return
+		}
+		if service == nil {
+			writeError(w, http.StatusServiceUnavailable, "season data is not configured")
+			return
+		}
+		entries, err := service.SeasonEpisodes(r.Context(), user.ID, r.PathValue("seasonID"))
+		if err != nil {
+			if errors.Is(err, watch.ErrShowNotFound) {
+				writeError(w, http.StatusNotFound, "season not found")
+				return
+			}
+			writeError(w, http.StatusInternalServerError, "season episodes are temporarily unavailable")
 			return
 		}
 		writeJSON(w, http.StatusOK, entries)
@@ -532,6 +606,34 @@ func listLibrary(authService *auth.Service, service *library.Service) http.Handl
 			return
 		}
 		writeJSON(w, http.StatusOK, items)
+	}
+}
+
+func mediaDetails(authService *auth.Service, service *library.Service, mediaType domain.MediaType) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := authenticatedUser(w, r, authService)
+		if !ok {
+			return
+		}
+		if service == nil {
+			writeError(w, http.StatusServiceUnavailable, "library is not configured")
+			return
+		}
+		tmdbID, err := strconv.ParseInt(r.PathValue("tmdbID"), 10, 64)
+		if err != nil || tmdbID <= 0 {
+			writeError(w, http.StatusBadRequest, "invalid TMDB ID")
+			return
+		}
+		entry, err := service.GetByTMDBID(r.Context(), user.ID, mediaType, tmdbID)
+		if err != nil {
+			if errors.Is(err, library.ErrMediaNotFound) {
+				writeError(w, http.StatusNotFound, "media not found")
+				return
+			}
+			writeError(w, http.StatusInternalServerError, "media details are temporarily unavailable")
+			return
+		}
+		writeJSON(w, http.StatusOK, entry)
 	}
 }
 

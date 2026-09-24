@@ -51,7 +51,10 @@ self.addEventListener("fetch", event => {
 
 function userCacheName(userID) { return `visto-user-v1-${encodeURIComponent(userID)}`; }
 function isCacheableAPIPath(path) {
-  return cacheableAPIPaths.has(path) || /^\/api\/v1\/shows\/[^/]+\/episodes$/.test(path);
+  return cacheableAPIPaths.has(path)
+    || /^\/api\/v1\/(movies|shows)\/\d+$/.test(path)
+    || /^\/api\/v1\/shows\/[^/]+\/(episodes|seasons|progress)$/.test(path)
+    || /^\/api\/v1\/seasons\/[^/]+\/episodes$/.test(path);
 }
 async function activeUserID() { const response = await (await caches.open(userIndex)).match(activeUserRequest); return response ? response.text() : null; }
 async function storeActiveUserID(userID) { await (await caches.open(userIndex)).put(activeUserRequest, new Response(userID)); }
