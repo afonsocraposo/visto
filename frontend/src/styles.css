@@ -40,16 +40,16 @@ select {
 .page-heading { margin-bottom: 20px; }
 .page-heading h1, .watch-intro h1 { letter-spacing: -.045em; }
 .watch-intro { margin: 6px 0 20px; }
-.watch-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-.watch-card { overflow: hidden; position: relative; aspect-ratio: 16 / 9; min-height: 0; background: #19212b; border-color: rgb(255 255 255 / .1); }
+.watch-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; }
+.watch-card { overflow: hidden; position: relative; aspect-ratio: 2 / 3; min-height: 0; background: #19212b; border-color: rgb(255 255 255 / .1); }
 .watch-card-featured { grid-column: auto; min-height: 0; }
 .watch-card-art { position: absolute; inset: 0; background-position: center 27%; background-size: cover; }
-.artwork-scrim { position: absolute; inset: 0; background: linear-gradient(90deg, rgb(9 13 18 / .92) 3%, rgb(9 13 18 / .57) 52%, rgb(9 13 18 / .18)); }
-.watch-card-content { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: flex-start; justify-content: end; min-height: inherit; padding: 28px; color: #fff; max-width: 500px; }
-.watch-card-content h2 { letter-spacing: -.045em; font-size: clamp(1.45rem, 3vw, 2.35rem); }
+.artwork-scrim { position: absolute; inset: 0; background: linear-gradient(180deg, rgb(9 13 18 / .08) 25%, rgb(9 13 18 / .82) 76%, rgb(9 13 18 / .96)); }
+.watch-card-content { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: flex-start; justify-content: end; min-height: inherit; padding: 16px; color: #fff; }
+.watch-card-content h2 { letter-spacing: -.045em; font-size: clamp(1.05rem, 2vw, 1.45rem); line-height: 1.05; }
 .watch-card-content .watch-episode { color: rgb(255 255 255 / .74); }
 .watch-kind { background: #f2b544; color: #10141a; margin-bottom: 12px; }
-.watch-action { margin-top: 20px; background: #f2b544; color: #10141a; }
+.watch-action { width: 100%; margin-top: 12px; background: #f2b544; color: #10141a; }
 .watch-action:hover { background: #ffd36c; }
 .artwork-fallback { display: grid; place-items: center; height: 100%; min-height: 100%; background: linear-gradient(135deg, #334155, #19212b); color: #f2b544; font-size: 2.5rem; font-weight: 800; }
 .calendar-card { border-left: 3px solid #48b7ae; }
@@ -81,9 +81,7 @@ select {
 .trending-card:hover, .trending-card:focus-visible { transform: translateY(-3px); border-color: #48b7ae; box-shadow: 0 12px 28px rgb(23 34 48 / .16); outline: none; }
 .trending-card-art { position: relative; aspect-ratio: 2 / 3; background-position: center; background-size: cover; }
 .trending-card-scrim { position: absolute; inset: 35% 0 0; background: linear-gradient(transparent, rgb(7 10 14 / .82)); }
-.trending-card-content { position: relative; display: grid; gap: 2px; padding: 10px; }
-.trending-card-content .media-quick-actions { position: absolute; right: 8px; bottom: 8px; }
-.trending-card-content > .mantine-Text-root:first-child { padding-right: 72px; }
+.trending-card-overlay { position: absolute; right: 10px; bottom: 10px; left: 10px; color: #fff; }
 .media-detail { align-items: stretch; }
 .detail-page { padding-bottom: 24px; }
 .detail-back { margin: -8px 0 12px -8px; }
@@ -143,10 +141,10 @@ select {
   .bottom-nav-button .mantine-Button-section { margin-inline-end: 4px; }
   .bottom-nav { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; }
   .bottom-nav-button { width: 100%; }
-  .watch-grid { grid-template-columns: 1fr; }
+  .watch-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   .watch-card-featured { grid-column: auto; }
-  .watch-card, .watch-card-featured { aspect-ratio: 16 / 10; min-height: 0; }
-  .watch-card-content { padding: 22px; }
+  .watch-card, .watch-card-featured { aspect-ratio: 2 / 3; min-height: 0; }
+  .watch-card-content { padding: 12px; }
   .visto-main .mantine-Tabs-list { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
   .visto-main .mantine-Tabs-list::-webkit-scrollbar { display: none; }
   .visto-main .mantine-Tabs-tab { flex: 0 0 auto; white-space: nowrap; }
@@ -177,7 +175,7 @@ select {
 }
 
 @media (min-width: 681px) and (max-width: 920px) {
-  .library-grid, .library-grid-full { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .library-grid, .library-grid-full, .watch-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 
 @media (prefers-reduced-motion: reduce) { .search-result-card { transition: none; } .search-result-card:hover { transform: none; } }

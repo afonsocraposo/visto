@@ -61,11 +61,9 @@ export function SearchPanel({ onOpenDetail }: { onOpenDetail?: (target: MediaDet
         {[{ title: "Trending TV shows", items: trending.data.tv }, { title: "Trending movies", items: trending.data.movies }].map(section => section.items.length > 0 && <section key={section.title} className="trending-section" aria-labelledby={`heading-${section.title}`}>
           <Group justify="space-between" align="baseline" mb="sm"><Title id={`heading-${section.title}`} order={2} size="h3">{section.title}</Title><Text size="sm" c="dimmed">This week</Text></Group>
           <div className="trending-grid">{section.items.slice(0, 10).map(item => {
-            const saved = libraryIDs.has(`${item.type}:${item.tmdb_id}`);
             const art = posterURL(item.poster_path, "w342");
             return <Paper key={`${item.type}-${item.tmdb_id}`} className="trending-card" component="article" withBorder role={onOpenDetail ? "link" : undefined} tabIndex={onOpenDetail ? 0 : undefined} aria-label={onOpenDetail ? `Open details for ${item.title}` : undefined} onClick={() => onOpenDetail?.({ mediaType: item.type, tmdbID: item.tmdb_id, seed: item })} onKeyDown={event => { if (onOpenDetail && (event.key === "Enter" || event.key === " ")) onOpenDetail({ mediaType: item.type, tmdbID: item.tmdb_id, seed: item }); }}>
-              <div className="trending-card-art" style={art ? { backgroundImage: `url(${art})` } : undefined}>{!art && <div className="artwork-fallback">{item.title.slice(0, 1)}</div>}<span className="trending-card-scrim" /></div>
-              <div className="trending-card-content"><Text fw={750} lineClamp={2}>{item.title}</Text><Text size="xs" c="dimmed">{item.release_date ? item.release_date.slice(0, 4) : ""}</Text><MediaQuickActions media={item} saved={saved} busy={addToLibrary.isPending || addMovieAsWatched.isPending} onWatch={() => item.type === "tv" ? addToLibrary.mutate({ media: item, status: "watching" }) : addMovieAsWatched.mutate(item)} onWatchlist={() => addToLibrary.mutate({ media: item, status: "watchlist" })} /></div>
+              <div className="trending-card-art" style={art ? { backgroundImage: `url(${art})` } : undefined}>{!art && <div className="artwork-fallback">{item.title.slice(0, 1)}</div>}<span className="trending-card-scrim" /><div className="trending-card-overlay"><Text fw={750} lineClamp={2}>{item.title}</Text><Text size="xs">{item.release_date ? item.release_date.slice(0, 4) : ""}</Text></div></div>
             </Paper>;
           })}</div>
         </section>)}
