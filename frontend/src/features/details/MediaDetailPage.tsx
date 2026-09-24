@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ActionIcon, Alert, Badge, Button, Group, Image, Loader, Menu, Modal, Paper, Select, Stack, Switch, Text, Title, Tooltip } from "@mantine/core";
 import { IconArrowLeft, IconClock, IconEye, IconEyeCheck, IconRefresh } from "@tabler/icons-react";
-import { api, retryTransientRequest } from "../../lib/api";
+import { api } from "../../lib/api";
+import { useInvalidateUserCache, userCache } from "../../lib/userCache";
 import { backdropURL, posterURL } from "../../lib/artwork";
 import { useUserQueryKey } from "../auth/SessionContext";
 import { findMissingPriorEpisodes } from "../library/episodeSelection";
@@ -13,7 +14,8 @@ import { resolveMediaID } from "./mediaIdentity";
 import { heroArtworkLayers } from "./heroArtwork";
 import { EpisodeActions, MediaActions } from "./MediaDetailActions";
 import { chunk } from "./batch";
-import type { EpisodeRating, HistoryEntry, LibraryEntry, MediaDetailTarget, SearchMedia, ShowEpisodeEntry, TemporaryEpisodeDetails, TemporaryMovieDetails, TemporaryShowDetails } from "../../types";
+import { useDetailHistoryQuery, useEpisodeDetailsQuery, useEpisodeRatingQuery, useMediaDetailQueries, useShowEpisodesQuery, useTemporarySeasonEpisodesQuery } from "./queries";
+import type { EpisodeRating, MediaDetailTarget, ShowEpisodeEntry } from "../../types";
 
 type Props = { target: MediaDetailTarget; onBack: () => void; onOpenDetail: (target: MediaDetailTarget) => void; onOpenPerson: (personID: number) => void };
 type PendingWatch = { target: ShowEpisodeEntry | null; episodes: ShowEpisodeEntry[]; seasonNumber?: number; action?: "watch" | "rewatch" | "unwatch" };
@@ -21,55 +23,24 @@ type PendingWatch = { target: ShowEpisodeEntry | null; episodes: ShowEpisodeEntr
 export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: Props) {
   const userQueryKey = useUserQueryKey();
   const queryClient = useQueryClient();
+  const invalidate = useInvalidateUserCache();
   const [season, setSeason] = useState<string | null>(null);
   const [pendingWatch, setPendingWatch] = useState<PendingWatch | null>(null);
   const [showWatchModal, setShowWatchModal] = useState(false);
   const [showWatchAction, setShowWatchAction] = useState<"watch" | "rewatch" | "unwatch">("watch");
   const [selectedShowSeasons, setSelectedShowSeasons] = useState<Record<number, boolean>>({});
-  const library = useQuery({
-    queryKey: userQueryKey("media-detail", target.mediaType, target.tmdbID),
-    queryFn: () => api.get<LibraryEntry>(`/api/v1/${target.mediaType === "tv" ? "shows" : "movies"}/${target.tmdbID}`, "Could not load media details."),
-    retry: retryTransientRequest,
-    retryDelay: attempt => Math.min(500 * 2 ** attempt, 3000),
-  });
-  const temporary = useQuery({
-    queryKey: userQueryKey("temporary-show-detail", target.tmdbID),
-    enabled: target.mediaType === "tv",
-    queryFn: () => api.get<TemporaryShowDetails>(`/api/v1/discover/shows/${target.tmdbID}`, "Could not load TV show details."),
-    retry: retryTransientRequest,
-    retryDelay: attempt => Math.min(500 * 2 ** attempt, 3000),
-  });
-  const movieDetails = useQuery({
-    queryKey: userQueryKey("temporary-movie-detail", target.tmdbID),
-    enabled: target.mediaType === "movie",
-    queryFn: () => api.get<TemporaryMovieDetails>(`/api/v1/discover/movies/${target.tmdbID}`, "Could not load movie details."),
-    retry: retryTransientRequest,
-    retryDelay: attempt => Math.min(500 * 2 ** attempt, 3000),
-  });
-  const related = useQuery({
-    queryKey: userQueryKey("related-media", target.mediaType, target.tmdbID),
-    enabled: !target.episodeID,
-    staleTime: 12 * 60 * 60 * 1000,
-    retry: retryTransientRequest,
-    retryDelay: attempt => Math.min(500 * 2 ** attempt, 3000),
-    queryFn: () => api.get<SearchMedia[]>(`/api/v1/discover/${target.mediaType}/${target.tmdbID}/related`, "Could not load related titles."),
-  });
+  const { library, show: temporary, movie: movieDetails, related } = useMediaDetailQueries(target);
   const seed = target.seed;
   const media = library.data?.media
     ? { ...library.data.media, backdrop_path: library.data.media.backdrop_path ?? temporary.data?.media.backdrop_path }
     : target.mediaType === "movie" ? movieDetails.data?.media ?? seed : temporary.data?.media ?? seed;
   const savedMediaID = library.data?.item.media_id || undefined;
   const showID = resolveMediaID(target.mediaID, savedMediaID, media);
-  const episodes = useQuery({
-    queryKey: userQueryKey("detail-episodes", showID),
-    enabled: target.mediaType === "tv" && Boolean(savedMediaID),
-    queryFn: () => api.get<ShowEpisodeEntry[]>(`/api/v1/shows/${encodeURIComponent(showID!)}/episodes`, "Could not load episodes."),
-  });
-  const history = useQuery({
-    queryKey: userQueryKey("detail-history"),
-    enabled: Boolean(library.data),
-    queryFn: () => api.get<HistoryEntry[]>("/api/v1/plays?limit=500", "Could not load watch history."),
-  });
+  const detailScope = ["media-detail", target.mediaType, target.tmdbID];
+  const episodeScopes = [["detail-episodes", showID], ["detail-history"], userCache.library, userCache.continue, userCache.history, userCache.feed, userCache.calendar];
+  const invalidateEpisodeData = () => invalidate(...episodeScopes);
+  const episodes = useShowEpisodesQuery(showID, target.mediaType === "tv" && Boolean(savedMediaID));
+  const history = useDetailHistoryQuery(Boolean(library.data));
   const ensureTrackedEpisodes = async (): Promise<ShowEpisodeEntry[]> => {
     if (!media || !showID) throw new Error("This show is not available.");
     if (!savedMediaID) {
@@ -79,47 +50,27 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
     }
     const all = await api.get<ShowEpisodeEntry[]>(`/api/v1/shows/${encodeURIComponent(showID)}/episodes`, "Could not load episodes after adding this show.");
     queryClient.setQueryData(userQueryKey("detail-episodes", showID), all);
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: userQueryKey("media-detail", target.mediaType, target.tmdbID) }),
-      queryClient.invalidateQueries({ queryKey: userQueryKey("library") }),
-    ]);
+    await invalidate(userCache.library, ["media-detail", target.mediaType, target.tmdbID]);
     return all;
   };
   const update = useMutation({
     mutationFn: ({ status, rating }: { status: string; rating: number | null }) => api.patch(`/api/v1/library/${encodeURIComponent(showID!)}`, { status, rating }, "Could not update this title."),
-    onSuccess: async () => Promise.all([
-      queryClient.invalidateQueries({ queryKey: userQueryKey("library") }),
-      queryClient.invalidateQueries({ queryKey: userQueryKey("continue") }),
-      queryClient.invalidateQueries({ queryKey: userQueryKey("calendar") }),
-      queryClient.invalidateQueries({ queryKey: userQueryKey("feed") }),
-      queryClient.invalidateQueries({ queryKey: userQueryKey("media-detail", target.mediaType, target.tmdbID) }),
-    ]),
+    onSuccess: () => invalidate(userCache.library, userCache.continue, userCache.calendar, userCache.feed, detailScope),
   });
   const updateNotifications = useMutation({
     mutationFn: (enabled: boolean) => api.patch(`/api/v1/library/${encodeURIComponent(showID!)}/notifications`, { enabled }, "Could not update show notifications."),
-    onSuccess: async () => Promise.all([
-      queryClient.invalidateQueries({ queryKey: userQueryKey("library") }),
-      queryClient.invalidateQueries({ queryKey: userQueryKey("media-detail", target.mediaType, target.tmdbID) }),
-    ]),
+    onSuccess: () => invalidate(userCache.library, detailScope),
   });
   const add = useMutation({
     mutationFn: (status: "watching" | "watchlist") => api.post("/api/v1/library", { media, status }, "Could not add this title."),
-    onSuccess: async () => Promise.all([
-      queryClient.invalidateQueries({ queryKey: userQueryKey("library") }),
-      queryClient.invalidateQueries({ queryKey: userQueryKey("media-detail", target.mediaType, target.tmdbID) }),
-    ]),
+    onSuccess: () => invalidate(userCache.library, detailScope),
   });
   const markMovieWatched = useMutation({
     mutationFn: async () => {
       if (!savedMediaID) await api.post("/api/v1/library", { media, status: "watching" }, "Could not add this title.");
       return api.post("/api/v1/plays", { media_id: showID }, "Could not record this watch.");
     },
-    onSuccess: async () => Promise.all([
-      queryClient.invalidateQueries({ queryKey: userQueryKey("library") }),
-      queryClient.invalidateQueries({ queryKey: userQueryKey("history") }),
-      queryClient.invalidateQueries({ queryKey: userQueryKey("feed") }),
-      queryClient.invalidateQueries({ queryKey: userQueryKey("media-detail", target.mediaType, target.tmdbID) }),
-    ]),
+    onSuccess: () => invalidate(userCache.library, userCache.history, userCache.feed, detailScope),
   });
   const prepareEpisodeWatch = useMutation({
     mutationFn: async (entry: ShowEpisodeEntry) => {
@@ -136,15 +87,7 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
   });
   const markEpisodeWatched = useMutation({
     mutationFn: (episodeID: string) => api.post("/api/v1/plays", { episode_id: episodeID }, "Could not record this watch."),
-    onSuccess: async () => { setPendingWatch(null); setShowWatchModal(false); return Promise.all([
-      queryClient.invalidateQueries({ queryKey: userQueryKey("detail-episodes", showID) }),
-      queryClient.invalidateQueries({ queryKey: userQueryKey("detail-history") }),
-      queryClient.invalidateQueries({ queryKey: userQueryKey("library") }),
-      queryClient.invalidateQueries({ queryKey: userQueryKey("continue") }),
-      queryClient.invalidateQueries({ queryKey: userQueryKey("history") }),
-      queryClient.invalidateQueries({ queryKey: userQueryKey("feed") }),
-      queryClient.invalidateQueries({ queryKey: userQueryKey("calendar") }),
-    ]); },
+    onSuccess: () => { setPendingWatch(null); setShowWatchModal(false); return invalidateEpisodeData(); },
   });
   const markEpisodesWatched = useMutation({
     mutationFn: async ({ episodeIDs, selectedSeasons, rewatch = false }: { episodeIDs?: string[]; selectedSeasons?: number[]; rewatch?: boolean }) => {
@@ -157,15 +100,7 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
         await api.post("/api/v1/plays/bulk", { episode_ids: batch }, "Could not record these watches.");
       }
     },
-    onSuccess: async () => { setPendingWatch(null); setShowWatchModal(false); return Promise.all([
-      queryClient.invalidateQueries({ queryKey: userQueryKey("detail-episodes", showID) }),
-      queryClient.invalidateQueries({ queryKey: userQueryKey("detail-history") }),
-      queryClient.invalidateQueries({ queryKey: userQueryKey("library") }),
-      queryClient.invalidateQueries({ queryKey: userQueryKey("continue") }),
-      queryClient.invalidateQueries({ queryKey: userQueryKey("history") }),
-      queryClient.invalidateQueries({ queryKey: userQueryKey("feed") }),
-      queryClient.invalidateQueries({ queryKey: userQueryKey("calendar") }),
-    ]); },
+    onSuccess: () => { setPendingWatch(null); setShowWatchModal(false); return invalidateEpisodeData(); },
   });
   const removeEpisodesWatched = useMutation({
     mutationFn: async (episodeIDs: string[]) => {
@@ -173,25 +108,11 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
         await api.delete("/api/v1/plays/bulk", "Could not mark these episodes unwatched.", { episode_ids: batch });
       }
     },
-    onSuccess: async () => { setPendingWatch(null); setShowWatchModal(false); return Promise.all([
-      queryClient.invalidateQueries({ queryKey: userQueryKey("detail-episodes", showID) }),
-      queryClient.invalidateQueries({ queryKey: userQueryKey("detail-history") }),
-      queryClient.invalidateQueries({ queryKey: userQueryKey("library") }),
-      queryClient.invalidateQueries({ queryKey: userQueryKey("continue") }),
-      queryClient.invalidateQueries({ queryKey: userQueryKey("history") }),
-      queryClient.invalidateQueries({ queryKey: userQueryKey("feed") }),
-      queryClient.invalidateQueries({ queryKey: userQueryKey("calendar") }),
-    ]); },
+    onSuccess: () => { setPendingWatch(null); setShowWatchModal(false); return invalidateEpisodeData(); },
   });
   const removeMovieWatches = useMutation({
     mutationFn: () => api.delete(`/api/v1/plays/media/${encodeURIComponent(showID!)}`, "Could not mark this movie unwatched."),
-    onSuccess: async () => Promise.all([
-      queryClient.invalidateQueries({ queryKey: userQueryKey("detail-history") }),
-      queryClient.invalidateQueries({ queryKey: userQueryKey("library") }),
-      queryClient.invalidateQueries({ queryKey: userQueryKey("history") }),
-      queryClient.invalidateQueries({ queryKey: userQueryKey("feed") }),
-      queryClient.invalidateQueries({ queryKey: userQueryKey("media-detail", target.mediaType, target.tmdbID) }),
-    ]),
+    onSuccess: () => invalidate(["detail-history"], userCache.library, userCache.history, userCache.feed, detailScope),
   });
   const isSaved = Boolean(savedMediaID);
   const availableSeasonNumbers = isSaved
@@ -199,31 +120,16 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
     : (temporary.data?.seasons.map(season => season.season_number) ?? []);
   const selectedSeason = season ?? (target.seasonNumber !== undefined ? String(target.seasonNumber) : availableSeasonNumbers.length ? String(availableSeasonNumbers.find(number => number > 0) ?? availableSeasonNumbers[0]) : null);
   const temporarySeason = Number(selectedSeason);
-  const temporaryEpisodes = useQuery({
-    queryKey: userQueryKey("temporary-season-episodes", target.tmdbID, temporarySeason),
-    enabled: target.mediaType === "tv" && !isSaved && Boolean(selectedSeason) && Number.isInteger(temporarySeason) && temporarySeason >= 0,
-    queryFn: () => api.get<{ episodes: ShowEpisodeEntry[] }>(`/api/v1/discover/shows/${target.tmdbID}/seasons/${temporarySeason}`, "Could not load season episodes."),
-  });
+  const temporaryEpisodes = useTemporarySeasonEpisodesQuery(target, !isSaved && Boolean(selectedSeason), temporarySeason);
   const candidateEpisodes = isSaved ? (episodes.data ?? []) : (temporaryEpisodes.data?.episodes ?? []);
   const candidateEpisode = target.episodeID ? candidateEpisodes.find(entry => entry.episode.id === target.episodeID) : null;
   const episodeSeasonNumber = candidateEpisode?.episode.season_number ?? target.seasonNumber;
   const episodeNumber = candidateEpisode?.episode.episode_number ?? target.episode?.episode_number;
-  const episodeDetails = useQuery({
-    queryKey: userQueryKey("temporary-episode-detail", target.tmdbID, episodeSeasonNumber, episodeNumber),
-    enabled: target.mediaType === "tv" && Boolean(target.episodeID) && episodeSeasonNumber !== undefined && episodeNumber !== undefined,
-    queryFn: () => api.get<TemporaryEpisodeDetails>(`/api/v1/discover/shows/${target.tmdbID}/seasons/${episodeSeasonNumber}/episodes/${episodeNumber}`, "Could not load episode details."),
-  });
-  const episodeRating = useQuery({
-    queryKey: userQueryKey("episode-rating", target.episodeID),
-    enabled: Boolean(target.episodeID),
-    queryFn: () => api.get<EpisodeRating>(`/api/v1/episodes/${encodeURIComponent(target.episodeID!)}/rating`, "Could not load episode rating."),
-  });
+  const episodeDetails = useEpisodeDetailsQuery(target, episodeSeasonNumber, episodeNumber);
+  const episodeRating = useEpisodeRatingQuery(target.episodeID);
   const rateEpisode = useMutation({
     mutationFn: (rating: number | null) => api.put<EpisodeRating>(`/api/v1/episodes/${encodeURIComponent(target.episodeID!)}/rating`, { rating }, "Could not save episode rating."),
-    onSuccess: async () => Promise.all([
-      queryClient.invalidateQueries({ queryKey: userQueryKey("episode-rating", target.episodeID) }),
-      queryClient.invalidateQueries({ queryKey: userQueryKey("feed") }),
-    ]),
+    onSuccess: () => invalidate(["episode-rating", target.episodeID], userCache.feed),
   });
 
   const fallbackDetails = target.mediaType === "tv" ? temporary : movieDetails;

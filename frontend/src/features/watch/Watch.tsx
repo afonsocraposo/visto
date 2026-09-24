@@ -5,6 +5,7 @@ import { IconCheck, IconEye } from "@tabler/icons-react";
 import { EmptyState } from "../../components/EmptyState";
 import { useUserQueryKey } from "../auth/SessionContext";
 import { api } from "../../lib/api";
+import { useInvalidateUserCache, userCache } from "../../lib/userCache";
 import { calendarMonthRange, dateInTimezone, formatCalendarDate, formatCalendarMonth, groupCalendarEntries, monthInTimezone, shiftCalendarMonth } from "./calendar";
 import type { CalendarEntry, ContinueEntry, MediaDetailTarget } from "../../types";
 import { backdropURL, posterURL } from "../../lib/artwork";
@@ -12,6 +13,7 @@ import { backdropURL, posterURL } from "../../lib/artwork";
 export function WatchNow({ onOpenDetail }: { onOpenDetail?: (target: MediaDetailTarget) => void }) {
   const queryClient = useQueryClient();
   const userQueryKey = useUserQueryKey();
+  const invalidate = useInvalidateUserCache();
   const [confirmation, setConfirmation] = useState<ContinueEntry | null>(null);
   const [completedShowID, setCompletedShowID] = useState<string | null>(null);
   const entries = useQuery({
@@ -24,13 +26,7 @@ export function WatchNow({ onOpenDetail }: { onOpenDetail?: (target: MediaDetail
     onSuccess: async (_result, variables) => {
       setConfirmation(null);
       setCompletedShowID(variables.showID);
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: userQueryKey("show-progress") }),
-        queryClient.invalidateQueries({ queryKey: userQueryKey("calendar") }),
-        queryClient.invalidateQueries({ queryKey: userQueryKey("feed") }),
-        queryClient.invalidateQueries({ queryKey: userQueryKey("history") }),
-        queryClient.invalidateQueries({ queryKey: userQueryKey("library") }),
-      ]);
+      await invalidate(userCache.progress, userCache.calendar, userCache.feed, userCache.history, userCache.library);
     },
   });
 

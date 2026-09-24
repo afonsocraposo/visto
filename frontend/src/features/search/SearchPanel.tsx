@@ -1,55 +1,18 @@
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useDebouncedValue } from "@mantine/hooks";
 import { Alert, Group, Image, Loader, Paper, Text, TextInput, Title } from "@mantine/core";
 import { IconSearch } from "@tabler/icons-react";
 import { MediaQuickActions } from "../../components/MediaQuickActions";
 import { MediaPosterCard } from "../../components/MediaPosterCard";
-import { useUserQueryKey } from "../auth/SessionContext";
-import { api } from "../../lib/api";
-import type { LibraryEntry, MediaDetailTarget, SearchMedia, TrendingResponse } from "../../types";
+import { useDiscoverMutations, useDiscoverQueries } from "./queries";
+import type { MediaDetailTarget } from "../../types";
 import { posterURL } from "../../lib/artwork";
 
 export function SearchPanel({ onOpenDetail }: { onOpenDetail?: (target: MediaDetailTarget) => void }) {
-  const queryClient = useQueryClient();
-  const userQueryKey = useUserQueryKey();
   const [query, setQuery] = useState("");
   const [debouncedQuery] = useDebouncedValue(query.trim(), 300);
-  const library = useQuery({
-    queryKey: userQueryKey("library"),
-    queryFn: () => api.get<LibraryEntry[]>("/api/v1/library", "Could not load your library."),
-  });
-  const results = useQuery({
-    queryKey: userQueryKey("search", debouncedQuery),
-    enabled: debouncedQuery.length > 1,
-    queryFn: () => api.get<SearchMedia[]>(`/api/v1/search?q=${encodeURIComponent(debouncedQuery)}`, "Search is temporarily unavailable."),
-  });
-  const trending = useQuery({
-    queryKey: userQueryKey("trending", "week"),
-    enabled: !debouncedQuery,
-    queryFn: () => api.get<TrendingResponse>("/api/v1/trending?window=week", "Trending media is temporarily unavailable."),
-    staleTime: 5 * 60 * 1000,
-  });
-  const addToLibrary = useMutation({
-    mutationFn: ({ media, status }: { media: SearchMedia; status: "watching" | "watchlist" }) =>
-      api.post("/api/v1/library", { media, status }, "Could not add this title."),
-    onSuccess: async () => Promise.all([
-      queryClient.invalidateQueries({ queryKey: userQueryKey("library") }),
-      queryClient.invalidateQueries({ queryKey: userQueryKey("continue") }),
-      queryClient.invalidateQueries({ queryKey: userQueryKey("calendar") }),
-    ]),
-  });
-  const addMovieAsWatched = useMutation({
-    mutationFn: async (media: SearchMedia) => {
-      await api.post("/api/v1/library", { media, status: "watching" }, "Could not add this title.");
-      await api.post("/api/v1/plays", { media_id: `${media.type}:${media.tmdb_id}` }, "Could not record this watch.");
-    },
-    onSuccess: async () => Promise.all([
-      queryClient.invalidateQueries({ queryKey: userQueryKey("library") }),
-      queryClient.invalidateQueries({ queryKey: userQueryKey("history") }),
-      queryClient.invalidateQueries({ queryKey: userQueryKey("feed") }),
-    ]),
-  });
+  const { library, results, trending } = useDiscoverQueries(debouncedQuery);
+  const { addToLibrary, addMovieAsWatched } = useDiscoverMutations();
   const libraryIDs = new Set(library.data?.map(entry => entry.item.media_id) ?? []);
 
   return (
