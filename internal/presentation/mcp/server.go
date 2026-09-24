@@ -6,10 +6,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/afonsocosta/visto/internal/application/auth"
@@ -19,6 +19,7 @@ import (
 	"github.com/afonsocosta/visto/internal/application/watch"
 	"github.com/afonsocosta/visto/internal/domain"
 	"github.com/afonsocosta/visto/internal/presentation/security"
+	mcpgo "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 const protocolVersion = "2025-11-25"
@@ -62,6 +63,8 @@ type Server struct {
 	metadata    domain.MetadataProvider
 	proxies     security.ProxyResolver
 	rateLimiter *security.RateLimiter
+	mcpOnce     sync.Once
+	mcpHandler  http.Handler
 }
 
 func New(authService *auth.Service, oauthService *oauth.Service, publicURL string, metadata domain.MetadataProvider, libraryService *library.Service, trackingService *tracking.Service, watchService *watch.Service) http.Handler {
@@ -80,7 +83,7 @@ func (server *Server) Handler() http.Handler {
 func (server *Server) routeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch r.URL.Path {
 	case "/mcp":
-		server.serveHTTP(w, r)
+		server.sdkHTTPHandler().ServeHTTP(w, r)
 	case "/.well-known/oauth-protected-resource", "/.well-known/oauth-protected-resource/mcp":
 		server.protectedResourceMetadata(w, r)
 	case "/.well-known/oauth-authorization-server":
@@ -98,195 +101,94 @@ func (server *Server) routeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (server *Server) serveHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/mcp" {
-		http.NotFound(w, r)
-		return
-	}
-	if r.Method != http.MethodPost {
-		w.Header().Set("Allow", http.MethodPost)
-		http.Error(w, "MCP endpoint accepts POST requests", http.StatusMethodNotAllowed)
-		return
-	}
-	if !strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
-		http.Error(w, "Content-Type must be application/json", http.StatusUnsupportedMediaType)
-		return
-	}
-	if !acceptsMCPResponse(r.Header.Get("Accept")) {
-		http.Error(w, "Accept must include application/json and text/event-stream", http.StatusNotAcceptable)
-		return
-	}
-	if !validOrigin(r) {
-		http.Error(w, "Origin is not allowed", http.StatusForbidden)
-		return
-	}
+type mcpIdentity struct {
+	userID        string
+	scopes        map[string]bool
+	personalToken bool
+}
+
+type mcpIdentityKey struct{}
+
+func (server *Server) sdkHTTPHandler() http.Handler {
+	server.mcpOnce.Do(func() {
+		mcpServer := mcpgo.NewServer(&mcpgo.Implementation{Name: "visto", Title: "Visto", Version: "0.3.0", Description: "Access the authenticated user's Visto library."}, nil)
+		for _, definition := range toolDefinitions() {
+			definition := definition
+			mcpServer.AddTool(&mcpgo.Tool{Name: definition.Name, Description: definition.Description, InputSchema: definition.InputSchema, Annotations: sdkToolAnnotations(definition.Annotations), Meta: mcpgo.Meta{"securitySchemes": definition.SecuritySchemes}}, server.sdkToolHandler(definition.Name))
+		}
+		handler := mcpgo.NewStreamableHTTPHandler(func(*http.Request) *mcpgo.Server { return mcpServer }, &mcpgo.StreamableHTTPOptions{Stateless: true, JSONResponse: true, MaxRequestBodyBytes: 1 << 20, PropagateRequestCancellation: true})
+		server.mcpHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if !validOrigin(r) {
+				http.Error(w, "Origin is not allowed", http.StatusForbidden)
+				return
+			}
+			identity, ok := server.authenticateMCP(r)
+			if !ok {
+				server.writeOAuthChallenge(w, "read", "unauthorized")
+				http.Error(w, "A Visto access token is required", http.StatusUnauthorized)
+				return
+			}
+			handler.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), mcpIdentityKey{}, identity)))
+		})
+	})
+	return server.mcpHandler
+}
+
+func (server *Server) authenticateMCP(r *http.Request) (mcpIdentity, bool) {
 	token := bearerToken(r.Header.Get("Authorization"))
-	userID, scopes, personalToken := "", map[string]bool{}, false
-	resource := server.mcpResource()
 	if server.oauth != nil && token != "" {
-		identity, err := server.oauth.Authenticate(r.Context(), token, resource)
+		identity, err := server.oauth.Authenticate(r.Context(), token, server.mcpResource())
 		if err == nil {
-			userID = identity.UserID
+			scopes := make(map[string]bool, len(identity.Scopes))
 			for _, scope := range identity.Scopes {
 				scopes[scope] = true
 			}
+			return mcpIdentity{userID: identity.UserID, scopes: scopes}, true
 		}
 	}
-	if userID == "" && server.auth != nil && token != "" {
+	if server.auth != nil && token != "" {
 		user, err := server.auth.AuthenticatePersonalToken(r.Context(), token)
 		if err == nil {
-			userID, personalToken = user.ID, true
+			return mcpIdentity{userID: user.ID, personalToken: true}, true
 		}
 	}
-	if userID == "" {
-		server.writeOAuthChallenge(w, "read", "unauthorized")
-		http.Error(w, "A Visto access token is required", http.StatusUnauthorized)
-		return
-	}
-	defer r.Body.Close()
-	var request rpcRequest
-	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
-	decoder.UseNumber()
-	if err := decoder.Decode(&request); err != nil {
-		writeRPC(w, http.StatusBadRequest, rpcResponse{JSONRPC: "2.0", Error: &rpcError{Code: -32700, Message: "Parse error"}})
-		return
-	}
-	var trailing any
-	if err := decoder.Decode(&trailing); err != io.EOF {
-		writeRPC(w, http.StatusBadRequest, rpcResponse{JSONRPC: "2.0", Error: &rpcError{Code: -32700, Message: "Only one JSON-RPC message is allowed per request"}})
-		return
-	}
-	version := r.Header.Get("MCP-Protocol-Version")
-	bodyVersion := protocolVersionFromBody(request)
-	modern := version == currentProtocolVersion || bodyVersion == currentProtocolVersion || request.Method == "server/discover"
-	if modern {
-		if version != currentProtocolVersion {
-			writeRPC(w, http.StatusBadRequest, rpcResponse{JSONRPC: "2.0", ID: decodeID(request.ID), Error: &rpcError{Code: -32020, Message: "MCP-Protocol-Version header does not match modern request"}})
-			return
-		}
-		if err := validateModernRequest(r, request); err != nil {
-			writeRPC(w, http.StatusBadRequest, rpcResponse{JSONRPC: "2.0", ID: decodeID(request.ID), Error: &rpcError{Code: -32020, Message: err.Error()}})
-			return
-		}
-	} else if version != "" && version != protocolVersion {
-		writeRPC(w, http.StatusBadRequest, rpcResponse{JSONRPC: "2.0", ID: decodeID(request.ID), Error: &rpcError{Code: -32022, Message: "Unsupported protocol version", Data: map[string]any{"supported": []string{currentProtocolVersion, protocolVersion}, "requested": version}}})
-		return
-	}
-	if request.Method == "tools/call" {
-		var params struct {
-			Name string `json:"name"`
-		}
-		_ = json.Unmarshal(request.Params, &params)
-		if needed := requiredScope(params.Name); needed != "" && !personalToken && !scopes[needed] {
-			writeRPC(w, http.StatusOK, scopeErrorResponse(request, needed, server.resourceMetadataURL()))
-			return
-		}
-	}
-	response := server.handle(r.Context(), userID, request)
-	if request.Method == "notifications/initialized" || request.Method == "notifications/cancelled" {
-		w.WriteHeader(http.StatusAccepted)
-		return
-	}
-	writeRPC(w, http.StatusOK, response)
+	return mcpIdentity{}, false
 }
 
-type rpcRequest struct {
-	JSONRPC string          `json:"jsonrpc"`
-	ID      json.RawMessage `json:"id"`
-	Method  string          `json:"method"`
-	Params  json.RawMessage `json:"params"`
-}
-
-type rpcResponse struct {
-	JSONRPC string    `json:"jsonrpc"`
-	ID      any       `json:"id"`
-	Result  any       `json:"result,omitempty"`
-	Error   *rpcError `json:"error,omitempty"`
-}
-
-type rpcError struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
-	Data    any    `json:"data,omitempty"`
-}
-
-func (server *Server) handle(ctx context.Context, userID string, request rpcRequest) rpcResponse {
-	response := rpcResponse{JSONRPC: "2.0", ID: decodeID(request.ID)}
-	if request.JSONRPC != "2.0" || request.Method == "" {
-		response.Error = &rpcError{Code: -32600, Message: "Invalid Request"}
-		return response
-	}
-	switch request.Method {
-	case "server/discover":
-		response.Result = map[string]any{
-			"resultType":        "complete",
-			"supportedVersions": []string{currentProtocolVersion, protocolVersion},
-			"capabilities":      map[string]any{"tools": map[string]any{"listChanged": false}},
-			"_meta":             map[string]any{"io.modelcontextprotocol/serverInfo": map[string]string{"name": "visto", "version": "0.3.0"}},
-			"instructions":      "Access only the authenticated user's Visto library. Write actions change that user's data.",
-			"ttlMs":             300000,
-			"cacheScope":        "public",
+func (server *Server) sdkToolHandler(name string) mcpgo.ToolHandler {
+	return func(ctx context.Context, request *mcpgo.CallToolRequest) (*mcpgo.CallToolResult, error) {
+		identity, ok := ctx.Value(mcpIdentityKey{}).(mcpIdentity)
+		if !ok || identity.userID == "" {
+			return sdkToolError("A Visto access token is required"), nil
 		}
-	case "initialize":
-		var params struct {
-			ProtocolVersion string `json:"protocolVersion"`
+		if scope := requiredScope(name); scope != "" && !identity.personalToken && !identity.scopes[scope] {
+			return &mcpgo.CallToolResult{IsError: true, Content: []mcpgo.Content{&mcpgo.TextContent{Text: "This Visto action needs additional permission. Reconnect and approve the requested scope."}}, Meta: mcpgo.Meta{"mcp/www_authenticate": []string{server.scopeChallenge(scope)}}}, nil
 		}
-		_ = json.Unmarshal(request.Params, &params)
-		version := params.ProtocolVersion
-		if version == "" {
-			version = protocolVersion
+		var arguments map[string]any
+		if err := json.Unmarshal(request.Params.Arguments, &arguments); err != nil {
+			return sdkToolError("Invalid tool call parameters"), nil
 		}
-		response.Result = map[string]any{
-			"protocolVersion": version,
-			"capabilities":    map[string]any{"tools": map[string]any{"listChanged": false}},
-			"serverInfo":      map[string]string{"name": "visto", "version": "0.3.0"},
-			"instructions":    "Access only the authenticated user's Visto library. Mutations affect that user's data.",
-		}
-	case "ping":
-		response.Result = map[string]any{}
-	case "tools/list":
-		response.Result = map[string]any{"resultType": "complete", "tools": toolDefinitions(), "ttlMs": 300000, "cacheScope": "private"}
-	case "tools/call":
-		var params struct {
-			Name      string         `json:"name"`
-			Arguments map[string]any `json:"arguments"`
-		}
-		if err := json.Unmarshal(request.Params, &params); err != nil || params.Name == "" {
-			response.Error = &rpcError{Code: -32602, Message: "Invalid tool call parameters"}
-			return response
-		}
-		result, err := server.callTool(ctx, userID, params.Name, params.Arguments)
+		result, err := server.callTool(ctx, identity.userID, name, arguments)
 		if err != nil {
-			response.Result = map[string]any{"resultType": "complete", "isError": true, "content": []any{map[string]string{"type": "text", "text": err.Error()}}}
-			return response
+			return sdkToolError(err.Error()), nil
 		}
-		encoded, _ := json.Marshal(result)
-		response.Result = map[string]any{
-			"resultType":        "complete",
-			"content":           []any{map[string]string{"type": "text", "text": string(encoded)}},
-			"structuredContent": result,
-			"isError":           false,
+		encoded, err := json.Marshal(result)
+		if err != nil {
+			return sdkToolError("Could not encode the tool result"), nil
 		}
-	default:
-		response.Error = &rpcError{Code: -32601, Message: "Method not found"}
+		return &mcpgo.CallToolResult{Content: []mcpgo.Content{&mcpgo.TextContent{Text: string(encoded)}}, StructuredContent: result}, nil
 	}
-	return response
 }
 
-func decodeID(raw json.RawMessage) any {
-	if len(raw) == 0 {
-		return nil
-	}
-	var id any
-	_ = json.Unmarshal(raw, &id)
-	return id
+func sdkToolError(message string) *mcpgo.CallToolResult {
+	return &mcpgo.CallToolResult{IsError: true, Content: []mcpgo.Content{&mcpgo.TextContent{Text: message}}}
 }
 
-func writeRPC(w http.ResponseWriter, status int, response rpcResponse) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Cache-Control", "no-store")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(response)
+func sdkToolAnnotations(annotations map[string]any) *mcpgo.ToolAnnotations {
+	readOnly, _ := annotations["readOnlyHint"].(bool)
+	destructive, _ := annotations["destructiveHint"].(bool)
+	openWorld, _ := annotations["openWorldHint"].(bool)
+	return &mcpgo.ToolAnnotations{ReadOnlyHint: readOnly, DestructiveHint: &destructive, OpenWorldHint: &openWorld}
 }
 
 func writeJSON(w http.ResponseWriter, status int, value any) {
@@ -315,26 +217,12 @@ func requiredScope(tool string) string {
 	}
 }
 
-func scopeErrorResponse(request rpcRequest, scope, resourceMetadata string) rpcResponse {
+func (server *Server) scopeChallenge(scope string) string {
 	challenge := fmt.Sprintf(`Bearer scope=%q, error="insufficient_scope", error_description=%q`, scope, "Additional permission is required")
-	if resourceMetadata != "" {
-		challenge = fmt.Sprintf(`Bearer resource_metadata=%q, scope=%q, error="insufficient_scope", error_description=%q`, resourceMetadata, scope, "Additional permission is required")
+	if metadata := server.resourceMetadataURL(); metadata != "" {
+		challenge = fmt.Sprintf(`Bearer resource_metadata=%q, scope=%q, error="insufficient_scope", error_description=%q`, metadata, scope, "Additional permission is required")
 	}
-	return rpcResponse{JSONRPC: "2.0", ID: decodeID(request.ID), Result: map[string]any{
-		"resultType": "complete", "isError": true,
-		"content": []any{map[string]string{"type": "text", "text": "This Visto action needs additional permission. Reconnect and approve the requested scope."}},
-		"_meta":   map[string]any{"mcp/www_authenticate": []string{challenge}},
-	}}
-}
-
-func acceptsMCPResponse(header string) bool {
-	var acceptsJSON, acceptsSSE bool
-	for _, value := range strings.Split(header, ",") {
-		mediaType := strings.TrimSpace(strings.SplitN(value, ";", 2)[0])
-		acceptsJSON = acceptsJSON || strings.EqualFold(mediaType, "application/json")
-		acceptsSSE = acceptsSSE || strings.EqualFold(mediaType, "text/event-stream")
-	}
-	return acceptsJSON && acceptsSSE
+	return challenge
 }
 
 func validOrigin(r *http.Request) bool {
@@ -344,47 +232,6 @@ func validOrigin(r *http.Request) bool {
 	}
 	parsed, err := url.Parse(origin)
 	return err == nil && (parsed.Scheme == "http" || parsed.Scheme == "https") && parsed.Host != "" && strings.EqualFold(parsed.Host, r.Host)
-}
-
-func validateModernRequest(r *http.Request, request rpcRequest) error {
-	if r.Header.Get("Mcp-Method") != request.Method {
-		return fmt.Errorf("Mcp-Method header does not match request method")
-	}
-	var params map[string]json.RawMessage
-	if err := json.Unmarshal(request.Params, &params); err != nil {
-		return fmt.Errorf("modern request params must be an object")
-	}
-	var metadata map[string]any
-	if err := json.Unmarshal(params["_meta"], &metadata); err != nil {
-		return fmt.Errorf("modern request metadata is required")
-	}
-	if metadata["io.modelcontextprotocol/protocolVersion"] != currentProtocolVersion {
-		return fmt.Errorf("protocol version header does not match request metadata")
-	}
-	if metadata["io.modelcontextprotocol/clientInfo"] == nil || metadata["io.modelcontextprotocol/clientCapabilities"] == nil {
-		return fmt.Errorf("modern request client metadata is incomplete")
-	}
-	if request.Method == "tools/call" {
-		var call struct {
-			Name string `json:"name"`
-		}
-		if err := json.Unmarshal(request.Params, &call); err != nil || call.Name == "" || r.Header.Get("Mcp-Name") != call.Name {
-			return fmt.Errorf("Mcp-Name header does not match tool name")
-		}
-	}
-	return nil
-}
-
-func protocolVersionFromBody(request rpcRequest) string {
-	var params map[string]json.RawMessage
-	if json.Unmarshal(request.Params, &params) != nil {
-		return ""
-	}
-	var metadata map[string]string
-	if json.Unmarshal(params["_meta"], &metadata) != nil {
-		return ""
-	}
-	return metadata["io.modelcontextprotocol/protocolVersion"]
 }
 
 type toolDefinition struct {

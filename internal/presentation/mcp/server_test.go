@@ -97,22 +97,20 @@ func TestMCPHandler_GivenHistoryToolCall_WhenAuthenticated_ThenUsesAuthenticated
 	}
 }
 
-func TestMCPHandler_GivenModernDiscoveryRequest_WhenCalled_ThenAdvertisesCurrentAndLegacyVersions(t *testing.T) {
+func TestMCPHandler_GivenInitializeRequest_WhenCalled_ThenReturnsVistoServerInfo(t *testing.T) {
 	server := &Server{auth: testAuthenticator{user: domain.User{ID: "user-123"}}}
-	body := `{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"test","version":"1"},"io.modelcontextprotocol/clientCapabilities":{}}}}`
+	body := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2026-07-28","capabilities":{},"clientInfo":{"name":"test","version":"1"}}}`
 	request := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(body))
 	request.Header.Set("Content-Type", "application/json")
 	request.Header.Set("Accept", "application/json, text/event-stream")
 	request.Header.Set("Authorization", "Bearer valid")
-	request.Header.Set("MCP-Protocol-Version", currentProtocolVersion)
-	request.Header.Set("Mcp-Method", "server/discover")
 	response := httptest.NewRecorder()
 	server.Handler().ServeHTTP(response, request)
 
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
 	}
-	if !strings.Contains(response.Body.String(), currentProtocolVersion) {
-		t.Fatalf("discovery response does not advertise %s: %s", currentProtocolVersion, response.Body.String())
+	if !strings.Contains(response.Body.String(), `"name":"visto"`) {
+		t.Fatalf("initialize response does not identify Visto: %s", response.Body.String())
 	}
 }

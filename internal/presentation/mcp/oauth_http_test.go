@@ -99,7 +99,7 @@ func TestChatGPTOAuthFlow_GivenReadOnlyConsent_WhenConnecting_ThenReadsOwnHistor
 
 	readBody := `{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_watch_history","arguments":{},"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"ChatGPT","version":"test"},"io.modelcontextprotocol/clientCapabilities":{}}}}`
 	readResponse := mcpRequest(server, tokens.AccessToken, "tools/call", "get_watch_history", readBody)
-	if readResponse.Code != http.StatusOK || !strings.Contains(readResponse.Body.String(), `"isError":false`) {
+	if readResponse.Code != http.StatusOK || !strings.Contains(readResponse.Body.String(), `"structuredContent":[]`) {
 		t.Fatalf("read tool call failed: %d %s", readResponse.Code, readResponse.Body.String())
 	}
 	writeBody := `{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"mark_movie_watched","arguments":{},"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"ChatGPT","version":"test"},"io.modelcontextprotocol/clientCapabilities":{}}}}`
