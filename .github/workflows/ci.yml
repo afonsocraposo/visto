@@ -8,39 +8,34 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  backend:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
         with:
           go-version: '1.22.x'
           cache: true
+      - run: go test ./...
 
-      - name: Run Go tests
-        run: go test ./...
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-
-      - name: Install frontend dependencies
-        run: npm ci
+      - run: npm ci
+        working-directory: frontend
+      - run: npm test
+        working-directory: frontend
+      - run: npm run build
         working-directory: frontend
 
-      - name: Run frontend tests
-        run: npm test
-        working-directory: frontend
-
-      - name: Build frontend
-        run: npm run build
-        working-directory: frontend
-
-      - name: Build Docker image
-        run: docker build --tag visto:ci .
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build --tag visto:ci .
