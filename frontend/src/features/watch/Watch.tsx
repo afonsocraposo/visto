@@ -32,6 +32,7 @@ export function WatchNow() {
         queryClient.invalidateQueries({ queryKey: userQueryKey("continue") }),
         queryClient.invalidateQueries({ queryKey: userQueryKey("calendar") }),
         queryClient.invalidateQueries({ queryKey: userQueryKey("feed") }),
+        queryClient.invalidateQueries({ queryKey: userQueryKey("history") }),
         queryClient.invalidateQueries({ queryKey: userQueryKey("library") }),
       ]);
     },

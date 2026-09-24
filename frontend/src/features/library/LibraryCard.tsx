@@ -31,7 +31,11 @@ export function LibraryCard({ entry }: { entry: LibraryEntry }) {
         body: JSON.stringify({ media_id: entry.item.media_id }),
       });
       if (!response.ok) throw new Error("Could not record this watch.");
-    }, onSuccess: () => queryClient.invalidateQueries({ queryKey: userQueryKey("history") }),
+    }, onSuccess: async () => Promise.all([
+      queryClient.invalidateQueries({ queryKey: userQueryKey("history") }),
+      queryClient.invalidateQueries({ queryKey: userQueryKey("library") }),
+      queryClient.invalidateQueries({ queryKey: userQueryKey("feed") }),
+    ]),
   });
 
   return <Paper withBorder p="md" mt="sm">
