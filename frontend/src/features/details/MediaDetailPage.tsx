@@ -61,7 +61,7 @@ export function MediaDetailPage({ target, onBack, onOpenDetail }: Props) {
   });
   const markEpisodeWatched = useMutation({
     mutationFn: (episodeID: string) => api.post("/api/v1/plays", { episode_id: episodeID }, "Could not record this watch."),
-    onSuccess: async () => { setPendingWatch(null); return Promise.all([
+    onSuccess: async () => { setPendingWatch(null); setShowWatchModal(false); return Promise.all([
       queryClient.invalidateQueries({ queryKey: userQueryKey("detail-episodes", showID) }),
       queryClient.invalidateQueries({ queryKey: userQueryKey("continue") }),
       queryClient.invalidateQueries({ queryKey: userQueryKey("history") }),
@@ -69,7 +69,11 @@ export function MediaDetailPage({ target, onBack, onOpenDetail }: Props) {
     ]); },
   });
   const markEpisodesWatched = useMutation({
-    mutationFn: (episodeIDs: string[]) => api.post("/api/v1/plays/bulk", { episode_ids: episodeIDs }, "Could not record these watches."),
+    mutationFn: async (episodeIDs: string[]) => {
+      for (const batch of chunk(episodeIDs, 100)) {
+        await api.post("/api/v1/plays/bulk", { episode_ids: batch }, "Could not record these watches.");
+      }
+    },
     onSuccess: async () => { setPendingWatch(null); return Promise.all([
       queryClient.invalidateQueries({ queryKey: userQueryKey("detail-episodes", showID) }),
       queryClient.invalidateQueries({ queryKey: userQueryKey("continue") }),
@@ -139,7 +143,8 @@ export function MediaDetailPage({ target, onBack, onOpenDetail }: Props) {
           return <Paper key={group.number} withBorder p="sm"><Group justify="space-between"><div><Text fw={650}>{group.number === 0 ? "Specials" : `Season ${group.number}`}</Text><Text size="xs" c="dimmed">{remaining} episodes remaining</Text></div><Switch aria-label={`Include ${group.number === 0 ? "specials" : `season ${group.number}`}`} checked={selectedShowSeasons[group.number] === true} onChange={event => setSelectedShowSeasons(current => ({ ...current, [group.number]: event.currentTarget.checked }))} /></Group></Paper>;
         })}
       </Stack>
-      <Group justify="flex-end" mt="lg"><Button variant="default" onClick={() => setShowWatchModal(false)}>Cancel</Button><Button disabled={selectedShowEpisodes.length === 0} loading={markEpisodesWatched.isPending} onClick={() => { markEpisodesWatched.mutate(selectedShowEpisodes.map(entry => entry.episode.id)); setShowWatchModal(false); }}>Mark {selectedShowEpisodes.length} episodes watched</Button></Group>
+      {markEpisodesWatched.isError && <Alert color="red" mt="md">{markEpisodesWatched.error.message}</Alert>}
+      <Group justify="flex-end" mt="lg"><Button variant="default" onClick={() => setShowWatchModal(false)}>Cancel</Button><Button disabled={selectedShowEpisodes.length === 0} loading={markEpisodesWatched.isPending} onClick={() => markEpisodesWatched.mutate(selectedShowEpisodes.map(entry => entry.episode.id))}>Mark {selectedShowEpisodes.length} episodes watched</Button></Group>
     </Modal>
     <Button className="detail-back" variant="subtle" leftSection={<IconArrowLeft size={17} />} onClick={onBack}>Back</Button>
     <section className="detail-hero" style={{ backgroundImage: `linear-gradient(90deg, rgba(9,13,18,.96) 0%, rgba(9,13,18,.84) 43%, rgba(9,13,18,.35) 100%), url(${backdrop})` }}>
@@ -157,11 +162,18 @@ export function MediaDetailPage({ target, onBack, onOpenDetail }: Props) {
       <Group justify="space-between" align="end" mb="sm"><div><Text className="section-kicker">Your catalog</Text><Title order={2}>Seasons & episodes</Title></div><Group gap="xs">{releasedShowEpisodes.length > 0 && <Button size="xs" onClick={openShowWatchModal}>Mark show watched</Button>}{releasedSeasonEpisodes.length > 0 && <Button size="xs" variant="light" onClick={() => setPendingWatch({ target: null, episodes: releasedSeasonEpisodes })}>Mark season watched</Button>}{seasons.length > 0 && <Select aria-label="Season" value={selectedSeason} onChange={setSeason} data={seasons.map(number => ({ value: String(number), label: number === 0 ? "Specials" : `Season ${number}` }))} w={150} />}</Group></Group>
       {episodes.isPending && <Group justify="center" py="lg"><Loader /></Group>}
       {episodes.isError && <Alert color="red">Episodes are temporarily unavailable.</Alert>}
+      {markEpisodesWatched.isError && <Alert color="red">{markEpisodesWatched.error.message}</Alert>}
       {!episodes.isPending && !episodes.isError && !visibleEpisodes.length && <Text c="dimmed">Episode details are not available yet.</Text>}
       <Stack gap="xs">{visibleEpisodes.map(entry => <Paper key={entry.episode.id} className="episode-row" withBorder p="sm" role="button" tabIndex={0} onClick={() => onOpenDetail({ mediaType: "tv", tmdbID: media.tmdb_id, mediaID: showID, episodeID: entry.episode.id, episode: entry.episode, seasonNumber: entry.episode.season_number })} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") onOpenDetail({ mediaType: "tv", tmdbID: media.tmdb_id, mediaID: showID, episodeID: entry.episode.id, episode: entry.episode, seasonNumber: entry.episode.season_number }); }}><Group justify="space-between" wrap="nowrap" align="flex-start"><Group wrap="nowrap" gap="sm" align="flex-start"><div className="episode-art">{entry.still_path ? <Image src={backdropURL(entry.still_path, "w780")!} alt="" /> : <div className="artwork-fallback">{entry.episode.episode_number}</div>}</div><div><Text fw={650}>{`Episode ${entry.episode.episode_number}${entry.name ? ` · ${entry.name}` : ""}`}</Text><Text size="xs" c="dimmed">{entry.episode.air_date || "Air date not announced"}</Text>{entry.overview && <Text className="episode-description" size="sm" c="dimmed" mt={5}>{entry.overview}</Text>}</div></Group>{entry.watched ? <Badge color="teal" variant="light" leftSection={<IconCheck size={13} />}>Watched</Badge> : <Button size="xs" variant="light" leftSection={<IconPlayerPlay size={14} />} loading={markEpisodeWatched.isPending} onClick={event => { event.stopPropagation(); requestEpisodeWatch(entry); }}>Mark watched</Button>}</Group></Paper>)}</Stack>
     </section>}
     {library.isError && seed && <Text className="detail-hint" c="dimmed">Add this title to your library to track episodes and progress.</Text>}
   </div>;
+}
+
+function chunk<T>(values: T[], size: number): T[][] {
+  const batches: T[][] = [];
+  for (let index = 0; index < values.length; index += size) batches.push(values.slice(index, index + size));
+  return batches;
 }
 
 function EpisodeActions({ entry, playID, onWatch, onUnwatch, pending }: { entry: ShowEpisodeEntry; playID?: string; onWatch: () => void; onUnwatch: (playID: string) => void; pending: boolean }) {
