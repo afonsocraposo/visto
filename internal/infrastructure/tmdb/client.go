@@ -553,12 +553,12 @@ func cloneMovie(movie domain.MovieMetadata) domain.MovieMetadata {
 }
 
 func (client *Client) fetchShow(ctx context.Context, tmdbID int64) (domain.TVShowMetadata, error) {
-	show, err := client.fetchShowSummary(ctx, tmdbID)
+	show, err := client.ShowSummary(ctx, tmdbID)
 	if err != nil {
 		return domain.TVShowMetadata{}, err
 	}
 	for index := range show.Seasons {
-		season, err := client.fetchSeason(ctx, tmdbID, show.Seasons[index].Number)
+		season, err := client.Season(ctx, tmdbID, show.Seasons[index].Number)
 		if err != nil {
 			return domain.TVShowMetadata{}, err
 		}

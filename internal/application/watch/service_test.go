@@ -117,6 +117,24 @@ func TestContinue_GivenLaterEpisodeWatchedAndEarlierEpisodeMissing_WhenLoadingNo
 	}
 }
 
+func TestContinue_GivenEpisodeArtworkAndName_WhenLoadingWatching_ThenItIncludesBoth(t *testing.T) {
+	now := time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC)
+	show := Show{
+		ID: "tv:1", Title: "The Example",
+		Episodes:       []domain.Episode{{ID: "e1", SeasonNumber: 1, EpisodeNumber: 1, AirDate: &now}},
+		EpisodeDetails: map[string]EpisodeDisplay{"e1": {Name: "Pilot", StillPath: "/pilot.jpg"}},
+	}
+	service := NewService(repository{shows: []Show{show}, timezone: "UTC"})
+	service.now = func() time.Time { return now }
+	entries, err := service.Continue(context.Background(), "user")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 || entries[0].NextEpisodeName != "Pilot" || entries[0].NextEpisodeStillPath != "/pilot.jpg" {
+		t.Fatalf("episode details = %+v", entries)
+	}
+}
+
 func TestCalendar_GivenFutureEpisodeWatchedBeforeAirDate_WhenListingUpcoming_ThenItIsOmitted(t *testing.T) {
 	from := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
 	to := from.AddDate(0, 0, 30)

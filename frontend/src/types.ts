@@ -51,6 +51,8 @@ export type ContinueEntry = {
   poster_path: string;
   kind: "continue" | "start";
   next_episode?: Episode;
+  next_episode_name?: string;
+  next_episode_still_path?: string;
   missing_prior_episodes?: Episode[];
 };
 

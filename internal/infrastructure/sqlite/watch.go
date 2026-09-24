@@ -41,14 +41,15 @@ func (store *Store) WatchingShows(ctx context.Context, userID string) ([]watch.S
 	}
 	for index := range shows {
 		show := &shows[index]
-		episodeRows, err := store.DB.QueryContext(ctx, `SELECT id,season_number,episode_number,air_date FROM episodes WHERE show_id=? ORDER BY season_number,episode_number`, show.ID)
+		episodeRows, err := store.DB.QueryContext(ctx, `SELECT id,season_number,episode_number,air_date,COALESCE(name,''),COALESCE(still_path,'') FROM episodes WHERE show_id=? ORDER BY season_number,episode_number`, show.ID)
 		if err != nil {
 			return nil, fmt.Errorf("list episodes for %s: %w", show.ID, err)
 		}
 		for episodeRows.Next() {
 			var episode domain.Episode
 			var airDate sql.NullString
-			if err := episodeRows.Scan(&episode.ID, &episode.SeasonNumber, &episode.EpisodeNumber, &airDate); err != nil {
+			var name, stillPath string
+			if err := episodeRows.Scan(&episode.ID, &episode.SeasonNumber, &episode.EpisodeNumber, &airDate, &name, &stillPath); err != nil {
 				episodeRows.Close()
 				return nil, fmt.Errorf("scan episode: %w", err)
 			}
@@ -62,6 +63,10 @@ func (store *Store) WatchingShows(ctx context.Context, userID string) ([]watch.S
 				episode.AirDate = &parsed
 			}
 			show.Episodes = append(show.Episodes, episode)
+			if show.EpisodeDetails == nil {
+				show.EpisodeDetails = make(map[string]watch.EpisodeDisplay)
+			}
+			show.EpisodeDetails[episode.ID] = watch.EpisodeDisplay{Name: name, StillPath: stillPath}
 		}
 		if err := episodeRows.Err(); err != nil {
 			episodeRows.Close()

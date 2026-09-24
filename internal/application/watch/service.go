@@ -13,13 +13,19 @@ import (
 const maxShowRefreshesPerRequest = 2
 
 type Show struct {
-	ID         string               `json:"id"`
-	Title      string               `json:"title"`
-	PosterPath string               `json:"poster_path"`
-	Status     domain.LibraryStatus `json:"status"`
-	Episodes   []domain.Episode     `json:"-"`
-	Plays      []domain.EpisodePlay `json:"-"`
-	UpdatedAt  time.Time            `json:"-"`
+	ID             string                    `json:"id"`
+	Title          string                    `json:"title"`
+	PosterPath     string                    `json:"poster_path"`
+	Status         domain.LibraryStatus      `json:"status"`
+	Episodes       []domain.Episode          `json:"-"`
+	EpisodeDetails map[string]EpisodeDisplay `json:"-"`
+	Plays          []domain.EpisodePlay      `json:"-"`
+	UpdatedAt      time.Time                 `json:"-"`
+}
+
+type EpisodeDisplay struct {
+	Name      string
+	StillPath string
 }
 
 type ContinueEntry struct {
@@ -29,6 +35,8 @@ type ContinueEntry struct {
 	Kind                 string           `json:"kind"`
 	Cursor               *domain.Episode  `json:"cursor,omitempty"`
 	NextEpisode          *domain.Episode  `json:"next_episode,omitempty"`
+	NextEpisodeName      string           `json:"next_episode_name,omitempty"`
+	NextEpisodeStillPath string           `json:"next_episode_still_path,omitempty"`
 	MissingPriorEpisodes []domain.Episode `json:"missing_prior_episodes,omitempty"`
 }
 
@@ -125,6 +133,10 @@ func (service *Service) Continue(ctx context.Context, userID string) ([]Continue
 			kind = "start"
 		}
 		entry := ContinueEntry{ShowID: show.ID, Title: show.Title, PosterPath: show.PosterPath, Kind: kind, Cursor: progress.Cursor, NextEpisode: progress.NextEpisode}
+		if details, ok := show.EpisodeDetails[progress.NextEpisode.ID]; ok {
+			entry.NextEpisodeName = details.Name
+			entry.NextEpisodeStillPath = details.StillPath
+		}
 		entry.MissingPriorEpisodes = domain.MissingPriorEpisodes(show.Episodes, show.Plays, *progress.NextEpisode, now)
 		result = append(result, entry)
 	}

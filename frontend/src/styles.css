@@ -40,17 +40,18 @@ select {
 .page-heading { margin-bottom: 20px; }
 .page-heading h1, .watch-intro h1 { letter-spacing: -.045em; }
 .watch-intro { margin: 6px 0 20px; }
-.watch-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; }
-.watch-card { overflow: hidden; position: relative; aspect-ratio: 2 / 3; min-height: 0; background: #19212b; border-color: rgb(255 255 255 / .1); }
-.watch-card-featured { grid-column: auto; min-height: 0; }
-.watch-card-art { position: absolute; inset: 0; background-position: center 27%; background-size: cover; }
-.artwork-scrim { position: absolute; inset: 0; background: linear-gradient(180deg, rgb(9 13 18 / .08) 25%, rgb(9 13 18 / .82) 76%, rgb(9 13 18 / .96)); }
-.watch-card-content { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: flex-start; justify-content: end; min-height: inherit; padding: 16px; color: #fff; }
-.watch-card-content h2 { letter-spacing: -.045em; font-size: clamp(1.05rem, 2vw, 1.45rem); line-height: 1.05; }
-.watch-card-content .watch-episode { color: rgb(255 255 255 / .74); }
-.watch-kind { background: #f2b544; color: #10141a; margin-bottom: 12px; }
-.watch-action { width: 100%; margin-top: 12px; background: #f2b544; color: #10141a; }
-.watch-action:hover { background: #ffd36c; }
+.watch-list { display: grid; gap: 14px; }
+.watch-row { display: flex; align-items: center; gap: 20px; min-height: 144px; padding: 12px; background: var(--mantine-color-body); cursor: pointer; transition: border-color 150ms ease, box-shadow 150ms ease; }
+.watch-row:hover, .watch-row:focus-visible { border-color: var(--mantine-color-gray-5); box-shadow: 0 6px 22px rgb(23 34 48 / .08); outline: none; }
+.watch-row-art { width: 240px; height: 144px; flex: 0 0 240px; overflow: hidden; background: #1b2430; }
+.watch-row-art .mantine-Image-root, .watch-row-art img { width: 100%; height: 100%; object-fit: cover; }
+.watch-row-content { display: grid; gap: 8px; min-width: 0; flex: 1; }
+.watch-row-title { overflow: hidden; text-overflow: ellipsis; font-size: 1.1rem; }
+.watch-row-episode { color: var(--mantine-color-text); font-size: 1.05rem; font-weight: 650; }
+.watch-row-name { color: var(--mantine-color-dimmed); }
+.watch-row-action { flex: 0 0 auto; margin-inline: 18px 22px; color: var(--mantine-color-dimmed); }
+.watch-row-action:hover { color: var(--mantine-color-text); }
+.watch-row .artwork-fallback { width: 100%; height: 100%; min-height: auto; }
 .artwork-fallback { display: grid; place-items: center; height: 100%; min-height: 100%; background: linear-gradient(135deg, #334155, #19212b); color: #f2b544; font-size: 2.5rem; font-weight: 800; }
 .calendar-card { border-left: 3px solid #48b7ae; }
 .library-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
@@ -136,10 +137,12 @@ select {
   .bottom-nav-button .mantine-Button-section { margin-inline-end: 4px; }
   .bottom-nav { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; }
   .bottom-nav-button { width: 100%; }
-  .watch-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-  .watch-card-featured { grid-column: auto; }
-  .watch-card, .watch-card-featured { aspect-ratio: 2 / 3; min-height: 0; }
-  .watch-card-content { padding: 12px; }
+  .watch-list { gap: 10px; }
+  .watch-row { min-height: 104px; gap: 12px; padding: 8px; }
+  .watch-row-art { width: 112px; height: 84px; flex-basis: 112px; }
+  .watch-row-action { margin-inline: 0 2px; }
+  .watch-row-episode { font-size: .92rem; }
+  .watch-row-content { gap: 5px; }
   .visto-main .mantine-Tabs-list { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
   .visto-main .mantine-Tabs-list::-webkit-scrollbar { display: none; }
   .visto-main .mantine-Tabs-tab { flex: 0 0 auto; white-space: nowrap; }
@@ -170,7 +173,7 @@ select {
 }
 
 @media (min-width: 681px) and (max-width: 920px) {
-  .library-grid, .library-grid-full, .watch-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .library-grid, .library-grid-full { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 
 @media (prefers-reduced-motion: reduce) { .search-result-card { transition: none; } .search-result-card:hover { transform: none; } }

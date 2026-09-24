@@ -737,8 +737,8 @@ func mediaDetails(authService *auth.Service, service *library.Service, provider 
 		if err != nil {
 			if errors.Is(err, library.ErrMediaNotFound) {
 				if mediaType == domain.TVMediaType {
-					if tvProvider, ok := provider.(domain.TVShowMetadataProvider); ok {
-						show, providerErr := tvProvider.Show(r.Context(), tmdbID)
+					if tvProvider, ok := provider.(domain.TVShowSummaryProvider); ok {
+						show, providerErr := tvProvider.ShowSummary(r.Context(), tmdbID)
 						if providerErr == nil {
 							writeJSON(w, http.StatusOK, library.Entry{Media: library.Media{ID: fmt.Sprintf("tv:%d", show.TMDBID), Type: domain.TVMediaType, TMDBID: show.TMDBID, Title: show.Name, OriginalTitle: show.Name, Overview: show.Overview, ReleaseDate: show.FirstAirDate, PosterPath: show.PosterPath, OriginalLanguage: show.OriginalLanguage, Status: show.Status}})
 							return

@@ -42,9 +42,9 @@ export function Dashboard({ user, theme, setTheme }: { user: User; theme: Theme;
   const openDetail = (target: MediaDetailTarget) => void navigate({
     to: `/media/${target.mediaType}/${target.tmdbID}`,
     search: {
-      media: target.mediaID,
-      episode: target.episodeID,
-      season: target.seasonNumber,
+      ...(target.mediaID ? { media: target.mediaID } : {}),
+      ...(target.episodeID ? { episode: target.episodeID } : {}),
+      ...(target.seasonNumber !== undefined ? { season: target.seasonNumber } : {}),
       ...(target.seed ? {
         title: target.seed.title,
         original_title: target.seed.original_title,
@@ -151,7 +151,7 @@ export function Dashboard({ user, theme, setTheme }: { user: User; theme: Theme;
           <>
             <Tabs className="watch-tabs" value={view} onChange={value => setView(value || "now")}>
               <Tabs.List>
-                <Tabs.Tab value="now">Now</Tabs.Tab>
+                <Tabs.Tab value="now">To watch</Tabs.Tab>
                 <Tabs.Tab value="calendar" leftSection={<IconCalendar size={16} />}>Calendar</Tabs.Tab>
               </Tabs.List>
             </Tabs>
@@ -164,7 +164,7 @@ export function Dashboard({ user, theme, setTheme }: { user: User; theme: Theme;
       </AppShell.Main>
       <AppShell.Footer className="visto-footer">
         <Group className="bottom-nav" justify="space-around" h="100%">
-          {nav("watch", "Watch", IconHome)}
+          {nav("watch", "Watching", IconHome)}
           {nav("search", "Discover", IconSearch)}
           {nav("feed", "Feed", IconCompass)}
           {nav("library", "Profile", IconUserCircle)}

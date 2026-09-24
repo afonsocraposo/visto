@@ -1,12 +1,13 @@
-import { useState, type CSSProperties } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Badge, Button, Group, Image, Loader, Modal, Paper, Text, Title } from "@mantine/core";
+import { ActionIcon, Alert, Button, Group, Image, Loader, Modal, Paper, Text, Title, Tooltip } from "@mantine/core";
+import { IconEye } from "@tabler/icons-react";
 import { EmptyState } from "../../components/EmptyState";
 import { useUserQueryKey } from "../auth/SessionContext";
 import { api } from "../../lib/api";
 import { calendarMonthRange, dateInTimezone, formatCalendarDate, formatCalendarMonth, groupCalendarEntries, monthInTimezone, shiftCalendarMonth } from "./calendar";
 import type { CalendarEntry, ContinueEntry, MediaDetailTarget } from "../../types";
-import { posterURL } from "../../lib/artwork";
+import { backdropURL, posterURL } from "../../lib/artwork";
 
 export function WatchNow({ onOpenDetail }: { onOpenDetail?: (target: MediaDetailTarget) => void }) {
   const queryClient = useQueryClient();
@@ -46,23 +47,20 @@ export function WatchNow({ onOpenDetail }: { onOpenDetail?: (target: MediaDetail
         </Group>
       </Modal>
       <div className="watch-intro">
-        <Text className="section-kicker">Up next</Text>
-        <Title order={1}>Pick up where you left off</Title>
+        <Text className="section-kicker">Watching</Text>
+        <Title order={1}>Episodes to watch</Title>
       </div>
-      <div className="watch-grid">
+      <div className="watch-list">
         {entries.data.map(entry => {
-          const art = posterURL(entry.poster_path, "w500");
-          return <Paper key={entry.show_id} className="watch-card" withBorder p={0} role={onOpenDetail ? "button" : undefined} tabIndex={onOpenDetail ? 0 : undefined} onClick={() => onOpenDetail?.({ mediaType: "tv", tmdbID: Number(entry.show_id.split(":")[1]), mediaID: entry.show_id, episodeID: entry.next_episode?.id, episode: entry.next_episode })} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") onOpenDetail?.({ mediaType: "tv", tmdbID: Number(entry.show_id.split(":")[1]), mediaID: entry.show_id, episodeID: entry.next_episode?.id, episode: entry.next_episode }); }}>
-            <div className="watch-card-art" style={art ? { backgroundImage: `url(${art})` } as CSSProperties : undefined}>
-              {!art && <div className="artwork-fallback">{entry.title.slice(0, 1)}</div>}
-              <div className="artwork-scrim" />
+          const art = backdropURL(entry.next_episode_still_path, "w780") ?? posterURL(entry.poster_path, "w500");
+          const openEpisode = () => onOpenDetail?.({ mediaType: "tv", tmdbID: Number(entry.show_id.split(":")[1]), mediaID: entry.show_id, episodeID: entry.next_episode?.id, episode: entry.next_episode });
+          return <Paper key={entry.show_id} className="watch-row" withBorder p={0} role={onOpenDetail ? "button" : undefined} tabIndex={onOpenDetail ? 0 : undefined} onClick={openEpisode} onKeyDown={event => { if ((event.key === "Enter" || event.key === " ") && event.target === event.currentTarget) { event.preventDefault(); openEpisode(); } }}>
+            <div className="watch-row-art">{art ? <Image src={art} alt="" /> : <div className="artwork-fallback">{entry.title.slice(0, 1)}</div>}</div>
+            <div className="watch-row-content">
+              <Text className="watch-row-title" fw={700} lineClamp={1}>{entry.title}</Text>
+              <Text className="watch-row-episode" lineClamp={1}>{entry.next_episode ? `S${String(entry.next_episode.season_number).padStart(2, "0")} | E${String(entry.next_episode.episode_number).padStart(2, "0")}${entry.next_episode_name ? ` · ${entry.next_episode_name}` : ""}` : "Episode details are pending"}</Text>
             </div>
-            <div className="watch-card-content">
-              <Badge className="watch-kind" variant="filled">{entry.kind === "start" ? "Ready to start" : "Continue"}</Badge>
-              <Title order={2}>{entry.title}</Title>
-              <Text className="watch-episode" c="dimmed">{entry.next_episode ? `S${String(entry.next_episode.season_number).padStart(2, "0")}E${String(entry.next_episode.episode_number).padStart(2, "0")} is waiting` : "Episode details are pending"}</Text>
-              {entry.next_episode && <Button className="watch-action" loading={markWatched.isPending} onClick={event => { event.stopPropagation(); entry.missing_prior_episodes?.length ? setConfirmation(entry) : markWatched.mutate({ episodeIDs: [entry.next_episode!.id], bulk: false }); }}>Mark watched</Button>}
-            </div>
+            {entry.next_episode && <Tooltip label="Mark episode watched" withArrow><ActionIcon className="watch-row-action" size="xl" radius="xl" variant="light" color="gray" aria-label={`Mark ${entry.title} season ${entry.next_episode.season_number}, episode ${entry.next_episode.episode_number} watched`} loading={markWatched.isPending} onClick={event => { event.stopPropagation(); entry.missing_prior_episodes?.length ? setConfirmation(entry) : markWatched.mutate({ episodeIDs: [entry.next_episode!.id], bulk: false }); }}><IconEye size={22} stroke={1.8} /></ActionIcon></Tooltip>}
           </Paper>;
         })}
       </div>

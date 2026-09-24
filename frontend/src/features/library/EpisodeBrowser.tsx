@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Group, Loader, Modal, Paper, Select, Text } from "@mantine/core";
+import { ActionIcon, Alert, Button, Group, Loader, Modal, Paper, Select, Text, Tooltip } from "@mantine/core";
+import { IconEye, IconEyeCheck } from "@tabler/icons-react";
 import { useUserQueryKey } from "../auth/SessionContext";
 import { api } from "../../lib/api";
 import { findMissingPriorEpisodes } from "./episodeSelection";
@@ -29,6 +30,7 @@ export function EpisodeBrowser({ showID, title, onClose }: { showID: string; tit
         queryClient.invalidateQueries({ queryKey: userQueryKey("calendar") }),
         queryClient.invalidateQueries({ queryKey: userQueryKey("feed") }),
         queryClient.invalidateQueries({ queryKey: userQueryKey("history") }),
+        queryClient.invalidateQueries({ queryKey: userQueryKey("library") }),
       ]);
     },
   });
@@ -71,11 +73,19 @@ export function EpisodeBrowser({ showID, title, onClose }: { showID: string; tit
                     <Text fw={600}>{`Episode ${entry.episode.episode_number}${entry.name ? ` · ${entry.name}` : ""}`}</Text>
                     <Text size="xs" c="dimmed">{entry.episode.air_date || "Air date not announced"}</Text>
                   </div>
-                  {entry.watched ? (
-                    <Text size="sm" c="dimmed">Watched</Text>
-                  ) : (
-                    <Button size="xs" loading={recordPlays.isPending} onClick={() => selectEpisode(entry)}>Mark watched</Button>
-                  )}
+                  <Tooltip label={entry.watched ? "Already watched" : `Mark episode ${entry.episode.episode_number} watched`} withArrow>
+                    <ActionIcon
+                      size="lg"
+                      variant={entry.watched ? "light" : "default"}
+                      color={entry.watched ? "teal" : undefined}
+                      aria-label={entry.watched ? `Episode ${entry.episode.episode_number} already watched` : `Mark episode ${entry.episode.episode_number} watched`}
+                      disabled={entry.watched || recordPlays.isPending}
+                      loading={!entry.watched && recordPlays.isPending}
+                      onClick={() => selectEpisode(entry)}
+                    >
+                      {entry.watched ? <IconEyeCheck size={18} /> : <IconEye size={18} />}
+                    </ActionIcon>
+                  </Tooltip>
                 </Group>
               </Paper>
             ))}
