@@ -90,7 +90,7 @@ export function SearchPanel({ onOpenDetail }: { onOpenDetail?: (target: MediaDet
         const mediaID = `${item.type}:${item.tmdb_id}`;
         const saved = libraryIDs.has(mediaID);
         return (
-          <Paper className="search-result-card" key={`${item.type}-${item.tmdb_id}`} withBorder p="sm" mt="sm">
+          <Paper className="search-result-card search-result-clickable" key={`${item.type}-${item.tmdb_id}`} withBorder p="sm" mt="sm" role={onOpenDetail ? "link" : undefined} tabIndex={onOpenDetail ? 0 : undefined} aria-label={onOpenDetail ? `Open details for ${item.title}` : undefined} onClick={() => onOpenDetail?.({ mediaType: item.type, tmdbID: item.tmdb_id, seed: item })} onKeyDown={event => { if (onOpenDetail && (event.key === "Enter" || event.key === " ")) onOpenDetail({ mediaType: item.type, tmdbID: item.tmdb_id, seed: item }); }}>
             <Group justify="space-between" align="start" wrap="nowrap">
               <Group align="flex-start" wrap="nowrap" gap="sm">
                 <div className="search-poster">
@@ -102,7 +102,7 @@ export function SearchPanel({ onOpenDetail }: { onOpenDetail?: (target: MediaDet
                   {item.overview && <Text className="search-overview" size="sm" c="dimmed" mt={6}>{item.overview}</Text>}
                 </div>
               </Group>
-              <Group className="search-result-actions" gap="xs">
+              <Group className="search-result-actions" gap="xs" onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
                 <Button size="xs" variant="default" onClick={() => onOpenDetail ? onOpenDetail({ mediaType: item.type, tmdbID: item.tmdb_id, seed: item }) : setSelectedMedia(item)}>Details</Button>
                 {saved ? <Button size="xs" disabled>In library</Button> : item.type === "tv" ? (
                   <>

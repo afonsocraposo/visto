@@ -68,6 +68,8 @@ select {
 .search-input input { font-size: 1rem; }
 .search-result-card { transition: transform 150ms ease, box-shadow 150ms ease; }
 .search-result-card:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgb(23 34 48 / .09); }
+.search-result-clickable { cursor: pointer; }
+.search-result-clickable:focus-visible { outline: 2px solid #f2b544; outline-offset: 2px; }
 .search-poster { width: 54px; height: 80px; flex: 0 0 54px; border-radius: 8px; overflow: hidden; background: #1b2430; }
 .search-overview { display: -webkit-box; max-width: 620px; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .search-result-actions { flex-wrap: wrap; justify-content: flex-end; }
