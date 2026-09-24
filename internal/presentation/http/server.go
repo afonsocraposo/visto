@@ -42,8 +42,8 @@ func New(authService *auth.Service, metadataProvider domain.MetadataProvider, we
 	mux.HandleFunc("GET /api/v1/export/json", jsonExport(authService, exportService))
 	mux.HandleFunc("GET /api/v1/export/csv", csvExport(authService, exportService))
 	mux.HandleFunc("GET /api/v1/search", search(authService, metadataProvider))
-	mux.HandleFunc("GET /api/v1/movies/{tmdbID}", mediaDetails(authService, libraryService, domain.MovieMediaType))
-	mux.HandleFunc("GET /api/v1/shows/{tmdbID}", mediaDetails(authService, libraryService, domain.TVMediaType))
+	mux.HandleFunc("GET /api/v1/movies/{tmdbID}", mediaDetails(authService, libraryService, metadataProvider, domain.MovieMediaType))
+	mux.HandleFunc("GET /api/v1/shows/{tmdbID}", mediaDetails(authService, libraryService, metadataProvider, domain.TVMediaType))
 	mux.HandleFunc("GET /api/v1/library", listLibrary(authService, libraryService))
 	mux.HandleFunc("POST /api/v1/library", saveLibrary(authService, libraryService, metadataProvider))
 	mux.HandleFunc("PATCH /api/v1/library/{mediaID}", updateLibrary(authService, libraryService))
@@ -623,7 +623,7 @@ func listLibrary(authService *auth.Service, service *library.Service) http.Handl
 	}
 }
 
-func mediaDetails(authService *auth.Service, service *library.Service, mediaType domain.MediaType) http.HandlerFunc {
+func mediaDetails(authService *auth.Service, service *library.Service, provider domain.MetadataProvider, mediaType domain.MediaType) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		user, ok := authenticatedUser(w, r, authService)
 		if !ok {
@@ -641,6 +641,15 @@ func mediaDetails(authService *auth.Service, service *library.Service, mediaType
 		entry, err := service.GetByTMDBID(r.Context(), user.ID, mediaType, tmdbID)
 		if err != nil {
 			if errors.Is(err, library.ErrMediaNotFound) {
+				if mediaType == domain.TVMediaType {
+					if tvProvider, ok := provider.(domain.TVShowMetadataProvider); ok {
+						show, providerErr := tvProvider.Show(r.Context(), tmdbID)
+						if providerErr == nil {
+							writeJSON(w, http.StatusOK, library.Entry{Media: library.Media{ID: fmt.Sprintf("tv:%d", show.TMDBID), Type: domain.TVMediaType, TMDBID: show.TMDBID, Title: show.Name, OriginalTitle: show.Name, Overview: show.Overview, ReleaseDate: show.FirstAirDate, PosterPath: show.PosterPath, OriginalLanguage: show.OriginalLanguage, Status: show.Status}})
+							return
+						}
+					}
+				}
 				writeError(w, http.StatusNotFound, "media not found")
 				return
 			}

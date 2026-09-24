@@ -104,7 +104,7 @@ export function MediaDetailPage({ target, onBack, onOpenDetail }: Props) {
   const selectedEpisode = target.episodeID ? episodeEntries.find(entry => entry.episode.id === target.episodeID) ?? { episode: target.episode!, name: `Episode ${target.episode?.episode_number ?? ""}`, watched: false } : null;
   const backdrop = (selectedEpisode?.still_path ? backdropURL(selectedEpisode.still_path, "w780") : null) ?? backdropURL((media as SearchMedia & { backdrop_path?: string }).backdrop_path, "w1280") ?? art;
   const watchedPlay = history.data?.find(item => selectedEpisode ? item.play.episode_id === selectedEpisode.episode.id : item.play.media_id === showID);
-  const isSaved = Boolean(library.data);
+  const isSaved = Boolean(library.data?.item.media_id);
   const status = library.data?.item.status;
   const today = new Date().toISOString().slice(0, 10);
   const releasedSeasonEpisodes = visibleEpisodes.filter(entry => !entry.watched && (!entry.episode.air_date || entry.episode.air_date <= today));
@@ -166,7 +166,7 @@ export function MediaDetailPage({ target, onBack, onOpenDetail }: Props) {
       {!episodes.isPending && !episodes.isError && !visibleEpisodes.length && <Text c="dimmed">Episode details are not available yet.</Text>}
       <Stack gap="xs">{visibleEpisodes.map(entry => <Paper key={entry.episode.id} className="episode-row" withBorder p="sm" role="button" tabIndex={0} onClick={() => onOpenDetail({ mediaType: "tv", tmdbID: media.tmdb_id, mediaID: showID, episodeID: entry.episode.id, episode: entry.episode, seasonNumber: entry.episode.season_number })} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") onOpenDetail({ mediaType: "tv", tmdbID: media.tmdb_id, mediaID: showID, episodeID: entry.episode.id, episode: entry.episode, seasonNumber: entry.episode.season_number }); }}><Group justify="space-between" wrap="nowrap" align="flex-start"><Group wrap="nowrap" gap="sm" align="flex-start"><div className="episode-art">{entry.still_path ? <Image src={backdropURL(entry.still_path, "w780")!} alt="" /> : <div className="artwork-fallback">{entry.episode.episode_number}</div>}</div><div><Text fw={650}>{`Episode ${entry.episode.episode_number}${entry.name ? ` · ${entry.name}` : ""}`}</Text><Text size="xs" c="dimmed">{entry.episode.air_date || "Air date not announced"}</Text>{entry.overview && <Text className="episode-description" size="sm" c="dimmed" mt={5}>{entry.overview}</Text>}</div></Group>{entry.watched ? <Badge color="teal" variant="light" leftSection={<IconCheck size={13} />}>Watched</Badge> : <Button size="xs" variant="light" leftSection={<IconPlayerPlay size={14} />} loading={markEpisodeWatched.isPending} onClick={event => { event.stopPropagation(); requestEpisodeWatch(entry); }}>Mark watched</Button>}</Group></Paper>)}</Stack>
     </section>}
-    {library.isError && seed && <Text className="detail-hint" c="dimmed">Add this title to your library to track episodes and progress.</Text>}
+    {!isSaved && <Text className="detail-hint" c="dimmed">Add this title to your library to track episodes and progress.</Text>}
   </div>;
 }
 
