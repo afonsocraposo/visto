@@ -3,11 +3,13 @@ package httpserver
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"time"
 
 	"github.com/afonsocosta/visto/internal/application/auth"
+	"github.com/afonsocosta/visto/internal/application/feed"
 	"github.com/afonsocosta/visto/internal/application/library"
 	"github.com/afonsocosta/visto/internal/application/profile"
 	"github.com/afonsocosta/visto/internal/application/tracking"
@@ -18,7 +20,7 @@ type Server struct {
 	handler http.Handler
 }
 
-func New(authService *auth.Service, metadataProvider domain.MetadataProvider, webDir string, libraryService *library.Service, trackingService *tracking.Service, profileService *profile.Service) *Server {
+func New(authService *auth.Service, metadataProvider domain.MetadataProvider, webDir string, libraryService *library.Service, trackingService *tracking.Service, profileService *profile.Service, feedService *feed.Service) *Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", health)
 	mux.HandleFunc("POST /api/v1/auth/bootstrap", bootstrap(authService))
@@ -27,6 +29,7 @@ func New(authService *auth.Service, metadataProvider domain.MetadataProvider, we
 	mux.HandleFunc("GET /api/v1/me", currentUser(authService))
 	mux.HandleFunc("GET /api/v1/profile/activity-settings", activitySettings(authService, profileService))
 	mux.HandleFunc("PATCH /api/v1/profile/activity-settings", setActivitySettings(authService, profileService))
+	mux.HandleFunc("GET /api/v1/feed", instanceFeed(authService, feedService))
 	mux.HandleFunc("GET /api/v1/search", search(authService, metadataProvider))
 	mux.HandleFunc("GET /api/v1/library", listLibrary(authService, libraryService))
 	mux.HandleFunc("POST /api/v1/library", saveLibrary(authService, libraryService))
@@ -39,6 +42,31 @@ func New(authService *auth.Service, metadataProvider domain.MetadataProvider, we
 		}
 	}
 	return &Server{handler: mux}
+}
+
+func instanceFeed(authService *auth.Service, service *feed.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := authenticatedUser(w, r, authService); !ok {
+			return
+		}
+		if service == nil {
+			writeError(w, http.StatusServiceUnavailable, "feed is not configured")
+			return
+		}
+		limit := 0
+		if raw := r.URL.Query().Get("limit"); raw != "" {
+			if _, err := fmt.Sscanf(raw, "%d", &limit); err != nil {
+				writeError(w, http.StatusBadRequest, "invalid limit")
+				return
+			}
+		}
+		page, err := service.List(r.Context(), r.URL.Query().Get("cursor"), limit)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusOK, page)
+	}
 }
 
 func activitySettings(authService *auth.Service, service *profile.Service) http.HandlerFunc {
