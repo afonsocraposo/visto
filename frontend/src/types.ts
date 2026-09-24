@@ -19,6 +19,7 @@ export type SearchMedia = {
   original_language: string;
   backdrop_path?: string;
 };
+export type TrendingResponse = { tv: SearchMedia[]; movies: SearchMedia[] };
 
 export type LibraryEntry = {
   item: { media_id: string; status: string; rating: number | null; updated_at: string };

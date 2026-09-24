@@ -102,6 +102,18 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '502': { description: TMDB is temporarily unavailable }
         '503': { description: TMDB is not configured }
+  /trending:
+    get:
+      summary: Get cached trending movies and TV shows from the instance TMDB provider
+      security: [{ sessionCookie: [] }]
+      parameters:
+        - { name: window, in: query, schema: { type: string, enum: [day, week], default: week } }
+      responses:
+        '200': { description: Trending media, content: { application/json: { schema: { $ref: '#/components/schemas/TrendingResponse' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '502': { description: TMDB is temporarily unavailable }
+        '503': { description: TMDB is not configured }
   /discover/movies/{tmdbID}:
     get:
       summary: Get temporary rich movie metadata without adding it to the library
@@ -385,6 +397,13 @@ components:
         release_date: { type: string, format: date }
         poster_path: { type: string }
         original_language: { type: string }
+        backdrop_path: { type: string }
+    TrendingResponse:
+      type: object
+      required: [tv, movies]
+      properties:
+        tv: { type: array, items: { $ref: '#/components/schemas/MediaSearchResult' } }
+        movies: { type: array, items: { $ref: '#/components/schemas/MediaSearchResult' } }
     CastMember:
       type: object
       required: [id, name, character]

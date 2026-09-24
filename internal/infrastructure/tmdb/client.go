@@ -193,6 +193,69 @@ func (client *Client) Search(ctx context.Context, query, language string) ([]dom
 	return results, err
 }
 
+func (client *Client) Trending(ctx context.Context, mediaType, timeWindow string) ([]domain.MediaSearchResult, error) {
+	if mediaType != "movie" && mediaType != "tv" {
+		return nil, fmt.Errorf("trending media type must be movie or tv")
+	}
+	if timeWindow != "day" && timeWindow != "week" {
+		return nil, fmt.Errorf("trending time window must be day or week")
+	}
+	cacheKey := "trending\x00" + mediaType + "\x00" + timeWindow
+	client.mu.Lock()
+	if cached, ok := client.searchCache[cacheKey]; ok && time.Now().Before(cached.expiresAt) {
+		client.mu.Unlock()
+		return append([]domain.MediaSearchResult(nil), cached.results...), nil
+	}
+	if call, ok := client.searchCalls[cacheKey]; ok {
+		client.mu.Unlock()
+		select {
+		case <-call.done:
+			return append([]domain.MediaSearchResult(nil), call.results...), call.err
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	call := &searchCall{done: make(chan struct{})}
+	client.searchCalls[cacheKey] = call
+	client.mu.Unlock()
+
+	results, err := client.fetchTrending(ctx, mediaType, timeWindow)
+	client.mu.Lock()
+	call.results = append([]domain.MediaSearchResult(nil), results...)
+	call.err = err
+	if err == nil {
+		client.searchCache[cacheKey] = cachedSearch{results: append([]domain.MediaSearchResult(nil), results...), expiresAt: time.Now().Add(searchCacheTTL)}
+	}
+	delete(client.searchCalls, cacheKey)
+	close(call.done)
+	client.mu.Unlock()
+	return results, err
+}
+
+func (client *Client) fetchTrending(ctx context.Context, mediaType, timeWindow string) ([]domain.MediaSearchResult, error) {
+	if err := client.acquire(ctx); err != nil {
+		return nil, err
+	}
+	defer func() { <-client.requests }()
+	var response *tmdbapi.Trending
+	if err := client.requestHeld(ctx, func() error {
+		var requestErr error
+		response, requestErr = client.client.GetTrending(mediaType, timeWindow, nil)
+		return requestErr
+	}); err != nil {
+		return nil, err
+	}
+	results := make([]domain.MediaSearchResult, 0, len(response.Results))
+	for _, item := range response.Results {
+		title, originalTitle, releaseDate := item.Title, item.OriginalTitle, item.ReleaseDate
+		if mediaType == "tv" {
+			title, originalTitle, releaseDate = item.Name, item.OriginalName, item.FirstAirDate
+		}
+		results = append(results, domain.MediaSearchResult{TMDBID: item.ID, Type: domain.MediaType(mediaType), Title: title, OriginalTitle: originalTitle, Overview: item.Overview, ReleaseDate: releaseDate, PosterPath: item.PosterPath, OriginalLanguage: item.OriginalLanguage, BackdropPath: item.BackdropPath})
+	}
+	return results, nil
+}
+
 func (client *Client) search(ctx context.Context, query, language string) ([]domain.MediaSearchResult, error) {
 	options := map[string]string{}
 	if language = strings.TrimSpace(language); language != "" {
@@ -227,6 +290,7 @@ func (client *Client) search(ctx context.Context, query, language string) ([]dom
 			ReleaseDate:      releaseDate,
 			PosterPath:       item.PosterPath,
 			OriginalLanguage: item.OriginalLanguage,
+			BackdropPath:     item.BackdropPath,
 		})
 	}
 	return results, nil

@@ -153,6 +153,7 @@ func TestProtectedRoutes_GivenNoSession_WhenEveryUserScopedRouteIsCalled_ThenEac
 		{http.MethodGet, "/api/v1/export/json"},
 		{http.MethodGet, "/api/v1/export/csv"},
 		{http.MethodGet, "/api/v1/search?q=example"},
+		{http.MethodGet, "/api/v1/trending"},
 		{http.MethodGet, "/api/v1/discover/movies/10"},
 		{http.MethodGet, "/api/v1/discover/shows/42"},
 		{http.MethodGet, "/api/v1/discover/shows/42/seasons/1"},

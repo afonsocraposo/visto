@@ -9,6 +9,10 @@ type MetadataProvider interface {
 	Search(ctx context.Context, query, language string) ([]MediaSearchResult, error)
 }
 
+type TrendingMetadataProvider interface {
+	Trending(ctx context.Context, mediaType, timeWindow string) ([]MediaSearchResult, error)
+}
+
 type TVShowMetadataProvider interface {
 	Show(ctx context.Context, tmdbID int64) (TVShowMetadata, error)
 }
@@ -106,4 +110,5 @@ type MediaSearchResult struct {
 	ReleaseDate      string    `json:"release_date"`
 	PosterPath       string    `json:"poster_path"`
 	OriginalLanguage string    `json:"original_language"`
+	BackdropPath     string    `json:"backdrop_path,omitempty"`
 }
