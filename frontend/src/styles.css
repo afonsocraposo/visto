@@ -82,7 +82,7 @@ select {
 .trending-card-art { position: relative; aspect-ratio: 2 / 3; background-position: center; background-size: cover; }
 .trending-card-scrim { position: absolute; inset: 35% 0 0; background: linear-gradient(transparent, rgb(7 10 14 / .82)); }
 .trending-card-content { position: relative; display: grid; gap: 2px; padding: 10px; }
-.trending-card-actions { position: absolute; right: 8px; bottom: 8px; }
+.trending-card-content .media-quick-actions { position: absolute; right: 8px; bottom: 8px; }
 .trending-card-content > .mantine-Text-root:first-child { padding-right: 72px; }
 .media-detail { align-items: stretch; }
 .detail-page { padding-bottom: 24px; }

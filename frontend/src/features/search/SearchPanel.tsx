@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useDebouncedValue } from "@mantine/hooks";
-import { ActionIcon, Alert, Group, Image, Loader, Paper, Text, TextInput, Title, Tooltip } from "@mantine/core";
-import { IconBookmark, IconEye, IconEyeCheck, IconSearch } from "@tabler/icons-react";
+import { Alert, Group, Image, Loader, Paper, Text, TextInput, Title } from "@mantine/core";
+import { IconSearch } from "@tabler/icons-react";
+import { MediaQuickActions } from "../../components/MediaQuickActions";
 import { useUserQueryKey } from "../auth/SessionContext";
 import { api } from "../../lib/api";
 import type { LibraryEntry, MediaDetailTarget, SearchMedia, TrendingResponse } from "../../types";
@@ -64,7 +65,7 @@ export function SearchPanel({ onOpenDetail }: { onOpenDetail?: (target: MediaDet
             const art = posterURL(item.poster_path, "w342");
             return <Paper key={`${item.type}-${item.tmdb_id}`} className="trending-card" component="article" withBorder role={onOpenDetail ? "link" : undefined} tabIndex={onOpenDetail ? 0 : undefined} aria-label={onOpenDetail ? `Open details for ${item.title}` : undefined} onClick={() => onOpenDetail?.({ mediaType: item.type, tmdbID: item.tmdb_id, seed: item })} onKeyDown={event => { if (onOpenDetail && (event.key === "Enter" || event.key === " ")) onOpenDetail({ mediaType: item.type, tmdbID: item.tmdb_id, seed: item }); }}>
               <div className="trending-card-art" style={art ? { backgroundImage: `url(${art})` } : undefined}>{!art && <div className="artwork-fallback">{item.title.slice(0, 1)}</div>}<span className="trending-card-scrim" /></div>
-              <div className="trending-card-content"><Text fw={750} lineClamp={2}>{item.title}</Text><Text size="xs" c="dimmed">{item.release_date ? item.release_date.slice(0, 4) : ""}</Text><Group className="trending-card-actions" gap="xs" onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>{saved ? <Tooltip label="Already in your library" withArrow><ActionIcon variant="light" color="teal" aria-label={`${item.title} is in your library`}><IconEyeCheck size={16} /></ActionIcon></Tooltip> : <><Tooltip label={item.type === "tv" ? "Add to watching" : "Mark watched"} withArrow><ActionIcon color="yellow" variant="filled" aria-label={item.type === "tv" ? `Add ${item.title} to watching` : `Mark ${item.title} watched`} onClick={() => item.type === "tv" ? addToLibrary.mutate({ media: item, status: "watching" }) : addMovieAsWatched.mutate(item)} loading={addToLibrary.isPending || addMovieAsWatched.isPending}><IconEye size={16} /></ActionIcon></Tooltip><Tooltip label="Save for later" withArrow><ActionIcon variant="default" aria-label={`Save ${item.title} for later`} onClick={() => addToLibrary.mutate({ media: item, status: "watchlist" })} loading={addToLibrary.isPending}><IconBookmark size={16} /></ActionIcon></Tooltip></>}</Group></div>
+              <div className="trending-card-content"><Text fw={750} lineClamp={2}>{item.title}</Text><Text size="xs" c="dimmed">{item.release_date ? item.release_date.slice(0, 4) : ""}</Text><MediaQuickActions media={item} saved={saved} busy={addToLibrary.isPending || addMovieAsWatched.isPending} onWatch={() => item.type === "tv" ? addToLibrary.mutate({ media: item, status: "watching" }) : addMovieAsWatched.mutate(item)} onWatchlist={() => addToLibrary.mutate({ media: item, status: "watchlist" })} /></div>
             </Paper>;
           })}</div>
         </section>)}
@@ -88,20 +89,7 @@ export function SearchPanel({ onOpenDetail }: { onOpenDetail?: (target: MediaDet
                   {item.overview && <Text className="search-overview" size="sm" c="dimmed" mt={6}>{item.overview}</Text>}
                 </div>
               </Group>
-              <Group className="search-result-actions" gap="xs" onClick={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}>
-                {saved ? <Tooltip label="Already in your library" withArrow><ActionIcon variant="light" color="teal" aria-label={`${item.title} is in your library`}><IconEyeCheck size={17} /></ActionIcon></Tooltip> : <>
-                  <Tooltip label={item.type === "tv" ? "Add to watching" : "Mark watched"} withArrow>
-                    <ActionIcon color="yellow" variant="filled" aria-label={item.type === "tv" ? `Add ${item.title} to watching` : `Mark ${item.title} watched`} onClick={() => item.type === "tv" ? addToLibrary.mutate({ media: item, status: "watching" }) : addMovieAsWatched.mutate(item)} loading={addToLibrary.isPending || addMovieAsWatched.isPending}>
-                      <IconEye size={17} />
-                    </ActionIcon>
-                  </Tooltip>
-                  <Tooltip label="Save for later" withArrow>
-                    <ActionIcon variant="default" aria-label={`Save ${item.title} for later`} onClick={() => addToLibrary.mutate({ media: item, status: "watchlist" })} loading={addToLibrary.isPending}>
-                      <IconBookmark size={17} />
-                    </ActionIcon>
-                  </Tooltip>
-                </>}
-              </Group>
+              <MediaQuickActions media={item} saved={saved} busy={addToLibrary.isPending || addMovieAsWatched.isPending} onWatch={() => item.type === "tv" ? addToLibrary.mutate({ media: item, status: "watching" }) : addMovieAsWatched.mutate(item)} onWatchlist={() => addToLibrary.mutate({ media: item, status: "watchlist" })} />
             </Group>
           </Paper>
         );

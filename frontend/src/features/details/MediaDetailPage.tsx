@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ActionIcon, Alert, Avatar, Badge, Button, Group, Image, Loader, Modal, Paper, Select, SimpleGrid, Stack, Switch, Text, Title, Tooltip } from "@mantine/core";
-import { IconArrowLeft, IconBookmark, IconCheck, IconClock, IconEye, IconPlayerPlay } from "@tabler/icons-react";
+import { Alert, Avatar, Badge, Button, Group, Image, Loader, Modal, Paper, Select, SimpleGrid, Stack, Switch, Text, Title } from "@mantine/core";
+import { IconArrowLeft, IconCheck, IconClock, IconPlayerPlay } from "@tabler/icons-react";
 import { api } from "../../lib/api";
 import { backdropURL, posterURL } from "../../lib/artwork";
 import { useUserQueryKey } from "../auth/SessionContext";
 import { findMissingPriorEpisodes } from "../library/episodeSelection";
 import { RatingStars } from "../../components/RatingStars";
+import { MediaQuickActions } from "../../components/MediaQuickActions";
 import type { EpisodeRating, HistoryEntry, LibraryEntry, MediaDetailTarget, SearchMedia, ShowEpisodeEntry, TemporaryEpisodeDetails, TemporaryMovieDetails, TemporaryShowDetails } from "../../types";
 
 type Props = { target: MediaDetailTarget; onBack: () => void; onOpenDetail: (target: MediaDetailTarget) => void };
@@ -240,6 +241,6 @@ function EpisodeActions({ entry, canTrack, canRate, rating, onRate, playID, onWa
 
 type ActionMutation<T> = { isPending: boolean; mutate: (value: T) => void };
 function MediaActions({ media, isSaved, status, rating, add, update, watched, playID, onWatch, onUnwatch, pending }: { media: SearchMedia; isSaved: boolean; status?: string; rating?: number | null; add: ActionMutation<"watching" | "watchlist">; update: ActionMutation<{ status: string; rating: number | null }>; watched: boolean; playID?: string; onWatch: () => void; onUnwatch: (playID: string) => void; pending: boolean }) {
-  if (!isSaved) return <Group className="detail-actions" mt="lg"><Tooltip label={media.type === "tv" ? "Add to watching" : "Mark watched"} withArrow><ActionIcon color="yellow" variant="filled" size="lg" aria-label={media.type === "tv" ? `Add ${media.title} to watching` : `Mark ${media.title} watched`} loading={add.isPending || pending} onClick={() => media.type === "tv" ? add.mutate("watching") : onWatch()}><IconEye size={19} /></ActionIcon></Tooltip><Tooltip label="Save for later" withArrow><ActionIcon variant="default" size="lg" aria-label={`Save ${media.title} for later`} loading={add.isPending} onClick={() => add.mutate("watchlist")}><IconBookmark size={19} /></ActionIcon></Tooltip></Group>;
+  if (!isSaved) return <Group className="detail-actions" mt="lg"><MediaQuickActions media={media} busy={add.isPending || pending} onWatch={() => media.type === "tv" ? add.mutate("watching") : onWatch()} onWatchlist={() => add.mutate("watchlist")} /></Group>;
   return <Group className="detail-actions" mt="lg"><Select aria-label="Current list" value={status} onChange={value => value && update.mutate({ status: value, rating: rating ?? null })} data={[{ value: "watchlist", label: "Watchlist" }, { value: "watching", label: "Watching" }, { value: "paused", label: "Paused" }, { value: "dropped", label: "Dropped" }]} w={150} /><RatingStars value={rating} onChange={value => update.mutate({ status: status!, rating: value })} label="Media rating" disabled={pending} size="md" />{media.type === "movie" && (watched && playID ? <Button variant="default" leftSection={<IconCheck size={16} />} loading={pending} onClick={() => onUnwatch(playID)}>Mark unwatched</Button> : <Button variant="light" leftSection={<IconCheck size={16} />} loading={pending} onClick={onWatch}>Mark watched</Button>)}</Group>;
 }
