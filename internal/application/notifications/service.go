@@ -18,7 +18,7 @@ type Candidate struct {
 }
 
 type Repository interface {
-	NotificationCandidates(context.Context, string, int) ([]Candidate, error)
+	NotificationCandidates(context.Context, time.Time, int) ([]Candidate, error)
 	ClaimNotification(context.Context, string, string, time.Time) (bool, error)
 	CompleteNotification(context.Context, string, string, time.Time) error
 	FailNotification(context.Context, string, string, time.Time) error
@@ -30,6 +30,15 @@ type Sender interface {
 
 type Decryptor interface {
 	Decrypt(string) (string, error)
+}
+
+const MaxDeliveryAttempts = 3
+
+func RetryDelay(attempt int) time.Duration {
+	if attempt < 1 || attempt >= MaxDeliveryAttempts {
+		return 0
+	}
+	return 15 * time.Minute * time.Duration(1<<(attempt-1))
 }
 
 type Service struct {
@@ -45,7 +54,7 @@ func NewService(repository Repository, sender Sender, decryptor Decryptor) *Serv
 
 func (service *Service) Dispatch(ctx context.Context) error {
 	now := service.now().UTC()
-	candidates, err := service.repository.NotificationCandidates(ctx, now.Format("2006-01-02"), 50)
+	candidates, err := service.repository.NotificationCandidates(ctx, now, 50)
 	if err != nil {
 		return fmt.Errorf("load new-episode notifications: %w", err)
 	}

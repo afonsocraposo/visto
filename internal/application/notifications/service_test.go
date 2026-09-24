@@ -14,8 +14,20 @@ type notificationRepositoryFake struct {
 	failed     int
 }
 
-func (repository *notificationRepositoryFake) NotificationCandidates(context.Context, string, int) ([]Candidate, error) {
+func (repository *notificationRepositoryFake) NotificationCandidates(context.Context, time.Time, int) ([]Candidate, error) {
 	return repository.candidates, nil
+}
+
+func TestRetryDelay_GivenFailureAttempts_WhenCalculatingBackoff_ThenItStopsAfterThreeAttempts(t *testing.T) {
+	if got := RetryDelay(1); got != 15*time.Minute {
+		t.Fatalf("first retry delay=%s, want 15m", got)
+	}
+	if got := RetryDelay(2); got != 30*time.Minute {
+		t.Fatalf("second retry delay=%s, want 30m", got)
+	}
+	if got := RetryDelay(3); got != 0 {
+		t.Fatalf("third retry delay=%s, want no retry", got)
+	}
 }
 func (repository *notificationRepositoryFake) ClaimNotification(_ context.Context, userID, episodeID string, _ time.Time) (bool, error) {
 	if repository.claimed == nil {

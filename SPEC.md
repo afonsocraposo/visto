@@ -538,7 +538,10 @@ user's `watching` list when notifications are enabled. Paused or dropped
 shows, disabled per-show notifications, and episodes the user has already
 watched are excluded. Notifications start when a show enters `watching` or
 per-show alerts are enabled, so opting in does not send an old-episode backlog.
-Notification delivery is deduplicated per user and episode.
+Notification delivery is deduplicated per user and episode. A failed send is
+retried after 15 minutes and then 30 minutes, for at most three attempts. An
+uncertain in-progress send is not retried automatically because the provider
+may have accepted it before the connection failed.
 
 User exports contain only the authenticated user's data. CSV is a convenient
 archive; JSON is designed for reliable future import and round-trip backup.

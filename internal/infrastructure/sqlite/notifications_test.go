@@ -30,14 +30,15 @@ func TestNotificationCandidates_GivenOptedInWatchingShow_WhenEpisodeHasAired_The
 	if err != nil {
 		t.Fatal(err)
 	}
-	candidates, err := store.NotificationCandidates(ctx, "2026-09-24", 10)
+	now := time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC)
+	candidates, err := store.NotificationCandidates(ctx, now, 10)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(candidates) != 1 || candidates[0].EpisodeID != "episode-new" || candidates[0].ShowTitle != "Example Show" {
 		t.Fatalf("notification candidates=%+v", candidates)
 	}
-	claimedAt := time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC)
+	claimedAt := now
 	claimed, err := store.ClaimNotification(ctx, "user-1", "episode-new", claimedAt)
 	if err != nil || !claimed {
 		t.Fatalf("first claim = %v, %v", claimed, err)
@@ -49,11 +50,65 @@ func TestNotificationCandidates_GivenOptedInWatchingShow_WhenEpisodeHasAired_The
 	if err := store.CompleteNotification(ctx, "user-1", "episode-new", claimedAt); err != nil {
 		t.Fatal(err)
 	}
-	candidates, err = store.NotificationCandidates(ctx, "2026-09-24", 10)
+	candidates, err = store.NotificationCandidates(ctx, now, 10)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(candidates) != 0 {
 		t.Fatalf("sent episode was returned again: %+v", candidates)
 	}
+}
+
+func TestNotificationCandidates_GivenFailedDelivery_WhenBackoffExpires_ThenItRetriesAtMostThreeTimes(t *testing.T) {
+	ctx := context.Background()
+	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "visto.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	_, err = store.DB.Exec(`INSERT INTO users(id,username,display_name,password_hash,role,created_at,updated_at) VALUES('user-1','user-1','Alex','hash','user','2026-09-01','2026-09-01');
+		INSERT INTO user_settings(user_id,timezone,activity_visibility,created_at,updated_at,pushover_user_key_encrypted,pushover_notifications_enabled) VALUES('user-1','UTC','private','2026-09-01','2026-09-01','ciphertext',1);
+		INSERT INTO media(id,media_type,tmdb_id,title,metadata_updated_at,created_at) VALUES('tv:42','tv',42,'Example Show','2026-09-01','2026-09-01');
+		INSERT INTO seasons(id,show_id,season_number,name) VALUES('tv:42:season:1','tv:42',1,'Season 1');
+		INSERT INTO episodes(id,show_id,season_id,season_number,episode_number,name,air_date) VALUES('episode-new','tv:42','tv:42:season:1',1,1,'New Episode','2026-09-23');
+		INSERT INTO user_media(id,user_id,media_id,status,added_at,updated_at,notifications_since) VALUES('user-1:tv:42','user-1','tv:42','watching','2026-09-01','2026-09-01','2026-09-01');`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstAttempt := time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC)
+	if claimed, err := store.ClaimNotification(ctx, "user-1", "episode-new", firstAttempt); err != nil || !claimed {
+		t.Fatalf("first claim=%v err=%v", claimed, err)
+	}
+	if err := store.FailNotification(ctx, "user-1", "episode-new", firstAttempt); err != nil {
+		t.Fatal(err)
+	}
+	checkCandidates := func(at time.Time, want int) {
+		t.Helper()
+		candidates, err := store.NotificationCandidates(ctx, at, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(candidates) != want {
+			t.Fatalf("at %s candidates=%+v, want %d", at, candidates, want)
+		}
+	}
+	checkCandidates(firstAttempt.Add(14*time.Minute), 0)
+	secondAttempt := firstAttempt.Add(15 * time.Minute)
+	checkCandidates(secondAttempt, 1)
+	if claimed, err := store.ClaimNotification(ctx, "user-1", "episode-new", secondAttempt); err != nil || !claimed {
+		t.Fatalf("second claim=%v err=%v", claimed, err)
+	}
+	if err := store.FailNotification(ctx, "user-1", "episode-new", secondAttempt); err != nil {
+		t.Fatal(err)
+	}
+	thirdAttempt := secondAttempt.Add(30 * time.Minute)
+	checkCandidates(thirdAttempt.Add(-time.Second), 0)
+	checkCandidates(thirdAttempt, 1)
+	if claimed, err := store.ClaimNotification(ctx, "user-1", "episode-new", thirdAttempt); err != nil || !claimed {
+		t.Fatalf("third claim=%v err=%v", claimed, err)
+	}
+	if err := store.FailNotification(ctx, "user-1", "episode-new", thirdAttempt); err != nil {
+		t.Fatal(err)
+	}
+	checkCandidates(thirdAttempt.Add(24*time.Hour), 0)
 }
