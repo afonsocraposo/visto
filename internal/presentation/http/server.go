@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/afonsocosta/visto/internal/application/auth"
+	"github.com/afonsocosta/visto/internal/application/library"
 	"github.com/afonsocosta/visto/internal/domain"
 )
 
@@ -14,19 +15,74 @@ type Server struct {
 	handler http.Handler
 }
 
-func New(authService *auth.Service, metadataProvider domain.MetadataProvider, webDir string) *Server {
+func New(authService *auth.Service, metadataProvider domain.MetadataProvider, webDir string, libraryServices ...*library.Service) *Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /health", health)
 	mux.HandleFunc("POST /api/v1/auth/bootstrap", bootstrap(authService))
 	mux.HandleFunc("POST /api/v1/auth/login", login(authService))
 	mux.HandleFunc("GET /api/v1/me", currentUser(authService))
 	mux.HandleFunc("GET /api/v1/search", search(authService, metadataProvider))
+	var libraryService *library.Service
+	if len(libraryServices) > 0 {
+		libraryService = libraryServices[0]
+	}
+	mux.HandleFunc("GET /api/v1/library", listLibrary(authService, libraryService))
+	mux.HandleFunc("POST /api/v1/library", saveLibrary(authService, libraryService))
 	if webDir != "" {
 		if _, err := os.Stat(webDir); err == nil {
 			mux.Handle("GET /", http.FileServer(http.Dir(webDir)))
 		}
 	}
 	return &Server{handler: mux}
+}
+
+type libraryRequest struct {
+	Media  library.Media        `json:"media"`
+	Status domain.LibraryStatus `json:"status"`
+	Rating *int                 `json:"rating"`
+}
+
+func saveLibrary(authService *auth.Service, service *library.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := authenticatedUser(w, r, authService)
+		if !ok {
+			return
+		}
+		if service == nil {
+			writeError(w, http.StatusServiceUnavailable, "library is not configured")
+			return
+		}
+		var request libraryRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid JSON")
+			return
+		}
+		item, err := service.SaveMedia(r.Context(), user.ID, request.Media, request.Status, request.Rating)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		writeJSON(w, http.StatusCreated, item)
+	}
+}
+
+func listLibrary(authService *auth.Service, service *library.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := authenticatedUser(w, r, authService)
+		if !ok {
+			return
+		}
+		if service == nil {
+			writeError(w, http.StatusServiceUnavailable, "library is not configured")
+			return
+		}
+		items, err := service.List(r.Context(), user.ID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "library is temporarily unavailable")
+			return
+		}
+		writeJSON(w, http.StatusOK, items)
+	}
 }
 
 func search(authService *auth.Service, provider domain.MetadataProvider) http.HandlerFunc {

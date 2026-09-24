@@ -41,6 +41,21 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '502': { description: TMDB is temporarily unavailable }
         '503': { description: TMDB is not configured }
+  /library:
+    get:
+      summary: List the authenticated user's library
+      security: [{ sessionCookie: [] }]
+      responses:
+        '200': { description: Library entries, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/LibraryEntry' } } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      summary: Add a movie or TV show to the authenticated user's library
+      security: [{ sessionCookie: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SaveLibraryRequest' } } } }
+      responses:
+        '201': { description: Saved library item, content: { application/json: { schema: { $ref: '#/components/schemas/LibraryItem' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
 components:
   securitySchemes:
     sessionCookie: { type: apiKey, in: cookie, name: visto_session }
@@ -82,3 +97,26 @@ components:
         release_date: { type: string, format: date }
         poster_path: { type: string }
         original_language: { type: string }
+    SaveLibraryRequest:
+      type: object
+      required: [media, status]
+      properties:
+        media: { $ref: '#/components/schemas/MediaSearchResult' }
+        status: { type: string, enum: [watchlist, watching, paused, dropped] }
+        rating: { type: integer, minimum: 1, maximum: 5 }
+    LibraryItem:
+      type: object
+      required: [user_id, media_id, status, added_at, updated_at]
+      properties:
+        user_id: { type: string }
+        media_id: { type: string }
+        status: { type: string, enum: [watchlist, watching, paused, dropped] }
+        rating: { type: [integer, 'null'], minimum: 1, maximum: 5 }
+        added_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+    LibraryEntry:
+      type: object
+      required: [item, media]
+      properties:
+        item: { $ref: '#/components/schemas/LibraryItem' }
+        media: { $ref: '#/components/schemas/MediaSearchResult' }
