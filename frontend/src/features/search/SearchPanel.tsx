@@ -4,6 +4,7 @@ import { useDebouncedValue } from "@mantine/hooks";
 import { Alert, Group, Image, Loader, Paper, Text, TextInput, Title } from "@mantine/core";
 import { IconSearch } from "@tabler/icons-react";
 import { MediaQuickActions } from "../../components/MediaQuickActions";
+import { MediaPosterCard } from "../../components/MediaPosterCard";
 import { useUserQueryKey } from "../auth/SessionContext";
 import { api } from "../../lib/api";
 import type { LibraryEntry, MediaDetailTarget, SearchMedia, TrendingResponse } from "../../types";
@@ -60,12 +61,7 @@ export function SearchPanel({ onOpenDetail }: { onOpenDetail?: (target: MediaDet
       {!debouncedQuery && trending.data && <div className="trending-sections">
         {[{ title: "Trending TV shows", items: trending.data.tv }, { title: "Trending movies", items: trending.data.movies }].map(section => section.items.length > 0 && <section key={section.title} className="trending-section" aria-labelledby={`heading-${section.title}`}>
           <Group justify="space-between" align="baseline" mb="sm"><Title id={`heading-${section.title}`} order={2} size="h3">{section.title}</Title><Text size="sm" c="dimmed">This week</Text></Group>
-          <div className="trending-grid">{section.items.slice(0, 10).map(item => {
-            const art = posterURL(item.poster_path, "w342");
-            return <Paper key={`${item.type}-${item.tmdb_id}`} className="trending-card" component="article" withBorder role={onOpenDetail ? "link" : undefined} tabIndex={onOpenDetail ? 0 : undefined} aria-label={onOpenDetail ? `Open details for ${item.title}` : undefined} onClick={() => onOpenDetail?.({ mediaType: item.type, tmdbID: item.tmdb_id, seed: item })} onKeyDown={event => { if (onOpenDetail && (event.key === "Enter" || event.key === " ")) onOpenDetail({ mediaType: item.type, tmdbID: item.tmdb_id, seed: item }); }}>
-              <div className="trending-card-art" style={art ? { backgroundImage: `url(${art})` } : undefined}>{!art && <div className="artwork-fallback">{item.title.slice(0, 1)}</div>}<span className="trending-card-scrim" /><div className="trending-card-overlay"><Text fw={750} lineClamp={2}>{item.title}</Text><Text size="xs">{item.release_date ? item.release_date.slice(0, 4) : ""}</Text></div></div>
-            </Paper>;
-          })}</div>
+          <div className="trending-grid">{section.items.slice(0, 10).map(item => <MediaPosterCard key={`${item.type}-${item.tmdb_id}`} media={item} onOpenDetail={onOpenDetail} />)}</div>
         </section>)}
       </div>}
       {results.isError && <Alert color="red" mt="md">Search is temporarily unavailable.</Alert>}
