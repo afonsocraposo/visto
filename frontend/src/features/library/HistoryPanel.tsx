@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useForm } from "@mantine/form";
 import { Alert, Badge, Button, Group, Image, Loader, Paper, Stack, Text, TextInput, Title } from "@mantine/core";
 import { IconClock, IconEdit, IconHistory, IconRefresh, IconTrash } from "@tabler/icons-react";
 import { useUserQueryKey } from "../auth/SessionContext";
@@ -29,10 +30,11 @@ function HistoryCard({ entry }: { entry: HistoryEntry }) {
   const queryClient = useQueryClient();
   const userQueryKey = useUserQueryKey();
   const [editing, setEditing] = useState(false);
-  const [watchedAt, setWatchedAt] = useState(() => {
+  const watchedAt = () => {
     const date = new Date(entry.play.watched_at);
     return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-  });
+  };
+  const form = useForm({ initialValues: { watchedAt: watchedAt() } });
   const refreshHistory = () => Promise.all([
     queryClient.invalidateQueries({ queryKey: userQueryKey("history") }),
     queryClient.invalidateQueries({ queryKey: userQueryKey("continue") }),
@@ -43,7 +45,7 @@ function HistoryCard({ entry }: { entry: HistoryEntry }) {
   ]);
   const save = useMutation({
     mutationFn: async () => {
-      await api.patch(`/api/v1/plays/${encodeURIComponent(entry.play.id)}`, { watched_at: new Date(watchedAt).toISOString() }, "Could not correct this watch.");
+      await api.patch(`/api/v1/plays/${encodeURIComponent(entry.play.id)}`, { watched_at: new Date(form.values.watchedAt).toISOString() }, "Could not correct this watch.");
     }, onSuccess: refreshHistory,
   });
   const remove = useMutation({
@@ -76,12 +78,12 @@ function HistoryCard({ entry }: { entry: HistoryEntry }) {
       <Group justify="space-between" align="center" gap="sm" wrap="wrap">
         <Text className="history-time" size="sm" c="dimmed"><IconClock size={15} /> {watchedAtDate.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</Text>
         <Group gap="xs">
-          <Button size="xs" variant="subtle" leftSection={<IconEdit size={14} />} onClick={() => setEditing(value => !value)}>{editing ? "Cancel" : "Edit time"}</Button>
+          <Button size="xs" variant="subtle" leftSection={<IconEdit size={14} />} onClick={() => { if (!editing) form.setFieldValue("watchedAt", watchedAt()); setEditing(value => !value); }}>{editing ? "Cancel" : "Edit time"}</Button>
           <Button size="xs" variant="light" leftSection={<IconRefresh size={14} />} loading={rewatch.isPending} onClick={() => rewatch.mutate()}>Rewatch</Button>
           <Button size="xs" color="red" variant="subtle" leftSection={<IconTrash size={14} />} loading={remove.isPending} onClick={() => { if (window.confirm("Delete this individual watch?")) remove.mutate(); }}>Delete</Button>
         </Group>
       </Group>
-      {editing && <Group className="history-edit" align="end" gap="xs"><TextInput type="datetime-local" label="Watched at" aria-label={`Watched time for ${entry.title}`} value={watchedAt} onChange={event => setWatchedAt(event.currentTarget.value)} /><Button size="sm" disabled={!watchedAt} loading={save.isPending} onClick={() => save.mutate()}>Save time</Button></Group>}
+      {editing && <form className="history-edit" onSubmit={form.onSubmit(() => save.mutate())}><Group align="end" gap="xs"><TextInput type="datetime-local" label="Watched at" aria-label={`Watched time for ${entry.title}`} {...form.getInputProps("watchedAt")} /><Button type="submit" size="sm" disabled={!form.values.watchedAt} loading={save.isPending}>Save time</Button></Group></form>}
       {(save.isError || rewatch.isError || remove.isError) && <Alert color="red">{save.error?.message || rewatch.error?.message || remove.error?.message}</Alert>}
     </Stack>
   </Paper>;

@@ -1,5 +1,6 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useForm } from "@mantine/form";
 import {
   Alert,
   Button,
@@ -54,17 +55,15 @@ export function AuthGate() {
       return response.json() as Promise<{ bootstrap_available: boolean }>;
     },
   });
-  const [username, setUsername] = useState("");
-  const [displayName, setDisplayName] = useState("");
-  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const form = useForm({ initialValues: { username: "", displayName: "", password: "" } });
 
   const signIn = useMutation({
     mutationFn: async () => {
       const response = await fetch("/api/v1/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username: form.values.username, password: form.values.password }),
       });
       if (!response.ok) throw new Error("Invalid username or password.");
       return response.json() as Promise<User>;
@@ -74,7 +73,7 @@ export function AuthGate() {
 
   const createAdmin = useMutation({
     mutationFn: async () => {
-      const body = JSON.stringify({ username, display_name: displayName, password });
+      const body = JSON.stringify({ username: form.values.username, display_name: form.values.displayName, password: form.values.password });
       const bootstrap = await fetch("/api/v1/auth/bootstrap", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -87,7 +86,7 @@ export function AuthGate() {
       const login = await fetch("/api/v1/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username: form.values.username, password: form.values.password }),
       });
       if (!login.ok) throw new Error("Administrator created. Please sign in.");
       return login.json() as Promise<User>;
@@ -96,8 +95,7 @@ export function AuthGate() {
   });
 
   const isFirstRun = setup.data?.bootstrap_available;
-  const submit = async (event: FormEvent) => {
-    event.preventDefault();
+  const submit = async () => {
     setError("");
     try {
       await (isFirstRun ? createAdmin : signIn).mutateAsync();
@@ -119,10 +117,10 @@ export function AuthGate() {
       {setup.isPending && <Group justify="center" py="xl"><Loader /></Group>}
       {setup.isError && <Alert color="red" mt="lg">Could not check instance setup. Refresh the page and try again.</Alert>}
       {!setup.isPending && !setup.isError &&
-      <form onSubmit={event => void submit(event)}>
-        <TextInput required minLength={3} maxLength={32} label="Username" value={username} onChange={event => setUsername(event.currentTarget.value)} mt="lg" />
-        {isFirstRun && <TextInput required maxLength={80} label="Your name" value={displayName} onChange={event => setDisplayName(event.currentTarget.value)} mt="md" />}
-        <PasswordInput required minLength={isFirstRun ? 12 : undefined} label="Password" value={password} onChange={event => setPassword(event.currentTarget.value)} mt="md" />
+      <form onSubmit={form.onSubmit(() => void submit())}>
+        <TextInput required minLength={3} maxLength={32} label="Username" mt="lg" {...form.getInputProps("username")} />
+        {isFirstRun && <TextInput required maxLength={80} label="Your name" mt="md" {...form.getInputProps("displayName")} />}
+        <PasswordInput required minLength={isFirstRun ? 12 : undefined} label="Password" mt="md" {...form.getInputProps("password")} />
         {error && <Alert color="red" mt="md">{error}</Alert>}
         <Button type="submit" loading={pending} fullWidth mt="lg">
           {isFirstRun ? "Create administrator" : "Sign in"}

@@ -1,5 +1,6 @@
-import { useState, type FormEvent } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useForm } from "@mantine/form";
 import { Alert, Button, Code, CopyButton, Group, Modal, Paper, Stack, Text, TextInput, Title, Tooltip } from "@mantine/core";
 import { IconCheck, IconCopy, IconKey, IconTrash } from "@tabler/icons-react";
 import { api } from "../../lib/api";
@@ -9,8 +10,7 @@ import type { IssuedPersonalAPIToken, PersonalAPIToken } from "../../types";
 export function PersonalTokensPanel() {
   const queryClient = useQueryClient();
   const userQueryKey = useUserQueryKey();
-  const [name, setName] = useState("");
-  const [expiresAt, setExpiresAt] = useState("");
+  const form = useForm({ initialValues: { name: "", expiresAt: "" } });
   const [issued, setIssued] = useState<IssuedPersonalAPIToken | null>(null);
   const [pendingRevoke, setPendingRevoke] = useState<PersonalAPIToken | null>(null);
   const tokens = useQuery({
@@ -19,13 +19,12 @@ export function PersonalTokensPanel() {
   });
   const create = useMutation({
     mutationFn: () => api.post<IssuedPersonalAPIToken>("/api/v1/tokens", {
-      name,
-      ...(expiresAt ? { expires_at: new Date(expiresAt).toISOString() } : {}),
+      name: form.values.name,
+      ...(form.values.expiresAt ? { expires_at: new Date(form.values.expiresAt).toISOString() } : {}),
     }, "Could not create API token."),
     onSuccess: async token => {
       setIssued(token);
-      setName("");
-      setExpiresAt("");
+      form.reset();
       await queryClient.invalidateQueries({ queryKey: userQueryKey("personal-api-tokens") });
     },
   });
@@ -37,12 +36,6 @@ export function PersonalTokensPanel() {
       await queryClient.invalidateQueries({ queryKey: userQueryKey("personal-api-tokens") });
     },
   });
-
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
-    setIssued(null);
-    create.mutate();
-  };
 
   return <Paper withBorder p="md" mt="lg">
     <Group gap="xs"><IconKey size={19} /><Title order={2}>Personal API tokens</Title></Group>
@@ -66,9 +59,9 @@ export function PersonalTokensPanel() {
         <Button color="red" loading={revoke.isPending} onClick={() => pendingRevoke && revoke.mutate(pendingRevoke.id)}>Revoke token</Button>
       </Group>
     </Modal>
-    <form onSubmit={submit}>
-      <TextInput required maxLength={80} label="Token name" placeholder="For example, home dashboard" value={name} onChange={event => setName(event.currentTarget.value)} mt="md" />
-      <TextInput type="datetime-local" label="Expires (optional)" description="Leave blank for a token that stays active until you revoke it." value={expiresAt} onChange={event => setExpiresAt(event.currentTarget.value)} mt="md" />
+    <form onSubmit={form.onSubmit(() => { setIssued(null); create.mutate(); })}>
+      <TextInput required maxLength={80} label="Token name" placeholder="For example, home dashboard" mt="md" {...form.getInputProps("name")} />
+      <TextInput type="datetime-local" label="Expires (optional)" description="Leave blank for a token that stays active until you revoke it." mt="md" {...form.getInputProps("expiresAt")} />
       <Button type="submit" leftSection={<IconKey size={16} />} loading={create.isPending} mt="md">Create token</Button>
     </form>
     <Title order={3} mt="xl">Active tokens</Title>

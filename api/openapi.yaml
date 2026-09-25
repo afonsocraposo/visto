@@ -340,6 +340,14 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { description: Show not found in this user's library }
   /plays:
+    post:
+      summary: Record one movie or episode watch
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CreatePlayRequest' } } } }
+      responses:
+        '201': { description: Created play, content: { application/json: { schema: { $ref: '#/components/schemas/Play' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
     get:
       summary: List the authenticated user's recent play history
       security: [{ sessionCookie: [] }, { bearerToken: [] }]
@@ -365,14 +373,6 @@ paths:
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SetEpisodeRatingRequest' } } } }
       responses:
         '200': { description: Updated episode rating, content: { application/json: { schema: { $ref: '#/components/schemas/EpisodeRating' } } } }
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-    post:
-      summary: Record one movie or episode watch
-      security: [{ sessionCookie: [] }, { bearerToken: [] }]
-      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/CreatePlayRequest' } } } }
-      responses:
-        '201': { description: Created play, content: { application/json: { schema: { $ref: '#/components/schemas/Play' } } } }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
   /plays/{playID}:
@@ -577,7 +577,7 @@ components:
         next_cursor: { type: [string, 'null'] }
     MediaSearchResult:
       type: object
-      required: [tmdb_id, type, title]
+      required: [tmdb_id, type, title, original_title, overview, release_date, poster_path, original_language]
       properties:
         tmdb_id: { type: integer, format: int64 }
         type: { type: string, enum: [movie, tv] }
@@ -602,6 +602,15 @@ components:
         name: { type: string }
         character: { type: string }
         profile_path: { type: string }
+    CrewMember:
+      type: object
+      required: [id, name, job, department]
+      properties:
+        id: { type: integer, format: int64 }
+        name: { type: string }
+        job: { type: string }
+        department: { type: string }
+        profile_path: { type: string }
     PersonCredit:
       type: object
       required: [tmdb_id, type, title, popularity]
@@ -621,7 +630,7 @@ components:
       type: object
       required: [media, cast, genres]
       properties:
-        media: { $ref: '#/components/schemas/MediaSearchResult' }
+        media: { $ref: '#/components/schemas/MediaSnapshot' }
         runtime: { type: integer, minimum: 0 }
         vote_average: { type: number, minimum: 0, maximum: 10 }
         genres: { type: array, items: { type: string } }
@@ -630,7 +639,7 @@ components:
       type: object
       required: [media, seasons, cast]
       properties:
-        media: { $ref: '#/components/schemas/MediaSearchResult' }
+        media: { $ref: '#/components/schemas/MediaSnapshot' }
         seasons: { type: array, items: { $ref: '#/components/schemas/TemporarySeasonDetails' } }
         cast: { type: array, items: { $ref: '#/components/schemas/CastMember' } }
     TemporarySeasonDetails:
@@ -656,7 +665,7 @@ components:
         vote_average: { type: number, minimum: 0, maximum: 10 }
         production_code: { type: string }
         guest_stars: { type: array, items: { $ref: '#/components/schemas/CastMember' } }
-        crew: { type: array, items: { type: object } }
+        crew: { type: array, items: { $ref: '#/components/schemas/CrewMember' } }
     SaveLibraryRequest:
       type: object
       required: [media, status]
@@ -742,7 +751,7 @@ components:
         episode_label: { type: string }
     Episode:
       type: object
-      required: [id, show_id, season_number, episode_number]
+      required: [id, show_id, season_number, episode_number, air_date]
       properties:
         id: { type: string }
         show_id: { type: string }
@@ -765,7 +774,25 @@ components:
       properties:
         episode: { $ref: '#/components/schemas/Episode' }
         name: { type: string }
+        overview: { type: string }
+        runtime: { type: integer, minimum: 0 }
+        still_path: { type: string }
         watched: { type: boolean }
+    MediaSnapshot:
+      type: object
+      required: [id, title, original_title, overview, release_date, poster_path, original_language, type, tmdb_id]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        original_title: { type: string }
+        overview: { type: string }
+        release_date: { type: string }
+        poster_path: { type: string }
+        backdrop_path: { type: string }
+        original_language: { type: string }
+        status: { type: string }
+        type: { type: string, enum: [movie, tv] }
+        tmdb_id: { type: integer, format: int64 }
     ShowProgress:
       type: object
       required: [show_id, cursor, next_episode, latest_released_episode, is_caught_up]

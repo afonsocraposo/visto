@@ -144,7 +144,7 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
   const episodeEntries = isSaved ? (episodes.data ?? []) : temporaryEpisodeEntries;
   const seasons = availableSeasonNumbers;
   const visibleEpisodes = episodeEntries.filter(entry => String(entry.episode.season_number) === selectedSeason);
-  const selectedEpisode = target.episodeID ? episodeEntries.find(entry => entry.episode.id === target.episodeID) ?? (target.episode ? { episode: target.episode, name: `Episode ${target.episode.episode_number}`, watched: false } : null) : null;
+  const selectedEpisode = target.episodeID ? episodeEntries.find(entry => entry.episode.id === target.episodeID) ?? (target.episode ? { episode: target.episode, name: `Episode ${target.episode.episode_number}`, overview: "", runtime: 0, still_path: "", watched: false } : null) : null;
   const episodeStill = episodeDetails.data?.still_path || selectedEpisode?.still_path;
   const episodeArtwork = episodeStill ? backdropURL(episodeStill, "w780") : null;
   const episodeArtworkPending = Boolean(target.episodeID) && !episodeArtwork && (episodeDetails.isFetching || (isSaved ? episodes.isFetching : temporaryEpisodes.isFetching));
