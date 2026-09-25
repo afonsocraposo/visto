@@ -218,7 +218,7 @@ Requirements: Go 1.25.13+, Node.js 22+, Air, and a TMDB API key for metadata sea
 Install Air once:
 
 ```sh
-go install github.com/air-verse/air@latest
+go install github.com/air-verse/air@v1.67.4
 ```
 
 Run the Go API and the Vite frontend in separate terminals. Docker is not
@@ -234,13 +234,11 @@ npm install
 npm run dev
 ```
 
-Air rebuilds and restarts the Go server when Go or SQL files change. Vite
+Air rebuilds and restarts the Go server when Go, SQL, or environment files
+change. It loads `.env.development` first, then `.env`, so values in `.env`
+override matching values from `.env.development`. Vite
 reloads the frontend when TypeScript or CSS files change. The Vite server
 proxies `/api` and `/health` requests to the Go server on port 8080.
-Air watches `.env` and reloads its values before each backend start. The
-repository config uses this approach for compatibility with the Air version
-installed on the development machine; newer Air versions also support the
-`env_files` setting directly.
 
 Open `http://localhost:5173` during development. Use Docker on port 8080 for
 production-like checks only.
