@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/afonsocraposo/visto/compare/v0.3.0...v0.3.1) (2026-09-25)
+
+
+### Bug Fixes
+
+* resolve release version in Vite config ([a3231d3](https://github.com/afonsocraposo/visto/commit/a3231d35b09be2fdba522c2b261898e7836a63b2))
+
 ## [0.3.0](https://github.com/afonsocraposo/visto/compare/v0.2.0...v0.3.0) (2026-09-25)
 
 
