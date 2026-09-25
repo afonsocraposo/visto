@@ -1,6 +1,7 @@
 package security
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"testing"
 )
@@ -36,5 +37,27 @@ func TestProxyResolver_GivenUntrustedPeer_WhenForwardedHeadersAreSpoofed_ThenUse
 	}
 	if resolver.IsHTTPS(request) {
 		t.Fatal("untrusted peer spoofed HTTPS")
+	}
+}
+
+func TestProxyResolver_GivenPublicHTTPSOriginWithoutTrustedCIDRs_WhenProxyHeadersArrive_ThenUsesOnlyPeerForClientIPAndPublicURLForHTTPS(t *testing.T) {
+	resolver, err := ParseTrustedProxies("")
+	if err != nil {
+		t.Fatalf("parse proxies: %v", err)
+	}
+	resolver = resolver.WithPublicURL("https://visto.example.com")
+	request := httptest.NewRequest(http.MethodGet, "http://visto.internal", nil)
+	request.RemoteAddr = "172.20.0.13:8080"
+	request.Header.Set("X-Forwarded-For", "198.51.100.7")
+	request.Header.Set("X-Forwarded-Proto", "https")
+
+	if got := resolver.ClientIP(request); got != "172.20.0.13" {
+		t.Fatalf("client IP = %q, want direct proxy peer when no proxy CIDR is configured", got)
+	}
+	if !resolver.IsHTTPS(request) {
+		t.Fatal("expected configured HTTPS public URL to be used as the scheme fallback")
+	}
+	if resolver.HasTrustedProxies() {
+		t.Fatal("expected proxy trust to remain unconfigured")
 	}
 }

@@ -125,8 +125,8 @@ defaults.
 | `VISTO_GOOGLE_CLIENT_SECRET`     | empty            | Secret for the Google OAuth client.                                                                                                                                                                        |
 | `VISTO_GOOGLE_REDIRECT_URL`      | empty            | Exact callback URL registered in Google Cloud, such as `https://visto.example.com/api/v1/auth/google/callback`. All three Google variables are required; if any is missing, Google sign-in stays disabled. |
 | `VISTO_ALLOW_SIGNUPS`            | `true`           | Allow public account creation. Set to `false` to disable it. The first-admin setup and admin-created accounts remain available.                                                                            |
-| `VISTO_PUBLIC_URL`               | empty            | Public HTTPS origin, such as `https://visto.example.com`. Set this when ChatGPT MCP or OAuth clients connect, or when users create Plex webhook URLs. Do not include a path such as `/mcp`.                |
-| `VISTO_TRUSTED_PROXY_CIDRS`      | empty            | Comma-separated IP ranges for trusted reverse proxies. Set this when deploying behind a proxy; only then are its forwarded client and HTTPS headers trusted.                                               |
+| `VISTO_PUBLIC_URL`               | empty            | Public HTTPS origin, such as `https://visto.example.com`. Used for browser-origin checks and secure cookies when TLS ends at a proxy. Also required for ChatGPT MCP or Plex webhook URLs. Do not include a path such as `/mcp`. |
+| `VISTO_TRUSTED_PROXY_CIDRS`      | empty            | Optional comma-separated IP ranges for trusted reverse proxies. Set this only when Visto should use forwarded headers to identify visitor IPs and proxy HTTPS. Use the direct proxy address seen by Visto.                         |
 | `VISTO_LISTEN_ADDR`              | `:8080`          | Address used by the server inside the container. Keep the default with the example port mapping.                                                                                                           |
 | `VISTO_DATABASE_PATH`            | `/data/visto.db` | SQLite database path inside the persistent volume.                                                                                                                                                         |
 | `VISTO_BACKUP_DIR`               | `/data/backups`  | Directory for automatic SQLite backups.                                                                                                                                                                    |
@@ -148,13 +148,33 @@ Profile. To use MCP or Plex webhooks outside your network, set
 `VISTO_PUBLIC_URL` and configure the reverse proxy to pass the required paths
 to Visto.
 
-#### Reverse proxy HTTPS
+#### Reverse proxy and Cloudflare
 
-If a reverse proxy terminates HTTPS, set `VISTO_TRUSTED_PROXY_CIDRS` to the
-proxy's address as seen by Visto. Visto uses this setting to trust the proxy's
-`X-Forwarded-Proto` and client-address headers. Without it, Visto sees the
-connection as HTTP and can reject browser write requests from the HTTPS site
-with `cross-origin request rejected`.
+For a standard HTTPS deployment, set `VISTO_PUBLIC_URL` to the public origin.
+Visto uses it to validate browser write requests and mark cookies as secure,
+even when HTTPS ends at a reverse proxy. This means
+`VISTO_TRUSTED_PROXY_CIDRS` is optional for normal browser use.
+
+Visto cannot safely discover a visitor IP by trusting arbitrary request
+headers. A client can send forged `X-Forwarded-For`, `X-Real-IP`, or
+`CF-Connecting-IP` headers. Configure each proxy to establish a trusted chain.
+For Cloudflare → Nginx Proxy Manager → Visto:
+
+1. Configure Nginx to accept Cloudflare's `CF-Connecting-IP` only from
+   Cloudflare's published IP ranges, then forward the resulting client address
+   to Visto in `X-Forwarded-For`. Cloudflare documents the header and Nginx
+   real-IP setup in its [HTTP header reference](https://developers.cloudflare.com/fundamentals/reference/http-headers/) and [visitor IP restoration guide](https://developers.cloudflare.com/support/troubleshooting/restoring-visitor-ips/restoring-original-visitor-ips/).
+2. If you want Visto to use that address for IP-based rate limits, set
+   `VISTO_TRUSTED_PROXY_CIDRS` to the Nginx Proxy Manager address as seen by
+   Visto. Do not put Cloudflare's ranges here: Nginx is Visto's direct peer.
+   Prefer a stable Nginx address and an exact `/32` (or `/128`) over a broad
+   shared Docker subnet.
+
+If you leave `VISTO_TRUSTED_PROXY_CIDRS` empty, Visto ignores forwarded client
+IP headers. Login limits use a normalized account email so one person's failed
+logins do not block the whole household behind the same proxy. MCP OAuth
+rate-limits use the peer address and are therefore shared by clients behind
+that proxy. Set the CIDR if you need per-client IP limits.
 
 For Nginx Proxy Manager on a Docker network, find its address on the shared
 network (replace `npm_network` if yours has a different name):
@@ -163,8 +183,9 @@ network (replace `npm_network` if yours has a different name):
 docker network inspect npm_network --format '{{range .Containers}}{{println .Name .IPv4Address}}{{end}}'
 ```
 
-Set the NPM address as a `/32` CIDR in Visto's Compose environment. Replace the
-example with the address from the command:
+To enable per-client IP handling, set the NPM address as a `/32` CIDR in
+Visto's Compose environment. Replace the example with the address from the
+command:
 
 ```yaml
 environment:
@@ -172,10 +193,10 @@ environment:
 ```
 
 Make sure the proxy preserves the original `Host` and forwards
-`X-Forwarded-Proto: https`; Nginx Proxy Manager normally does this. If the
-proxy's address changes, use a stable address or the smallest subnet reserved
-for trusted proxies. Do not trust all addresses (`0.0.0.0/0`). Recreate Visto
-after changing the setting so the container receives the updated environment:
+`X-Forwarded-Proto: https`. If the proxy's address changes, use a stable
+address or the smallest subnet reserved for trusted proxies. Do not trust all
+addresses (`0.0.0.0/0`). Recreate Visto after changing the setting so the
+container receives the updated environment:
 
 ```sh
 docker compose up -d --force-recreate visto
@@ -318,10 +339,11 @@ the `/mcp`, `/oauth/`, and `/.well-known/` paths available through that proxy.
 The server supports PKCE authorization, separate read and write permissions,
 and per-user Visto accounts.
 
-For deployments behind a reverse proxy, set `VISTO_TRUSTED_PROXY_CIDRS` to the
-proxy's IP ranges. Visto trusts forwarded client and HTTPS headers only from
-those ranges. OAuth codes and old tokens are cleaned in bounded daily batches;
-set `VISTO_OAUTH_CLEANUP_INTERVAL` to change that interval.
+`VISTO_TRUSTED_PROXY_CIDRS` is optional for MCP behind a reverse proxy. Set it
+to the direct proxy IP ranges if you need visitor-IP-aware rate limits. Visto
+trusts forwarded client and HTTPS headers only from those ranges. OAuth codes
+and old tokens are cleaned in bounded daily batches; set
+`VISTO_OAUTH_CLEANUP_INTERVAL` to change that interval.
 
 In ChatGPT web, enable developer mode, create a custom MCP app, and enter
 `https://visto.example.com/mcp` as its endpoint. ChatGPT discovers Visto's

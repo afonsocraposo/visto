@@ -530,6 +530,13 @@ Required early scenarios include:
 
 - Hash passwords with Argon2id.
 - Use secure, HttpOnly, SameSite session cookies and CSRF protection.
+- When `VISTO_PUBLIC_URL` is configured, use its canonical origin for browser
+  write checks and mark cookies secure when it uses HTTPS, even if a reverse
+  proxy terminates TLS.
+- Trust forwarded client-IP and HTTPS headers only from explicitly configured
+  `VISTO_TRUSTED_PROXY_CIDRS`. For Cloudflare followed by Nginx, Nginx must
+  validate Cloudflare's `CF-Connecting-IP` against Cloudflare source ranges
+  and forward the normalized address to Visto.
 - Rate-limit login attempts.
 - Store personal API tokens, authorization codes, and refresh tokens as hashes.
 - Require OAuth PKCE, exact redirect-URI matching, short-lived single-use

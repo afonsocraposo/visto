@@ -6,13 +6,15 @@ import (
 	"net"
 	"net/http"
 	"net/netip"
+	"net/url"
 	"strings"
 )
 
 // ProxyResolver trusts forwarded headers only from explicitly configured proxy
 // address ranges.
 type ProxyResolver struct {
-	prefixes []netip.Prefix
+	prefixes  []netip.Prefix
+	publicURL string
 }
 
 func ParseTrustedProxies(raw string) (ProxyResolver, error) {
@@ -42,6 +44,28 @@ func (resolver ProxyResolver) IsTrusted(remote string) bool {
 		}
 	}
 	return false
+}
+
+// HasTrustedProxies reports whether forwarded headers can be trusted for a
+// request from a configured proxy.
+func (resolver ProxyResolver) HasTrustedProxies() bool {
+	return len(resolver.prefixes) > 0
+}
+
+// WithPublicURL configures the canonical public origin. It supplies a secure
+// scheme fallback when TLS terminates before Visto and proxy CIDRs are omitted.
+func (resolver ProxyResolver) WithPublicURL(publicURL string) ProxyResolver {
+	resolver.publicURL = strings.TrimRight(strings.TrimSpace(publicURL), "/")
+	return resolver
+}
+
+// PublicOrigin returns the configured canonical origin, if one is set.
+func (resolver ProxyResolver) PublicOrigin() (string, bool) {
+	parsed, err := url.Parse(resolver.publicURL)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return "", false
+	}
+	return parsed.Scheme + "://" + parsed.Host, true
 }
 
 // ClientIP returns the peer address unless that peer is a configured proxy. In
@@ -77,7 +101,15 @@ func (resolver ProxyResolver) ClientIP(request *http.Request) string {
 }
 
 func (resolver ProxyResolver) IsHTTPS(request *http.Request) bool {
-	return request.TLS != nil || resolver.IsTrusted(request.RemoteAddr) && strings.EqualFold(strings.TrimSpace(request.Header.Get("X-Forwarded-Proto")), "https")
+	if request.TLS != nil || resolver.IsTrusted(request.RemoteAddr) && strings.EqualFold(strings.TrimSpace(request.Header.Get("X-Forwarded-Proto")), "https") {
+		return true
+	}
+	origin, ok := resolver.PublicOrigin()
+	if !ok {
+		return false
+	}
+	parsed, err := url.Parse(origin)
+	return err == nil && strings.EqualFold(parsed.Scheme, "https")
 }
 
 func remoteAddress(raw string) (netip.Addr, bool) {

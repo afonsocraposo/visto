@@ -77,6 +77,28 @@ func TestLoginRateLimitResponseBDD(t *testing.T) {
 	})
 }
 
+func TestLoginLimitKey_GivenSharedReverseProxyWithoutTrustedCIDR_WhenAccountsDiffer_ThenUsesIndependentAccountBuckets(t *testing.T) {
+	proxies, err := security.ParseTrustedProxies("")
+	if err != nil {
+		t.Fatalf("parse proxies: %v", err)
+	}
+	proxies = proxies.WithPublicURL("https://visto.example.com")
+	first := httptest.NewRequest(http.MethodPost, "https://visto.example.com/api/v1/auth/login", nil)
+	first.RemoteAddr = "172.20.0.13:8080"
+	first.Header.Set("X-Forwarded-For", "198.51.100.1")
+	second := first.Clone(first.Context())
+	second.Header.Set("X-Forwarded-For", "198.51.100.2")
+
+	firstKey := loginLimitKey(first, " Family@Example.com ", &proxies)
+	secondKey := loginLimitKey(second, "other@example.com", &proxies)
+	if firstKey == secondKey {
+		t.Fatal("expected distinct account buckets behind a shared proxy")
+	}
+	if normalizedKey := loginLimitKey(second, "family@example.com", &proxies); normalizedKey != firstKey {
+		t.Fatal("expected account email normalization to keep retries in the same bucket")
+	}
+}
+
 func TestCSRFProtectionBDD(t *testing.T) {
 	t.Run("Given a cross-origin form request, When it reaches the API, Then it is rejected", func(t *testing.T) {
 		called := false
@@ -116,6 +138,46 @@ func TestCSRFProtectionBDD(t *testing.T) {
 		}
 	})
 
+	t.Run("Given a canonical public HTTPS origin without trusted proxy CIDRs, When a write request arrives through a reverse proxy, Then it is allowed", func(t *testing.T) {
+		called := false
+		proxies, err := security.ParseTrustedProxies("")
+		if err != nil {
+			t.Fatalf("parse proxies: %v", err)
+		}
+		proxies = proxies.WithPublicURL("https://visto.example.com")
+		handler := csrfProtection(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) { called = true }), &proxies)
+		request := httptest.NewRequest(http.MethodPost, "http://visto:8080/api/v1/auth/bootstrap", nil)
+		request.Host = "visto:8080"
+		request.RemoteAddr = "172.20.0.13:8080"
+		request.Header.Set("Origin", "https://visto.example.com")
+		request.Header.Set("X-Forwarded-Proto", "https")
+		response := httptest.NewRecorder()
+
+		handler.ServeHTTP(response, request)
+		if response.Code != http.StatusOK || !called {
+			t.Fatalf("expected canonical public origin to pass, status=%d called=%t", response.Code, called)
+		}
+	})
+
+	t.Run("Given a configured public origin, When a different origin is submitted, Then it is rejected even if it matches the request host", func(t *testing.T) {
+		proxies, err := security.ParseTrustedProxies("")
+		if err != nil {
+			t.Fatalf("parse proxies: %v", err)
+		}
+		proxies = proxies.WithPublicURL("https://visto.example.com")
+		handler := csrfProtection(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+			t.Fatal("non-canonical origin reached the protected handler")
+		}), &proxies)
+		request := httptest.NewRequest(http.MethodPost, "http://attacker.example/api/v1/plays", nil)
+		request.Header.Set("Origin", "http://attacker.example")
+		response := httptest.NewRecorder()
+
+		handler.ServeHTTP(response, request)
+		if response.Code != http.StatusForbidden {
+			t.Fatalf("expected 403, got %d", response.Code)
+		}
+	})
+
 	t.Run("Given a cross-site fetch without Origin, When it reaches the API, Then it is rejected", func(t *testing.T) {
 		handler := csrfProtection(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 			t.Fatal("cross-site request reached the protected handler")
@@ -142,4 +204,17 @@ func TestCSRFProtectionBDD(t *testing.T) {
 			t.Fatalf("webhook was blocked by CSRF middleware: called=%v status=%d", called, response.Code)
 		}
 	})
+}
+
+func TestCookieSecure_GivenCanonicalPublicHTTPSOriginWithoutProxyCIDRs_WhenBehindTLSProxy_ThenMarksCookieSecure(t *testing.T) {
+	proxies, err := security.ParseTrustedProxies("")
+	if err != nil {
+		t.Fatalf("parse proxies: %v", err)
+	}
+	proxies = proxies.WithPublicURL("https://visto.example.com")
+	request := httptest.NewRequest(http.MethodPost, "http://visto:8080/api/v1/auth/login", nil)
+	request.RemoteAddr = "172.20.0.13:8080"
+	if !cookieSecure(request, &proxies) {
+		t.Fatal("expected session cookies to be secure for a configured HTTPS public origin")
+	}
 }

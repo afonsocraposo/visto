@@ -1,14 +1,19 @@
 package httpserver
 
-import "encoding/json"
-import "errors"
-import "net/http"
-import "strconv"
-import "strings"
-import "time"
-import "github.com/afonsocosta/visto/internal/application/auth"
-import "github.com/afonsocosta/visto/internal/domain"
-import "github.com/afonsocosta/visto/internal/presentation/security"
+import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/afonsocosta/visto/internal/application/auth"
+	"github.com/afonsocosta/visto/internal/domain"
+	"github.com/afonsocosta/visto/internal/presentation/security"
+)
 
 func bootstrapStatus(service *auth.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -190,30 +195,47 @@ func bootstrap(service *auth.Service) http.HandlerFunc {
 
 func login(service *auth.Service, limiter *LoginLimiter, proxies *security.ProxyResolver) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ip := r.RemoteAddr
-		if proxies != nil {
-			ip = proxies.ClientIP(r)
-		}
-		if allowed, retryAfter := limiter.allowed(ip); !allowed {
-			w.Header().Set("Retry-After", strconv.Itoa(max(1, int(retryAfter.Seconds()))))
-			writeError(w, http.StatusTooManyRequests, "too many login attempts")
-			return
-		}
 		var request credentialsRequest
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid JSON")
 			return
 		}
+		bucket := loginLimitKey(r, request.Email, proxies)
+		if allowed, retryAfter := limiter.allowed(bucket); !allowed {
+			w.Header().Set("Retry-After", strconv.Itoa(max(1, int(retryAfter.Seconds()))))
+			writeError(w, http.StatusTooManyRequests, "too many login attempts")
+			return
+		}
 		user, token, expiresAt, err := service.Login(r.Context(), request.Email, request.Password)
 		if err != nil {
-			limiter.failed(ip)
+			limiter.failed(bucket)
 			writeError(w, http.StatusUnauthorized, "invalid email or password")
 			return
 		}
-		limiter.reset(ip)
+		limiter.reset(bucket)
 		http.SetCookie(w, &http.Cookie{Name: "visto_session", Value: token, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, Expires: expiresAt, Secure: cookieSecure(r, proxies)})
 		writeJSON(w, http.StatusOK, user)
 	}
+}
+
+func loginLimitKey(r *http.Request, email string, proxies *security.ProxyResolver) string {
+	if proxies != nil && proxies.HasTrustedProxies() {
+		return proxies.ClientIP(r)
+	}
+	if proxies != nil {
+		if _, configured := proxies.PublicOrigin(); configured {
+			normalizedEmail := strings.ToLower(strings.TrimSpace(email))
+			if normalizedEmail != "" {
+				digest := sha256.Sum256([]byte(normalizedEmail))
+				return "account:" + hex.EncodeToString(digest[:])
+			}
+		}
+	}
+	ip := r.RemoteAddr
+	if proxies != nil {
+		ip = proxies.ClientIP(r)
+	}
+	return ip
 }
 
 func logout(service *auth.Service, proxies *security.ProxyResolver) http.HandlerFunc {

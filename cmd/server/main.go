@@ -114,6 +114,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	trustedProxies = trustedProxies.WithPublicURL(publicURL)
 	oauthService := oauth.NewService(store)
 	oauthCleanupInterval := durationEnvironment("VISTO_OAUTH_CLEANUP_INTERVAL", 24*time.Hour)
 	startWorker(func(ctx context.Context) {

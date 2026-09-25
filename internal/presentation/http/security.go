@@ -110,13 +110,25 @@ func csrfProtection(next http.Handler, proxies *security.ProxyResolver) http.Han
 			http.Error(w, "invalid request origin", http.StatusForbidden)
 			return
 		}
-		expectedScheme := "http"
-		if proxies != nil && proxies.IsHTTPS(r) || proxies == nil && r.TLS != nil {
-			expectedScheme = "https"
+		expectedOrigin, configured := "", false
+		if proxies != nil {
+			expectedOrigin, configured = proxies.PublicOrigin()
 		}
-		if !strings.EqualFold(parsed.Scheme, expectedScheme) || !strings.EqualFold(parsed.Host, r.Host) {
-			http.Error(w, "cross-origin request rejected", http.StatusForbidden)
-			return
+		if configured {
+			expected, _ := url.Parse(expectedOrigin)
+			if !strings.EqualFold(parsed.Scheme, expected.Scheme) || !strings.EqualFold(parsed.Host, expected.Host) {
+				http.Error(w, "cross-origin request rejected", http.StatusForbidden)
+				return
+			}
+		} else {
+			expectedScheme := "http"
+			if proxies != nil && proxies.IsHTTPS(r) || proxies == nil && r.TLS != nil {
+				expectedScheme = "https"
+			}
+			if !strings.EqualFold(parsed.Scheme, expectedScheme) || !strings.EqualFold(parsed.Host, r.Host) {
+				http.Error(w, "cross-origin request rejected", http.StatusForbidden)
+				return
+			}
 		}
 		next.ServeHTTP(w, r)
 	})
