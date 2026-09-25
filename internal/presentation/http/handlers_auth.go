@@ -21,7 +21,7 @@ func bootstrapStatus(service *auth.Service) http.HandlerFunc {
 			writeError(w, http.StatusInternalServerError, "authentication status is unavailable")
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]bool{"bootstrap_available": available, "signup_enabled": service.SignupEnabled()})
+		writeJSON(w, http.StatusOK, map[string]bool{"bootstrap_available": available, "signup_enabled": service.SignupEnabled(), "google_enabled": service.GoogleEnabled()})
 	}
 }
 
@@ -36,7 +36,7 @@ func signup(service *auth.Service, proxies *security.ProxyResolver) http.Handler
 			writeError(w, http.StatusBadRequest, "invalid JSON")
 			return
 		}
-		user, token, expiresAt, err := service.SignUp(r.Context(), request.Username, request.Password)
+		user, token, expiresAt, err := service.SignUp(r.Context(), request.Email, request.Name, request.Password)
 		if err != nil {
 			switch {
 			case errors.Is(err, auth.ErrSignupsDisabled):
@@ -68,7 +68,7 @@ func createUser(service *auth.Service) http.HandlerFunc {
 			writeError(w, http.StatusBadRequest, "invalid JSON")
 			return
 		}
-		user, err := service.CreateUser(r.Context(), request.Username, request.DisplayName, request.Password)
+		user, err := service.CreateUser(r.Context(), request.Email, request.Name, request.Password)
 		if err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
@@ -107,7 +107,7 @@ func updateUser(service *auth.Service) http.HandlerFunc {
 			return
 		}
 		var request struct {
-			DisplayName string `json:"display_name"`
+			DisplayName string `json:"name"`
 			Password    string `json:"password"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
@@ -163,9 +163,9 @@ func deleteUser(service *auth.Service) http.HandlerFunc {
 }
 
 type credentialsRequest struct {
-	Username    string `json:"username"`
-	DisplayName string `json:"display_name"`
-	Password    string `json:"password"`
+	Email    string `json:"email"`
+	Name     string `json:"name"`
+	Password string `json:"password"`
 }
 
 func bootstrap(service *auth.Service) http.HandlerFunc {
@@ -175,7 +175,7 @@ func bootstrap(service *auth.Service) http.HandlerFunc {
 			writeError(w, http.StatusBadRequest, "invalid JSON")
 			return
 		}
-		user, err := service.Bootstrap(r.Context(), request.Username, request.DisplayName, request.Password)
+		user, err := service.Bootstrap(r.Context(), request.Email, request.Name, request.Password)
 		if err != nil {
 			if err == auth.ErrBootstrapComplete {
 				writeError(w, http.StatusConflict, err.Error())
@@ -204,10 +204,10 @@ func login(service *auth.Service, limiter *LoginLimiter, proxies *security.Proxy
 			writeError(w, http.StatusBadRequest, "invalid JSON")
 			return
 		}
-		user, token, expiresAt, err := service.Login(r.Context(), request.Username, request.Password)
+		user, token, expiresAt, err := service.Login(r.Context(), request.Email, request.Password)
 		if err != nil {
 			limiter.failed(ip)
-			writeError(w, http.StatusUnauthorized, "invalid username or password")
+			writeError(w, http.StatusUnauthorized, "invalid email or password")
 			return
 		}
 		limiter.reset(ip)

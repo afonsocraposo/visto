@@ -80,9 +80,9 @@ func (server *Server) authorizeOAuthClient(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "authentication is not configured", http.StatusServiceUnavailable)
 		return
 	}
-	user, err := server.credentials.AuthenticateCredentials(r.Context(), r.Form.Get("username"), r.Form.Get("password"))
+	user, err := server.credentials.AuthenticateCredentials(r.Context(), r.Form.Get("email"), r.Form.Get("password"))
 	if err != nil {
-		server.renderAuthorizationForm(w, r, client.Name, request, "Username or password is incorrect.")
+		server.renderAuthorizationForm(w, r, client.Name, request, "Email or password is incorrect.")
 		return
 	}
 	request.Scopes = r.Form["scope"]

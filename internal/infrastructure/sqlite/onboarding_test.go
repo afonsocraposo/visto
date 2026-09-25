@@ -22,10 +22,10 @@ func TestOnboarding_GivenFreshInstance_WhenAdminAndUserSignUp_ThenSignupIsGatedU
 	if err != nil || !available {
 		t.Fatalf("bootstrap available = %v, %v", available, err)
 	}
-	if _, _, _, err := service.SignUp(ctx, "family", "a-long-family-password"); err != auth.ErrBootstrapIncomplete {
+	if _, _, _, err := service.SignUp(ctx, "family@example.com", "Family", "a-long-family-password"); err != auth.ErrBootstrapIncomplete {
 		t.Fatalf("signup before admin = %v, want ErrBootstrapIncomplete", err)
 	}
-	admin, err := service.Bootstrap(ctx, "owner", "Owner", "a-long-admin-password")
+	admin, err := service.Bootstrap(ctx, "owner@example.com", "Owner", "a-long-admin-password")
 	if err != nil || admin.Role != domain.AdminRole {
 		t.Fatalf("bootstrap = %+v, %v", admin, err)
 	}
@@ -33,7 +33,7 @@ func TestOnboarding_GivenFreshInstance_WhenAdminAndUserSignUp_ThenSignupIsGatedU
 	if err != nil || available {
 		t.Fatalf("bootstrap available after admin = %v, %v", available, err)
 	}
-	user, token, _, err := service.SignUp(ctx, "family", "a-long-family-password")
+	user, token, _, err := service.SignUp(ctx, "family@example.com", "Family", "a-long-family-password")
 	if err != nil || user.Role != domain.UserRole || token == "" {
 		t.Fatalf("signup = %+v, token present=%v, %v", user, token != "", err)
 	}
@@ -47,15 +47,15 @@ func TestAdminUserManagement_GivenAdministrator_WhenManagingAccounts_ThenPasswor
 	}
 	defer store.Close()
 	service := auth.NewService(store)
-	admin, err := service.Bootstrap(ctx, "owner", "Owner", "a-long-admin-password")
+	admin, err := service.Bootstrap(ctx, "owner@example.com", "Owner", "a-long-admin-password")
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, currentSession, _, err := service.Login(ctx, "owner", "a-long-admin-password")
+	_, currentSession, _, err := service.Login(ctx, "owner@example.com", "a-long-admin-password")
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, oldSession, _, err := service.Login(ctx, "owner", "a-long-admin-password")
+	_, oldSession, _, err := service.Login(ctx, "owner@example.com", "a-long-admin-password")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -71,17 +71,17 @@ func TestAdminUserManagement_GivenAdministrator_WhenManagingAccounts_ThenPasswor
 	if _, err := service.Authenticate(ctx, oldSession); err == nil {
 		t.Fatal("password update did not revoke the other session")
 	}
-	if _, err := service.AuthenticateCredentials(ctx, "owner", "a-new-admin-password"); err != nil {
+	if _, err := service.AuthenticateCredentials(ctx, "owner@example.com", "a-new-admin-password"); err != nil {
 		t.Fatalf("authenticate with updated admin password: %v", err)
 	}
-	user, err := service.CreateUser(ctx, "family", "Family", "a-long-family-password")
+	user, err := service.CreateUser(ctx, "family@example.com", "Family", "a-long-family-password")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := service.UpdateUser(ctx, user.ID, "Family Member", "a-new-family-password", ""); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := service.AuthenticateCredentials(ctx, "family", "a-new-family-password"); err != nil {
+	if _, err := service.AuthenticateCredentials(ctx, "family@example.com", "a-new-family-password"); err != nil {
 		t.Fatalf("authenticate with updated password: %v", err)
 	}
 	users, err := service.Users(ctx)
@@ -103,5 +103,54 @@ func TestAdminUserManagement_GivenAdministrator_WhenManagingAccounts_ThenPasswor
 	users, err = service.Users(ctx)
 	if err != nil || len(users) != 1 || users[0].ID != admin.ID {
 		t.Fatalf("users after delete = %+v, %v", users, err)
+	}
+}
+
+func TestGoogleAccounts_GivenConfiguredProvider_WhenUserSignsIn_ThenItCreatesAndReusesAnEmailAccount(t *testing.T) {
+	ctx := context.Background()
+	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "visto.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	service := auth.NewService(store, auth.Config{AllowSignups: true, GoogleEnabled: true})
+	if _, err := service.Bootstrap(ctx, "owner@example.com", "Owner", "a-long-admin-password"); err != nil {
+		t.Fatal(err)
+	}
+	first, firstToken, _, err := service.LoginWithGoogle(ctx, "google-sub-1", " Person@Example.com ", "Google Person")
+	if err != nil {
+		t.Fatalf("first Google sign-in: %v", err)
+	}
+	if first.Email != "person@example.com" || first.DisplayName != "Google Person" || first.Role != domain.UserRole || firstToken == "" {
+		t.Fatalf("new Google user = %+v", first)
+	}
+	second, secondToken, _, err := service.LoginWithGoogle(ctx, "google-sub-1", "person@example.com", "Changed Google Name")
+	if err != nil {
+		t.Fatalf("repeat Google sign-in: %v", err)
+	}
+	if second.ID != first.ID || second.DisplayName != "Google Person" || secondToken == "" {
+		t.Fatalf("repeat sign-in user = %+v", second)
+	}
+	if _, _, _, err := service.LoginWithGoogle(ctx, "google-sub-2", "person@example.com", "Different Google Account"); err == nil {
+		t.Fatal("a different Google account must not attach to an existing email automatically")
+	}
+	if _, err := service.AuthenticateCredentials(ctx, "person@example.com", "a-long-admin-password"); err == nil {
+		t.Fatal("Google user must not inherit another user's password")
+	}
+}
+
+func TestGoogleAccounts_GivenDisabledSignups_WhenNewGoogleAccountSignsIn_ThenItIsRejected(t *testing.T) {
+	ctx := context.Background()
+	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "visto.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	if _, err := auth.NewService(store).Bootstrap(ctx, "owner@example.com", "Owner", "a-long-admin-password"); err != nil {
+		t.Fatal(err)
+	}
+	service := auth.NewService(store, auth.Config{AllowSignups: false, GoogleEnabled: true})
+	if _, _, _, err := service.LoginWithGoogle(ctx, "google-sub-new", "new@example.com", "New User"); err != auth.ErrSignupsDisabled {
+		t.Fatalf("new Google account error = %v, want ErrSignupsDisabled", err)
 	}
 }

@@ -97,7 +97,7 @@ func (repository *accountHTTPRepository) DeleteUser(_ context.Context, userID st
 	return nil
 }
 
-func (*accountHTTPRepository) FindUserByUsername(context.Context, string) (domain.User, string, error) {
+func (*accountHTTPRepository) FindUserByEmail(context.Context, string) (domain.User, string, error) {
 	return domain.User{}, "", nil
 }
 

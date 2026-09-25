@@ -7,6 +7,6 @@ const oauthLoginPage = `<!doctype html><html lang="en"><meta charset="utf-8"><me
 <div class="scope"><label><input type="checkbox" name="scope" value="read" {{if .Read}}checked{{end}}> Read my Visto library, progress, and watch history</label></div>
 <div class="scope"><label><input type="checkbox" name="scope" value="write" {{if .Write}}checked{{end}}> Add titles, update lists, mark media watched, and rate it</label></div>
 <div class="scope"><label><input type="checkbox" name="scope" value="offline_access" {{if .Offline}}checked{{end}}> Stay connected between visits</label></div>
-<label for="username">Visto username</label><input id="username" name="username" type="text" autocomplete="username" required>
+<label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" required>
 <label for="password">Visto password</label><input id="password" name="password" type="password" autocomplete="current-password" required>
 <button name="consent" value="allow">Authorize ChatGPT</button><button formnovalidate name="consent" value="deny" style="background:#383b43;color:#fff;margin-left:8px">Cancel</button></form></main></html>`

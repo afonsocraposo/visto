@@ -27,7 +27,7 @@ func TestChatGPTOAuthFlow_GivenReadOnlyConsent_WhenConnecting_ThenReadsOwnHistor
 	}
 	defer store.Close()
 	authService := auth.NewService(store)
-	if _, err := authService.Bootstrap(context.Background(), "mcp-user", "MCP User", "a-strong-test-password"); err != nil {
+	if _, err := authService.Bootstrap(context.Background(), "mcp-user@example.com", "MCP User", "a-strong-test-password"); err != nil {
 		t.Fatalf("create user: %v", err)
 	}
 	server := New(authService, oauth.NewService(store), "https://visto.example", nil, library.NewService(store), tracking.NewService(store), watch.NewService(store))
@@ -63,7 +63,7 @@ func TestChatGPTOAuthFlow_GivenReadOnlyConsent_WhenConnecting_ThenReadsOwnHistor
 		t.Fatal("authorization form did not include a CSRF token")
 	}
 	csrfCookie := getAuthResponse.Result().Cookies()[0]
-	form := url.Values{"csrf": {csrfMatch[1]}, "response_type": {"code"}, "client_id": {client.ID}, "redirect_uri": {redirectURI}, "state": {"test-state"}, "resource": {resource}, "code_challenge": {challenge}, "code_challenge_method": {"S256"}, "scope": {oauth.ReadScope}, "username": {"mcp-user"}, "password": {"a-strong-test-password"}, "consent": {"allow"}}
+	form := url.Values{"csrf": {csrfMatch[1]}, "response_type": {"code"}, "client_id": {client.ID}, "redirect_uri": {redirectURI}, "state": {"test-state"}, "resource": {resource}, "code_challenge": {challenge}, "code_challenge_method": {"S256"}, "scope": {oauth.ReadScope}, "email": {"mcp-user@example.com"}, "password": {"a-strong-test-password"}, "consent": {"allow"}}
 	postAuth := httptest.NewRequest(http.MethodPost, "/oauth/authorize", strings.NewReader(form.Encode()))
 	postAuth.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	postAuth.AddCookie(csrfCookie)

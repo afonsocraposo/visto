@@ -12,9 +12,15 @@ search, artwork, cast, episode details, and other metadata features. Create a
 ```dotenv
 VISTO_TMDB_API_KEY=replace_with_your_tmdb_api_key
 VISTO_ALLOW_SIGNUPS=true
+# Optional: set all three values to enable Google sign-in.
+# VISTO_GOOGLE_CLIENT_ID=your-google-oauth-client-id
+# VISTO_GOOGLE_CLIENT_SECRET=your-google-oauth-client-secret
+# VISTO_GOOGLE_REDIRECT_URL=http://localhost:8080/api/v1/auth/google/callback
 ```
 
 The repository ignores `.env`. Keep your API key there and do not commit it.
+Local accounts use a name, email address, and password. Google sign-in is
+optional; configure it below to show the Google button on the sign-in screen.
 
 Start Visto and follow the logs until the server is ready:
 
@@ -41,6 +47,9 @@ deployment; the other settings have defaults.
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `VISTO_TMDB_API_KEY` | empty | TMDB API key. Set this to enable metadata features. |
+| `VISTO_GOOGLE_CLIENT_ID` | empty | Google OAuth client ID. Set with the secret and redirect URL to show “Continue with Google” on the sign-in page. |
+| `VISTO_GOOGLE_CLIENT_SECRET` | empty | Secret for the Google OAuth client. |
+| `VISTO_GOOGLE_REDIRECT_URL` | empty | Exact callback URL registered in Google Cloud, such as `https://visto.example.com/api/v1/auth/google/callback`. All three Google variables are required; if any is missing, Google sign-in stays disabled. |
 | `VISTO_ALLOW_SIGNUPS` | `true` | Allow public account creation. Set to `false` to disable it. The first-admin setup and admin-created accounts remain available. |
 | `VISTO_PUBLIC_URL` | empty | Public HTTPS origin, such as `https://visto.example.com`. Set this when ChatGPT MCP or OAuth clients will connect through a public proxy. Do not include `/mcp`. |
 | `VISTO_TRUSTED_PROXY_CIDRS` | empty | Comma-separated IP ranges for trusted reverse proxies. Set this when deploying behind a proxy; only then are its forwarded client and HTTPS headers trusted. |
@@ -63,6 +72,13 @@ Profile. To use MCP from outside your network, set `VISTO_PUBLIC_URL` and
 configure the reverse proxy to pass `/mcp`, `/oauth/`, and `/.well-known/` to
 Visto.
 
+To enable Google sign-in, create a Google OAuth web client and register the
+redirect URL shown above as an authorized redirect URI. Set all three Google
+variables in `.env`. The Google button appears automatically. Google accounts
+must have a verified email address. New Google accounts follow
+`VISTO_ALLOW_SIGNUPS`; the first administrator must still be created with email
+and password before Google users can join.
+
 Example `compose.yaml`:
 
 ```yaml
@@ -79,6 +95,9 @@ services:
       VISTO_ALLOW_SIGNUPS: "${VISTO_ALLOW_SIGNUPS:-true}"
       VISTO_OAUTH_CLEANUP_INTERVAL: ${VISTO_OAUTH_CLEANUP_INTERVAL:-24h}
       VISTO_TMDB_API_KEY: ${VISTO_TMDB_API_KEY:-}
+      VISTO_GOOGLE_CLIENT_ID: ${VISTO_GOOGLE_CLIENT_ID:-}
+      VISTO_GOOGLE_CLIENT_SECRET: ${VISTO_GOOGLE_CLIENT_SECRET:-}
+      VISTO_GOOGLE_REDIRECT_URL: ${VISTO_GOOGLE_REDIRECT_URL:-}
       VISTO_BACKUP_DIR: ${VISTO_BACKUP_DIR:-/data/backups}
       VISTO_BACKUP_INTERVAL: ${VISTO_BACKUP_INTERVAL:-24h}
       VISTO_BACKUP_RETENTION: ${VISTO_BACKUP_RETENTION:-720h}

@@ -25,10 +25,15 @@ var (
 type Repository interface {
 	BootstrapAdmin(context.Context, domain.User, string) error
 	CreateUser(context.Context, domain.User, string) error
-	FindUserByUsername(context.Context, string) (domain.User, string, error)
+	FindUserByEmail(context.Context, string) (domain.User, string, error)
 	CreateSession(context.Context, string, string, string, time.Time) error
 	FindUserBySessionToken(context.Context, string, time.Time) (domain.User, error)
 	RevokeSession(context.Context, string) error
+}
+
+type googleRepository interface {
+	FindUserByGoogleSubject(context.Context, string) (domain.User, error)
+	CreateGoogleUser(context.Context, domain.User, string) error
 }
 
 type accountCounter interface {
@@ -46,11 +51,12 @@ type adminUsersRepository interface {
 }
 
 type Config struct {
-	AllowSignups bool
+	AllowSignups  bool
+	GoogleEnabled bool
 }
 
-func (service *Service) CreateUser(ctx context.Context, username, displayName, password string) (domain.User, error) {
-	username, displayName, err := validateAccount(username, displayName, password)
+func (service *Service) CreateUser(ctx context.Context, email, displayName, password string) (domain.User, error) {
+	email, displayName, err := validateAccount(email, displayName, password)
 	if err != nil {
 		return domain.User{}, err
 	}
@@ -58,7 +64,7 @@ func (service *Service) CreateUser(ctx context.Context, username, displayName, p
 	if err != nil {
 		return domain.User{}, err
 	}
-	user := domain.User{ID: newID(), Username: username, DisplayName: displayName, Role: domain.UserRole, CreatedAt: service.now().UTC()}
+	user := domain.User{ID: newID(), Email: email, DisplayName: displayName, Role: domain.UserRole, CreatedAt: service.now().UTC()}
 	if err := service.repository.CreateUser(ctx, user, hash); err != nil {
 		return domain.User{}, err
 	}
@@ -66,15 +72,17 @@ func (service *Service) CreateUser(ctx context.Context, username, displayName, p
 }
 
 type Service struct {
-	repository   Repository
-	now          func() time.Time
-	allowSignups bool
+	repository    Repository
+	now           func() time.Time
+	allowSignups  bool
+	googleEnabled bool
 }
 
 func NewService(repository Repository, configs ...Config) *Service {
 	service := &Service{repository: repository, now: time.Now, allowSignups: true}
 	if len(configs) > 0 {
 		service.allowSignups = configs[0].AllowSignups
+		service.googleEnabled = configs[0].GoogleEnabled
 	}
 	return service
 }
@@ -93,7 +101,7 @@ func (service *Service) BootstrapAvailable(ctx context.Context) (bool, error) {
 
 func (service *Service) SignupEnabled() bool { return service.allowSignups }
 
-func (service *Service) SignUp(ctx context.Context, username, password string) (domain.User, string, time.Time, error) {
+func (service *Service) SignUp(ctx context.Context, email, name, password string) (domain.User, string, time.Time, error) {
 	if !service.allowSignups {
 		return domain.User{}, "", time.Time{}, ErrSignupsDisabled
 	}
@@ -101,7 +109,7 @@ func (service *Service) SignUp(ctx context.Context, username, password string) (
 	if !ok {
 		return domain.User{}, "", time.Time{}, fmt.Errorf("signup is not configured")
 	}
-	username, displayName, err := validateAccount(username, username, password)
+	email, displayName, err := validateAccount(email, name, password)
 	if err != nil {
 		return domain.User{}, "", time.Time{}, err
 	}
@@ -109,7 +117,7 @@ func (service *Service) SignUp(ctx context.Context, username, password string) (
 	if err != nil {
 		return domain.User{}, "", time.Time{}, err
 	}
-	user := domain.User{ID: newID(), Username: username, DisplayName: displayName, Role: domain.UserRole, CreatedAt: service.now().UTC()}
+	user := domain.User{ID: newID(), Email: email, DisplayName: displayName, Role: domain.UserRole, CreatedAt: service.now().UTC()}
 	if err := repository.CreateSignupUser(ctx, user, hash); err != nil {
 		return domain.User{}, "", time.Time{}, err
 	}
@@ -167,8 +175,8 @@ func (service *Service) DeleteUser(ctx context.Context, userID string) error {
 	return repository.DeleteUser(ctx, userID)
 }
 
-func (service *Service) Bootstrap(ctx context.Context, username, displayName, password string) (domain.User, error) {
-	username, displayName, err := validateAccount(username, displayName, password)
+func (service *Service) Bootstrap(ctx context.Context, email, displayName, password string) (domain.User, error) {
+	email, displayName, err := validateAccount(email, displayName, password)
 	if err != nil {
 		return domain.User{}, err
 	}
@@ -176,15 +184,15 @@ func (service *Service) Bootstrap(ctx context.Context, username, displayName, pa
 	if err != nil {
 		return domain.User{}, err
 	}
-	user := domain.User{ID: newID(), Username: username, DisplayName: displayName, Role: domain.AdminRole, CreatedAt: service.now().UTC()}
+	user := domain.User{ID: newID(), Email: email, DisplayName: displayName, Role: domain.AdminRole, CreatedAt: service.now().UTC()}
 	if err := service.repository.BootstrapAdmin(ctx, user, hash); err != nil {
 		return domain.User{}, err
 	}
 	return user, nil
 }
 
-func (service *Service) Login(ctx context.Context, username, password string) (domain.User, string, time.Time, error) {
-	user, err := service.AuthenticateCredentials(ctx, username, password)
+func (service *Service) Login(ctx context.Context, email, password string) (domain.User, string, time.Time, error) {
+	user, err := service.AuthenticateCredentials(ctx, email, password)
 	if err != nil {
 		return domain.User{}, "", time.Time{}, err
 	}
@@ -199,12 +207,49 @@ func (service *Service) Login(ctx context.Context, username, password string) (d
 	return user, token, expiresAt, nil
 }
 
-func (service *Service) AuthenticateCredentials(ctx context.Context, username, password string) (domain.User, error) {
-	user, hash, err := service.repository.FindUserByUsername(ctx, strings.TrimSpace(username))
+func (service *Service) AuthenticateCredentials(ctx context.Context, email, password string) (domain.User, error) {
+	user, hash, err := service.repository.FindUserByEmail(ctx, strings.ToLower(strings.TrimSpace(email)))
 	if err != nil || !verifyPassword(hash, password) {
 		return domain.User{}, ErrInvalidCredentials
 	}
 	return user, nil
+}
+
+func (service *Service) GoogleEnabled() bool { return service.googleEnabled }
+
+func (service *Service) LoginWithGoogle(ctx context.Context, subject, email, name string) (domain.User, string, time.Time, error) {
+	if !service.googleEnabled || subject == "" {
+		return domain.User{}, "", time.Time{}, ErrInvalidCredentials
+	}
+	repository, ok := service.repository.(googleRepository)
+	if !ok {
+		return domain.User{}, "", time.Time{}, fmt.Errorf("Google sign-in is not configured")
+	}
+	user, err := repository.FindUserByGoogleSubject(ctx, subject)
+	if errors.Is(err, ErrInvalidCredentials) {
+		if !service.allowSignups {
+			return domain.User{}, "", time.Time{}, ErrSignupsDisabled
+		}
+		email, name, err = validateIdentity(email, name)
+		if err != nil {
+			return domain.User{}, "", time.Time{}, err
+		}
+		user = domain.User{ID: newID(), Email: email, DisplayName: name, Role: domain.UserRole, CreatedAt: service.now().UTC()}
+		if err := repository.CreateGoogleUser(ctx, user, subject); err != nil {
+			return domain.User{}, "", time.Time{}, err
+		}
+	} else if err != nil {
+		return domain.User{}, "", time.Time{}, err
+	}
+	token, err := newToken()
+	if err != nil {
+		return domain.User{}, "", time.Time{}, err
+	}
+	expiresAt := service.now().UTC().Add(30 * 24 * time.Hour)
+	if err := service.repository.CreateSession(ctx, newID(), user.ID, hashToken(token), expiresAt); err != nil {
+		return domain.User{}, "", time.Time{}, err
+	}
+	return user, token, expiresAt, nil
 }
 
 func (service *Service) Authenticate(ctx context.Context, token string) (domain.User, error) {

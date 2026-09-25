@@ -25,7 +25,7 @@ func (repository *createUserRepository) CreateSignupUser(_ context.Context, user
 	repository.createdUser, repository.passwordHash = user, passwordHash
 	return nil
 }
-func (*createUserRepository) FindUserByUsername(context.Context, string) (domain.User, string, error) {
+func (*createUserRepository) FindUserByEmail(context.Context, string) (domain.User, string, error) {
 	return domain.User{}, "", nil
 }
 func (*createUserRepository) CreateSession(context.Context, string, string, string, time.Time) error {
@@ -39,11 +39,11 @@ func (*createUserRepository) RevokeSession(context.Context, string) error { retu
 func TestCreateUser_GivenValidAccount_WhenCreatedByAdministrator_ThenItStoresARegularUserWithHashedPassword(t *testing.T) {
 	repository := &createUserRepository{}
 	service := NewService(repository)
-	user, err := service.CreateUser(context.Background(), " family ", " Family Member ", "correct-horse-battery-staple")
+	user, err := service.CreateUser(context.Background(), " family@example.com ", " Family Member ", "correct-horse-battery-staple")
 	if err != nil {
 		t.Fatalf("create user: %v", err)
 	}
-	if user.ID == "" || user.Username != "family" || user.DisplayName != "Family Member" || user.Role != domain.UserRole {
+	if user.ID == "" || user.Email != "family@example.com" || user.DisplayName != "Family Member" || user.Role != domain.UserRole {
 		t.Fatalf("created user = %+v", user)
 	}
 	if repository.createdUser.ID != user.ID || repository.createdUser.Role != domain.UserRole {
@@ -57,11 +57,11 @@ func TestCreateUser_GivenValidAccount_WhenCreatedByAdministrator_ThenItStoresARe
 func TestSignUp_GivenPublicSignupEnabled_WhenAccountIsCreated_ThenItCreatesARegularUserAndSession(t *testing.T) {
 	repository := &createUserRepository{}
 	service := NewService(repository)
-	user, token, expiresAt, err := service.SignUp(context.Background(), " family ", "correct-horse-battery-staple")
+	user, token, expiresAt, err := service.SignUp(context.Background(), " family@example.com ", "Family Member", "correct-horse-battery-staple")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if user.Role != domain.UserRole || user.Username != "family" || user.DisplayName != "family" || token == "" || !expiresAt.After(time.Now()) {
+	if user.Role != domain.UserRole || user.Email != "family@example.com" || user.DisplayName != "Family Member" || token == "" || !expiresAt.After(time.Now()) {
 		t.Fatalf("signup result = user:%+v token:%q expires:%v", user, token, expiresAt)
 	}
 	if repository.createdUser.ID != user.ID || !verifyPassword(repository.passwordHash, "correct-horse-battery-staple") {
@@ -71,7 +71,7 @@ func TestSignUp_GivenPublicSignupEnabled_WhenAccountIsCreated_ThenItCreatesARegu
 
 func TestSignUp_GivenPublicSignupDisabled_WhenAccountIsCreated_ThenItIsRejected(t *testing.T) {
 	service := NewService(&createUserRepository{}, Config{AllowSignups: false})
-	if _, _, _, err := service.SignUp(context.Background(), "family", "correct-horse-battery-staple"); !errors.Is(err, ErrSignupsDisabled) {
+	if _, _, _, err := service.SignUp(context.Background(), "family@example.com", "Family", "correct-horse-battery-staple"); !errors.Is(err, ErrSignupsDisabled) {
 		t.Fatalf("signup error = %v, want ErrSignupsDisabled", err)
 	}
 }
@@ -86,7 +86,7 @@ func (repository *logoutRepository) BootstrapAdmin(context.Context, domain.User,
 func (repository *logoutRepository) CreateUser(context.Context, domain.User, string) error {
 	return nil
 }
-func (repository *logoutRepository) FindUserByUsername(context.Context, string) (domain.User, string, error) {
+func (repository *logoutRepository) FindUserByEmail(context.Context, string) (domain.User, string, error) {
 	return domain.User{}, "", nil
 }
 func (repository *logoutRepository) CreateSession(context.Context, string, string, string, time.Time) error {

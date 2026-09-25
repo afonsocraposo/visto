@@ -51,6 +51,15 @@ func (server *Server) WithOAuth(service *oauth.Service) *Server {
 	return server
 }
 
+// WithGoogleOAuth adds optional Google sign-in routes when all credentials are set.
+func (server *Server) WithGoogleOAuth(config GoogleOAuthConfig) *Server {
+	if config.Enabled() {
+		server.mux.HandleFunc("GET /api/v1/auth/google", googleLogin(config, server.authService, server.proxies))
+		server.mux.HandleFunc("GET /api/v1/auth/google/callback", googleCallback(config, server.authService, server.proxies))
+	}
+	return server
+}
+
 func singlePageApp(webDir string) http.Handler {
 	files := http.FileServer(http.Dir(webDir))
 	index := filepath.Join(webDir, "index.html")

@@ -46,6 +46,10 @@ trademark policy.
 ### v0.1: core tracker
 
 - Local user accounts, roles, sessions, and initial admin setup.
+- Local accounts use a name and email address, with password login supported.
+- Optional Google OAuth sign-in is enabled only when client ID, client secret,
+  and callback URL are configured. Google email addresses must be verified;
+  new Google accounts follow the instance signup setting.
 - TMDB search and lazy local metadata import for movies and TV shows.
 - Per-user library states: `watchlist`, `watching`, `paused`, and `dropped`.
 - Movie and episode watch-play history, including rewatches and corrections.
@@ -404,7 +408,7 @@ it into a page or feature implementation file.
 Core entities are:
 
 ```text
-User(id, username, display_name, password_hash, role, created_at, updated_at)
+User(id, email, name, password_hash?, google_subject?, role, created_at, updated_at)
 UserSettings(user_id, timezone, activity_visibility, created_at, updated_at)
 Media(id, type, tmdb_id, title, original_title, overview, release_date, ...)
 Season(id, show_id, tmdb_id, season_number, name, air_date, ...)

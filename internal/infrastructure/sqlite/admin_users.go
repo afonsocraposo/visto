@@ -12,7 +12,7 @@ import (
 )
 
 func (store *Store) ListUsers(ctx context.Context) ([]domain.User, error) {
-	rows, err := store.DB.QueryContext(ctx, `SELECT id,username,display_name,'',role,created_at FROM users ORDER BY created_at,id`)
+	rows, err := store.DB.QueryContext(ctx, `SELECT id,email,display_name,'',role,created_at FROM users ORDER BY created_at,id`)
 	if err != nil {
 		return nil, fmt.Errorf("list users: %w", err)
 	}

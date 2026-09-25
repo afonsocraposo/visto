@@ -15,14 +15,14 @@ import (
 func TestCreateUser_GivenAdministratorSession_WhenCreatingAnAccount_ThenItCreatesARegularUser(t *testing.T) {
 	repository := &accountHTTPRepository{actor: domain.User{ID: "admin-1", Role: domain.AdminRole}}
 	handler := httpserver.New(auth.NewService(repository), nil, "", nil, nil, nil, nil, nil, nil).Handler()
-	request := httptest.NewRequest(http.MethodPost, "http://visto.local/api/v1/users", strings.NewReader(`{"username":"family","display_name":"Family Member","password":"correct-horse-battery-staple"}`))
+	request := httptest.NewRequest(http.MethodPost, "http://visto.local/api/v1/users", strings.NewReader(`{"email":"family@example.com","name":"Family Member","password":"correct-horse-battery-staple"}`))
 	request.AddCookie(&http.Cookie{Name: "visto_session", Value: "session-1"})
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
 	if response.Code != http.StatusCreated {
 		t.Fatalf("status = %d, want %d: %s", response.Code, http.StatusCreated, response.Body.String())
 	}
-	if repository.createdUser.Role != domain.UserRole || repository.createdUser.Username != "family" {
+	if repository.createdUser.Role != domain.UserRole || repository.createdUser.Email != "family@example.com" {
 		t.Fatalf("created account = %+v, want regular user family", repository.createdUser)
 	}
 	if repository.passwordHash == "" || strings.Contains(repository.passwordHash, "correct-horse-battery-staple") {
@@ -33,7 +33,7 @@ func TestCreateUser_GivenAdministratorSession_WhenCreatingAnAccount_ThenItCreate
 func TestCreateUser_GivenRegularUserSession_WhenCreatingAnAccount_ThenItIsForbidden(t *testing.T) {
 	repository := &accountHTTPRepository{actor: domain.User{ID: "user-1", Role: domain.UserRole}}
 	handler := httpserver.New(auth.NewService(repository), nil, "", nil, nil, nil, nil, nil, nil).Handler()
-	request := httptest.NewRequest(http.MethodPost, "http://visto.local/api/v1/users", strings.NewReader(`{"username":"family","display_name":"Family Member","password":"correct-horse-battery-staple"}`))
+	request := httptest.NewRequest(http.MethodPost, "http://visto.local/api/v1/users", strings.NewReader(`{"email":"family@example.com","name":"Family Member","password":"correct-horse-battery-staple"}`))
 	request.AddCookie(&http.Cookie{Name: "visto_session", Value: "session-1"})
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
@@ -69,7 +69,7 @@ func TestAdminUsers_GivenRegularUserSession_WhenManagingAccounts_ThenEveryAction
 }
 
 func TestPersonalAPIToken_GivenAuthenticatedUser_WhenCreatedUsedListedAndRevoked_ThenSecretIsOneTimeAndBearerAccessEnds(t *testing.T) {
-	repository := &personalTokenHTTPRepository{accountHTTPRepository: &accountHTTPRepository{actor: domain.User{ID: "user-1", Username: "family", Role: domain.UserRole}}}
+	repository := &personalTokenHTTPRepository{accountHTTPRepository: &accountHTTPRepository{actor: domain.User{ID: "user-1", Email: "family@example.com", Role: domain.UserRole}}}
 	service := auth.NewService(repository)
 	handler := httpserver.New(service, nil, "", nil, nil, nil, nil, nil, nil).Handler()
 	createRequest := httptest.NewRequest(http.MethodPost, "http://visto.local/api/v1/tokens", strings.NewReader(`{"name":"home dashboard"}`))

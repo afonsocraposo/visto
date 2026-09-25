@@ -3,8 +3,8 @@ export type Tab = "watch" | "search" | "feed" | "library";
 
 export type User = {
   id: string;
-  username: string;
-  display_name: string;
+  email: string;
+  name: string;
   role: "admin" | "user";
 };
 

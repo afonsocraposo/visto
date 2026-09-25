@@ -26,11 +26,11 @@ func TestVistoWorkflow_GivenTwoUsersAndOneSharedShow_WhenTheyTrackAndExport_Then
 	defer store.Close()
 
 	accounts := auth.NewService(store)
-	alice, err := accounts.Bootstrap(ctx, "afonso", "Afonso", "a-long-admin-password")
+	alice, err := accounts.Bootstrap(ctx, "afonso@example.com", "Afonso", "a-long-admin-password")
 	if err != nil {
 		t.Fatalf("bootstrap first admin: %v", err)
 	}
-	bia, err := accounts.CreateUser(ctx, "bia", "Bia", "a-long-family-password")
+	bia, err := accounts.CreateUser(ctx, "bia@example.com", "Bia", "a-long-family-password")
 	if err != nil {
 		t.Fatalf("create family user: %v", err)
 	}

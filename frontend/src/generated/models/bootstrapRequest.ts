@@ -7,16 +7,13 @@
  */
 
 export interface BootstrapRequest {
-  /**
-     * @minLength 3
-     * @maxLength 32
-     */
-  username: string;
+  /** @maxLength 254 */
+  email: string;
   /**
      * @minLength 1
      * @maxLength 80
      */
-  display_name: string;
+  name: string;
   /** @minLength 12 */
   password: string;
 }

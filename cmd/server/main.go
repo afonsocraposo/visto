@@ -102,7 +102,8 @@ func main() {
 		})
 	}
 	appHandler := http.NewServeMux()
-	authService := auth.NewService(store, auth.Config{AllowSignups: boolEnvironment("VISTO_ALLOW_SIGNUPS", true)})
+	googleOAuth := httpserver.GoogleOAuthConfig{ClientID: os.Getenv("VISTO_GOOGLE_CLIENT_ID"), ClientSecret: os.Getenv("VISTO_GOOGLE_CLIENT_SECRET"), RedirectURL: os.Getenv("VISTO_GOOGLE_REDIRECT_URL")}
+	authService := auth.NewService(store, auth.Config{AllowSignups: boolEnvironment("VISTO_ALLOW_SIGNUPS", true), GoogleEnabled: googleOAuth.Enabled()})
 	publicURL := os.Getenv("VISTO_PUBLIC_URL")
 	if err := mcpserver.ValidatePublicURL(publicURL); err != nil {
 		log.Fatal(err)
@@ -120,7 +121,7 @@ func main() {
 	appHandler.Handle("/mcp", mcpHandler)
 	appHandler.Handle("/oauth/", mcpHandler)
 	appHandler.Handle("/.well-known/", mcpHandler)
-	appHandler.Handle("/", httpserver.New(authService, metadataProvider, os.Getenv("VISTO_WEB_DIR"), library.NewService(store), tracking.NewService(store), profiles, feed.NewService(store), exportapp.NewService(store), watchService).WithTrustedProxies(trustedProxies).WithOAuth(oauthService).Handler())
+	appHandler.Handle("/", httpserver.New(authService, metadataProvider, os.Getenv("VISTO_WEB_DIR"), library.NewService(store), tracking.NewService(store), profiles, feed.NewService(store), exportapp.NewService(store), watchService).WithTrustedProxies(trustedProxies).WithOAuth(oauthService).WithGoogleOAuth(googleOAuth).Handler())
 	server := &http.Server{
 		Addr:              environment("VISTO_LISTEN_ADDR", ":8080"),
 		Handler:           appHandler,

@@ -20,11 +20,11 @@ func TestPersonalAPITokens_GivenTwoUsers_WhenTokensAreUsedAndRevoked_ThenSecrets
 	}
 	defer store.Close()
 	accounts := auth.NewService(store)
-	owner, err := accounts.Bootstrap(ctx, "owner", "Owner", "a-long-admin-password")
+	owner, err := accounts.Bootstrap(ctx, "owner@example.com", "Owner", "a-long-admin-password")
 	if err != nil {
 		t.Fatal(err)
 	}
-	other, err := accounts.CreateUser(ctx, "other", "Other", "a-long-user-password")
+	other, err := accounts.CreateUser(ctx, "other@example.com", "Other", "a-long-user-password")
 	if err != nil {
 		t.Fatal(err)
 	}

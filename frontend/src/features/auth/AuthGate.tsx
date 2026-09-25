@@ -53,20 +53,24 @@ export function AuthGate() {
     queryFn: async () => {
       const response = await fetch("/api/v1/auth/status");
       if (!response.ok) throw new Error("Could not check instance setup.");
-      return response.json() as Promise<{ bootstrap_available: boolean; signup_enabled: boolean }>;
+      return response.json() as Promise<{ bootstrap_available: boolean; signup_enabled: boolean; google_enabled: boolean }>;
     },
   });
-  const [error, setError] = useState("");
-  const form = useForm({ initialValues: { username: "", displayName: "", password: "" } });
+  const [error, setError] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("auth_error") !== "google") return "";
+    return params.get("reason") === "signup_disabled" ? "Google sign-in is available, but this instance does not allow new accounts." : "Google sign-in could not be completed. Try again or use your email and password.";
+  });
+  const form = useForm({ initialValues: { email: "", name: "", password: "" } });
 
   const signIn = useMutation({
     mutationFn: async () => {
       const response = await fetch("/api/v1/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: form.values.username, password: form.values.password }),
+        body: JSON.stringify({ email: form.values.email, password: form.values.password }),
       });
-      if (!response.ok) throw new Error("Invalid username or password.");
+      if (!response.ok) throw new Error("Invalid email or password.");
       return response.json() as Promise<User>;
     },
     onSuccess: user => queryClient.setQueryData(["session"], user),
@@ -74,7 +78,7 @@ export function AuthGate() {
 
   const createAdmin = useMutation({
     mutationFn: async () => {
-      const body = JSON.stringify({ username: form.values.username, display_name: form.values.displayName, password: form.values.password });
+      const body = JSON.stringify({ email: form.values.email, name: form.values.name, password: form.values.password });
       const bootstrap = await fetch("/api/v1/auth/bootstrap", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -87,7 +91,7 @@ export function AuthGate() {
       const login = await fetch("/api/v1/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: form.values.username, password: form.values.password }),
+        body: JSON.stringify({ email: form.values.email, password: form.values.password }),
       });
       if (!login.ok) throw new Error("Administrator created. Please sign in.");
       return login.json() as Promise<User>;
@@ -103,7 +107,7 @@ export function AuthGate() {
       const response = await fetch("/api/v1/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: form.values.username, password: form.values.password }),
+        body: JSON.stringify({ email: form.values.email, name: form.values.name, password: form.values.password }),
       });
       if (!response.ok) {
         const result = await response.json().catch(() => ({}));
@@ -139,14 +143,15 @@ export function AuthGate() {
       {setup.isError && <Alert color="red" mt="lg">Could not check instance setup. Refresh the page and try again.</Alert>}
       {!setup.isPending && !setup.isError &&
       <form onSubmit={form.onSubmit(() => void submit())}>
-        <TextInput required minLength={3} maxLength={32} label="Username" mt="lg" {...form.getInputProps("username")} />
-        {isFirstRun && <TextInput required maxLength={80} label="Your name" mt="md" {...form.getInputProps("displayName")} />}
+        {(isFirstRun || isSignup) && <TextInput required maxLength={80} label="Your name" mt="lg" {...form.getInputProps("name")} />}
+        <TextInput required type="email" autoComplete="email" label="Email" mt="lg" {...form.getInputProps("email")} />
         <PasswordInput required minLength={isFirstRun || isSignup ? 12 : undefined} label="Password" mt="md" {...form.getInputProps("password")} />
         {error && <Alert color="red" mt="md">{error}</Alert>}
         <Button type="submit" loading={pending} fullWidth mt="lg">
           {isFirstRun ? "Create administrator" : isSignup ? "Create account" : "Sign in"}
         </Button>
       </form>}
+      {!setup.isPending && !setup.isError && !isFirstRun && setup.data?.google_enabled && <Button component="a" href="/api/v1/auth/google" variant="default" fullWidth mt="md">Continue with Google</Button>}
       {!setup.isPending && !setup.isError && !isFirstRun && setup.data?.signup_enabled && <Button variant="subtle" fullWidth mt="xs" onClick={() => { setError(""); setMode(isSignup ? "login" : "signup"); }}>
         {isSignup ? "Already have an account? Sign in" : "New here? Create an account"}
       </Button>}

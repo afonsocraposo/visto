@@ -7,7 +7,7 @@
  */
 
 export type PatchUsersUserIDBody = {
-  display_name: string;
+  name: string;
   /** Optional replacement password; leave empty to keep the current password. */
   password?: string;
 };

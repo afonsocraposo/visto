@@ -25,7 +25,7 @@ func (store *Store) BootstrapAdmin(ctx context.Context, user domain.User, passwo
 		return auth.ErrBootstrapComplete
 	}
 	now := user.CreatedAt.Format(time.RFC3339Nano)
-	if _, err := tx.ExecContext(ctx, `INSERT INTO users(id,username,display_name,password_hash,role,created_at,updated_at) VALUES(?,?,?,?,?,?,?)`, user.ID, user.Username, user.DisplayName, passwordHash, user.Role, now, now); err != nil {
+	if _, err := tx.ExecContext(ctx, `INSERT INTO users(id,username,display_name,password_hash,role,created_at,updated_at,email) VALUES(?,?,?,?,?,?,?,?)`, user.ID, user.Email, user.DisplayName, passwordHash, user.Role, now, now, user.Email); err != nil {
 		return err
 	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO user_settings(user_id,created_at,updated_at) VALUES(?,?,?)`, user.ID, now, now); err != nil {
@@ -41,7 +41,7 @@ func (store *Store) CreateUser(ctx context.Context, user domain.User, passwordHa
 	}
 	defer tx.Rollback()
 	now := user.CreatedAt.Format(time.RFC3339Nano)
-	if _, err := tx.ExecContext(ctx, `INSERT INTO users(id,username,display_name,password_hash,role,created_at,updated_at) VALUES(?,?,?,?,?,?,?)`, user.ID, user.Username, user.DisplayName, passwordHash, user.Role, now, now); err != nil {
+	if _, err := tx.ExecContext(ctx, `INSERT INTO users(id,username,display_name,password_hash,role,created_at,updated_at,email) VALUES(?,?,?,?,?,?,?,?)`, user.ID, user.Email, user.DisplayName, passwordHash, user.Role, now, now, user.Email); err != nil {
 		return err
 	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO user_settings(user_id,created_at,updated_at) VALUES(?,?,?)`, user.ID, now, now); err != nil {
@@ -71,7 +71,7 @@ func (store *Store) CreateSignupUser(ctx context.Context, user domain.User, pass
 
 func insertUserAndSettings(ctx context.Context, tx *sql.Tx, user domain.User, passwordHash string) error {
 	now := user.CreatedAt.Format(time.RFC3339Nano)
-	if _, err := tx.ExecContext(ctx, `INSERT INTO users(id,username,display_name,password_hash,role,created_at,updated_at) VALUES(?,?,?,?,?,?,?)`, user.ID, user.Username, user.DisplayName, passwordHash, user.Role, now, now); err != nil {
+	if _, err := tx.ExecContext(ctx, `INSERT INTO users(id,username,display_name,password_hash,role,created_at,updated_at,email) VALUES(?,?,?,?,?,?,?,?)`, user.ID, user.Email, user.DisplayName, passwordHash, user.Role, now, now, user.Email); err != nil {
 		return err
 	}
 	if _, err := tx.ExecContext(ctx, `INSERT INTO user_settings(user_id,created_at,updated_at) VALUES(?,?,?)`, user.ID, now, now); err != nil {
@@ -88,9 +88,37 @@ func (store *Store) AdminCount(ctx context.Context) (int, error) {
 	return count, nil
 }
 
-func (store *Store) FindUserByUsername(ctx context.Context, username string) (domain.User, string, error) {
-	row := store.DB.QueryRowContext(ctx, `SELECT id,username,display_name,password_hash,role,created_at FROM users WHERE username = ?`, username)
+func (store *Store) FindUserByEmail(ctx context.Context, email string) (domain.User, string, error) {
+	row := store.DB.QueryRowContext(ctx, `SELECT id,email,display_name,password_hash,role,created_at FROM users WHERE email = ?`, email)
 	return scanUser(row)
+}
+
+func (store *Store) FindUserByGoogleSubject(ctx context.Context, subject string) (domain.User, error) {
+	user, _, err := scanUser(store.DB.QueryRowContext(ctx, `SELECT id,email,display_name,password_hash,role,created_at FROM users WHERE google_subject=?`, subject))
+	return user, err
+}
+
+func (store *Store) CreateGoogleUser(ctx context.Context, user domain.User, subject string) error {
+	tx, err := store.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	var admins int
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM users WHERE role='admin'`).Scan(&admins); err != nil {
+		return err
+	}
+	if admins == 0 {
+		return auth.ErrBootstrapIncomplete
+	}
+	now := user.CreatedAt.UTC().Format(time.RFC3339Nano)
+	if _, err := tx.ExecContext(ctx, `INSERT INTO users(id,username,display_name,password_hash,role,created_at,updated_at,email,google_subject) VALUES(?,?,?,'','user',?,?,?,?)`, user.ID, user.Email, user.DisplayName, now, now, user.Email, subject); err != nil {
+		return fmt.Errorf("create Google account: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO user_settings(user_id,created_at,updated_at) VALUES(?,?,?)`, user.ID, now, now); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (store *Store) CreateSession(ctx context.Context, id, userID, tokenHash string, expiresAt time.Time) error {
@@ -99,7 +127,7 @@ func (store *Store) CreateSession(ctx context.Context, id, userID, tokenHash str
 }
 
 func (store *Store) FindUserBySessionToken(ctx context.Context, tokenHash string, now time.Time) (domain.User, error) {
-	row := store.DB.QueryRowContext(ctx, `SELECT u.id,u.username,u.display_name,u.password_hash,u.role,u.created_at FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>?`, tokenHash, now.Format(time.RFC3339Nano))
+	row := store.DB.QueryRowContext(ctx, `SELECT u.id,u.email,u.display_name,u.password_hash,u.role,u.created_at FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>?`, tokenHash, now.Format(time.RFC3339Nano))
 	user, _, err := scanUser(row)
 	return user, err
 }
@@ -192,7 +220,7 @@ func (store *Store) FindUserByPersonalTokenHash(ctx context.Context, tokenHash s
 	if err != nil {
 		return domain.User{}, fmt.Errorf("authenticate personal API token: %w", err)
 	}
-	user, _, err := scanUser(tx.QueryRowContext(ctx, `SELECT id,username,display_name,password_hash,role,created_at FROM users WHERE id=?`, userID))
+	user, _, err := scanUser(tx.QueryRowContext(ctx, `SELECT id,email,display_name,password_hash,role,created_at FROM users WHERE id=?`, userID))
 	if err != nil {
 		return domain.User{}, err
 	}
@@ -207,7 +235,7 @@ type scanner interface{ Scan(...any) error }
 func scanUser(row scanner) (domain.User, string, error) {
 	var user domain.User
 	var passwordHash, createdAt string
-	if err := row.Scan(&user.ID, &user.Username, &user.DisplayName, &passwordHash, &user.Role, &createdAt); err != nil {
+	if err := row.Scan(&user.ID, &user.Email, &user.DisplayName, &passwordHash, &user.Role, &createdAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return domain.User{}, "", auth.ErrInvalidCredentials
 		}

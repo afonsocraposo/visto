@@ -31,8 +31,8 @@ func TestMigrator_GivenFreshDatabase_WhenAppliedTwice_ThenSchemaIsCreatedAndSeco
 	if err := db.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&count); err != nil {
 		t.Fatalf("count migrations: %v", err)
 	}
-	if count != 9 {
-		t.Fatalf("migration count = %d, want 9", count)
+	if count != 10 {
+		t.Fatalf("migration count = %d, want 10", count)
 	}
 	for _, table := range []string{"users", "media", "episodes", "plays", "activity_events", "episode_ratings", "personal_api_tokens", "notification_deliveries", "oauth_clients", "oauth_authorization_codes", "oauth_access_tokens", "oauth_refresh_tokens"} {
 		var name string

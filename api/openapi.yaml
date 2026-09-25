@@ -18,7 +18,18 @@ paths:
     get:
       summary: Check whether this instance needs its first administrator
       responses:
-        '200': { description: Instance account state, content: { application/json: { schema: { type: object, required: [bootstrap_available, signup_enabled], properties: { bootstrap_available: { type: boolean }, signup_enabled: { type: boolean } } } } } }
+        '200': { description: Instance account state, content: { application/json: { schema: { type: object, required: [bootstrap_available, signup_enabled, google_enabled], properties: { bootstrap_available: { type: boolean }, signup_enabled: { type: boolean }, google_enabled: { type: boolean } } } } } }
+  /auth/google:
+    get:
+      summary: Start optional Google sign-in
+      responses:
+        '302': { description: 'Redirect to Google when OAuth is configured' }
+        '404': { description: Google sign-in is not configured }
+  /auth/google/callback:
+    get:
+      summary: Complete Google sign-in
+      responses:
+        '302': { description: 'Redirect back to Visto and set a session cookie' }
   /auth/signup:
     post:
       summary: Create a regular user account when public signup is enabled
@@ -65,7 +76,7 @@ paths:
       security: [{ sessionCookie: [] }, { bearerToken: [] }]
       parameters:
         - { name: userID, in: path, required: true, schema: { type: string } }
-      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [display_name], properties: { display_name: { type: string }, password: { type: string, description: 'Optional replacement password; leave empty to keep the current password.' } } } } } }
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [name], properties: { name: { type: string }, password: { type: string, description: 'Optional replacement password; leave empty to keep the current password.' } } } } } }
       responses:
         '204': { description: User updated }
         '400': { $ref: '#/components/responses/BadRequest' }
@@ -531,22 +542,23 @@ components:
   schemas:
     BootstrapRequest:
       type: object
-      required: [username, display_name, password]
+      required: [email, name, password]
       properties:
-        username: { type: string, minLength: 3, maxLength: 32 }
-        display_name: { type: string, minLength: 1, maxLength: 80 }
+        email: { type: string, format: email, maxLength: 254 }
+        name: { type: string, minLength: 1, maxLength: 80 }
         password: { type: string, format: password, minLength: 12 }
     SignupRequest:
       type: object
-      required: [username, password]
+      required: [email, name, password]
       properties:
-        username: { type: string, minLength: 3, maxLength: 32 }
+        email: { type: string, format: email, maxLength: 254 }
+        name: { type: string, minLength: 1, maxLength: 80 }
         password: { type: string, format: password, minLength: 12 }
     LoginRequest:
       type: object
-      required: [username, password]
+      required: [email, password]
       properties:
-        username: { type: string }
+        email: { type: string, format: email, maxLength: 254 }
         password: { type: string, format: password }
     CreatePersonalAPITokenRequest:
       type: object
@@ -582,11 +594,11 @@ components:
         expires_at: { type: string, format: date-time }
     User:
       type: object
-      required: [id, username, display_name, role, created_at]
+      required: [id, email, name, role, created_at]
       properties:
         id: { type: string }
-        username: { type: string }
-        display_name: { type: string }
+        email: { type: string, format: email }
+        name: { type: string }
         role: { type: string, enum: [admin, user] }
         created_at: { type: string, format: date-time }
     ActivitySettings:

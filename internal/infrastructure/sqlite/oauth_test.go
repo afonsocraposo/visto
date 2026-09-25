@@ -19,7 +19,7 @@ func TestOAuth_GivenValidPKCEAuthorization_WhenCodeIsExchangedAndRefreshed_ThenT
 		t.Fatalf("open store: %v", err)
 	}
 	defer store.Close()
-	user, err := auth.NewService(store).Bootstrap(context.Background(), "oauth-admin", "OAuth Admin", "a-strong-test-password")
+	user, err := auth.NewService(store).Bootstrap(context.Background(), "oauth-admin@example.com", "OAuth Admin", "a-strong-test-password")
 	if err != nil {
 		t.Fatalf("create test user: %v", err)
 	}
@@ -91,7 +91,7 @@ func TestOAuth_GivenExpiredAndRevokedRecords_WhenCleaned_ThenOnlyRecordsPastRete
 		t.Fatalf("open store: %v", err)
 	}
 	defer store.Close()
-	user, err := auth.NewService(store).Bootstrap(context.Background(), "cleanup-admin", "Cleanup Admin", "a-strong-test-password")
+	user, err := auth.NewService(store).Bootstrap(context.Background(), "cleanup-admin@example.com", "Cleanup Admin", "a-strong-test-password")
 	if err != nil {
 		t.Fatalf("create test user: %v", err)
 	}

@@ -108,7 +108,7 @@ export function Dashboard({ user, theme, setTheme, page }: { user: User; theme: 
             </div>
           </Group>
           <Group gap="xs">
-            <Text className="welcome-name" size="sm">Hi, {user.display_name}</Text>
+            <Text className="welcome-name" size="sm">Hi, {user.name}</Text>
             <Button size="xs" variant="subtle" leftSection={<IconLogout size={16} />} loading={logout.isPending} onClick={() => logout.mutate()}>
               Sign out
             </Button>

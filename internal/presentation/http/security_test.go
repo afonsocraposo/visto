@@ -63,7 +63,7 @@ func TestLoginRateLimitResponseBDD(t *testing.T) {
 			limiter.failed("192.0.2.12")
 		}
 		handler := login(nil, limiter, &security.ProxyResolver{})
-		request := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", strings.NewReader(`{"username":"family","password":"wrong"}`))
+		request := httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", strings.NewReader(`{"email":"family@example.com","password":"wrong"}`))
 		request.RemoteAddr = "192.0.2.12:12345"
 		response := httptest.NewRecorder()
 

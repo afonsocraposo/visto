@@ -11,8 +11,8 @@ const (
 
 type User struct {
 	ID          string    `json:"id"`
-	Username    string    `json:"username"`
-	DisplayName string    `json:"display_name"`
+	Email       string    `json:"email"`
+	DisplayName string    `json:"name"`
 	Role        Role      `json:"role"`
 	CreatedAt   time.Time `json:"created_at"`
 }

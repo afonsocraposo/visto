@@ -32,15 +32,15 @@ func TestOnboardingHTTP_GivenNoAdministrator_WhenSignupIsRequested_ThenSetupMust
 	}
 
 	signup := httptest.NewRecorder()
-	handler.ServeHTTP(signup, httptest.NewRequest(http.MethodPost, "/api/v1/auth/signup", strings.NewReader(`{"username":"family","password":"a-long-family-password"}`)))
+	handler.ServeHTTP(signup, httptest.NewRequest(http.MethodPost, "/api/v1/auth/signup", strings.NewReader(`{"email":"family@example.com","name":"Family","password":"a-long-family-password"}`)))
 	if signup.Code != http.StatusConflict {
 		t.Fatalf("pre-setup signup status = %d, want 409: %s", signup.Code, signup.Body.String())
 	}
-	if _, err := service.Bootstrap(ctx, "owner", "Owner", "a-long-admin-password"); err != nil {
+	if _, err := service.Bootstrap(ctx, "owner@example.com", "Owner", "a-long-admin-password"); err != nil {
 		t.Fatal(err)
 	}
 	adminLogin := httptest.NewRecorder()
-	handler.ServeHTTP(adminLogin, httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", strings.NewReader(`{"username":"owner","password":"a-long-admin-password"}`)))
+	handler.ServeHTTP(adminLogin, httptest.NewRequest(http.MethodPost, "/api/v1/auth/login", strings.NewReader(`{"email":"owner@example.com","password":"a-long-admin-password"}`)))
 	if adminLogin.Code != http.StatusOK {
 		t.Fatalf("admin login status = %d: %s", adminLogin.Code, adminLogin.Body.String())
 	}
@@ -55,7 +55,7 @@ func TestOnboardingHTTP_GivenNoAdministrator_WhenSignupIsRequested_ThenSetupMust
 	if response := adminRequest(http.MethodGet, "/api/v1/users", ""); response.Code != http.StatusOK {
 		t.Fatalf("list users status = %d: %s", response.Code, response.Body.String())
 	}
-	created := adminRequest(http.MethodPost, "/api/v1/users", `{"username":"managed","display_name":"Managed","password":"a-long-managed-password"}`)
+	created := adminRequest(http.MethodPost, "/api/v1/users", `{"email":"managed@example.com","name":"Managed","password":"a-long-managed-password"}`)
 	if created.Code != http.StatusCreated {
 		t.Fatalf("admin create status = %d: %s", created.Code, created.Body.String())
 	}
@@ -63,7 +63,7 @@ func TestOnboardingHTTP_GivenNoAdministrator_WhenSignupIsRequested_ThenSetupMust
 	if err := json.Unmarshal(created.Body.Bytes(), &managed); err != nil {
 		t.Fatal(err)
 	}
-	if response := adminRequest(http.MethodPatch, "/api/v1/users/"+managed.ID, `{"display_name":"Managed User","password":"a-new-managed-password"}`); response.Code != http.StatusNoContent {
+	if response := adminRequest(http.MethodPatch, "/api/v1/users/"+managed.ID, `{"name":"Managed User","password":"a-new-managed-password"}`); response.Code != http.StatusNoContent {
 		t.Fatalf("admin update status = %d: %s", response.Code, response.Body.String())
 	}
 	if response := adminRequest(http.MethodDelete, "/api/v1/users/"+managed.ID, ""); response.Code != http.StatusNoContent {
@@ -71,7 +71,7 @@ func TestOnboardingHTTP_GivenNoAdministrator_WhenSignupIsRequested_ThenSetupMust
 	}
 
 	signup = httptest.NewRecorder()
-	handler.ServeHTTP(signup, httptest.NewRequest(http.MethodPost, "/api/v1/auth/signup", strings.NewReader(`{"username":"family","password":"a-long-family-password"}`)))
+	handler.ServeHTTP(signup, httptest.NewRequest(http.MethodPost, "/api/v1/auth/signup", strings.NewReader(`{"email":"family@example.com","name":"Family","password":"a-long-family-password"}`)))
 	if signup.Code != http.StatusCreated {
 		t.Fatalf("signup status = %d, want 201: %s", signup.Code, signup.Body.String())
 	}
@@ -90,7 +90,7 @@ func TestOnboardingHTTP_GivenNoAdministrator_WhenSignupIsRequested_ThenSetupMust
 	disabled := auth.NewService(store, auth.Config{AllowSignups: false})
 	disabledHandler := httpserver.New(disabled, nil, "", nil, nil, nil, nil, nil, nil).Handler()
 	denied := httptest.NewRecorder()
-	disabledHandler.ServeHTTP(denied, httptest.NewRequest(http.MethodPost, "/api/v1/auth/signup", strings.NewReader(`{"username":"other","password":"a-long-other-password"}`)))
+	disabledHandler.ServeHTTP(denied, httptest.NewRequest(http.MethodPost, "/api/v1/auth/signup", strings.NewReader(`{"email":"other@example.com","name":"Other","password":"a-long-other-password"}`)))
 	if denied.Code != http.StatusForbidden {
 		t.Fatalf("disabled signup status = %d, want 403", denied.Code)
 	}

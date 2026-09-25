@@ -16,12 +16,12 @@ export function AdminPanel({ currentUser }: { currentUser: User }) {
       return response.json() as Promise<User[]>;
     },
   });
-  const form = useForm({ initialValues: { username: "", displayName: "", password: "" } });
+  const form = useForm({ initialValues: { email: "", name: "", password: "" } });
   const createUser = useMutation({
     mutationFn: async () => {
       const response = await fetch("/api/v1/users", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: form.values.username, display_name: form.values.displayName, password: form.values.password }),
+        body: JSON.stringify({ email: form.values.email, name: form.values.name, password: form.values.password }),
       });
       if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error || "Could not create account.");
       return response.json() as Promise<User>;
@@ -43,8 +43,8 @@ export function AdminPanel({ currentUser }: { currentUser: User }) {
       <Title order={3}>Add a user</Title>
       <Text size="sm" c="dimmed" mt="xs">Each person gets a separate library and watch history.</Text>
       <form onSubmit={form.onSubmit(() => createUser.mutate())}>
-        <TextInput required minLength={3} maxLength={32} label="Username" mt="md" {...form.getInputProps("username")} />
-        <TextInput required maxLength={80} label="Name" mt="md" {...form.getInputProps("displayName")} />
+        <TextInput required type="email" label="Email" mt="md" {...form.getInputProps("email")} />
+        <TextInput required maxLength={80} label="Name" mt="md" {...form.getInputProps("name")} />
         <PasswordInput required minLength={12} label="Initial password" mt="md" {...form.getInputProps("password")} />
         {createUser.isError && <Alert color="red" mt="md">{createUser.error.message}</Alert>}
         <Button type="submit" loading={createUser.isPending} mt="md">Create account</Button>
@@ -56,12 +56,12 @@ export function AdminPanel({ currentUser }: { currentUser: User }) {
 function AdminUserRow({ account, currentUser }: { account: User; currentUser: User }) {
   const queryClient = useQueryClient();
   const userQueryKey = useUserQueryKey();
-  const form = useForm({ initialValues: { displayName: account.display_name, password: "" } });
+  const form = useForm({ initialValues: { displayName: account.name, password: "" } });
   const update = useMutation({
     mutationFn: async () => {
       const response = await fetch(`/api/v1/users/${encodeURIComponent(account.id)}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ display_name: form.values.displayName, password: form.values.password }),
+        body: JSON.stringify({ name: form.values.displayName, password: form.values.password }),
       });
       if (!response.ok) throw new Error((await response.json().catch(() => ({}))).error || "Could not update account.");
     },
@@ -85,9 +85,9 @@ function AdminUserRow({ account, currentUser }: { account: User; currentUser: Us
 
   return <Paper withBorder p="md" radius="md">
     <Group justify="space-between" align="start">
-      <div><Text fw={600}>{account.display_name}{account.id === currentUser.id ? " (you)" : ""}</Text><Text size="sm" c="dimmed">@{account.username} · {account.role === "admin" ? "Admin" : "User"}</Text></div>
+      <div><Text fw={600}>{account.name}{account.id === currentUser.id ? " (you)" : ""}</Text><Text size="sm" c="dimmed">{account.email} · {account.role === "admin" ? "Admin" : "User"}</Text></div>
       {account.id !== currentUser.id && <Button color="red" variant="subtle" loading={remove.isPending} onClick={() => {
-        if (window.confirm(`Delete ${account.display_name}'s account and personal data? This cannot be undone.`)) remove.mutate();
+        if (window.confirm(`Delete ${account.name}'s account and personal data? This cannot be undone.`)) remove.mutate();
       }}>Delete</Button>}
     </Group>
     <form onSubmit={form.onSubmit(() => { setSaved(false); update.mutate(); })}>

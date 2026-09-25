@@ -7,11 +7,13 @@
  */
 
 export interface SignupRequest {
+  /** @maxLength 254 */
+  email: string;
   /**
-     * @minLength 3
-     * @maxLength 32
+     * @minLength 1
+     * @maxLength 80
      */
-  username: string;
+  name: string;
   /** @minLength 12 */
   password: string;
 }
