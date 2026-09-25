@@ -42,6 +42,27 @@ Docker volume `visto-data` keeps the SQLite database and backups across
 container restarts. Stop the app with `docker compose down`; this keeps the
 volume and its data.
 
+#### Using a host directory instead
+
+The default named volume works with the image's non-root `visto` user. If you
+replace it with a host bind mount, the host directory's permissions apply
+inside `/data`. Make sure it exists and is writable by the container user. On
+Linux, you can run the container as the owner of that directory by setting
+`user` to its numeric UID and GID:
+
+```yaml
+services:
+  visto:
+    user: "1000:1000" # replace with the directory owner's UID:GID
+    volumes:
+      - /home/pi/visto:/data
+```
+
+Check the directory owner's IDs with `stat -c '%u:%g' /home/pi/visto`. Do not
+copy `1000:1000` unless those are the IDs on your server. Keep the default
+named volume if you do not need a host directory; setting a host-specific
+`user` in the default Compose file can make the named volume unwritable.
+
 By default, Compose uses the `latest` image. Set `VISTO_VERSION` in `.env` to a
 release tag such as `0.1.0` to pin an instance. To build and run the current
 source checkout instead, use:
