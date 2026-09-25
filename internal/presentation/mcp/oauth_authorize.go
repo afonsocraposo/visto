@@ -10,11 +10,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/afonsocosta/visto/internal/application/auth"
 	"github.com/afonsocosta/visto/internal/application/oauth"
+	"github.com/afonsocosta/visto/internal/domain"
 )
 
 type oauthPageData struct {
 	ClientName string
+	UserEmail  string
 	CSRF       string
 	Error      string
 	Read       bool
@@ -63,26 +66,32 @@ func (server *Server) authorizeOAuthClient(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if r.Method == http.MethodGet {
-		server.renderAuthorizationForm(w, r, client.Name, request, "")
+		user, err := server.sessionUser(r)
+		if err != nil {
+			server.redirectToSignIn(w, r.URL.RequestURI())
+			return
+		}
+		server.renderAuthorizationForm(w, r, client.Name, user.Email, request, "")
 		return
 	}
 	csrfCookie, err := r.Cookie("visto_oauth_csrf")
 	formCSRF := r.Form.Get("csrf")
 	if err != nil || formCSRF == "" || subtle.ConstantTimeCompare([]byte(csrfCookie.Value), []byte(formCSRF)) != 1 {
-		server.renderAuthorizationForm(w, r, client.Name, request, "This authorization request expired. Please try again.")
+		user, authErr := server.sessionUser(r)
+		if authErr != nil {
+			server.redirectToSignIn(w, authorizationRequestURI(request))
+			return
+		}
+		server.renderAuthorizationForm(w, r, client.Name, user.Email, request, "This authorization request expired. Please try again.")
 		return
 	}
 	if r.Form.Get("consent") != "allow" {
 		server.redirectOAuthError(w, request, "access_denied", "The user cancelled authorization")
 		return
 	}
-	if server.credentials == nil {
-		http.Error(w, "authentication is not configured", http.StatusServiceUnavailable)
-		return
-	}
-	user, err := server.credentials.AuthenticateCredentials(r.Context(), r.Form.Get("email"), r.Form.Get("password"))
+	user, err := server.sessionUser(r)
 	if err != nil {
-		server.renderAuthorizationForm(w, r, client.Name, request, "Email or password is incorrect.")
+		server.redirectToSignIn(w, authorizationRequestURI(request))
 		return
 	}
 	request.Scopes = r.Form["scope"]
@@ -102,16 +111,51 @@ func (server *Server) authorizeOAuthClient(w http.ResponseWriter, r *http.Reques
 	http.Redirect(w, r, redirect.String(), http.StatusFound)
 }
 
-func (server *Server) renderAuthorizationForm(w http.ResponseWriter, r *http.Request, clientName string, request oauth.AuthorizeRequest, message string) {
+func (server *Server) sessionUser(r *http.Request) (domain.User, error) {
+	if server.credentials == nil {
+		return domain.User{}, auth.ErrInvalidCredentials
+	}
+	cookie, err := r.Cookie("visto_session")
+	if err != nil {
+		return domain.User{}, err
+	}
+	return server.credentials.Authenticate(r.Context(), cookie.Value)
+}
+
+func (server *Server) redirectToSignIn(w http.ResponseWriter, returnTo string) {
+	login := url.URL{Path: "/"}
+	query := login.Query()
+	query.Set("oauth_return", returnTo)
+	login.RawQuery = query.Encode()
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Location", login.String())
+	w.WriteHeader(http.StatusFound)
+}
+
+func authorizationRequestURI(request oauth.AuthorizeRequest) string {
+	query := url.Values{
+		"response_type":         {"code"},
+		"client_id":             {request.ClientID},
+		"redirect_uri":          {request.RedirectURI},
+		"state":                 {request.State},
+		"scope":                 {strings.Join(request.Scopes, " ")},
+		"resource":              {request.Resource},
+		"code_challenge":        {request.CodeChallenge},
+		"code_challenge_method": {"S256"},
+	}
+	return "/oauth/authorize?" + query.Encode()
+}
+
+func (server *Server) renderAuthorizationForm(w http.ResponseWriter, r *http.Request, clientName, userEmail string, request oauth.AuthorizeRequest, message string) {
 	csrf := make([]byte, 32)
 	if _, err := rand.Read(csrf); err != nil {
 		http.Error(w, "could not start authorization", http.StatusInternalServerError)
 		return
 	}
 	csrfValue := base64.RawURLEncoding.EncodeToString(csrf)
-	secure := r.TLS != nil || strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")
+	secure := server.proxies.IsHTTPS(r)
 	http.SetCookie(w, &http.Cookie{Name: "visto_oauth_csrf", Value: csrfValue, Path: "/oauth/authorize", HttpOnly: true, Secure: secure, SameSite: http.SameSiteLaxMode, MaxAge: 600})
-	data := oauthPageData{ClientName: clientName, CSRF: csrfValue, Error: message, Hidden: []oauthHidden{
+	data := oauthPageData{ClientName: clientName, UserEmail: userEmail, CSRF: csrfValue, Error: message, Hidden: []oauthHidden{
 		{Name: "response_type", Value: "code"}, {Name: "client_id", Value: request.ClientID}, {Name: "redirect_uri", Value: request.RedirectURI},
 		{Name: "state", Value: request.State}, {Name: "resource", Value: request.Resource}, {Name: "code_challenge", Value: request.CodeChallenge}, {Name: "code_challenge_method", Value: "S256"},
 	}}
@@ -122,14 +166,18 @@ func (server *Server) renderAuthorizationForm(w http.ResponseWriter, r *http.Req
 	data.Read, data.Write, data.Offline = requested[oauth.ReadScope], requested[oauth.WriteScope], requested[oauth.OfflineScope]
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'")
+	w.Header().Set("Content-Security-Policy", "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'")
 	w.Header().Set("Referrer-Policy", "no-referrer")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	_ = template.Must(template.New("authorize").Parse(oauthLoginPage)).Execute(w, data)
 }
 
 func parseAuthorizeRequest(params url.Values) oauth.AuthorizeRequest {
-	return oauth.AuthorizeRequest{ClientID: params.Get("client_id"), RedirectURI: params.Get("redirect_uri"), State: params.Get("state"), Scopes: strings.Fields(params.Get("scope")), Resource: params.Get("resource"), CodeChallenge: params.Get("code_challenge"), ChallengeMethod: params.Get("code_challenge_method")}
+	scopes := []string{}
+	for _, value := range params["scope"] {
+		scopes = append(scopes, strings.Fields(value)...)
+	}
+	return oauth.AuthorizeRequest{ClientID: params.Get("client_id"), RedirectURI: params.Get("redirect_uri"), State: params.Get("state"), Scopes: scopes, Resource: params.Get("resource"), CodeChallenge: params.Get("code_challenge"), ChallengeMethod: params.Get("code_challenge_method")}
 }
 
 func validateAuthorizeRequest(request oauth.AuthorizeRequest, resource string) error {

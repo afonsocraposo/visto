@@ -30,6 +30,10 @@ func TestChatGPTOAuthFlow_GivenReadOnlyConsent_WhenConnecting_ThenReadsOwnHistor
 	if _, err := authService.Bootstrap(context.Background(), "mcp-user@example.com", "MCP User", "a-strong-test-password"); err != nil {
 		t.Fatalf("create user: %v", err)
 	}
+	_, sessionToken, _, err := authService.Login(context.Background(), "mcp-user@example.com", "a-strong-test-password")
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
 	server := New(authService, oauth.NewService(store), "https://visto.example", nil, library.NewService(store), tracking.NewService(store), watch.NewService(store))
 
 	registration := httptest.NewRequest(http.MethodPost, "/oauth/register", strings.NewReader(`{"client_name":"ChatGPT","redirect_uris":["https://chatgpt.com/connector_platform_oauth_redirect"],"grant_types":["authorization_code","refresh_token"],"response_types":["code"],"token_endpoint_auth_method":"none"}`))
@@ -53,6 +57,7 @@ func TestChatGPTOAuthFlow_GivenReadOnlyConsent_WhenConnecting_ThenReadsOwnHistor
 	resource := "https://visto.example/mcp"
 	params := url.Values{"response_type": {"code"}, "client_id": {client.ID}, "redirect_uri": {redirectURI}, "state": {"test-state"}, "scope": {oauth.ReadScope}, "resource": {resource}, "code_challenge": {challenge}, "code_challenge_method": {"S256"}}
 	getAuth := httptest.NewRequest(http.MethodGet, "/oauth/authorize?"+params.Encode(), nil)
+	getAuth.AddCookie(&http.Cookie{Name: "visto_session", Value: sessionToken})
 	getAuthResponse := httptest.NewRecorder()
 	server.ServeHTTP(getAuthResponse, getAuth)
 	if getAuthResponse.Code != http.StatusOK {
@@ -63,10 +68,11 @@ func TestChatGPTOAuthFlow_GivenReadOnlyConsent_WhenConnecting_ThenReadsOwnHistor
 		t.Fatal("authorization form did not include a CSRF token")
 	}
 	csrfCookie := getAuthResponse.Result().Cookies()[0]
-	form := url.Values{"csrf": {csrfMatch[1]}, "response_type": {"code"}, "client_id": {client.ID}, "redirect_uri": {redirectURI}, "state": {"test-state"}, "resource": {resource}, "code_challenge": {challenge}, "code_challenge_method": {"S256"}, "scope": {oauth.ReadScope}, "email": {"mcp-user@example.com"}, "password": {"a-strong-test-password"}, "consent": {"allow"}}
+	form := url.Values{"csrf": {csrfMatch[1]}, "response_type": {"code"}, "client_id": {client.ID}, "redirect_uri": {redirectURI}, "state": {"test-state"}, "resource": {resource}, "code_challenge": {challenge}, "code_challenge_method": {"S256"}, "scope": {oauth.ReadScope}, "consent": {"allow"}}
 	postAuth := httptest.NewRequest(http.MethodPost, "/oauth/authorize", strings.NewReader(form.Encode()))
 	postAuth.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	postAuth.AddCookie(csrfCookie)
+	postAuth.AddCookie(&http.Cookie{Name: "visto_session", Value: sessionToken})
 	postAuthResponse := httptest.NewRecorder()
 	server.ServeHTTP(postAuthResponse, postAuth)
 	if postAuthResponse.Code != http.StatusFound {

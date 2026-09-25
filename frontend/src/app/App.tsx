@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { createTheme, Group, Loader, MantineProvider } from "@mantine/core";
 import { AuthGate } from "../features/auth/AuthGate";
+import { oauthReturnLocation } from "../features/auth/oauthReturn";
 import { SessionProvider } from "../features/auth/SessionContext";
 import { forcedColorScheme } from "./theme";
 import { router } from "./router";
@@ -49,10 +50,15 @@ export function App() {
   const [theme, setTheme] = useState<Theme>(
     () => (localStorage.getItem("visto-theme") as Theme) || "system",
   );
+  const oauthReturn = oauthReturnLocation(window.location.search, window.location.origin);
 
   useEffect(() => {
     localStorage.setItem("visto-theme", theme);
   }, [theme]);
+
+  useEffect(() => {
+    if (session.data && oauthReturn) window.location.replace(oauthReturn);
+  }, [oauthReturn, session.data]);
 
   return (
     <MantineProvider

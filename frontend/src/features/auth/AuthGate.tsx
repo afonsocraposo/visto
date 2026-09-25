@@ -15,6 +15,7 @@ import {
 import { backdropURL } from "../../lib/artwork";
 import { api } from "../../lib/api";
 import type { TrendingResponse, User } from "../../types";
+import { oauthReturnLocation } from "./oauthReturn";
 import {
   pickLoginBackdrop,
   readLoginBackdrop,
@@ -66,6 +67,7 @@ export function AuthGate() {
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [backdrop, setBackdrop] = useState<LoginBackdrop | null>(cachedBackdrop);
+  const oauthReturn = oauthReturnLocation(window.location.search, window.location.origin);
   const trending = useQuery({
     queryKey: ["public-trending", "week"],
     enabled: backdrop === null,
@@ -207,14 +209,22 @@ export function AuthGate() {
         <Paper className="auth-card" withBorder radius="xl" p="xl">
           <img className="auth-mark" src="/icon.svg?v=2" alt="" aria-hidden="true" />
           <Title order={1}>
-            {isFirstRun ? "Set up Visto" : isSignup ? "Create your account" : "Welcome to Visto"}
+            {isFirstRun
+              ? "Set up Visto"
+              : isSignup
+                ? "Create your account"
+                : oauthReturn
+                  ? "Sign in to authorize Visto"
+                  : "Welcome to Visto"}
           </Title>
           <Text c="dimmed" mt="xs">
             {isFirstRun
               ? "Create the first administrator for this instance."
               : isSignup
                 ? "Create an account to start tracking what you watch."
-                : "Sign in to track what you watch."}
+                : oauthReturn
+                  ? "Sign in to continue to the requested connection."
+                  : "Sign in to track what you watch."}
           </Text>
           {setup.isPending && (
             <Group justify="center" py="xl">
@@ -265,7 +275,11 @@ export function AuthGate() {
           {!setup.isPending && !setup.isError && !isFirstRun && setup.data?.google_enabled && (
             <Button
               component="a"
-              href="/api/v1/auth/google"
+              href={
+                oauthReturn
+                  ? `/api/v1/auth/google?return_to=${encodeURIComponent(oauthReturn)}`
+                  : "/api/v1/auth/google"
+              }
               variant="default"
               fullWidth
               mt="md"
