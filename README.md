@@ -311,15 +311,15 @@ npm run db:studio
 the Visto server or Docker image. Use a local database path, not a
 container-only path such as `/data/visto.db`.
 
-### Reset a pre-squash development database
+### Reset a development database after baseline changes
 
 The current development schema uses one baseline migration. It does not upgrade
-databases created by the earlier multi-migration history. Stop Visto, then set
-`VISTO_DATABASE_PATH` to a new, empty SQLite file (or remove your old development
-database after making a backup if you no longer need its data). Start Visto
-again and it will create the current schema. This reset is only needed for a
-database created before the migration squash; new databases are initialized on
-first startup.
+databases created from an earlier development schema, including the previous
+multi-migration history. Stop Visto, then set `VISTO_DATABASE_PATH` to a new,
+empty SQLite file (or remove your old development database after making a backup
+if you no longer need its data). Start Visto again and it will create the
+current schema. This reset is only needed for a database created before the
+current baseline; new databases are initialized on first startup.
 
 ### Generate a database diagram
 

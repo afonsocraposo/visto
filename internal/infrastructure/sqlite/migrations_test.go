@@ -3,6 +3,7 @@ package sqlite_test
 import (
 	"context"
 	"database/sql"
+	"strconv"
 	"strings"
 	"testing"
 	"testing/fstest"
@@ -67,6 +68,19 @@ func TestMigrator_GivenFreshDatabase_WhenAppliedTwice_ThenCurrentSchemaExistsAnd
 			t.Errorf("%s.id = (%s, pk=%d), want INTEGER primary key", table, columnType, primaryKey)
 		}
 	}
+	for _, table := range []string{
+		"user_settings", "sessions", "user_media", "plays", "activity_events", "episode_ratings",
+		"personal_api_tokens", "notification_deliveries", "oauth_authorization_codes", "oauth_access_tokens",
+		"oauth_refresh_tokens", "plex_webhooks", "plex_webhook_events",
+	} {
+		var columnType string
+		if err := db.QueryRow(`SELECT type FROM pragma_table_info(?) WHERE name = 'user_id'`, table).Scan(&columnType); err != nil {
+			t.Fatalf("read %s.user_id schema: %v", table, err)
+		}
+		if !strings.EqualFold(columnType, "INTEGER") {
+			t.Errorf("%s.user_id has type %s, want INTEGER", table, columnType)
+		}
+	}
 
 	for _, check := range []struct{ table, column string }{
 		{"media", "catalog_updated_at"},
@@ -93,8 +107,21 @@ func TestMigrator_GivenFreshDatabase_WhenAppliedTwice_ThenCurrentSchemaExistsAnd
 	if err := db.QueryRow(`SELECT id FROM users WHERE username='alice'`).Scan(&userID); err != nil {
 		t.Fatalf("read user ID: %v", err)
 	}
-	if _, err := db.Exec(`INSERT INTO plays(user_id,media_id,watched_at,source,created_at) VALUES(?,'movie:10','now','future-integration','now')`, userID); err != nil {
+	userIDString := strconv.FormatInt(userID, 10)
+	if _, err := db.Exec(`INSERT INTO user_settings(user_id,created_at,updated_at) VALUES(?,'now','now')`, userIDString); err != nil {
+		t.Fatalf("insert settings using API string ID: %v", err)
+	}
+	if _, err := db.Exec(`INSERT INTO plays(user_id,media_id,watched_at,source,created_at) VALUES(?,'movie:10','now','future-integration','now')`, userIDString); err != nil {
 		t.Fatalf("insert play with open source value: %v", err)
+	}
+	for _, table := range []string{"user_settings", "plays"} {
+		var storedType string
+		if err := db.QueryRow(`SELECT typeof(user_id) FROM ` + table + ` LIMIT 1`).Scan(&storedType); err != nil {
+			t.Fatalf("read stored %s.user_id type: %v", table, err)
+		}
+		if storedType != "integer" {
+			t.Errorf("stored %s.user_id has type %s, want integer", table, storedType)
+		}
 	}
 	var foreignKeyViolations int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM pragma_foreign_key_check`).Scan(&foreignKeyViolations); err != nil {

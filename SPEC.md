@@ -481,8 +481,9 @@ The database schema is managed through SQL migration files in
 `internal/infrastructure/sqlite/migrations/`. While Visto is in development,
 this directory contains one baseline migration, `0001_initial_schema.sql`,
 which creates the current schema for a fresh database. This baseline replaces
-the earlier development migration history. Existing databases from before the
-squash are not upgraded by it and must be reset before use with this version.
+the earlier development migration history. Databases created from an earlier
+development schema are not upgraded by it and must be reset before use with
+this version.
 
 After the first release, applied migrations are append-only. Schema changes
 must add a new migration with a unique, zero-padded version and descriptive
@@ -499,7 +500,9 @@ use SQLite integer primary keys, and a second startup is a no-op.
 
 The generated row IDs for users, sessions, plays, activity events, and personal
 API tokens use SQLite integer primary keys. The API continues to expose these
-IDs as decimal strings.
+IDs as decimal strings. Every `user_id` foreign key uses the matching SQLite
+`INTEGER` type; query and API boundaries convert these IDs to strings where
+needed.
 
 ## 12. Testing
 

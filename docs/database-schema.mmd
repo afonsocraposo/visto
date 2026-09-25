@@ -3,7 +3,7 @@ erDiagram
 
   activity_events {
     integer id PK
-    text user_id FK
+    integer user_id FK
     text kind
     integer play_id FK
     text media_id FK
@@ -15,7 +15,7 @@ erDiagram
   }
 
   episode_ratings {
-    text user_id PK, FK
+    integer user_id PK, FK
     text episode_id PK, FK
     integer rating
     text created_at
@@ -57,7 +57,7 @@ erDiagram
   }
 
   notification_deliveries {
-    text user_id PK, FK
+    integer user_id PK, FK
     text episode_id PK, FK
     text state
     text attempted_at
@@ -69,7 +69,7 @@ erDiagram
   oauth_access_tokens {
     text token_hash PK
     text client_id FK
-    text user_id FK
+    integer user_id FK
     text scope
     text resource
     text expires_at
@@ -81,7 +81,7 @@ erDiagram
   oauth_authorization_codes {
     text code_hash PK
     text client_id FK
-    text user_id FK
+    integer user_id FK
     text redirect_uri
     text code_challenge
     text scope
@@ -100,7 +100,7 @@ erDiagram
   oauth_refresh_tokens {
     text token_hash PK
     text client_id FK
-    text user_id FK
+    integer user_id FK
     text scope
     text resource
     text expires_at
@@ -110,7 +110,7 @@ erDiagram
 
   personal_api_tokens {
     integer id PK
-    text user_id FK
+    integer user_id FK
     text name
     text token_hash
     text created_at
@@ -120,7 +120,7 @@ erDiagram
 
   plays {
     integer id PK
-    text user_id FK
+    integer user_id FK
     text media_id FK
     text episode_id FK
     text watched_at
@@ -130,7 +130,7 @@ erDiagram
 
   plex_webhook_events {
     integer id PK
-    text user_id FK
+    integer user_id FK
     text fingerprint
     text status
     text title
@@ -142,7 +142,7 @@ erDiagram
   }
 
   plex_webhooks {
-    text user_id PK, FK
+    integer user_id PK, FK
     text token_hash
     text created_at
     text last_used_at
@@ -169,7 +169,7 @@ erDiagram
 
   sessions {
     integer id PK
-    text user_id FK
+    integer user_id FK
     text token_hash
     text expires_at
     text created_at
@@ -178,7 +178,7 @@ erDiagram
 
   user_media {
     text id PK
-    text user_id FK
+    integer user_id FK
     text media_id FK
     text status
     integer rating
@@ -189,7 +189,7 @@ erDiagram
   }
 
   user_settings {
-    text user_id PK, FK
+    integer user_id PK, FK
     text timezone
     text activity_visibility
     text created_at

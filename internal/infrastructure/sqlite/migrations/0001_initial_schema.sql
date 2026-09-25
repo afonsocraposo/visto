@@ -13,7 +13,7 @@ CREATE UNIQUE INDEX idx_users_email ON users(email) WHERE email <> '';
 CREATE UNIQUE INDEX idx_users_google_subject ON users(google_subject) WHERE google_subject IS NOT NULL;
 
 CREATE TABLE user_settings (
-    user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     timezone TEXT NOT NULL DEFAULT 'UTC',
     activity_visibility TEXT NOT NULL DEFAULT 'private'
         CHECK (activity_visibility IN ('private', 'instance')),
@@ -27,7 +27,7 @@ CREATE TABLE user_settings (
 
 CREATE TABLE sessions (
     id INTEGER PRIMARY KEY,
-    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     token_hash TEXT NOT NULL UNIQUE,
     expires_at TEXT NOT NULL,
     created_at TEXT NOT NULL,
@@ -88,7 +88,7 @@ CREATE INDEX idx_episodes_air_date ON episodes(air_date);
 
 CREATE TABLE user_media (
     id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     media_id TEXT NOT NULL REFERENCES media(id) ON DELETE CASCADE,
     status TEXT NOT NULL CHECK (status IN ('watchlist', 'watching', 'paused', 'dropped')),
     rating INTEGER CHECK (rating IS NULL OR rating BETWEEN 1 AND 5),
@@ -103,7 +103,7 @@ CREATE INDEX idx_user_media_user_status ON user_media(user_id, status);
 
 CREATE TABLE plays (
     id INTEGER PRIMARY KEY,
-    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     media_id TEXT REFERENCES media(id) ON DELETE CASCADE,
     episode_id TEXT REFERENCES episodes(id) ON DELETE CASCADE,
     watched_at TEXT NOT NULL,
@@ -117,7 +117,7 @@ CREATE INDEX idx_plays_user_episode ON plays(user_id, episode_id);
 
 CREATE TABLE activity_events (
     id INTEGER PRIMARY KEY,
-    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     kind TEXT NOT NULL CHECK (kind IN ('watch', 'rewatch', 'rating', 'bulk_watch')),
     play_id INTEGER REFERENCES plays(id) ON DELETE CASCADE,
     media_id TEXT REFERENCES media(id) ON DELETE CASCADE,
@@ -131,7 +131,7 @@ CREATE INDEX idx_activity_events_feed ON activity_events(occurred_at DESC, id);
 CREATE INDEX idx_activity_events_created_at ON activity_events(created_at);
 
 CREATE TABLE episode_ratings (
-    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     episode_id TEXT NOT NULL REFERENCES episodes(id) ON DELETE CASCADE,
     rating INTEGER CHECK (rating IS NULL OR rating BETWEEN 1 AND 5),
     created_at TEXT NOT NULL,
@@ -142,7 +142,7 @@ CREATE INDEX idx_episode_ratings_user ON episode_ratings(user_id, updated_at DES
 
 CREATE TABLE personal_api_tokens (
     id INTEGER PRIMARY KEY,
-    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     token_hash TEXT NOT NULL UNIQUE,
     created_at TEXT NOT NULL,
@@ -152,7 +152,7 @@ CREATE TABLE personal_api_tokens (
 CREATE INDEX idx_personal_api_tokens_user ON personal_api_tokens(user_id, created_at DESC);
 
 CREATE TABLE notification_deliveries (
-    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     episode_id TEXT NOT NULL REFERENCES episodes(id) ON DELETE CASCADE,
     state TEXT NOT NULL CHECK (state IN ('sending', 'sent', 'failed')),
     attempted_at TEXT NOT NULL,
@@ -173,7 +173,7 @@ CREATE TABLE oauth_clients (
 CREATE TABLE oauth_authorization_codes (
     code_hash TEXT PRIMARY KEY,
     client_id TEXT NOT NULL REFERENCES oauth_clients(client_id) ON DELETE CASCADE,
-    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     redirect_uri TEXT NOT NULL,
     code_challenge TEXT NOT NULL,
     scope TEXT NOT NULL,
@@ -186,7 +186,7 @@ CREATE INDEX idx_oauth_codes_expiry ON oauth_authorization_codes(expires_at);
 CREATE TABLE oauth_access_tokens (
     token_hash TEXT PRIMARY KEY,
     client_id TEXT NOT NULL REFERENCES oauth_clients(client_id) ON DELETE CASCADE,
-    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     scope TEXT NOT NULL,
     resource TEXT NOT NULL,
     expires_at TEXT NOT NULL,
@@ -199,7 +199,7 @@ CREATE INDEX idx_oauth_tokens_user ON oauth_access_tokens(user_id, expires_at);
 CREATE TABLE oauth_refresh_tokens (
     token_hash TEXT PRIMARY KEY,
     client_id TEXT NOT NULL REFERENCES oauth_clients(client_id) ON DELETE CASCADE,
-    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     scope TEXT NOT NULL,
     resource TEXT NOT NULL,
     expires_at TEXT NOT NULL,
@@ -209,7 +209,7 @@ CREATE TABLE oauth_refresh_tokens (
 CREATE INDEX idx_oauth_refresh_user ON oauth_refresh_tokens(user_id, expires_at);
 
 CREATE TABLE plex_webhooks (
-    user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     token_hash TEXT NOT NULL UNIQUE,
     created_at TEXT NOT NULL,
     last_used_at TEXT
@@ -217,7 +217,7 @@ CREATE TABLE plex_webhooks (
 
 CREATE TABLE plex_webhook_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     fingerprint TEXT NOT NULL,
     status TEXT NOT NULL CHECK (status IN ('processing', 'synced', 'skipped', 'failed')),
     title TEXT,
