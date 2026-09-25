@@ -5,18 +5,95 @@ SQLite and uses TMDB only for metadata.
 
 ## Run with Docker
 
-Create a TMDB API key, then start Visto:
+Install Docker Compose and create a TMDB API key. TMDB access is needed for
+search, artwork, cast, episode details, and other metadata features. Create a
+`.env` file beside `compose.yaml`:
 
-```sh
-export VISTO_TMDB_API_KEY=your_tmdb_api_key
-docker compose up -d --build
+```dotenv
+VISTO_TMDB_API_KEY=replace_with_your_tmdb_api_key
+VISTO_ALLOW_SIGNUPS=true
 ```
 
-Open `http://localhost:8080`. On first use, create the instance administrator
-in the browser. The first account is always an administrator. After setup,
-people can create their own accounts from the sign-in page unless public signup
-is disabled. Administrators can manage accounts from Profile → Admin. The Docker
-volume `visto-data` keeps the SQLite database across restarts.
+The repository ignores `.env`. Keep your API key there and do not commit it.
+
+Start Visto and follow the logs until the server is ready:
+
+```sh
+docker compose up -d --build
+docker compose logs -f visto
+```
+
+Open <http://localhost:8080>. The first account created is the instance
+administrator. After setup, that account can use the app and sign in again
+normally. Other people can create accounts from the sign-in page when public
+signup is enabled. Admins manage accounts under Profile → Admin. The named
+Docker volume `visto-data` keeps the SQLite database and backups across
+container restarts. Stop the app with `docker compose down`; this keeps the
+volume and its data.
+
+### Environment variables
+
+The Compose file below is also the project’s `compose.yaml`. Docker Compose
+reads `.env` for the values shown in `${...}` and passes them into the Visto
+container. You only need to set `VISTO_TMDB_API_KEY` for a standard local
+deployment; the other settings have defaults.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `VISTO_TMDB_API_KEY` | empty | TMDB API key. Set this to enable metadata features. |
+| `VISTO_ALLOW_SIGNUPS` | `true` | Allow public account creation. Set to `false` to disable it. The first-admin setup and admin-created accounts remain available. |
+| `VISTO_PUBLIC_URL` | empty | Public HTTPS origin, such as `https://visto.example.com`. Set this when ChatGPT MCP or OAuth clients will connect through a public proxy. Do not include `/mcp`. |
+| `VISTO_TRUSTED_PROXY_CIDRS` | empty | Comma-separated IP ranges for trusted reverse proxies. Set this when deploying behind a proxy; only then are its forwarded client and HTTPS headers trusted. |
+| `VISTO_LISTEN_ADDR` | `:8080` | Address used by the server inside the container. Keep the default with the example port mapping. |
+| `VISTO_DATABASE_PATH` | `/data/visto.db` | SQLite database path inside the persistent volume. |
+| `VISTO_BACKUP_DIR` | `/data/backups` | Directory for automatic SQLite backups. |
+| `VISTO_BACKUP_INTERVAL` | `24h` | Time between automatic backups. |
+| `VISTO_BACKUP_RETENTION` | `720h` | How long automatic backups are kept (30 days by default). |
+| `VISTO_CATALOG_REFRESH_INTERVAL` | `6h` | How often the backend checks tracked TV metadata for refresh. |
+| `VISTO_CATALOG_ACTIVE_TTL` | `24h` | Minimum age of metadata for active shows before refresh. |
+| `VISTO_CATALOG_FINISHED_TTL` | `720h` | Minimum age of metadata for ended or cancelled shows before refresh (30 days). |
+| `VISTO_SECRET_ENCRYPTION_KEY` | empty | Optional base64-encoded 32-byte key for encrypting users’ Pushover credentials. Generate it with `openssl rand -base64 32` and keep it safe; losing it makes saved credentials unreadable. |
+| `VISTO_PUSHOVER_INTERVAL` | `15m` | How often the backend checks for new-episode alerts. Each user configures their own Pushover app token and user key in Profile. |
+| `VISTO_OAUTH_CLEANUP_INTERVAL` | `24h` | How often expired OAuth data is cleaned up. |
+
+The interval values use Go duration syntax, such as `12h` or `30m`. Pushover
+and ChatGPT MCP are optional. To use Pushover, set a persistent
+`VISTO_SECRET_ENCRYPTION_KEY`; users then enter their own credentials in
+Profile. To use MCP from outside your network, set `VISTO_PUBLIC_URL` and
+configure the reverse proxy to pass `/mcp`, `/oauth/`, and `/.well-known/` to
+Visto.
+
+Example `compose.yaml`:
+
+```yaml
+services:
+  visto:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      VISTO_LISTEN_ADDR: ${VISTO_LISTEN_ADDR:-:8080}
+      VISTO_DATABASE_PATH: ${VISTO_DATABASE_PATH:-/data/visto.db}
+      VISTO_PUBLIC_URL: ${VISTO_PUBLIC_URL:-}
+      VISTO_TRUSTED_PROXY_CIDRS: ${VISTO_TRUSTED_PROXY_CIDRS:-}
+      VISTO_ALLOW_SIGNUPS: "${VISTO_ALLOW_SIGNUPS:-true}"
+      VISTO_OAUTH_CLEANUP_INTERVAL: ${VISTO_OAUTH_CLEANUP_INTERVAL:-24h}
+      VISTO_TMDB_API_KEY: ${VISTO_TMDB_API_KEY:-}
+      VISTO_BACKUP_DIR: ${VISTO_BACKUP_DIR:-/data/backups}
+      VISTO_BACKUP_INTERVAL: ${VISTO_BACKUP_INTERVAL:-24h}
+      VISTO_BACKUP_RETENTION: ${VISTO_BACKUP_RETENTION:-720h}
+      VISTO_CATALOG_REFRESH_INTERVAL: ${VISTO_CATALOG_REFRESH_INTERVAL:-6h}
+      VISTO_CATALOG_ACTIVE_TTL: ${VISTO_CATALOG_ACTIVE_TTL:-24h}
+      VISTO_CATALOG_FINISHED_TTL: ${VISTO_CATALOG_FINISHED_TTL:-720h}
+      VISTO_SECRET_ENCRYPTION_KEY: ${VISTO_SECRET_ENCRYPTION_KEY:-}
+      VISTO_PUSHOVER_INTERVAL: ${VISTO_PUSHOVER_INTERVAL:-15m}
+    volumes:
+      - visto-data:/data
+    restart: unless-stopped
+
+volumes:
+  visto-data:
+```
 
 Set `VISTO_ALLOW_SIGNUPS=false` in the environment or `.env` file to disable
 public account creation. This does not disable initial administrator setup or
