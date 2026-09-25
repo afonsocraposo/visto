@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.0](https://github.com/afonsocraposo/visto/compare/v0.3.2...v0.4.0) (2026-09-25)
+
+
+### Features
+
+* improve media tracking actions and undo feedback ([dcaf986](https://github.com/afonsocraposo/visto/commit/dcaf986659ec4810d1e37701e2dda5570f086e6b))
+
+
+### Bug Fixes
+
+* accept Plex webhook payload file parts ([5be2d7a](https://github.com/afonsocraposo/visto/commit/5be2d7a6b96971aaeb88a1e7782c065cdc7f73fa))
+
 ## [0.3.2](https://github.com/afonsocraposo/visto/compare/v0.3.1...v0.3.2) (2026-09-25)
 
 
