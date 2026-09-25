@@ -15,25 +15,17 @@ func TestPushoverSettings_GivenTwoUsers_WhenSavingAndClearingCredentials_ThenCre
 		t.Fatal(err)
 	}
 	defer store.Close()
-	_, err = store.DB.Exec(`
-		INSERT INTO users(id,username,display_name,password_hash,role,created_at,updated_at) VALUES
-		('user-1','user-1','User 1','hash','user','2026-09-01','2026-09-01'),
-		('user-2','user-2','User 2','hash','user','2026-09-01','2026-09-01');
-		INSERT INTO user_settings(user_id,timezone,activity_visibility,created_at,updated_at) VALUES
-		('user-1','UTC','private','2026-09-01','2026-09-01'),
-		('user-2','UTC','private','2026-09-01','2026-09-01');`)
-	if err != nil {
-		t.Fatal(err)
-	}
+	user1ID := insertTestUser(t, store.DB, "user-1", "User 1", "private")
+	user2ID := insertTestUser(t, store.DB, "user-2", "User 2", "private")
 	app1, key1 := "encrypted-app-1", "encrypted-user-1"
 	app2, key2 := "encrypted-app-2", "encrypted-user-2"
-	if err := store.SetPushoverSettings(ctx, "user-1", &app1, &key1, true); err != nil {
+	if err := store.SetPushoverSettings(ctx, user1ID, &app1, &key1, true); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.SetPushoverSettings(ctx, "user-2", &app2, &key2, true); err != nil {
+	if err := store.SetPushoverSettings(ctx, user2ID, &app2, &key2, true); err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []struct{ id, app, key string }{{"user-1", app1, key1}, {"user-2", app2, key2}} {
+	for _, want := range []struct{ id, app, key string }{{user1ID, app1, key1}, {user2ID, app2, key2}} {
 		var app, key string
 		if err := store.DB.QueryRowContext(ctx, `SELECT pushover_app_token_encrypted,pushover_user_key_encrypted FROM user_settings WHERE user_id=?`, want.id).Scan(&app, &key); err != nil {
 			t.Fatal(err)
@@ -42,14 +34,14 @@ func TestPushoverSettings_GivenTwoUsers_WhenSavingAndClearingCredentials_ThenCre
 			t.Fatalf("credentials for %s = (%q, %q), want (%q, %q)", want.id, app, key, want.app, want.key)
 		}
 	}
-	if err := store.ClearPushoverCredentials(ctx, "user-1"); err != nil {
+	if err := store.ClearPushoverCredentials(ctx, user1ID); err != nil {
 		t.Fatal(err)
 	}
 	var enabled, hasApp, hasKey bool
-	if enabled, hasApp, hasKey, err = store.GetPushoverSettings(ctx, "user-1"); err != nil || enabled || hasApp || hasKey {
+	if enabled, hasApp, hasKey, err = store.GetPushoverSettings(ctx, user1ID); err != nil || enabled || hasApp || hasKey {
 		t.Fatalf("cleared user's settings = (%v, %v, %v), %v", enabled, hasApp, hasKey, err)
 	}
-	if enabled, hasApp, hasKey, err = store.GetPushoverSettings(ctx, "user-2"); err != nil || !enabled || !hasApp || !hasKey {
+	if enabled, hasApp, hasKey, err = store.GetPushoverSettings(ctx, user2ID); err != nil || !enabled || !hasApp || !hasKey {
 		t.Fatalf("other user's settings = (%v, %v, %v), %v", enabled, hasApp, hasKey, err)
 	}
 }

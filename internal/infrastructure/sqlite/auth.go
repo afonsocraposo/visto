@@ -5,79 +5,90 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/afonsocosta/visto/internal/application/auth"
 	"github.com/afonsocosta/visto/internal/domain"
 )
 
-func (store *Store) BootstrapAdmin(ctx context.Context, user domain.User, passwordHash string) error {
+func (store *Store) BootstrapAdmin(ctx context.Context, user domain.User, passwordHash string) (domain.User, error) {
 	tx, err := store.DB.BeginTx(ctx, nil)
 	if err != nil {
-		return err
+		return domain.User{}, err
 	}
 	defer tx.Rollback()
 	var count int
 	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM users WHERE role='admin'`).Scan(&count); err != nil {
-		return err
+		return domain.User{}, err
 	}
 	if count != 0 {
-		return auth.ErrBootstrapComplete
+		return domain.User{}, auth.ErrBootstrapComplete
 	}
-	now := user.CreatedAt.Format(time.RFC3339Nano)
-	if _, err := tx.ExecContext(ctx, `INSERT INTO users(id,username,display_name,password_hash,role,created_at,updated_at,email) VALUES(?,?,?,?,?,?,?,?)`, user.ID, user.Email, user.DisplayName, passwordHash, user.Role, now, now, user.Email); err != nil {
-		return err
+	user, err = insertUserAndSettings(ctx, tx, user, passwordHash, "")
+	if err != nil {
+		return domain.User{}, err
 	}
-	if _, err := tx.ExecContext(ctx, `INSERT INTO user_settings(user_id,created_at,updated_at) VALUES(?,?,?)`, user.ID, now, now); err != nil {
-		return err
+	if err := tx.Commit(); err != nil {
+		return domain.User{}, err
 	}
-	return tx.Commit()
+	return user, nil
 }
 
-func (store *Store) CreateUser(ctx context.Context, user domain.User, passwordHash string) error {
+func (store *Store) CreateUser(ctx context.Context, user domain.User, passwordHash string) (domain.User, error) {
 	tx, err := store.DB.BeginTx(ctx, nil)
 	if err != nil {
-		return err
+		return domain.User{}, err
 	}
 	defer tx.Rollback()
-	now := user.CreatedAt.Format(time.RFC3339Nano)
-	if _, err := tx.ExecContext(ctx, `INSERT INTO users(id,username,display_name,password_hash,role,created_at,updated_at,email) VALUES(?,?,?,?,?,?,?,?)`, user.ID, user.Email, user.DisplayName, passwordHash, user.Role, now, now, user.Email); err != nil {
-		return err
+	user, err = insertUserAndSettings(ctx, tx, user, passwordHash, "")
+	if err != nil {
+		return domain.User{}, err
 	}
-	if _, err := tx.ExecContext(ctx, `INSERT INTO user_settings(user_id,created_at,updated_at) VALUES(?,?,?)`, user.ID, now, now); err != nil {
-		return err
+	if err := tx.Commit(); err != nil {
+		return domain.User{}, err
 	}
-	return tx.Commit()
+	return user, nil
 }
 
-func (store *Store) CreateSignupUser(ctx context.Context, user domain.User, passwordHash string) error {
+func (store *Store) CreateSignupUser(ctx context.Context, user domain.User, passwordHash string) (domain.User, error) {
 	tx, err := store.DB.BeginTx(ctx, nil)
 	if err != nil {
-		return err
+		return domain.User{}, err
 	}
 	defer tx.Rollback()
 	var admins int
 	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM users WHERE role='admin'`).Scan(&admins); err != nil {
-		return err
+		return domain.User{}, err
 	}
 	if admins == 0 {
-		return auth.ErrBootstrapIncomplete
+		return domain.User{}, auth.ErrBootstrapIncomplete
 	}
-	if err := insertUserAndSettings(ctx, tx, user, passwordHash); err != nil {
-		return err
+	user, err = insertUserAndSettings(ctx, tx, user, passwordHash, "")
+	if err != nil {
+		return domain.User{}, err
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return domain.User{}, err
+	}
+	return user, nil
 }
 
-func insertUserAndSettings(ctx context.Context, tx *sql.Tx, user domain.User, passwordHash string) error {
+func insertUserAndSettings(ctx context.Context, tx *sql.Tx, user domain.User, passwordHash, googleSubject string) (domain.User, error) {
 	now := user.CreatedAt.Format(time.RFC3339Nano)
-	if _, err := tx.ExecContext(ctx, `INSERT INTO users(id,username,display_name,password_hash,role,created_at,updated_at,email) VALUES(?,?,?,?,?,?,?,?)`, user.ID, user.Email, user.DisplayName, passwordHash, user.Role, now, now, user.Email); err != nil {
-		return err
+	result, err := tx.ExecContext(ctx, `INSERT INTO users(username,display_name,password_hash,role,created_at,updated_at,email,google_subject) VALUES(?,?,?,?,?,?,?,NULLIF(?,'') )`, user.Email, user.DisplayName, passwordHash, user.Role, now, now, user.Email, googleSubject)
+	if err != nil {
+		return domain.User{}, err
 	}
+	id, err := result.LastInsertId()
+	if err != nil {
+		return domain.User{}, fmt.Errorf("get new user ID: %w", err)
+	}
+	user.ID = strconv.FormatInt(id, 10)
 	if _, err := tx.ExecContext(ctx, `INSERT INTO user_settings(user_id,created_at,updated_at) VALUES(?,?,?)`, user.ID, now, now); err != nil {
-		return err
+		return domain.User{}, err
 	}
-	return nil
+	return user, nil
 }
 
 func (store *Store) AdminCount(ctx context.Context) (int, error) {
@@ -113,31 +124,31 @@ func (store *Store) LinkGoogleSubject(ctx context.Context, userID, subject strin
 	return nil
 }
 
-func (store *Store) CreateGoogleUser(ctx context.Context, user domain.User, subject string) error {
+func (store *Store) CreateGoogleUser(ctx context.Context, user domain.User, subject string) (domain.User, error) {
 	tx, err := store.DB.BeginTx(ctx, nil)
 	if err != nil {
-		return err
+		return domain.User{}, err
 	}
 	defer tx.Rollback()
 	var admins int
 	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM users WHERE role='admin'`).Scan(&admins); err != nil {
-		return err
+		return domain.User{}, err
 	}
 	if admins == 0 {
-		return auth.ErrBootstrapIncomplete
+		return domain.User{}, auth.ErrBootstrapIncomplete
 	}
-	now := user.CreatedAt.UTC().Format(time.RFC3339Nano)
-	if _, err := tx.ExecContext(ctx, `INSERT INTO users(id,username,display_name,password_hash,role,created_at,updated_at,email,google_subject) VALUES(?,?,?,'','user',?,?,?,?)`, user.ID, user.Email, user.DisplayName, now, now, user.Email, subject); err != nil {
-		return fmt.Errorf("create Google account: %w", err)
+	user, err = insertUserAndSettings(ctx, tx, user, "", subject)
+	if err != nil {
+		return domain.User{}, fmt.Errorf("create Google account: %w", err)
 	}
-	if _, err := tx.ExecContext(ctx, `INSERT INTO user_settings(user_id,created_at,updated_at) VALUES(?,?,?)`, user.ID, now, now); err != nil {
-		return err
+	if err := tx.Commit(); err != nil {
+		return domain.User{}, err
 	}
-	return tx.Commit()
+	return user, nil
 }
 
-func (store *Store) CreateSession(ctx context.Context, id, userID, tokenHash string, expiresAt time.Time) error {
-	_, err := store.DB.ExecContext(ctx, `INSERT INTO sessions(id,user_id,token_hash,expires_at,created_at) VALUES(?,?,?,?,?)`, id, userID, tokenHash, expiresAt.Format(time.RFC3339Nano), time.Now().UTC().Format(time.RFC3339Nano))
+func (store *Store) CreateSession(ctx context.Context, userID, tokenHash string, expiresAt time.Time) error {
+	_, err := store.DB.ExecContext(ctx, `INSERT INTO sessions(user_id,token_hash,expires_at,created_at) VALUES(?,?,?,?)`, userID, tokenHash, expiresAt.Format(time.RFC3339Nano), time.Now().UTC().Format(time.RFC3339Nano))
 	return err
 }
 
@@ -154,16 +165,20 @@ func (store *Store) RevokeSession(ctx context.Context, tokenHash string) error {
 	return nil
 }
 
-func (store *Store) CreatePersonalToken(ctx context.Context, id, userID, name, tokenHash string, createdAt time.Time, expiresAt *time.Time) error {
+func (store *Store) CreatePersonalToken(ctx context.Context, userID, name, tokenHash string, createdAt time.Time, expiresAt *time.Time) (string, error) {
 	var expiry any
 	if expiresAt != nil {
 		expiry = expiresAt.UTC().Format(time.RFC3339Nano)
 	}
-	_, err := store.DB.ExecContext(ctx, `INSERT INTO personal_api_tokens(id,user_id,name,token_hash,created_at,expires_at) VALUES(?,?,?,?,?,?)`, id, userID, name, tokenHash, createdAt.UTC().Format(time.RFC3339Nano), expiry)
+	result, err := store.DB.ExecContext(ctx, `INSERT INTO personal_api_tokens(user_id,name,token_hash,created_at,expires_at) VALUES(?,?,?,?,?)`, userID, name, tokenHash, createdAt.UTC().Format(time.RFC3339Nano), expiry)
 	if err != nil {
-		return fmt.Errorf("create personal API token: %w", err)
+		return "", fmt.Errorf("create personal API token: %w", err)
 	}
-	return nil
+	id, err := result.LastInsertId()
+	if err != nil {
+		return "", fmt.Errorf("get new personal API token ID: %w", err)
+	}
+	return strconv.FormatInt(id, 10), nil
 }
 
 func (store *Store) ListPersonalTokens(ctx context.Context, userID string) ([]auth.PersonalToken, error) {

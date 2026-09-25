@@ -16,18 +16,25 @@ func TestNotificationCandidates_GivenOptedInWatchingShow_WhenEpisodeHasAired_The
 		t.Fatal(err)
 	}
 	defer store.Close()
-	_, err = store.DB.Exec(`INSERT INTO users(id,username,display_name,password_hash,role,created_at,updated_at) VALUES('user-1','user-1','Alex','hash','user','2026-09-01','2026-09-01');
-		INSERT INTO user_settings(user_id,timezone,activity_visibility,created_at,updated_at,pushover_user_key_encrypted,pushover_notifications_enabled,pushover_app_token_encrypted) VALUES('user-1','UTC','private','2026-09-01','2026-09-01','user-ciphertext',1,'app-ciphertext');
-		INSERT INTO media(id,media_type,tmdb_id,title,metadata_updated_at,created_at) VALUES('tv:42','tv',42,'Example Show','2026-09-01','2026-09-01');
+	userID := insertTestUser(t, store.DB, "user-1", "Alex", "private")
+	_, err = store.DB.Exec(`UPDATE user_settings SET pushover_user_key_encrypted='user-ciphertext',pushover_notifications_enabled=1,pushover_app_token_encrypted='app-ciphertext' WHERE user_id=?`, userID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = store.DB.Exec(`INSERT INTO media(id,media_type,tmdb_id,title,metadata_updated_at,created_at) VALUES('tv:42','tv',42,'Example Show','2026-09-01','2026-09-01');
 		INSERT INTO seasons(id,show_id,season_number,name) VALUES('tv:42:season:1','tv:42',1,'Season 1'),('tv:42:season:0','tv:42',0,'Specials');
 		INSERT INTO episodes(id,show_id,season_id,season_number,episode_number,name,air_date) VALUES
 		('episode-watched','tv:42','tv:42:season:1',1,1,'Watched Episode','2026-09-20'),
 		('episode-new','tv:42','tv:42:season:1',1,2,'New Episode','2026-09-23'),
 		('episode-future','tv:42','tv:42:season:1',1,3,'Future Episode','2026-10-01'),
-		('episode-special','tv:42','tv:42:season:0',0,1,'Special','2026-09-23');
-		INSERT INTO user_media(id,user_id,media_id,status,added_at,updated_at,notifications_since) VALUES('user-1:tv:42','user-1','tv:42','watching','2026-09-01','2026-09-01','2026-09-01');
-		INSERT INTO plays(id,user_id,episode_id,watched_at,source,created_at) VALUES('play-1','user-1','episode-watched','2026-09-22','web','2026-09-22');`)
+		('episode-special','tv:42','tv:42:season:0',0,1,'Special','2026-09-23');`)
 	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.DB.Exec(`INSERT INTO user_media(id,user_id,media_id,status,added_at,updated_at,notifications_since) VALUES(?,?,'tv:42','watching','2026-09-01','2026-09-01','2026-09-01')`, userID+":tv:42", userID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.DB.Exec(`INSERT INTO plays(user_id,episode_id,watched_at,source,created_at) VALUES(?,'episode-watched','2026-09-22','web','2026-09-22')`, userID); err != nil {
 		t.Fatal(err)
 	}
 	now := time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC)
@@ -39,15 +46,15 @@ func TestNotificationCandidates_GivenOptedInWatchingShow_WhenEpisodeHasAired_The
 		t.Fatalf("notification candidates=%+v", candidates)
 	}
 	claimedAt := now
-	claimed, err := store.ClaimNotification(ctx, "user-1", "episode-new", claimedAt)
+	claimed, err := store.ClaimNotification(ctx, userID, "episode-new", claimedAt)
 	if err != nil || !claimed {
 		t.Fatalf("first claim = %v, %v", claimed, err)
 	}
-	claimed, err = store.ClaimNotification(ctx, "user-1", "episode-new", claimedAt)
+	claimed, err = store.ClaimNotification(ctx, userID, "episode-new", claimedAt)
 	if err != nil || claimed {
 		t.Fatalf("second claim = %v, %v; want duplicate denied", claimed, err)
 	}
-	if err := store.CompleteNotification(ctx, "user-1", "episode-new", claimedAt); err != nil {
+	if err := store.CompleteNotification(ctx, userID, "episode-new", claimedAt); err != nil {
 		t.Fatal(err)
 	}
 	candidates, err = store.NotificationCandidates(ctx, now, 10)
@@ -66,20 +73,25 @@ func TestNotificationCandidates_GivenFailedDelivery_WhenBackoffExpires_ThenItRet
 		t.Fatal(err)
 	}
 	defer store.Close()
-	_, err = store.DB.Exec(`INSERT INTO users(id,username,display_name,password_hash,role,created_at,updated_at) VALUES('user-1','user-1','Alex','hash','user','2026-09-01','2026-09-01');
-		INSERT INTO user_settings(user_id,timezone,activity_visibility,created_at,updated_at,pushover_user_key_encrypted,pushover_notifications_enabled,pushover_app_token_encrypted) VALUES('user-1','UTC','private','2026-09-01','2026-09-01','user-ciphertext',1,'app-ciphertext');
-		INSERT INTO media(id,media_type,tmdb_id,title,metadata_updated_at,created_at) VALUES('tv:42','tv',42,'Example Show','2026-09-01','2026-09-01');
-		INSERT INTO seasons(id,show_id,season_number,name) VALUES('tv:42:season:1','tv:42',1,'Season 1');
-		INSERT INTO episodes(id,show_id,season_id,season_number,episode_number,name,air_date) VALUES('episode-new','tv:42','tv:42:season:1',1,1,'New Episode','2026-09-23');
-		INSERT INTO user_media(id,user_id,media_id,status,added_at,updated_at,notifications_since) VALUES('user-1:tv:42','user-1','tv:42','watching','2026-09-01','2026-09-01','2026-09-01');`)
+	userID := insertTestUser(t, store.DB, "user-1", "Alex", "private")
+	_, err = store.DB.Exec(`UPDATE user_settings SET pushover_user_key_encrypted='user-ciphertext',pushover_notifications_enabled=1,pushover_app_token_encrypted='app-ciphertext' WHERE user_id=?`, userID)
 	if err != nil {
 		t.Fatal(err)
 	}
+	_, err = store.DB.Exec(`INSERT INTO media(id,media_type,tmdb_id,title,metadata_updated_at,created_at) VALUES('tv:42','tv',42,'Example Show','2026-09-01','2026-09-01');
+		INSERT INTO seasons(id,show_id,season_number,name) VALUES('tv:42:season:1','tv:42',1,'Season 1');
+		INSERT INTO episodes(id,show_id,season_id,season_number,episode_number,name,air_date) VALUES('episode-new','tv:42','tv:42:season:1',1,1,'New Episode','2026-09-23');`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.DB.Exec(`INSERT INTO user_media(id,user_id,media_id,status,added_at,updated_at,notifications_since) VALUES(?,?,'tv:42','watching','2026-09-01','2026-09-01','2026-09-01')`, userID+":tv:42", userID); err != nil {
+		t.Fatal(err)
+	}
 	firstAttempt := time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC)
-	if claimed, err := store.ClaimNotification(ctx, "user-1", "episode-new", firstAttempt); err != nil || !claimed {
+	if claimed, err := store.ClaimNotification(ctx, userID, "episode-new", firstAttempt); err != nil || !claimed {
 		t.Fatalf("first claim=%v err=%v", claimed, err)
 	}
-	if err := store.FailNotification(ctx, "user-1", "episode-new", firstAttempt); err != nil {
+	if err := store.FailNotification(ctx, userID, "episode-new", firstAttempt); err != nil {
 		t.Fatal(err)
 	}
 	checkCandidates := func(at time.Time, want int) {
@@ -95,19 +107,19 @@ func TestNotificationCandidates_GivenFailedDelivery_WhenBackoffExpires_ThenItRet
 	checkCandidates(firstAttempt.Add(14*time.Minute), 0)
 	secondAttempt := firstAttempt.Add(15 * time.Minute)
 	checkCandidates(secondAttempt, 1)
-	if claimed, err := store.ClaimNotification(ctx, "user-1", "episode-new", secondAttempt); err != nil || !claimed {
+	if claimed, err := store.ClaimNotification(ctx, userID, "episode-new", secondAttempt); err != nil || !claimed {
 		t.Fatalf("second claim=%v err=%v", claimed, err)
 	}
-	if err := store.FailNotification(ctx, "user-1", "episode-new", secondAttempt); err != nil {
+	if err := store.FailNotification(ctx, userID, "episode-new", secondAttempt); err != nil {
 		t.Fatal(err)
 	}
 	thirdAttempt := secondAttempt.Add(30 * time.Minute)
 	checkCandidates(thirdAttempt.Add(-time.Second), 0)
 	checkCandidates(thirdAttempt, 1)
-	if claimed, err := store.ClaimNotification(ctx, "user-1", "episode-new", thirdAttempt); err != nil || !claimed {
+	if claimed, err := store.ClaimNotification(ctx, userID, "episode-new", thirdAttempt); err != nil || !claimed {
 		t.Fatalf("third claim=%v err=%v", claimed, err)
 	}
-	if err := store.FailNotification(ctx, "user-1", "episode-new", thirdAttempt); err != nil {
+	if err := store.FailNotification(ctx, userID, "episode-new", thirdAttempt); err != nil {
 		t.Fatal(err)
 	}
 	checkCandidates(thirdAttempt.Add(24*time.Hour), 0)

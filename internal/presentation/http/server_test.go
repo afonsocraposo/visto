@@ -27,10 +27,11 @@ type personalTokenHTTPRepository struct {
 	tokens    []auth.PersonalToken
 }
 
-func (repository *personalTokenHTTPRepository) CreatePersonalToken(_ context.Context, id, _ string, name, tokenHash string, createdAt time.Time, expiresAt *time.Time) error {
+func (repository *personalTokenHTTPRepository) CreatePersonalToken(_ context.Context, _, name, tokenHash string, createdAt time.Time, expiresAt *time.Time) (string, error) {
 	repository.tokenHash = tokenHash
+	id := "1"
 	repository.tokens = append(repository.tokens, auth.PersonalToken{ID: id, Name: name, CreatedAt: createdAt, ExpiresAt: expiresAt})
-	return nil
+	return id, nil
 }
 
 func (repository *personalTokenHTTPRepository) ListPersonalTokens(context.Context, string) ([]auth.PersonalToken, error) {
@@ -69,15 +70,19 @@ func (publicTrendingProvider) Related(_ context.Context, mediaType domain.MediaT
 	return []domain.MediaSearchResult{{TMDBID: tmdbID + 1, Type: mediaType, Title: "Related title", PosterPath: "/related.jpg"}}, nil
 }
 
-func (*accountHTTPRepository) BootstrapAdmin(context.Context, domain.User, string) error { return nil }
-
-func (repository *accountHTTPRepository) CreateUser(_ context.Context, user domain.User, passwordHash string) error {
-	repository.createdUser = user
-	repository.passwordHash = passwordHash
-	return nil
+func (*accountHTTPRepository) BootstrapAdmin(_ context.Context, user domain.User, _ string) (domain.User, error) {
+	user.ID = "1"
+	return user, nil
 }
 
-func (repository *accountHTTPRepository) CreateSignupUser(ctx context.Context, user domain.User, passwordHash string) error {
+func (repository *accountHTTPRepository) CreateUser(_ context.Context, user domain.User, passwordHash string) (domain.User, error) {
+	user.ID = "1"
+	repository.createdUser = user
+	repository.passwordHash = passwordHash
+	return user, nil
+}
+
+func (repository *accountHTTPRepository) CreateSignupUser(ctx context.Context, user domain.User, passwordHash string) (domain.User, error) {
 	return repository.CreateUser(ctx, user, passwordHash)
 }
 
@@ -101,7 +106,7 @@ func (*accountHTTPRepository) FindUserByEmail(context.Context, string) (domain.U
 	return domain.User{}, "", nil
 }
 
-func (*accountHTTPRepository) CreateSession(context.Context, string, string, string, time.Time) error {
+func (*accountHTTPRepository) CreateSession(context.Context, string, string, time.Time) error {
 	return nil
 }
 

@@ -5,16 +5,17 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/afonsocosta/visto/internal/application/tracking"
 )
 
-func (store *Store) CreatePlay(ctx context.Context, play tracking.Play) error {
+func (store *Store) CreatePlay(ctx context.Context, play tracking.Play) (tracking.Play, error) {
 	tx, err := store.DB.BeginTx(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("begin play transaction: %w", err)
+		return tracking.Play{}, fmt.Errorf("begin play transaction: %w", err)
 	}
 	defer tx.Rollback()
 	var mediaID, episodeID any
@@ -31,92 +32,103 @@ func (store *Store) CreatePlay(ctx context.Context, play tracking.Play) error {
 		err = tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM plays WHERE user_id=? AND episode_id=?`, play.UserID, *play.EpisodeID).Scan(&existingPlays)
 	}
 	if err != nil {
-		return fmt.Errorf("check prior plays: %w", err)
+		return tracking.Play{}, fmt.Errorf("check prior plays: %w", err)
 	}
 	createdAt := time.Now().UTC()
 	trackedMediaID := ""
 	if play.MediaID != nil {
 		trackedMediaID = *play.MediaID
 	} else if err := tx.QueryRowContext(ctx, `SELECT show_id FROM episodes WHERE id=?`, *play.EpisodeID).Scan(&trackedMediaID); err != nil {
-		return fmt.Errorf("find show for episode play: %w", err)
+		return tracking.Play{}, fmt.Errorf("find show for episode play: %w", err)
 	}
 	if err := ensureWatchingRelationship(ctx, tx, play.UserID, trackedMediaID, createdAt); err != nil {
-		return err
+		return tracking.Play{}, err
 	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO plays(id,user_id,media_id,episode_id,watched_at,source,created_at) VALUES(?,?,?,?,?,?,?)`, play.ID, play.UserID, mediaID, episodeID, play.WatchedAt.Format(time.RFC3339Nano), play.Source, createdAt.Format(time.RFC3339Nano))
+	result, err := tx.ExecContext(ctx, `INSERT INTO plays(user_id,media_id,episode_id,watched_at,source,created_at) VALUES(?,?,?,?,?,?)`, play.UserID, mediaID, episodeID, play.WatchedAt.Format(time.RFC3339Nano), play.Source, createdAt.Format(time.RFC3339Nano))
 	if err != nil {
-		return fmt.Errorf("create play: %w", err)
+		return tracking.Play{}, fmt.Errorf("create play: %w", err)
 	}
+	id, err := result.LastInsertId()
+	if err != nil {
+		return tracking.Play{}, fmt.Errorf("get new play ID: %w", err)
+	}
+	play.ID = strconv.FormatInt(id, 10)
 	var visibility string
 	if err := tx.QueryRowContext(ctx, `SELECT activity_visibility FROM user_settings WHERE user_id=?`, play.UserID).Scan(&visibility); err != nil {
-		return fmt.Errorf("get activity visibility: %w", err)
+		return tracking.Play{}, fmt.Errorf("get activity visibility: %w", err)
 	}
 	if visibility == "instance" {
 		kind := "watch"
 		if existingPlays > 0 {
 			kind = "rewatch"
 		}
-		_, err = tx.ExecContext(ctx, `INSERT INTO activity_events(id,user_id,kind,play_id,media_id,episode_id,occurred_at,created_at) VALUES(?,?,?,?,?,?,?,?)`, "activity:"+play.ID, play.UserID, kind, play.ID, mediaID, episodeID, play.WatchedAt.Format(time.RFC3339Nano), createdAt.Format(time.RFC3339Nano))
+		_, err = tx.ExecContext(ctx, `INSERT INTO activity_events(user_id,kind,play_id,media_id,episode_id,occurred_at,created_at) VALUES(?,?,?,?,?,?,?)`, play.UserID, kind, play.ID, mediaID, episodeID, play.WatchedAt.Format(time.RFC3339Nano), createdAt.Format(time.RFC3339Nano))
 		if err != nil {
-			return fmt.Errorf("create activity event: %w", err)
+			return tracking.Play{}, fmt.Errorf("create activity event: %w", err)
 		}
 	}
 	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit play: %w", err)
+		return tracking.Play{}, fmt.Errorf("commit play: %w", err)
 	}
-	return nil
+	return play, nil
 }
 
-func (store *Store) CreateBulkPlays(ctx context.Context, plays []tracking.Play) error {
+func (store *Store) CreateBulkPlays(ctx context.Context, plays []tracking.Play) ([]tracking.Play, error) {
 	if len(plays) == 0 {
-		return fmt.Errorf("bulk play list is empty")
+		return nil, fmt.Errorf("bulk play list is empty")
 	}
 	tx, err := store.DB.BeginTx(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("begin bulk play transaction: %w", err)
+		return nil, fmt.Errorf("begin bulk play transaction: %w", err)
 	}
 	defer tx.Rollback()
 	var showID string
 	priorWatch := make(map[string]bool, len(plays))
 	for index, play := range plays {
 		if play.EpisodeID == nil {
-			return fmt.Errorf("bulk plays must reference episodes")
+			return nil, fmt.Errorf("bulk plays must reference episodes")
 		}
 		var currentShow string
 		if err := tx.QueryRowContext(ctx, `SELECT show_id FROM episodes WHERE id=?`, *play.EpisodeID).Scan(&currentShow); err != nil {
-			return fmt.Errorf("find episode for bulk play: %w", err)
+			return nil, fmt.Errorf("find episode for bulk play: %w", err)
 		}
 		if index == 0 {
 			showID = currentShow
 		} else if currentShow != showID {
-			return fmt.Errorf("bulk episodes must belong to one show")
+			return nil, fmt.Errorf("bulk episodes must belong to one show")
 		}
 		var count int
 		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM plays WHERE user_id=? AND episode_id=?`, play.UserID, *play.EpisodeID).Scan(&count); err != nil {
-			return fmt.Errorf("check prior episode watches: %w", err)
+			return nil, fmt.Errorf("check prior episode watches: %w", err)
 		}
 		priorWatch[*play.EpisodeID] = count > 0
 	}
 	createdAtTime := time.Now().UTC()
 	createdAt := createdAtTime.Format(time.RFC3339Nano)
 	if err := ensureWatchingRelationship(ctx, tx, plays[0].UserID, showID, createdAtTime); err != nil {
-		return err
+		return nil, err
 	}
-	for _, play := range plays {
-		if _, err := tx.ExecContext(ctx, `INSERT INTO plays(id,user_id,episode_id,watched_at,source,created_at) VALUES(?,?,?,?,?,?)`, play.ID, play.UserID, *play.EpisodeID, play.WatchedAt.Format(time.RFC3339Nano), play.Source, createdAt); err != nil {
-			return fmt.Errorf("create bulk play: %w", err)
+	for index, play := range plays {
+		result, err := tx.ExecContext(ctx, `INSERT INTO plays(user_id,episode_id,watched_at,source,created_at) VALUES(?,?,?,?,?)`, play.UserID, *play.EpisodeID, play.WatchedAt.Format(time.RFC3339Nano), play.Source, createdAt)
+		if err != nil {
+			return nil, fmt.Errorf("create bulk play: %w", err)
 		}
+		id, err := result.LastInsertId()
+		if err != nil {
+			return nil, fmt.Errorf("get new bulk play ID: %w", err)
+		}
+		plays[index].ID = strconv.FormatInt(id, 10)
 	}
 	var visibility string
 	if err := tx.QueryRowContext(ctx, `SELECT activity_visibility FROM user_settings WHERE user_id=?`, plays[0].UserID).Scan(&visibility); err != nil {
-		return fmt.Errorf("get activity visibility: %w", err)
+		return nil, fmt.Errorf("get activity visibility: %w", err)
 	}
 	if visibility == "instance" {
 		firstWatchIDs := make([]string, 0, len(plays))
 		for _, play := range plays {
 			if priorWatch[*play.EpisodeID] {
-				if _, err := tx.ExecContext(ctx, `INSERT INTO activity_events(id,user_id,kind,play_id,episode_id,occurred_at,created_at) VALUES(?,?,?,?,?,?,?)`, "activity:"+play.ID, play.UserID, "rewatch", play.ID, *play.EpisodeID, play.WatchedAt.Format(time.RFC3339Nano), createdAt); err != nil {
-					return fmt.Errorf("create episode rewatch activity: %w", err)
+				if _, err := tx.ExecContext(ctx, `INSERT INTO activity_events(user_id,kind,play_id,episode_id,occurred_at,created_at) VALUES(?,?,?,?,?,?)`, play.UserID, "rewatch", play.ID, *play.EpisodeID, play.WatchedAt.Format(time.RFC3339Nano), createdAt); err != nil {
+					return nil, fmt.Errorf("create episode rewatch activity: %w", err)
 				}
 			} else {
 				firstWatchIDs = append(firstWatchIDs, play.ID)
@@ -135,16 +147,15 @@ func (store *Store) CreateBulkPlays(ctx context.Context, plays []tracking.Play) 
 					break
 				}
 			}
-			eventID := "bulk:" + firstPlay.ID
-			if _, err := tx.ExecContext(ctx, `INSERT INTO activity_events(id,user_id,kind,media_id,detail_json,occurred_at,created_at) VALUES(?,?,?,?,?,?,?)`, eventID, firstPlay.UserID, "bulk_watch", showID, detail, firstPlay.WatchedAt.Format(time.RFC3339Nano), createdAt); err != nil {
-				return fmt.Errorf("create bulk activity event: %w", err)
+			if _, err := tx.ExecContext(ctx, `INSERT INTO activity_events(user_id,kind,media_id,detail_json,occurred_at,created_at) VALUES(?,?,?,?,?,?)`, firstPlay.UserID, "bulk_watch", showID, detail, firstPlay.WatchedAt.Format(time.RFC3339Nano), createdAt); err != nil {
+				return nil, fmt.Errorf("create bulk activity event: %w", err)
 			}
 		}
 	}
 	if err := tx.Commit(); err != nil {
-		return fmt.Errorf("commit bulk plays: %w", err)
+		return nil, fmt.Errorf("commit bulk plays: %w", err)
 	}
-	return nil
+	return plays, nil
 }
 
 func ensureWatchingRelationship(ctx context.Context, tx *sql.Tx, userID, mediaID string, createdAt time.Time) error {

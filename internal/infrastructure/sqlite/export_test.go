@@ -4,7 +4,9 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
+	"time"
 
+	"github.com/afonsocosta/visto/internal/application/tracking"
 	"github.com/afonsocosta/visto/internal/infrastructure/sqlite"
 )
 
@@ -15,23 +17,25 @@ func TestExport_GivenTwoUsersWithSharedMedia_WhenEachExports_ThenEachReceivesOnl
 		t.Fatal(err)
 	}
 	defer store.Close()
-	for _, userID := range []string{"alice", "bob"} {
-		if _, err := store.DB.Exec(`INSERT INTO users(id,username,display_name,password_hash,role,created_at,updated_at) VALUES(?,?,?,'hash','user',?,?)`, userID, userID, userID, testTimestamp, testTimestamp); err != nil {
-			t.Fatal(err)
-		}
-	}
+	aliceID := insertTestUser(t, store.DB, "alice", "Alice", "private")
+	bobID := insertTestUser(t, store.DB, "bob", "Bob", "private")
 	if _, err := store.DB.Exec(`INSERT INTO media(id,media_type,tmdb_id,title,metadata_updated_at,created_at) VALUES('movie:10','movie',10,'Shared Movie',?,?)`, testTimestamp, testTimestamp); err != nil {
 		t.Fatal(err)
 	}
 	for _, row := range []struct{ userID, status, rating string }{
-		{"alice", "watching", "5"}, {"bob", "watchlist", ""},
+		{aliceID, "watching", "5"}, {bobID, "watchlist", ""},
 	} {
 		if _, err := store.DB.Exec(`INSERT INTO user_media(id,user_id,media_id,status,rating,added_at,updated_at) VALUES(?,?,?, ?,NULLIF(?,''),?,?)`, row.userID+":movie:10", row.userID, "movie:10", row.status, row.rating, testTimestamp, testTimestamp); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if _, err := store.DB.Exec(`INSERT INTO plays(id,user_id,media_id,watched_at,source,created_at) VALUES
-		('alice-play','alice','movie:10',?,'web',?),('bob-play','bob','movie:10',?,'web',?)`, testTimestamp, testTimestamp, testTimestamp, testTimestamp); err != nil {
+	movieID := "movie:10"
+	alicePlay, err := store.CreatePlay(ctx, tracking.Play{UserID: aliceID, MediaID: &movieID, WatchedAt: time.Now().UTC(), Source: "web"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	bobPlay, err := store.CreatePlay(ctx, tracking.Play{UserID: bobID, MediaID: &movieID, WatchedAt: time.Now().UTC(), Source: "web"})
+	if err != nil {
 		t.Fatal(err)
 	}
 
@@ -40,8 +44,8 @@ func TestExport_GivenTwoUsersWithSharedMedia_WhenEachExports_ThenEachReceivesOnl
 		userID, expectedPlayID, otherPlayID, expectedStatus string
 		wantRating                                          bool
 	}{
-		{"alice", "alice-play", "bob-play", "watching", true},
-		{"bob", "bob-play", "alice-play", "watchlist", false},
+		{aliceID, alicePlay.ID, bobPlay.ID, "watching", true},
+		{bobID, bobPlay.ID, alicePlay.ID, "watchlist", false},
 	} {
 		data, err := store.Export(ctx, expectation.userID)
 		if err != nil {

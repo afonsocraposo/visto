@@ -26,7 +26,7 @@ type IssuedPersonalToken struct {
 }
 
 type personalTokenRepository interface {
-	CreatePersonalToken(context.Context, string, string, string, string, time.Time, *time.Time) error
+	CreatePersonalToken(context.Context, string, string, string, time.Time, *time.Time) (string, error)
 	ListPersonalTokens(context.Context, string) ([]PersonalToken, error)
 	RevokePersonalToken(context.Context, string, string) error
 	FindUserByPersonalTokenHash(context.Context, string, time.Time) (domain.User, error)
@@ -67,8 +67,9 @@ func (service *Service) CreatePersonalToken(ctx context.Context, userID, name st
 		return IssuedPersonalToken{}, fmt.Errorf("generate personal API token: %w", err)
 	}
 	rawToken = "visto_pat_" + rawToken
-	item := PersonalToken{ID: newID(), Name: name, CreatedAt: now, ExpiresAt: expiresAt}
-	if err := repository.CreatePersonalToken(ctx, item.ID, userID, name, hashToken(rawToken), now, expiresAt); err != nil {
+	item := PersonalToken{Name: name, CreatedAt: now, ExpiresAt: expiresAt}
+	item.ID, err = repository.CreatePersonalToken(ctx, userID, name, hashToken(rawToken), now, expiresAt)
+	if err != nil {
 		return IssuedPersonalToken{}, err
 	}
 	return IssuedPersonalToken{PersonalToken: item, Token: rawToken}, nil
@@ -99,8 +100,6 @@ func (service *Service) RevokePersonalToken(ctx context.Context, userID, tokenID
 func hashToken(token string) string { return fmt.Sprintf("%x", sha256.Sum256([]byte(token))) }
 
 func ptrTime(value time.Time) *time.Time { return &value }
-
-func newID() string { token, _ := newToken(); return token }
 
 func newToken() (string, error) {
 	bytes := make([]byte, 32)

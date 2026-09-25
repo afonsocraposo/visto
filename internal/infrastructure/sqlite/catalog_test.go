@@ -18,16 +18,13 @@ func TestShowsNeedingCatalogRefresh_GivenManyTrackedShows_WhenLimited_ThenItRetu
 	}
 	defer store.Close()
 
-	now := time.Now().UTC().Format(time.RFC3339Nano)
-	if _, err := store.DB.Exec(`INSERT INTO users(id,username,display_name,password_hash,role,created_at,updated_at) VALUES('u','u','u','hash','user',?,?)`, now, now); err != nil {
-		t.Fatal(err)
-	}
+	userID := insertTestUser(t, store.DB, "u", "u", "private")
 	for id := int64(1); id <= 4; id++ {
 		mediaID := fmt.Sprintf("tv:%d", id)
 		if _, err := store.DB.Exec(`INSERT INTO media(id,media_type,tmdb_id,title,status,metadata_updated_at,created_at) VALUES(?,'tv',?,?,'Returning','2026-01-01','2026-01-01')`, mediaID, id, mediaID); err != nil {
 			t.Fatal(err)
 		}
-		if _, err := store.DB.Exec(`INSERT INTO user_media(id,user_id,media_id,status,added_at,updated_at) VALUES(?, 'u', ?, 'watching', '2026-01-01', '2026-01-01')`, "u:"+mediaID, mediaID); err != nil {
+		if _, err := store.DB.Exec(`INSERT INTO user_media(id,user_id,media_id,status,added_at,updated_at) VALUES(?, ?, ?, 'watching', '2026-01-01', '2026-01-01')`, userID+":"+mediaID, userID, mediaID); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -80,12 +77,8 @@ func TestListShowEpisodes_GivenTwoUsersAndOneWatchedEpisode_WhenRequested_ThenIt
 		t.Fatal(err)
 	}
 	defer store.Close()
-	for _, userID := range []string{"owner", "other"} {
-		_, err := store.DB.Exec(`INSERT INTO users(id,username,display_name,password_hash,role,created_at,updated_at) VALUES(?,?,?,'hash','user','2026-09-24T00:00:00Z','2026-09-24T00:00:00Z')`, userID, userID, userID)
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
+	ownerID := insertTestUser(t, store.DB, "owner", "Owner", "private")
+	otherID := insertTestUser(t, store.DB, "other", "Other", "private")
 	_, err = store.DB.Exec(`INSERT INTO media(id,media_type,tmdb_id,title,metadata_updated_at,created_at) VALUES('tv:42','tv',42,'Example','2026-09-24T00:00:00Z','2026-09-24T00:00:00Z')`)
 	if err != nil {
 		t.Fatal(err)
@@ -100,53 +93,53 @@ func TestListShowEpisodes_GivenTwoUsersAndOneWatchedEpisode_WhenRequested_ThenIt
 	}); err != nil {
 		t.Fatal(err)
 	}
-	_, err = store.DB.Exec(`INSERT INTO user_media(id,user_id,media_id,status,added_at,updated_at) VALUES('owner-tv','owner','tv:42','watching','2026-09-24T00:00:00Z','2026-09-24T00:00:00Z')`)
+	_, err = store.DB.Exec(`INSERT INTO user_media(id,user_id,media_id,status,added_at,updated_at) VALUES(? ,?,'tv:42','watching','2026-09-24T00:00:00Z','2026-09-24T00:00:00Z')`, ownerID+":tv:42", ownerID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = store.DB.Exec(`INSERT INTO plays(id,user_id,episode_id,watched_at,source,created_at) VALUES('owner-play','owner','tv:42:episode:4211','2026-09-23T00:00:00Z','web','2026-09-23T00:00:00Z')`)
+	_, err = store.DB.Exec(`INSERT INTO plays(user_id,episode_id,watched_at,source,created_at) VALUES(?,'tv:42:episode:4211','2026-09-23T00:00:00Z','web','2026-09-23T00:00:00Z')`, ownerID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	showEntry, err := store.GetMediaByTMDBID(context.Background(), "owner", domain.TVMediaType, 42)
+	showEntry, err := store.GetMediaByTMDBID(context.Background(), ownerID, domain.TVMediaType, 42)
 	if err != nil {
 		t.Fatalf("get owner's show details: %v", err)
 	}
-	if showEntry.Media.Title != "Example" || showEntry.Item.UserID != "owner" {
+	if showEntry.Media.Title != "Example" || showEntry.Item.UserID != ownerID {
 		t.Fatalf("owner show entry=%+v", showEntry)
 	}
-	if _, err := store.GetMediaByTMDBID(context.Background(), "other", domain.TVMediaType, 42); err == nil {
+	if _, err := store.GetMediaByTMDBID(context.Background(), otherID, domain.TVMediaType, 42); err == nil {
 		t.Fatal("expected another user without the show in their library to be denied details access")
 	}
 
-	entries, err := store.ListShowEpisodes(context.Background(), "owner", "tv:42")
+	entries, err := store.ListShowEpisodes(context.Background(), ownerID, "tv:42")
 	if err != nil {
 		t.Fatalf("owner episode list: %v", err)
 	}
 	if len(entries) != 2 || !entries[0].Watched || entries[1].Watched || entries[1].Episode.SeasonNumber != 15 {
 		t.Fatalf("owner episodes=%+v", entries)
 	}
-	seasons, err := store.ListShowSeasons(context.Background(), "owner", "tv:42")
+	seasons, err := store.ListShowSeasons(context.Background(), ownerID, "tv:42")
 	if err != nil {
 		t.Fatalf("owner season list: %v", err)
 	}
 	if len(seasons) != 2 || seasons[1].Number != 15 || seasons[1].EpisodeCount != 1 {
 		t.Fatalf("owner seasons=%+v", seasons)
 	}
-	seasonEpisodes, err := store.ListSeasonEpisodes(context.Background(), "owner", "tv:42:season:15")
+	seasonEpisodes, err := store.ListSeasonEpisodes(context.Background(), ownerID, "tv:42:season:15")
 	if err != nil {
 		t.Fatalf("owner season episodes: %v", err)
 	}
 	if len(seasonEpisodes) != 1 || seasonEpisodes[0].Episode.ID != "tv:42:episode:4351" {
 		t.Fatalf("season 15 episodes=%+v", seasonEpisodes)
 	}
-	if _, err := store.ListShowSeasons(context.Background(), "other", "tv:42"); err == nil {
+	if _, err := store.ListShowSeasons(context.Background(), otherID, "tv:42"); err == nil {
 		t.Fatal("expected another user without the show in their library to be denied season access")
 	}
-	if _, err := store.ListSeasonEpisodes(context.Background(), "other", "tv:42:season:15"); err == nil {
+	if _, err := store.ListSeasonEpisodes(context.Background(), otherID, "tv:42:season:15"); err == nil {
 		t.Fatal("expected another user without the show in their library to be denied episode access")
 	}
-	if _, err := store.ListShowEpisodes(context.Background(), "other", "tv:42"); err == nil {
+	if _, err := store.ListShowEpisodes(context.Background(), otherID, "tv:42"); err == nil {
 		t.Fatal("expected another user without the show in their library to be denied")
 	}
 }

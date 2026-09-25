@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -15,20 +16,25 @@ type createUserRepository struct {
 	passwordHash string
 }
 
-func (*createUserRepository) BootstrapAdmin(context.Context, domain.User, string) error { return nil }
-func (repository *createUserRepository) CreateUser(_ context.Context, user domain.User, passwordHash string) error {
+func (*createUserRepository) BootstrapAdmin(_ context.Context, user domain.User, _ string) (domain.User, error) {
+	user.ID = "1"
+	return user, nil
+}
+func (repository *createUserRepository) CreateUser(_ context.Context, user domain.User, passwordHash string) (domain.User, error) {
+	user.ID = "1"
 	repository.createdUser = user
 	repository.passwordHash = passwordHash
-	return nil
+	return user, nil
 }
-func (repository *createUserRepository) CreateSignupUser(_ context.Context, user domain.User, passwordHash string) error {
+func (repository *createUserRepository) CreateSignupUser(_ context.Context, user domain.User, passwordHash string) (domain.User, error) {
+	user.ID = "1"
 	repository.createdUser, repository.passwordHash = user, passwordHash
-	return nil
+	return user, nil
 }
 func (*createUserRepository) FindUserByEmail(context.Context, string) (domain.User, string, error) {
 	return domain.User{}, "", nil
 }
-func (*createUserRepository) CreateSession(context.Context, string, string, string, time.Time) error {
+func (*createUserRepository) CreateSession(context.Context, string, string, time.Time) error {
 	return nil
 }
 func (*createUserRepository) FindUserBySessionToken(context.Context, string, time.Time) (domain.User, error) {
@@ -80,16 +86,16 @@ type logoutRepository struct {
 	revokedTokenHash string
 }
 
-func (repository *logoutRepository) BootstrapAdmin(context.Context, domain.User, string) error {
-	return nil
+func (repository *logoutRepository) BootstrapAdmin(_ context.Context, user domain.User, _ string) (domain.User, error) {
+	return user, nil
 }
-func (repository *logoutRepository) CreateUser(context.Context, domain.User, string) error {
-	return nil
+func (repository *logoutRepository) CreateUser(_ context.Context, user domain.User, _ string) (domain.User, error) {
+	return user, nil
 }
 func (repository *logoutRepository) FindUserByEmail(context.Context, string) (domain.User, string, error) {
 	return domain.User{}, "", nil
 }
-func (repository *logoutRepository) CreateSession(context.Context, string, string, string, time.Time) error {
+func (repository *logoutRepository) CreateSession(context.Context, string, string, time.Time) error {
 	return nil
 }
 func (repository *logoutRepository) FindUserBySessionToken(context.Context, string, time.Time) (domain.User, error) {
@@ -135,15 +141,16 @@ type personalTokenTestRepository struct {
 	hashes map[string]string
 }
 
-func (repository *personalTokenTestRepository) CreatePersonalToken(_ context.Context, id, userID, name, tokenHash string, createdAt time.Time, expiresAt *time.Time) error {
+func (repository *personalTokenTestRepository) CreatePersonalToken(_ context.Context, _, name, tokenHash string, createdAt time.Time, expiresAt *time.Time) (string, error) {
 	if repository.tokens == nil {
 		repository.tokens = map[string]PersonalToken{}
 		repository.hashes = map[string]string{}
 	}
+	id := fmt.Sprint(len(repository.tokens) + 1)
 	item := PersonalToken{ID: id, Name: name, CreatedAt: createdAt, ExpiresAt: expiresAt}
 	repository.tokens[id] = item
 	repository.hashes[tokenHash] = id
-	return nil
+	return id, nil
 }
 
 func (repository *personalTokenTestRepository) ListPersonalTokens(context.Context, string) ([]PersonalToken, error) {

@@ -2,8 +2,6 @@ package tracking
 
 import (
 	"context"
-	"crypto/rand"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"strings"
@@ -39,8 +37,8 @@ type EpisodeRating struct {
 }
 
 type Repository interface {
-	CreatePlay(context.Context, Play) error
-	CreateBulkPlays(context.Context, []Play) error
+	CreatePlay(context.Context, Play) (Play, error)
+	CreateBulkPlays(context.Context, []Play) ([]Play, error)
 	UpdatePlay(context.Context, string, string, time.Time) error
 	DeletePlay(context.Context, string, string) error
 }
@@ -65,15 +63,10 @@ type episodeRatingRepository interface {
 type Service struct {
 	repository Repository
 	now        func() time.Time
-	newID      func() string
 }
 
 func NewService(repository Repository) *Service {
-	return &Service{repository: repository, now: time.Now, newID: newID}
-}
-
-func NewServiceWithID(repository Repository, newID func() string) *Service {
-	return &Service{repository: repository, now: time.Now, newID: newID}
+	return &Service{repository: repository, now: time.Now}
 }
 
 func (service *Service) Record(ctx context.Context, userID string, mediaID, episodeID *string, watchedAt time.Time, source string) (Play, error) {
@@ -96,8 +89,9 @@ func (service *Service) Record(ctx context.Context, userID string, mediaID, epis
 	if !validSource(source) {
 		return Play{}, fmt.Errorf("invalid play source")
 	}
-	play := Play{ID: service.newID(), UserID: userID, MediaID: mediaID, EpisodeID: episodeID, WatchedAt: watchedAt.UTC(), Source: source}
-	if err := service.repository.CreatePlay(ctx, play); err != nil {
+	play := Play{UserID: userID, MediaID: mediaID, EpisodeID: episodeID, WatchedAt: watchedAt.UTC(), Source: source}
+	play, err := service.repository.CreatePlay(ctx, play)
+	if err != nil {
 		return Play{}, err
 	}
 	return play, nil
@@ -131,9 +125,10 @@ func (service *Service) RecordEpisodes(ctx context.Context, userID string, episo
 		}
 		seen[episodeID] = true
 		id := episodeID
-		plays = append(plays, Play{ID: service.newID(), UserID: userID, EpisodeID: &id, WatchedAt: watchedAt.UTC(), Source: source})
+		plays = append(plays, Play{UserID: userID, EpisodeID: &id, WatchedAt: watchedAt.UTC(), Source: source})
 	}
-	if err := service.repository.CreateBulkPlays(ctx, plays); err != nil {
+	plays, err := service.repository.CreateBulkPlays(ctx, plays)
+	if err != nil {
 		return nil, err
 	}
 	return plays, nil
@@ -246,12 +241,4 @@ func (service *Service) RateEpisode(ctx context.Context, userID, episodeID strin
 		return EpisodeRating{}, fmt.Errorf("episode rating storage is not configured")
 	}
 	return repository.SaveEpisodeRating(ctx, userID, episodeID, rating)
-}
-
-func newID() string {
-	bytes := make([]byte, 32)
-	if _, err := rand.Read(bytes); err != nil {
-		panic(fmt.Sprintf("generate play ID: %v", err))
-	}
-	return base64.RawURLEncoding.EncodeToString(bytes)
 }

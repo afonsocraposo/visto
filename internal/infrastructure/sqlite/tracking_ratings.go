@@ -64,8 +64,7 @@ func (store *Store) SaveEpisodeRating(ctx context.Context, userID, episodeID str
 			return tracking.EpisodeRating{}, fmt.Errorf("get activity visibility: %w", err)
 		}
 		if visibility == "instance" {
-			eventID := fmt.Sprintf("episode-rating:%s:%s:%d", userID, episodeID, now.UnixNano())
-			if _, err := tx.ExecContext(ctx, `INSERT INTO activity_events(id,user_id,kind,episode_id,rating,occurred_at,created_at) VALUES(?,?,?,?,?,?,?)`, eventID, userID, "rating", episodeID, *rating, now.Format(time.RFC3339Nano), now.Format(time.RFC3339Nano)); err != nil {
+			if _, err := tx.ExecContext(ctx, `INSERT INTO activity_events(user_id,kind,episode_id,rating,occurred_at,created_at) VALUES(?,?,?,?,?,?)`, userID, "rating", episodeID, *rating, now.Format(time.RFC3339Nano), now.Format(time.RFC3339Nano)); err != nil {
 				return tracking.EpisodeRating{}, fmt.Errorf("create episode rating activity: %w", err)
 			}
 		}

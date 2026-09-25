@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -20,10 +21,11 @@ var migrationFiles embed.FS
 var migrationFilename = regexp.MustCompile(`^(\d{4,})_([a-z0-9_]+)\.sql$`)
 
 type Migration struct {
-	Version  int
-	Name     string
-	SQL      string
-	Checksum string
+	Version        int
+	Name           string
+	SQL            string
+	Checksum       string
+	ForeignKeysOff bool
 }
 
 type Migrator struct {
@@ -67,7 +69,11 @@ func LoadMigrations(files fs.FS) ([]Migration, error) {
 			return nil, fmt.Errorf("read migration %q: %w", entry.Name(), err)
 		}
 		checksum := fmt.Sprintf("%x", sha256.Sum256(contents))
-		migrations = append(migrations, Migration{Version: version, Name: matches[2], SQL: string(contents), Checksum: checksum})
+		const foreignKeysOffDirective = "-- visto:migration foreign-keys=off"
+		migrations = append(migrations, Migration{
+			Version: version, Name: matches[2], SQL: string(contents), Checksum: checksum,
+			ForeignKeysOff: strings.HasPrefix(strings.TrimSpace(string(contents)), foreignKeysOffDirective),
+		})
 		versions[version] = struct{}{}
 	}
 	sort.Slice(migrations, func(i, j int) bool { return migrations[i].Version < migrations[j].Version })
@@ -145,6 +151,9 @@ func appliedMigrations(ctx context.Context, db *sql.DB) (map[int]appliedMigratio
 }
 
 func (m *Migrator) applyOne(ctx context.Context, db *sql.DB, migration Migration) error {
+	if migration.ForeignKeysOff {
+		return m.applyOneWithForeignKeysOff(ctx, db, migration)
+	}
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin migration %04d: %w", migration.Version, err)
@@ -162,4 +171,56 @@ func (m *Migrator) applyOne(ctx context.Context, db *sql.DB, migration Migration
 		return fmt.Errorf("commit migration %04d: %w", migration.Version, err)
 	}
 	return nil
+}
+
+func (m *Migrator) applyOneWithForeignKeysOff(ctx context.Context, db *sql.DB, migration Migration) error {
+	conn, err := db.Conn(ctx)
+	if err != nil {
+		return fmt.Errorf("open connection for migration %04d: %w", migration.Version, err)
+	}
+	defer conn.Close()
+	if _, err := conn.ExecContext(ctx, `PRAGMA foreign_keys = OFF`); err != nil {
+		return fmt.Errorf("disable foreign keys for migration %04d: %w", migration.Version, err)
+	}
+	defer func() {
+		_, _ = conn.ExecContext(context.Background(), `PRAGMA foreign_keys = ON`)
+	}()
+	tx, err := conn.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin migration %04d: %w", migration.Version, err)
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, migration.SQL); err != nil {
+		return fmt.Errorf("apply migration %04d_%s: %w", migration.Version, migration.Name, err)
+	}
+	if err := checkForeignKeys(ctx, tx); err != nil {
+		return fmt.Errorf("validate foreign keys after migration %04d: %w", migration.Version, err)
+	}
+	if _, err := tx.ExecContext(ctx,
+		`INSERT INTO schema_migrations(version, name, checksum, applied_at) VALUES (?, ?, ?, ?)`,
+		migration.Version, migration.Name, migration.Checksum, m.Now().UTC().Format(time.RFC3339Nano)); err != nil {
+		return fmt.Errorf("record migration %04d: %w", migration.Version, err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit migration %04d: %w", migration.Version, err)
+	}
+	return nil
+}
+
+func checkForeignKeys(ctx context.Context, tx *sql.Tx) error {
+	rows, err := tx.QueryContext(ctx, `PRAGMA foreign_key_check`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	if rows.Next() {
+		var table string
+		var rowID, foreignKeyID sql.NullInt64
+		var parent string
+		if err := rows.Scan(&table, &rowID, &parent, &foreignKeyID); err != nil {
+			return err
+		}
+		return fmt.Errorf("foreign key violation in %s (row %v references %s)", table, rowID, parent)
+	}
+	return rows.Err()
 }

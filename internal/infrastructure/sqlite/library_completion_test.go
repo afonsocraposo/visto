@@ -16,10 +16,8 @@ func TestLibrary_GivenMovieAndShowPlays_WhenLibraryIsRead_ThenCompletionAndRegul
 		t.Fatal(err)
 	}
 	defer store.Close()
-	if _, err := store.DB.Exec(`INSERT INTO users(id,username,display_name,password_hash,role,created_at,updated_at) VALUES
-		('alice','alice','Alice','hash','user',?,?),('bob','bob','Bob','hash','user',?,?)`, testTimestamp, testTimestamp, testTimestamp, testTimestamp); err != nil {
-		t.Fatal(err)
-	}
+	aliceID := insertTestUser(t, store.DB, "alice", "Alice", "private")
+	bobID := insertTestUser(t, store.DB, "bob", "Bob", "private")
 	if _, err := store.DB.Exec(`INSERT INTO media(id,media_type,tmdb_id,title,metadata_updated_at,created_at) VALUES
 		('movie:10','movie',10,'Watched Movie',?,?),
 		('movie:11','movie',11,'Unwatched Movie',?,?),
@@ -37,24 +35,24 @@ func TestLibrary_GivenMovieAndShowPlays_WhenLibraryIsRead_ThenCompletionAndRegul
 		t.Fatal(err)
 	}
 	for _, mediaID := range []string{"movie:10", "movie:11", "tv:42"} {
-		if _, err := store.DB.Exec(`INSERT INTO user_media(id,user_id,media_id,status,added_at,updated_at) VALUES(?, 'alice', ?, 'watching', ?, ?)`, "alice:"+mediaID, mediaID, testTimestamp, testTimestamp); err != nil {
+		if _, err := store.DB.Exec(`INSERT INTO user_media(id,user_id,media_id,status,added_at,updated_at) VALUES(?, ?, ?, 'watching', ?, ?)`, aliceID+":"+mediaID, aliceID, mediaID, testTimestamp, testTimestamp); err != nil {
 			t.Fatal(err)
 		}
 	}
-	if _, err := store.DB.Exec(`INSERT INTO user_media(id,user_id,media_id,status,added_at,updated_at) VALUES('bob:tv:42','bob','tv:42','watching',?,?)`, testTimestamp, testTimestamp); err != nil {
+	if _, err := store.DB.Exec(`INSERT INTO user_media(id,user_id,media_id,status,added_at,updated_at) VALUES(?,?,'tv:42','watching',?,?)`, bobID+":tv:42", bobID, testTimestamp, testTimestamp); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.DB.Exec(`INSERT INTO plays(id,user_id,media_id,watched_at,source,created_at) VALUES('movie-play','alice','movie:10',?,'web',?)`, testTimestamp, testTimestamp); err != nil {
+	if _, err := store.DB.Exec(`INSERT INTO plays(user_id,media_id,watched_at,source,created_at) VALUES(?,'movie:10',?,'web',?)`, aliceID, testTimestamp, testTimestamp); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.DB.Exec(`INSERT INTO plays(id,user_id,episode_id,watched_at,source,created_at) VALUES
-		('episode-play','alice','tv:42:episode:101',?,'web',?),
-		('special-play','alice','tv:42:episode:100',?,'web',?)`, testTimestamp, testTimestamp, testTimestamp, testTimestamp); err != nil {
+	if _, err := store.DB.Exec(`INSERT INTO plays(user_id,episode_id,watched_at,source,created_at) VALUES
+		(?,'tv:42:episode:101',?,'web',?),
+		(?,'tv:42:episode:100',?,'web',?)`, aliceID, testTimestamp, testTimestamp, aliceID, testTimestamp, testTimestamp); err != nil {
 		t.Fatal(err)
 	}
 
 	// When the library is read, show progress counts watched regular episodes but excludes specials.
-	entries, err := store.ListItems(ctx, "alice")
+	entries, err := store.ListItems(ctx, aliceID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,14 +73,14 @@ func TestLibrary_GivenMovieAndShowPlays_WhenLibraryIsRead_ThenCompletionAndRegul
 	if progress["movie:10"] != nil || progress["movie:11"] != nil {
 		t.Fatalf("movie progress should not be present: %+v", progress)
 	}
-	bobEntries, err := store.ListItems(ctx, "bob")
+	bobEntries, err := store.ListItems(ctx, bobID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got := bobEntries[0].Progress; got == nil || got.WatchedEpisodes != 0 || got.TotalEpisodes != 2 {
 		t.Fatalf("Bob's show progress=%+v, want 0 of 2 despite Alice's plays", got)
 	}
-	movie, err := store.GetMediaByTMDBID(ctx, "alice", domain.MovieMediaType, 10)
+	movie, err := store.GetMediaByTMDBID(ctx, aliceID, domain.MovieMediaType, 10)
 	if err != nil {
 		t.Fatal(err)
 	}

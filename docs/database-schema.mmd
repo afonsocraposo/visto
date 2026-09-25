@@ -2,10 +2,10 @@
 erDiagram
 
   activity_events {
-    text id PK
+    integer id PK
     text user_id FK
     text kind
-    text play_id FK
+    integer play_id FK
     text media_id FK
     text episode_id FK
     integer rating
@@ -109,7 +109,7 @@ erDiagram
   }
 
   personal_api_tokens {
-    text id PK
+    integer id PK
     text user_id FK
     text name
     text token_hash
@@ -119,7 +119,7 @@ erDiagram
   }
 
   plays {
-    text id PK
+    integer id PK
     text user_id FK
     text media_id FK
     text episode_id FK
@@ -168,7 +168,7 @@ erDiagram
   }
 
   sessions {
-    text id PK
+    integer id PK
     text user_id FK
     text token_hash
     text expires_at
@@ -200,7 +200,7 @@ erDiagram
   }
 
   users {
-    text id PK
+    integer id PK
     text username
     text display_name
     text password_hash

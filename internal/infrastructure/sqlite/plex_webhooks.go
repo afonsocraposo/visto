@@ -2,10 +2,9 @@ package sqlite
 
 import (
 	"context"
-	"crypto/rand"
 	"database/sql"
-	"encoding/hex"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/afonsocosta/visto/internal/application/plexsync"
@@ -172,16 +171,18 @@ func (store *Store) RecordPlexPlay(ctx context.Context, userID, fingerprint stri
 	if err != nil {
 		return false, fmt.Errorf("load Plex play context: %w", err)
 	}
-	playID, err := randomPlayID()
-	if err != nil {
-		return false, err
-	}
 	if err := ensureWatchingRelationship(ctx, tx, userID, trackedMediaID, now); err != nil {
 		return false, err
 	}
-	if _, err := tx.ExecContext(ctx, `INSERT INTO plays(id,user_id,media_id,episode_id,watched_at,source,created_at) VALUES(?,?,?,?,?,'plex',?)`, playID, userID, nullableMediaID, nullableEpisodeID, watchedAt.UTC().Format(time.RFC3339Nano), now.Format(time.RFC3339Nano)); err != nil {
+	playResult, err := tx.ExecContext(ctx, `INSERT INTO plays(user_id,media_id,episode_id,watched_at,source,created_at) VALUES(?,?,?,?,'plex',?)`, userID, nullableMediaID, nullableEpisodeID, watchedAt.UTC().Format(time.RFC3339Nano), now.Format(time.RFC3339Nano))
+	if err != nil {
 		return false, fmt.Errorf("create Plex play: %w", err)
 	}
+	playIDValue, err := playResult.LastInsertId()
+	if err != nil {
+		return false, fmt.Errorf("get Plex play ID: %w", err)
+	}
+	playID := strconv.FormatInt(playIDValue, 10)
 	var visibility string
 	if err := tx.QueryRowContext(ctx, `SELECT activity_visibility FROM user_settings WHERE user_id=?`, userID).Scan(&visibility); err != nil {
 		return false, fmt.Errorf("get activity visibility: %w", err)
@@ -191,8 +192,7 @@ func (store *Store) RecordPlexPlay(ctx context.Context, userID, fingerprint stri
 		if priorPlays > 0 {
 			kind = "rewatch"
 		}
-		activityID := "activity:" + playID
-		if _, err := tx.ExecContext(ctx, `INSERT INTO activity_events(id,user_id,kind,play_id,media_id,episode_id,occurred_at,created_at) VALUES(?,?,?,?,?,?,?,?)`, activityID, userID, kind, playID, nullableMediaID, nullableEpisodeID, watchedAt.UTC().Format(time.RFC3339Nano), now.Format(time.RFC3339Nano)); err != nil {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO activity_events(user_id,kind,play_id,media_id,episode_id,occurred_at,created_at) VALUES(?,?,?,?,?,?,?)`, userID, kind, playID, nullableMediaID, nullableEpisodeID, watchedAt.UTC().Format(time.RFC3339Nano), now.Format(time.RFC3339Nano)); err != nil {
 			return false, fmt.Errorf("create Plex activity event: %w", err)
 		}
 	}
@@ -213,14 +213,6 @@ func trimPlexEvents(ctx context.Context, tx *sql.Tx, userID string) error {
 		return fmt.Errorf("trim Plex sync history: %w", err)
 	}
 	return nil
-}
-
-func randomPlayID() (string, error) {
-	bytes := make([]byte, 16)
-	if _, err := rand.Read(bytes); err != nil {
-		return "", fmt.Errorf("generate play ID: %w", err)
-	}
-	return "plex:" + hex.EncodeToString(bytes), nil
 }
 
 func parseNullableTime(value sql.NullString) time.Time {

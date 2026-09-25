@@ -23,10 +23,10 @@ var (
 )
 
 type Repository interface {
-	BootstrapAdmin(context.Context, domain.User, string) error
-	CreateUser(context.Context, domain.User, string) error
+	BootstrapAdmin(context.Context, domain.User, string) (domain.User, error)
+	CreateUser(context.Context, domain.User, string) (domain.User, error)
 	FindUserByEmail(context.Context, string) (domain.User, string, error)
-	CreateSession(context.Context, string, string, string, time.Time) error
+	CreateSession(context.Context, string, string, time.Time) error
 	FindUserBySessionToken(context.Context, string, time.Time) (domain.User, error)
 	RevokeSession(context.Context, string) error
 }
@@ -34,7 +34,7 @@ type Repository interface {
 type googleRepository interface {
 	FindUserByGoogleSubject(context.Context, string) (domain.User, error)
 	LinkGoogleSubject(context.Context, string, string) error
-	CreateGoogleUser(context.Context, domain.User, string) error
+	CreateGoogleUser(context.Context, domain.User, string) (domain.User, error)
 }
 
 type accountCounter interface {
@@ -42,7 +42,7 @@ type accountCounter interface {
 }
 
 type signupRepository interface {
-	CreateSignupUser(context.Context, domain.User, string) error
+	CreateSignupUser(context.Context, domain.User, string) (domain.User, error)
 }
 
 type adminUsersRepository interface {
@@ -65,8 +65,9 @@ func (service *Service) CreateUser(ctx context.Context, email, displayName, pass
 	if err != nil {
 		return domain.User{}, err
 	}
-	user := domain.User{ID: newID(), Email: email, DisplayName: displayName, Role: domain.UserRole, CreatedAt: service.now().UTC()}
-	if err := service.repository.CreateUser(ctx, user, hash); err != nil {
+	user := domain.User{Email: email, DisplayName: displayName, Role: domain.UserRole, CreatedAt: service.now().UTC()}
+	user, err = service.repository.CreateUser(ctx, user, hash)
+	if err != nil {
 		return domain.User{}, err
 	}
 	return user, nil
@@ -118,8 +119,9 @@ func (service *Service) SignUp(ctx context.Context, email, name, password string
 	if err != nil {
 		return domain.User{}, "", time.Time{}, err
 	}
-	user := domain.User{ID: newID(), Email: email, DisplayName: displayName, Role: domain.UserRole, CreatedAt: service.now().UTC()}
-	if err := repository.CreateSignupUser(ctx, user, hash); err != nil {
+	user := domain.User{Email: email, DisplayName: displayName, Role: domain.UserRole, CreatedAt: service.now().UTC()}
+	user, err = repository.CreateSignupUser(ctx, user, hash)
+	if err != nil {
 		return domain.User{}, "", time.Time{}, err
 	}
 	token, err := newToken()
@@ -127,7 +129,7 @@ func (service *Service) SignUp(ctx context.Context, email, name, password string
 		return domain.User{}, "", time.Time{}, err
 	}
 	expiresAt := service.now().UTC().Add(30 * 24 * time.Hour)
-	if err := service.repository.CreateSession(ctx, newID(), user.ID, hashToken(token), expiresAt); err != nil {
+	if err := service.repository.CreateSession(ctx, user.ID, hashToken(token), expiresAt); err != nil {
 		return domain.User{}, "", time.Time{}, err
 	}
 	return user, token, expiresAt, nil
@@ -185,8 +187,9 @@ func (service *Service) Bootstrap(ctx context.Context, email, displayName, passw
 	if err != nil {
 		return domain.User{}, err
 	}
-	user := domain.User{ID: newID(), Email: email, DisplayName: displayName, Role: domain.AdminRole, CreatedAt: service.now().UTC()}
-	if err := service.repository.BootstrapAdmin(ctx, user, hash); err != nil {
+	user := domain.User{Email: email, DisplayName: displayName, Role: domain.AdminRole, CreatedAt: service.now().UTC()}
+	user, err = service.repository.BootstrapAdmin(ctx, user, hash)
+	if err != nil {
 		return domain.User{}, err
 	}
 	return user, nil
@@ -202,7 +205,7 @@ func (service *Service) Login(ctx context.Context, email, password string) (doma
 		return domain.User{}, "", time.Time{}, err
 	}
 	expiresAt := service.now().UTC().Add(30 * 24 * time.Hour)
-	if err := service.repository.CreateSession(ctx, newID(), user.ID, hashToken(token), expiresAt); err != nil {
+	if err := service.repository.CreateSession(ctx, user.ID, hashToken(token), expiresAt); err != nil {
 		return domain.User{}, "", time.Time{}, err
 	}
 	return user, token, expiresAt, nil
@@ -242,8 +245,9 @@ func (service *Service) LoginWithGoogle(ctx context.Context, subject, email, nam
 			if !service.allowSignups {
 				return domain.User{}, "", time.Time{}, ErrSignupsDisabled
 			}
-			user = domain.User{ID: newID(), Email: email, DisplayName: name, Role: domain.UserRole, CreatedAt: service.now().UTC()}
-			if err := repository.CreateGoogleUser(ctx, user, subject); err != nil {
+			user = domain.User{Email: email, DisplayName: name, Role: domain.UserRole, CreatedAt: service.now().UTC()}
+			user, err = repository.CreateGoogleUser(ctx, user, subject)
+			if err != nil {
 				return domain.User{}, "", time.Time{}, err
 			}
 		} else {
@@ -257,7 +261,7 @@ func (service *Service) LoginWithGoogle(ctx context.Context, subject, email, nam
 		return domain.User{}, "", time.Time{}, err
 	}
 	expiresAt := service.now().UTC().Add(30 * 24 * time.Hour)
-	if err := service.repository.CreateSession(ctx, newID(), user.ID, hashToken(token), expiresAt); err != nil {
+	if err := service.repository.CreateSession(ctx, user.ID, hashToken(token), expiresAt); err != nil {
 		return domain.User{}, "", time.Time{}, err
 	}
 	return user, token, expiresAt, nil

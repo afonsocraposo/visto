@@ -22,14 +22,8 @@ func TestFeed_GivenPrivateAndOptedInActivity_WhenListed_ThenPrivateEventsStayHid
 	}
 	defer store.Close()
 
-	for _, user := range []struct{ id, visibility string }{{"private-user", "private"}, {"family-user", "instance"}} {
-		if _, err := store.DB.Exec(`INSERT INTO users(id,username,display_name,password_hash,role,created_at,updated_at) VALUES(?,?,?,'hash','user',?,?)`, user.id, user.id, user.id, testTimestamp, testTimestamp); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := store.DB.Exec(`INSERT INTO user_settings(user_id,timezone,activity_visibility,created_at,updated_at) VALUES(?,'UTC',?,?,?)`, user.id, user.visibility, testTimestamp, testTimestamp); err != nil {
-			t.Fatal(err)
-		}
-	}
+	privateUserID := insertTestUser(t, store.DB, "private-user", "private-user", "private")
+	familyUserID := insertTestUser(t, store.DB, "family-user", "family-user", "instance")
 	if _, err := store.DB.Exec(`INSERT INTO media(id,media_type,tmdb_id,title,poster_path,metadata_updated_at,created_at) VALUES
 		('movie:10','movie',10,'Example Movie','/movie-poster.jpg',?,?),('tv:42','tv',42,'Example Show','/show-poster.jpg',?,?)`, testTimestamp, testTimestamp, testTimestamp, testTimestamp); err != nil {
 		t.Fatal(err)
@@ -45,35 +39,35 @@ func TestFeed_GivenPrivateAndOptedInActivity_WhenListed_ThenPrivateEventsStayHid
 
 	// Given one private movie watch and one opted-in rewatch sequence.
 	movieID := "movie:10"
-	privatePlay := tracking.Play{ID: "private-play", UserID: "private-user", MediaID: &movieID, WatchedAt: time.Date(2026, 9, 20, 12, 0, 0, 0, time.UTC), Source: "web"}
-	if err := store.CreatePlay(ctx, privatePlay); err != nil {
+	privatePlay := tracking.Play{UserID: privateUserID, MediaID: &movieID, WatchedAt: time.Date(2026, 9, 20, 12, 0, 0, 0, time.UTC), Source: "web"}
+	if _, err := store.CreatePlay(ctx, privatePlay); err != nil {
 		t.Fatal(err)
 	}
 	for _, play := range []tracking.Play{
-		{ID: "family-first-play", UserID: "family-user", MediaID: &movieID, WatchedAt: time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC), Source: "web"},
-		{ID: "family-rewatch", UserID: "family-user", MediaID: &movieID, WatchedAt: time.Date(2026, 9, 22, 12, 0, 0, 0, time.UTC), Source: "web"},
+		{UserID: familyUserID, MediaID: &movieID, WatchedAt: time.Date(2026, 9, 21, 12, 0, 0, 0, time.UTC), Source: "web"},
+		{UserID: familyUserID, MediaID: &movieID, WatchedAt: time.Date(2026, 9, 22, 12, 0, 0, 0, time.UTC), Source: "web"},
 	} {
-		if err := store.CreatePlay(ctx, play); err != nil {
+		if _, err := store.CreatePlay(ctx, play); err != nil {
 			t.Fatal(err)
 		}
 	}
 	episodeID := "tv:42:episode:101"
 	episodeIDs := []string{"tv:42:episode:101", "tv:42:episode:102"}
 	bulkPlays := []tracking.Play{
-		{ID: "bulk-play-1", UserID: "family-user", EpisodeID: &episodeIDs[0], WatchedAt: time.Date(2026, 9, 23, 12, 0, 0, 0, time.UTC), Source: "web"},
-		{ID: "bulk-play-2", UserID: "family-user", EpisodeID: &episodeIDs[1], WatchedAt: time.Date(2026, 9, 23, 12, 0, 0, 0, time.UTC), Source: "web"},
+		{UserID: familyUserID, EpisodeID: &episodeIDs[0], WatchedAt: time.Date(2026, 9, 23, 12, 0, 0, 0, time.UTC), Source: "web"},
+		{UserID: familyUserID, EpisodeID: &episodeIDs[1], WatchedAt: time.Date(2026, 9, 23, 12, 0, 0, 0, time.UTC), Source: "web"},
 	}
-	if err := store.CreateBulkPlays(ctx, bulkPlays); err != nil {
+	if _, err := store.CreateBulkPlays(ctx, bulkPlays); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.CreatePlay(ctx, tracking.Play{ID: "family-episode-rewatch", UserID: "family-user", EpisodeID: &episodeID, WatchedAt: time.Date(2026, 9, 23, 18, 0, 0, 0, time.UTC), Source: "web"}); err != nil {
+	if _, err := store.CreatePlay(ctx, tracking.Play{UserID: familyUserID, EpisodeID: &episodeID, WatchedAt: time.Date(2026, 9, 23, 18, 0, 0, 0, time.UTC), Source: "web"}); err != nil {
 		t.Fatal(err)
 	}
 	// A first rating and a later rating change are separate eligible events.
 	for index, rating := range []int{5, 4} {
 		updatedAt := time.Date(2026, 9, 24, 12+index, 0, 0, 0, time.UTC)
 		if err := store.UpsertItem(ctx, library.Item{
-			UserID: "family-user", MediaID: movieID, Status: domain.WatchlistStatus,
+			UserID: familyUserID, MediaID: movieID, Status: domain.WatchlistStatus,
 			Rating: &rating, AddedAt: updatedAt, UpdatedAt: updatedAt,
 		}); err != nil {
 			t.Fatal(err)
@@ -81,7 +75,7 @@ func TestFeed_GivenPrivateAndOptedInActivity_WhenListed_ThenPrivateEventsStayHid
 	}
 	privateRating := 5
 	if err := store.UpsertItem(ctx, library.Item{
-		UserID: "private-user", MediaID: movieID, Status: domain.WatchlistStatus,
+		UserID: privateUserID, MediaID: movieID, Status: domain.WatchlistStatus,
 		Rating: &privateRating, AddedAt: time.Now(), UpdatedAt: time.Now(),
 	}); err != nil {
 		t.Fatal(err)
@@ -125,7 +119,7 @@ func TestFeed_GivenPrivateAndOptedInActivity_WhenListed_ThenPrivateEventsStayHid
 
 	// When the account changes to private, its old activity is removed too.
 	settings := profile.Settings{ActivityVisibility: profile.PrivateVisibility, Timezone: "UTC"}
-	if err := store.SetSettings(ctx, "family-user", settings); err != nil {
+	if err := store.SetSettings(ctx, familyUserID, settings); err != nil {
 		t.Fatal(err)
 	}
 	page, err = feed.NewService(store).List(ctx, "", 100)

@@ -495,8 +495,12 @@ previously applied migration is missing or its checksum has changed.
 Applied migrations are append-only: they are never edited, renamed, reordered,
 or deleted. Schema changes always add a new forward migration. Migrations must
 be safe for an empty database and preserve existing user data during upgrades.
-The test suite runs the complete migration sequence against a fresh SQLite
-database and verifies that re-running it is a no-op.
+The generated row IDs for users, sessions, plays, activity events, and personal
+API tokens use SQLite integer primary keys. The API continues to expose these
+IDs as decimal strings. The migration remaps existing references and checks
+foreign-key integrity before it commits. The test suite runs the complete
+migration sequence against a fresh SQLite database, verifies existing data is
+preserved during key conversion, and verifies that re-running it is a no-op.
 
 ## 12. Testing
 
