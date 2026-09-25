@@ -18,7 +18,16 @@ paths:
     get:
       summary: Check whether this instance needs its first administrator
       responses:
-        '200': { description: Bootstrap state, content: { application/json: { schema: { type: object, required: [bootstrap_available], properties: { bootstrap_available: { type: boolean } } } } } }
+        '200': { description: Instance account state, content: { application/json: { schema: { type: object, required: [bootstrap_available, signup_enabled], properties: { bootstrap_available: { type: boolean }, signup_enabled: { type: boolean } } } } } }
+  /auth/signup:
+    post:
+      summary: Create a regular user account when public signup is enabled
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SignupRequest' } } } }
+      responses:
+        '201': { description: Account created and authenticated, content: { application/json: { schema: { $ref: '#/components/schemas/User' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { description: Public signup is disabled }
+        '409': { description: Initial administrator setup is incomplete }
   /auth/login:
     post:
       summary: Start a web session
@@ -34,6 +43,13 @@ paths:
         '204': { description: Session ended and cookie cleared }
         '500': { description: Session could not be revoked }
   /users:
+    get:
+      summary: List instance users as an administrator
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      responses:
+        '200': { description: Instance users, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/User' } } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: Administrator access required }
     post:
       summary: Create a local user account as an administrator
       security: [{ sessionCookie: [] }, { bearerToken: [] }]
@@ -43,6 +59,31 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { description: Administrator access required }
+  /users/{userID}:
+    patch:
+      summary: Change an instance user's name or password as an administrator
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      parameters:
+        - { name: userID, in: path, required: true, schema: { type: string } }
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [display_name], properties: { display_name: { type: string }, password: { type: string, description: 'Optional replacement password; leave empty to keep the current password.' } } } } } }
+      responses:
+        '204': { description: User updated }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: Administrator access required }
+        '404': { description: User not found }
+    delete:
+      summary: Delete an instance user as an administrator
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      parameters:
+        - { name: userID, in: path, required: true, schema: { type: string } }
+      responses:
+        '204': { description: User and personal data deleted }
+        '400': { description: An administrator cannot delete their own account }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: Administrator access required }
+        '404': { description: User not found }
+        '409': { description: Cannot delete the last administrator }
   /me:
     get:
       summary: Get the authenticated user
@@ -494,6 +535,12 @@ components:
       properties:
         username: { type: string, minLength: 3, maxLength: 32 }
         display_name: { type: string, minLength: 1, maxLength: 80 }
+        password: { type: string, format: password, minLength: 12 }
+    SignupRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username: { type: string, minLength: 3, maxLength: 32 }
         password: { type: string, format: password, minLength: 12 }
     LoginRequest:
       type: object

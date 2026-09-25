@@ -18,7 +18,7 @@ func (store *Store) BootstrapAdmin(ctx context.Context, user domain.User, passwo
 	}
 	defer tx.Rollback()
 	var count int
-	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM users`).Scan(&count); err != nil {
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM users WHERE role='admin'`).Scan(&count); err != nil {
 		return err
 	}
 	if count != 0 {
@@ -50,10 +50,40 @@ func (store *Store) CreateUser(ctx context.Context, user domain.User, passwordHa
 	return tx.Commit()
 }
 
-func (store *Store) UserCount(ctx context.Context) (int, error) {
+func (store *Store) CreateSignupUser(ctx context.Context, user domain.User, passwordHash string) error {
+	tx, err := store.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	var admins int
+	if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM users WHERE role='admin'`).Scan(&admins); err != nil {
+		return err
+	}
+	if admins == 0 {
+		return auth.ErrBootstrapIncomplete
+	}
+	if err := insertUserAndSettings(ctx, tx, user, passwordHash); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func insertUserAndSettings(ctx context.Context, tx *sql.Tx, user domain.User, passwordHash string) error {
+	now := user.CreatedAt.Format(time.RFC3339Nano)
+	if _, err := tx.ExecContext(ctx, `INSERT INTO users(id,username,display_name,password_hash,role,created_at,updated_at) VALUES(?,?,?,?,?,?,?)`, user.ID, user.Username, user.DisplayName, passwordHash, user.Role, now, now); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO user_settings(user_id,created_at,updated_at) VALUES(?,?,?)`, user.ID, now, now); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (store *Store) AdminCount(ctx context.Context) (int, error) {
 	var count int
-	if err := store.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM users`).Scan(&count); err != nil {
-		return 0, fmt.Errorf("count users: %w", err)
+	if err := store.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM users WHERE role='admin'`).Scan(&count); err != nil {
+		return 0, fmt.Errorf("count administrators: %w", err)
 	}
 	return count, nil
 }

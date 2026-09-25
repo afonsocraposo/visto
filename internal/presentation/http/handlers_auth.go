@@ -21,7 +21,35 @@ func bootstrapStatus(service *auth.Service) http.HandlerFunc {
 			writeError(w, http.StatusInternalServerError, "authentication status is unavailable")
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]bool{"bootstrap_available": available})
+		writeJSON(w, http.StatusOK, map[string]bool{"bootstrap_available": available, "signup_enabled": service.SignupEnabled()})
+	}
+}
+
+func signup(service *auth.Service, proxies *security.ProxyResolver) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if service == nil {
+			writeError(w, http.StatusServiceUnavailable, "authentication is not configured")
+			return
+		}
+		var request credentialsRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid JSON")
+			return
+		}
+		user, token, expiresAt, err := service.SignUp(r.Context(), request.Username, request.Password)
+		if err != nil {
+			switch {
+			case errors.Is(err, auth.ErrSignupsDisabled):
+				writeError(w, http.StatusForbidden, err.Error())
+			case errors.Is(err, auth.ErrBootstrapIncomplete):
+				writeError(w, http.StatusConflict, err.Error())
+			default:
+				writeError(w, http.StatusBadRequest, err.Error())
+			}
+			return
+		}
+		http.SetCookie(w, &http.Cookie{Name: "visto_session", Value: token, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, Expires: expiresAt, Secure: cookieSecure(r, proxies)})
+		writeJSON(w, http.StatusCreated, user)
 	}
 }
 
@@ -46,6 +74,91 @@ func createUser(service *auth.Service) http.HandlerFunc {
 			return
 		}
 		writeJSON(w, http.StatusCreated, user)
+	}
+}
+
+func listUsers(service *auth.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		actor, ok := authenticatedUser(w, r, service)
+		if !ok {
+			return
+		}
+		if actor.Role != domain.AdminRole {
+			writeError(w, http.StatusForbidden, "administrator access required")
+			return
+		}
+		users, err := service.Users(r.Context())
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "could not list users")
+			return
+		}
+		writeJSON(w, http.StatusOK, users)
+	}
+}
+
+func updateUser(service *auth.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		actor, ok := authenticatedUser(w, r, service)
+		if !ok {
+			return
+		}
+		if actor.Role != domain.AdminRole {
+			writeError(w, http.StatusForbidden, "administrator access required")
+			return
+		}
+		var request struct {
+			DisplayName string `json:"display_name"`
+			Password    string `json:"password"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid JSON")
+			return
+		}
+		keepSessionToken := ""
+		if actor.ID == r.PathValue("userID") {
+			if cookie, err := r.Cookie("visto_session"); err == nil {
+				keepSessionToken = cookie.Value
+			}
+		}
+		if err := service.UpdateUser(r.Context(), r.PathValue("userID"), request.DisplayName, request.Password, keepSessionToken); err != nil {
+			if errors.Is(err, auth.ErrUserNotFound) {
+				writeError(w, http.StatusNotFound, err.Error())
+			} else {
+				writeError(w, http.StatusBadRequest, err.Error())
+			}
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+func deleteUser(service *auth.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		actor, ok := authenticatedUser(w, r, service)
+		if !ok {
+			return
+		}
+		if actor.Role != domain.AdminRole {
+			writeError(w, http.StatusForbidden, "administrator access required")
+			return
+		}
+		userID := r.PathValue("userID")
+		if userID == actor.ID {
+			writeError(w, http.StatusBadRequest, "you cannot delete your own account")
+			return
+		}
+		if err := service.DeleteUser(r.Context(), userID); err != nil {
+			switch {
+			case errors.Is(err, auth.ErrUserNotFound):
+				writeError(w, http.StatusNotFound, err.Error())
+			case errors.Is(err, auth.ErrLastAdministrator):
+				writeError(w, http.StatusConflict, err.Error())
+			default:
+				writeError(w, http.StatusInternalServerError, "could not delete user")
+			}
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
 	}
 }
 

@@ -16,6 +16,9 @@ type accountHTTPRepository struct {
 	actor        domain.User
 	createdUser  domain.User
 	passwordHash string
+	users        []domain.User
+	updatedID    string
+	deletedID    string
 }
 
 type personalTokenHTTPRepository struct {
@@ -71,6 +74,26 @@ func (*accountHTTPRepository) BootstrapAdmin(context.Context, domain.User, strin
 func (repository *accountHTTPRepository) CreateUser(_ context.Context, user domain.User, passwordHash string) error {
 	repository.createdUser = user
 	repository.passwordHash = passwordHash
+	return nil
+}
+
+func (repository *accountHTTPRepository) CreateSignupUser(ctx context.Context, user domain.User, passwordHash string) error {
+	return repository.CreateUser(ctx, user, passwordHash)
+}
+
+func (repository *accountHTTPRepository) AdminCount(context.Context) (int, error) { return 1, nil }
+
+func (repository *accountHTTPRepository) ListUsers(context.Context) ([]domain.User, error) {
+	return repository.users, nil
+}
+
+func (repository *accountHTTPRepository) UpdateUser(_ context.Context, userID, _, _, _ string) error {
+	repository.updatedID = userID
+	return nil
+}
+
+func (repository *accountHTTPRepository) DeleteUser(_ context.Context, userID string) error {
+	repository.deletedID = userID
 	return nil
 }
 

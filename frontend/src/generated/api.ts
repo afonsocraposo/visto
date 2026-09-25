@@ -52,6 +52,7 @@ import type {
   LoginRequest,
   MediaSearchResult,
   PatchLibraryMediaIDNotificationsBody,
+  PatchUsersUserIDBody,
   PersonalAPIToken,
   Play,
   PostPlaysBulkBody,
@@ -61,6 +62,7 @@ import type {
   SetEpisodeRatingRequest,
   ShowEpisode,
   ShowProgress,
+  SignupRequest,
   TemporaryEpisodeDetails,
   TemporaryMovieDetails,
   TemporarySeasonDetails,
@@ -280,6 +282,94 @@ export function useGetAuthStatus<TData = Awaited<ReturnType<typeof getAuthStatus
 
 
 
+export const getPostAuthSignupUrl = () => {
+
+
+
+
+  return `/auth/signup`
+}
+
+/**
+ * @summary Create a regular user account when public signup is enabled
+ */
+export const postAuthSignup = async (signupRequest: SignupRequest, options?: Parameters<typeof customFetch>[1]): Promise<User> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<User>(getPostAuthSignupUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(signupRequest)
+  }
+);}
+
+
+
+
+
+export const getPostAuthSignupMutationKey = () => ['postAuthSignup'] as const;
+
+export const getPostAuthSignupMutationOptions = <TError = BadRequestResponse | void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postAuthSignup>>, TError,PostAuthSignupMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof postAuthSignup>>, TError,PostAuthSignupMutationVariables, TContext> => {
+
+const mutationKey = getPostAuthSignupMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postAuthSignup>>, PostAuthSignupMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  postAuthSignup(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PostAuthSignupMutationResult = NonNullable<Awaited<ReturnType<typeof postAuthSignup>>>
+    export type PostAuthSignupMutationBody = SignupRequest
+    export type PostAuthSignupMutationError = BadRequestResponse | void
+    export type PostAuthSignupMutationVariables = {data: SignupRequest}
+
+    /**
+ * @summary Create a regular user account when public signup is enabled
+ */
+export const usePostAuthSignup = <TError = BadRequestResponse | void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postAuthSignup>>, TError,PostAuthSignupMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof postAuthSignup>>,
+        TError,
+        PostAuthSignupMutationVariables,
+        TContext
+      > => {
+      return useMutation(getPostAuthSignupMutationOptions(options), queryClient);
+    }
+
 export const getPostAuthLoginUrl = () => {
 
 
@@ -442,6 +532,107 @@ export const usePostAuthLogout = <TError = void,
       return useMutation(getPostAuthLogoutMutationOptions(options), queryClient);
     }
 
+export const getGetUsersUrl = () => {
+
+
+
+
+  return `/users`
+}
+
+/**
+ * @summary List instance users as an administrator
+ */
+export const getUsers = async ( options?: Parameters<typeof customFetch>[1]): Promise<User[]> => {
+
+  return customFetch<User[]>(getGetUsersUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetUsersQueryKey = () => {
+    return [
+    `/users`
+    ] as const;
+    }
+
+
+export const getGetUsersQueryOptions = <TData = Awaited<ReturnType<typeof getUsers>>, TError = UnauthorizedResponse | void>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsers>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetUsersQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getUsers>>> = ({ signal }) => getUsers({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getUsers>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetUsersQueryResult = NonNullable<Awaited<ReturnType<typeof getUsers>>>
+export type GetUsersQueryError = UnauthorizedResponse | void
+
+
+export function useGetUsers<TData = Awaited<ReturnType<typeof getUsers>>, TError = UnauthorizedResponse | void>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsers>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getUsers>>,
+          TError,
+          Awaited<ReturnType<typeof getUsers>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetUsers<TData = Awaited<ReturnType<typeof getUsers>>, TError = UnauthorizedResponse | void>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsers>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getUsers>>,
+          TError,
+          Awaited<ReturnType<typeof getUsers>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetUsers<TData = Awaited<ReturnType<typeof getUsers>>, TError = UnauthorizedResponse | void>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsers>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List instance users as an administrator
+ */
+
+export function useGetUsers<TData = Awaited<ReturnType<typeof getUsers>>, TError = UnauthorizedResponse | void>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsers>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetUsersQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
 export const getPostUsersUrl = () => {
 
 
@@ -528,6 +719,169 @@ export const usePostUsers = <TError = BadRequestResponse | UnauthorizedResponse 
         TContext
       > => {
       return useMutation(getPostUsersMutationOptions(options), queryClient);
+    }
+
+export const getPatchUsersUserIDUrl = (userID: string,) => {
+
+
+
+
+  return `/users/${userID}`
+}
+
+/**
+ * @summary Change an instance user's name or password as an administrator
+ */
+export const patchUsersUserID = async (userID: string,
+    patchUsersUserIDBody: PatchUsersUserIDBody, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<void>(getPatchUsersUserIDUrl(userID),
+  {
+    ...options,
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(patchUsersUserIDBody)
+  }
+);}
+
+
+
+
+
+export const getPatchUsersUserIDMutationKey = () => ['patchUsersUserID'] as const;
+
+export const getPatchUsersUserIDMutationOptions = <TError = BadRequestResponse | UnauthorizedResponse | void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchUsersUserID>>, TError,PatchUsersUserIDMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof patchUsersUserID>>, TError,PatchUsersUserIDMutationVariables, TContext> => {
+
+const mutationKey = getPatchUsersUserIDMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof patchUsersUserID>>, PatchUsersUserIDMutationVariables> = (props) => {
+          const {userID,data} = props ?? {};
+
+          return  patchUsersUserID(userID,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PatchUsersUserIDMutationResult = NonNullable<Awaited<ReturnType<typeof patchUsersUserID>>>
+    export type PatchUsersUserIDMutationBody = PatchUsersUserIDBody
+    export type PatchUsersUserIDMutationError = BadRequestResponse | UnauthorizedResponse | void
+    export type PatchUsersUserIDMutationVariables = {userID: string;data: PatchUsersUserIDBody}
+
+    /**
+ * @summary Change an instance user's name or password as an administrator
+ */
+export const usePatchUsersUserID = <TError = BadRequestResponse | UnauthorizedResponse | void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchUsersUserID>>, TError,PatchUsersUserIDMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof patchUsersUserID>>,
+        TError,
+        PatchUsersUserIDMutationVariables,
+        TContext
+      > => {
+      return useMutation(getPatchUsersUserIDMutationOptions(options), queryClient);
+    }
+
+export const getDeleteUsersUserIDUrl = (userID: string,) => {
+
+
+
+
+  return `/users/${userID}`
+}
+
+/**
+ * @summary Delete an instance user as an administrator
+ */
+export const deleteUsersUserID = async (userID: string, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDeleteUsersUserIDUrl(userID),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteUsersUserIDMutationKey = () => ['deleteUsersUserID'] as const;
+
+export const getDeleteUsersUserIDMutationOptions = <TError = void | UnauthorizedResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteUsersUserID>>, TError,DeleteUsersUserIDMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteUsersUserID>>, TError,DeleteUsersUserIDMutationVariables, TContext> => {
+
+const mutationKey = getDeleteUsersUserIDMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteUsersUserID>>, DeleteUsersUserIDMutationVariables> = (props) => {
+          const {userID} = props ?? {};
+
+          return  deleteUsersUserID(userID,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteUsersUserIDMutationResult = NonNullable<Awaited<ReturnType<typeof deleteUsersUserID>>>
+
+    export type DeleteUsersUserIDMutationError = void | UnauthorizedResponse
+    export type DeleteUsersUserIDMutationVariables = {userID: string}
+
+    /**
+ * @summary Delete an instance user as an administrator
+ */
+export const useDeleteUsersUserID = <TError = void | UnauthorizedResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteUsersUserID>>, TError,DeleteUsersUserIDMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deleteUsersUserID>>,
+        TError,
+        DeleteUsersUserIDMutationVariables,
+        TContext
+      > => {
+      return useMutation(getDeleteUsersUserIDMutationOptions(options), queryClient);
     }
 
 export const getGetMeUrl = () => {
@@ -1448,7 +1802,7 @@ export const deleteProfilePushoverCredentials = async ( options?: Parameters<typ
 
 export const getDeleteProfilePushoverCredentialsMutationKey = () => ['deleteProfilePushoverCredentials'] as const;
 
-export const getDeleteProfilePushoverCredentialsMutationOptions = <TError = UnauthorizedResponse,
+export const getDeleteProfilePushoverCredentialsMutationOptions = <TError = UnauthorizedResponse | void,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteProfilePushoverCredentials>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
 ): UseMutationOptions<Awaited<ReturnType<typeof deleteProfilePushoverCredentials>>, TError,void, TContext> => {
 
@@ -1477,13 +1831,13 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
     export type DeleteProfilePushoverCredentialsMutationResult = NonNullable<Awaited<ReturnType<typeof deleteProfilePushoverCredentials>>>
 
-    export type DeleteProfilePushoverCredentialsMutationError = UnauthorizedResponse
+    export type DeleteProfilePushoverCredentialsMutationError = UnauthorizedResponse | void
 
 
     /**
  * @summary Remove the authenticated user's encrypted Pushover credentials and disable notifications
  */
-export const useDeleteProfilePushoverCredentials = <TError = UnauthorizedResponse,
+export const useDeleteProfilePushoverCredentials = <TError = UnauthorizedResponse | void,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteProfilePushoverCredentials>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient): UseMutationResult<
         Awaited<ReturnType<typeof deleteProfilePushoverCredentials>>,

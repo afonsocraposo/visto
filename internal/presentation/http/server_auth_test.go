@@ -45,6 +45,29 @@ func TestCreateUser_GivenRegularUserSession_WhenCreatingAnAccount_ThenItIsForbid
 	}
 }
 
+func TestAdminUsers_GivenRegularUserSession_WhenManagingAccounts_ThenEveryActionIsForbidden(t *testing.T) {
+	repository := &accountHTTPRepository{actor: domain.User{ID: "user-1", Role: domain.UserRole}}
+	handler := httpserver.New(auth.NewService(repository), nil, "", nil, nil, nil, nil, nil, nil).Handler()
+	for _, route := range []struct{ method, path, body string }{
+		{http.MethodGet, "/api/v1/users", ""},
+		{http.MethodPatch, "/api/v1/users/user-2", `{"display_name":"Other","password":"a-strong-new-password"}`},
+		{http.MethodDelete, "/api/v1/users/user-2", ""},
+	} {
+		t.Run(route.method+" "+route.path, func(t *testing.T) {
+			request := httptest.NewRequest(route.method, "http://visto.local"+route.path, strings.NewReader(route.body))
+			request.AddCookie(&http.Cookie{Name: "visto_session", Value: "session-1"})
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, request)
+			if response.Code != http.StatusForbidden {
+				t.Fatalf("status = %d, want 403: %s", response.Code, response.Body.String())
+			}
+		})
+	}
+	if repository.updatedID != "" || repository.deletedID != "" {
+		t.Fatalf("regular user changed accounts: updated=%q deleted=%q", repository.updatedID, repository.deletedID)
+	}
+}
+
 func TestPersonalAPIToken_GivenAuthenticatedUser_WhenCreatedUsedListedAndRevoked_ThenSecretIsOneTimeAndBearerAccessEnds(t *testing.T) {
 	repository := &personalTokenHTTPRepository{accountHTTPRepository: &accountHTTPRepository{actor: domain.User{ID: "user-1", Username: "family", Role: domain.UserRole}}}
 	service := auth.NewService(repository)

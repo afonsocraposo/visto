@@ -27,6 +27,7 @@ function cacheBackdrop(selection: LoginBackdrop): void {
 
 export function AuthGate() {
   const queryClient = useQueryClient();
+  const [mode, setMode] = useState<"login" | "signup">("login");
   const [backdrop, setBackdrop] = useState<LoginBackdrop | null>(cachedBackdrop);
   const trending = useQuery({
     queryKey: ["public-trending", "week"],
@@ -52,7 +53,7 @@ export function AuthGate() {
     queryFn: async () => {
       const response = await fetch("/api/v1/auth/status");
       if (!response.ok) throw new Error("Could not check instance setup.");
-      return response.json() as Promise<{ bootstrap_available: boolean }>;
+      return response.json() as Promise<{ bootstrap_available: boolean; signup_enabled: boolean }>;
     },
   });
   const [error, setError] = useState("");
@@ -91,28 +92,48 @@ export function AuthGate() {
       if (!login.ok) throw new Error("Administrator created. Please sign in.");
       return login.json() as Promise<User>;
     },
+    onSuccess: async user => {
+      queryClient.setQueryData(["session"], user);
+      await queryClient.invalidateQueries({ queryKey: ["auth-status"] });
+    },
+  });
+
+  const signUp = useMutation({
+    mutationFn: async () => {
+      const response = await fetch("/api/v1/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: form.values.username, password: form.values.password }),
+      });
+      if (!response.ok) {
+        const result = await response.json().catch(() => ({}));
+        throw new Error(result.error || "Could not create your account.");
+      }
+      return response.json() as Promise<User>;
+    },
     onSuccess: user => queryClient.setQueryData(["session"], user),
   });
 
   const isFirstRun = setup.data?.bootstrap_available;
+  const isSignup = !isFirstRun && mode === "signup" && setup.data?.signup_enabled;
   const submit = async () => {
     setError("");
     try {
-      await (isFirstRun ? createAdmin : signIn).mutateAsync();
+      await (isFirstRun ? createAdmin : isSignup ? signUp : signIn).mutateAsync();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Could not complete sign in.");
     }
   };
-  const pending = isFirstRun ? createAdmin.isPending : signIn.isPending;
+  const pending = isFirstRun ? createAdmin.isPending : isSignup ? signUp.isPending : signIn.isPending;
 
   return (
     <div className="auth-screen">
       <div className="auth-backdrop" style={backdrop ? { backgroundImage: `url(${backdropURL(backdrop.backdrop_path, "w1280")})` } : undefined} aria-hidden="true" />
       <div className="auth-screen-inner"><Paper className="auth-card" withBorder radius="xl" p="xl">
       <div className="auth-mark" aria-hidden="true">V</div>
-      <Title order={1}>{isFirstRun ? "Set up Visto" : "Welcome to Visto"}</Title>
+      <Title order={1}>{isFirstRun ? "Set up Visto" : isSignup ? "Create your account" : "Welcome to Visto"}</Title>
       <Text c="dimmed" mt="xs">
-        {isFirstRun ? "Create the first administrator for this instance." : "Sign in to track what you watch."}
+        {isFirstRun ? "Create the first administrator for this instance." : isSignup ? "Create an account to start tracking what you watch." : "Sign in to track what you watch."}
       </Text>
       {setup.isPending && <Group justify="center" py="xl"><Loader /></Group>}
       {setup.isError && <Alert color="red" mt="lg">Could not check instance setup. Refresh the page and try again.</Alert>}
@@ -120,12 +141,15 @@ export function AuthGate() {
       <form onSubmit={form.onSubmit(() => void submit())}>
         <TextInput required minLength={3} maxLength={32} label="Username" mt="lg" {...form.getInputProps("username")} />
         {isFirstRun && <TextInput required maxLength={80} label="Your name" mt="md" {...form.getInputProps("displayName")} />}
-        <PasswordInput required minLength={isFirstRun ? 12 : undefined} label="Password" mt="md" {...form.getInputProps("password")} />
+        <PasswordInput required minLength={isFirstRun || isSignup ? 12 : undefined} label="Password" mt="md" {...form.getInputProps("password")} />
         {error && <Alert color="red" mt="md">{error}</Alert>}
         <Button type="submit" loading={pending} fullWidth mt="lg">
-          {isFirstRun ? "Create administrator" : "Sign in"}
+          {isFirstRun ? "Create administrator" : isSignup ? "Create account" : "Sign in"}
         </Button>
       </form>}
+      {!setup.isPending && !setup.isError && !isFirstRun && setup.data?.signup_enabled && <Button variant="subtle" fullWidth mt="xs" onClick={() => { setError(""); setMode(isSignup ? "login" : "signup"); }}>
+        {isSignup ? "Already have an account? Sign in" : "New here? Create an account"}
+      </Button>}
       </Paper></div>
       {backdrop && <div className="auth-feature-caption"><Text size="xs" fw={700}>Trending on TMDB</Text><Text component="a" className="auth-feature-title" fw={650} href={tmdbTitleURL(backdrop)} target="_blank" rel="noopener noreferrer" aria-label={`View ${backdrop.title} on TMDB`}>{backdrop.title}</Text></div>}
     </div>

@@ -20,6 +20,14 @@ const themeDefinition = createTheme({
 });
 
 export function App() {
+  const setup = useQuery({
+    queryKey: ["auth-status"],
+    queryFn: async () => {
+      const response = await fetch("/api/v1/auth/status");
+      if (!response.ok) throw new Error("Could not check instance setup.");
+      return response.json() as Promise<{ bootstrap_available: boolean; signup_enabled: boolean }>;
+    },
+  });
   const session = useQuery({
     queryKey: ["session"],
     queryFn: async (): Promise<User | null> => {
@@ -35,9 +43,9 @@ export function App() {
 
   return (
     <MantineProvider theme={themeDefinition} defaultColorScheme="auto" forceColorScheme={forcedColorScheme(theme)}>
-      {session.isPending ? (
+      {setup.isPending || session.isPending ? (
         <Group justify="center" mt="xl"><Loader /></Group>
-      ) : session.data ? (
+      ) : !setup.isError && !setup.data?.bootstrap_available && session.data ? (
         <SessionProvider user={session.data}>
           <RouterProvider router={router} context={{ user: session.data, theme, setTheme }} />
         </SessionProvider>

@@ -65,7 +65,10 @@ func TestProtectedRoutes_GivenNoSession_WhenEveryUserScopedRouteIsCalled_ThenEac
 		method string
 		path   string
 	}{
+		{http.MethodGet, "/api/v1/users"},
 		{http.MethodPost, "/api/v1/users"},
+		{http.MethodPatch, "/api/v1/users/user-1"},
+		{http.MethodDelete, "/api/v1/users/user-1"},
 		{http.MethodGet, "/api/v1/me"},
 		{http.MethodGet, "/api/v1/tokens"},
 		{http.MethodPost, "/api/v1/tokens"},

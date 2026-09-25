@@ -13,9 +13,14 @@ docker compose up -d --build
 ```
 
 Open `http://localhost:8080`. On first use, create the instance administrator
-in the browser. The administrator can add accounts for other people on the
-instance. The Docker volume `visto-data` keeps the SQLite database across
-restarts.
+in the browser. The first account is always an administrator. After setup,
+people can create their own accounts from the sign-in page unless public signup
+is disabled. Administrators can manage accounts from Profile → Admin. The Docker
+volume `visto-data` keeps the SQLite database across restarts.
+
+Set `VISTO_ALLOW_SIGNUPS=false` in the environment or `.env` file to disable
+public account creation. This does not disable initial administrator setup or
+administrator-created accounts.
 
 To make a consistent manual backup while Visto is running, choose a new
 destination path inside the data volume:

@@ -8,4 +8,5 @@
 
 export type GetAuthStatus200 = {
   bootstrap_available: boolean;
+  signup_enabled: boolean;
 };

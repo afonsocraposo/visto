@@ -21,6 +21,10 @@ func (repository *createUserRepository) CreateUser(_ context.Context, user domai
 	repository.passwordHash = passwordHash
 	return nil
 }
+func (repository *createUserRepository) CreateSignupUser(_ context.Context, user domain.User, passwordHash string) error {
+	repository.createdUser, repository.passwordHash = user, passwordHash
+	return nil
+}
 func (*createUserRepository) FindUserByUsername(context.Context, string) (domain.User, string, error) {
 	return domain.User{}, "", nil
 }
@@ -47,6 +51,28 @@ func TestCreateUser_GivenValidAccount_WhenCreatedByAdministrator_ThenItStoresARe
 	}
 	if repository.passwordHash == "" || repository.passwordHash == "correct-horse-battery-staple" || !verifyPassword(repository.passwordHash, "correct-horse-battery-staple") {
 		t.Fatal("password must be stored as a verifiable hash, never as plaintext")
+	}
+}
+
+func TestSignUp_GivenPublicSignupEnabled_WhenAccountIsCreated_ThenItCreatesARegularUserAndSession(t *testing.T) {
+	repository := &createUserRepository{}
+	service := NewService(repository)
+	user, token, expiresAt, err := service.SignUp(context.Background(), " family ", "correct-horse-battery-staple")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if user.Role != domain.UserRole || user.Username != "family" || user.DisplayName != "family" || token == "" || !expiresAt.After(time.Now()) {
+		t.Fatalf("signup result = user:%+v token:%q expires:%v", user, token, expiresAt)
+	}
+	if repository.createdUser.ID != user.ID || !verifyPassword(repository.passwordHash, "correct-horse-battery-staple") {
+		t.Fatal("signup did not store the regular user with a password hash")
+	}
+}
+
+func TestSignUp_GivenPublicSignupDisabled_WhenAccountIsCreated_ThenItIsRejected(t *testing.T) {
+	service := NewService(&createUserRepository{}, Config{AllowSignups: false})
+	if _, _, _, err := service.SignUp(context.Background(), "family", "correct-horse-battery-staple"); !errors.Is(err, ErrSignupsDisabled) {
+		t.Fatalf("signup error = %v, want ErrSignupsDisabled", err)
 	}
 }
 

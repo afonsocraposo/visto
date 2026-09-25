@@ -2,9 +2,10 @@ import { useState } from "react";
 import { Tabs } from "@mantine/core";
 import { LibraryPanel } from "./Library";
 import { ProfilePanel } from "./ProfilePanel";
+import { AdminPanel } from "./AdminPanel";
 import type { LibraryStatus, MediaDetailTarget, User } from "../../types";
 
-type LibrarySection = "library" | "settings";
+type LibrarySection = "library" | "settings" | "admin";
 
 export function LibraryArea({ user, onOpenDetail, onOpenList }: { user: User; onOpenDetail?: (target: MediaDetailTarget) => void; onOpenList?: (status: LibraryStatus) => void }) {
   const [section, setSection] = useState<LibrarySection>("library");
@@ -13,8 +14,10 @@ export function LibraryArea({ user, onOpenDetail, onOpenList }: { user: User; on
     <Tabs.List grow>
       <Tabs.Tab value="library">Library</Tabs.Tab>
       <Tabs.Tab value="settings">Settings</Tabs.Tab>
+      {user.role === "admin" && <Tabs.Tab value="admin">Admin</Tabs.Tab>}
     </Tabs.List>
     <Tabs.Panel value="library" pt="md"><LibraryPanel onOpenDetail={onOpenDetail} onOpenList={onOpenList} /></Tabs.Panel>
-    <Tabs.Panel value="settings" pt="md"><ProfilePanel user={user} /></Tabs.Panel>
+    <Tabs.Panel value="settings" pt="md"><ProfilePanel /></Tabs.Panel>
+    {user.role === "admin" && <Tabs.Panel value="admin" pt="md"><AdminPanel currentUser={user} /></Tabs.Panel>}
   </Tabs>;
 }

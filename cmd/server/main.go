@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"syscall"
 	"time"
@@ -101,7 +102,7 @@ func main() {
 		})
 	}
 	appHandler := http.NewServeMux()
-	authService := auth.NewService(store)
+	authService := auth.NewService(store, auth.Config{AllowSignups: boolEnvironment("VISTO_ALLOW_SIGNUPS", true)})
 	publicURL := os.Getenv("VISTO_PUBLIC_URL")
 	if err := mcpserver.ValidatePublicURL(publicURL); err != nil {
 		log.Fatal(err)
@@ -170,6 +171,18 @@ func environment(name, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func boolEnvironment(name string, fallback bool) bool {
+	value := os.Getenv(name)
+	if value == "" {
+		return fallback
+	}
+	parsed, err := strconv.ParseBool(value)
+	if err != nil {
+		log.Fatalf("%s must be true or false", name)
+	}
+	return parsed
 }
 
 func durationEnvironment(name string, fallback time.Duration) time.Duration {

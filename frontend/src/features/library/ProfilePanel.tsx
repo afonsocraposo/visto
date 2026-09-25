@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "@mantine/form";
 import { Alert, Button, Group, Paper, PasswordInput, Select, Text, TextInput, Title } from "@mantine/core";
@@ -6,9 +6,8 @@ import { IconDownload } from "@tabler/icons-react";
 import { useUserQueryKey } from "../auth/SessionContext";
 import { PersonalTokensPanel } from "./PersonalTokensPanel";
 import { ConnectedAppsPanel } from "./ConnectedAppsPanel";
-import type { User } from "../../types";
 
-export function ProfilePanel({ user }: { user: User }) {
+export function ProfilePanel() {
   const queryClient = useQueryClient();
   const userQueryKey = useUserQueryKey();
   const form = useForm({ initialValues: { visibility: "private", timezone: "UTC", pushoverAppToken: "", pushoverUserKey: "" } });
@@ -114,39 +113,5 @@ export function ProfilePanel({ user }: { user: User }) {
     </Paper>
     <PersonalTokensPanel />
     <ConnectedAppsPanel />
-    {user.role === "admin" && <CreateUserPanel />}
   </>;
-}
-
-function CreateUserPanel() {
-  const [created, setCreated] = useState("");
-  const form = useForm({ initialValues: { username: "", displayName: "", password: "" } });
-  const create = useMutation({
-    mutationFn: async () => {
-      const response = await fetch("/api/v1/users", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: form.values.username, display_name: form.values.displayName, password: form.values.password }),
-      });
-      if (!response.ok) {
-        const result = await response.json().catch(() => ({}));
-        throw new Error(result.error || "Could not create this account.");
-      }
-      return response.json() as Promise<User>;
-    }, onSuccess: user => {
-      setCreated(user.display_name); form.reset();
-    },
-  });
-
-  return <Paper withBorder p="md" mt="lg">
-    <Title order={2}>Add a family member</Title>
-    <Text size="sm" c="dimmed" mt="xs">Each person gets a separate library and watch history.</Text>
-    <form onSubmit={form.onSubmit(() => { setCreated(""); create.mutate(); })}>
-      <TextInput required minLength={3} maxLength={32} label="Username" mt="md" {...form.getInputProps("username")} />
-      <TextInput required maxLength={80} label="Name" mt="md" {...form.getInputProps("displayName")} />
-      <PasswordInput required minLength={12} label="Temporary password" mt="md" {...form.getInputProps("password")} />
-      {create.isError && <Alert color="red" mt="md">{create.error.message}</Alert>}
-      {created && <Alert color="green" mt="md">Account created for {created}.</Alert>}
-      <Button type="submit" loading={create.isPending} mt="md">Create account</Button>
-    </form>
-  </Paper>;
 }
