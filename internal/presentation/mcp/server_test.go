@@ -11,6 +11,7 @@ import (
 
 	"github.com/afonsocosta/visto/internal/application/auth"
 	"github.com/afonsocosta/visto/internal/application/tracking"
+	"github.com/afonsocosta/visto/internal/application/watch"
 	"github.com/afonsocosta/visto/internal/domain"
 )
 
@@ -23,7 +24,10 @@ func (authenticator testAuthenticator) AuthenticatePersonalToken(_ context.Conte
 	return authenticator.user, nil
 }
 
-type testTracking struct{ userID string }
+type testTracking struct {
+	userID, showID  string
+	season, episode int
+}
 
 func (service *testTracking) History(_ context.Context, userID string, _ int) ([]tracking.HistoryEntry, error) {
 	service.userID = userID
@@ -32,6 +36,36 @@ func (service *testTracking) History(_ context.Context, userID string, _ int) ([
 
 func (*testTracking) Record(context.Context, string, *string, *string, time.Time, string) (tracking.Play, error) {
 	return tracking.Play{}, nil
+}
+
+func (service *testTracking) MarkEpisodesThrough(_ context.Context, userID, showID string, season, episode int, _ time.Time, _ string) (int, error) {
+	service.userID, service.showID, service.season, service.episode = userID, showID, season, episode
+	return 2, nil
+}
+
+func (*testTracking) MarkSeasonWatched(context.Context, string, string, int, time.Time, string) (int, error) {
+	return 0, nil
+}
+
+func (*testTracking) MarkSelectedEpisodes(context.Context, string, string, []string, time.Time, string) (int, error) {
+	return 0, nil
+}
+
+func (*testTracking) RemoveEpisodes(context.Context, string, []string) error { return nil }
+
+type testWatch struct{ episodes []watch.ShowEpisode }
+
+func (service *testWatch) Episodes(context.Context, string, string) ([]watch.ShowEpisode, error) {
+	return service.episodes, nil
+}
+func (*testWatch) Continue(context.Context, string) ([]watch.ContinueEntry, error) {
+	return nil, nil
+}
+func (*testWatch) Calendar(context.Context, string, time.Time, time.Time) ([]watch.CalendarEntry, error) {
+	return nil, nil
+}
+func (*testWatch) ShowProgress(context.Context, string, string) (watch.Progress, error) {
+	return watch.Progress{WatchedEpisodes: 3, MissingPriorEpisodes: 0}, nil
 }
 
 func (*testTracking) RateEpisode(context.Context, string, string, *int) (tracking.EpisodeRating, error) {
@@ -58,8 +92,8 @@ func TestMCPHandler_GivenValidPersonalToken_WhenToolsListIsRequested_ThenReturns
 	if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("decode MCP response: %v", err)
 	}
-	if len(payload.Result.Tools) != 10 {
-		t.Fatalf("tool count = %d, want 10", len(payload.Result.Tools))
+	if len(payload.Result.Tools) != 16 {
+		t.Fatalf("tool count = %d, want 16", len(payload.Result.Tools))
 	}
 	for _, tool := range payload.Result.Tools {
 		if len(tool.SecuritySchemes) != 1 {
@@ -102,6 +136,27 @@ func TestMCPHandler_GivenHistoryToolCall_WhenAuthenticated_ThenUsesAuthenticated
 	}
 	if trackingService.userID != "user-123" {
 		t.Fatalf("history user = %q, want authenticated user", trackingService.userID)
+	}
+}
+
+func TestMCPTools_GivenTrackedShow_WhenListingAndMarkingThrough_ThenReturnProgress(t *testing.T) {
+	trackingService := &testTracking{}
+	watchService := &testWatch{episodes: []watch.ShowEpisode{
+		{Episode: domain.Episode{ID: "tv:42:episode:1", ShowID: "tv:42", SeasonNumber: 1, EpisodeNumber: 1}},
+		{Episode: domain.Episode{ID: "tv:42:episode:2", ShowID: "tv:42", SeasonNumber: 1, EpisodeNumber: 2}},
+	}}
+	server := &Server{tracking: trackingService, watch: watchService}
+	listed, err := server.callTool(context.Background(), "user-123", "get_show_episodes", map[string]any{"show_id": "tv:42", "season_number": 1})
+	if err != nil || len(listed.([]watch.ShowEpisode)) != 2 {
+		t.Fatalf("listed=%v error=%v", listed, err)
+	}
+	result, err := server.callTool(context.Background(), "user-123", "mark_episodes_through", map[string]any{"show_id": "tv:42", "season_number": 1, "episode_number": 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := result.(map[string]any)
+	if response["marked_count"] != 2 || trackingService.userID != "user-123" || trackingService.showID != "tv:42" || trackingService.season != 1 || trackingService.episode != 2 {
+		t.Fatalf("result=%v tracking=%+v", response, trackingService)
 	}
 }
 

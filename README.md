@@ -351,6 +351,18 @@ OAuth endpoints and asks each user to sign in with their Visto account and
 approve access. Visto uses the identity associated with that user's token,
 not a `user_id` sent in an MCP tool call. See [OpenAI's MCP app guide](https://help.openai.com/en/articles/12584461-developer-mode-and-mcp-apps-in-chatgpt).
 
+For TV progress, `get_show_episodes` lists episode IDs and watched state.
+`mark_episodes_through` marks missing released episodes up to a chosen episode,
+even if that episode is already watched. `mark_season_watched` and
+`mark_selected_episodes_watched` cover other bulk updates; `mark_selected_episodes_unwatched`
+corrects mistakes. Bulk watch actions skip existing plays, so repeating one
+does not create rewatch history. `get_show_progress` reports earlier gaps
+separately from `is_caught_up`, which only refers to episodes after the
+furthest watched episode. `get_library` lists saved media and supports filters
+by status and media type. REST clients can use
+`POST /api/v1/shows/{showID}/episodes/watch-through` with `season_number` and
+`episode_number` to apply the same watch-through action.
+
 ## Development
 
 Requirements: Go 1.25.13+, Node.js 22+, Air, and a TMDB API key for metadata search.

@@ -106,6 +106,7 @@ func TestProtectedRoutes_GivenNoSession_WhenEveryUserScopedRouteIsCalled_ThenEac
 		{http.MethodGet, "/api/v1/shows/tv%3A42/progress"},
 		{http.MethodGet, "/api/v1/shows/tv%3A42/seasons"},
 		{http.MethodGet, "/api/v1/shows/tv%3A42/episodes"},
+		{http.MethodPost, "/api/v1/shows/tv%3A42/episodes/watch-through"},
 		{http.MethodGet, "/api/v1/seasons/tv%3A42%3Aseason%3A1/episodes"},
 	}
 	for _, route := range routes {

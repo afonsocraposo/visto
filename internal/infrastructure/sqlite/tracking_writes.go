@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/afonsocosta/visto/internal/application/tracking"
+	"github.com/afonsocosta/visto/internal/domain"
 )
 
 func (store *Store) CreatePlay(ctx context.Context, play tracking.Play) (tracking.Play, error) {
@@ -82,6 +83,17 @@ func (store *Store) CreateBulkPlays(ctx context.Context, plays []tracking.Play) 
 		return nil, fmt.Errorf("begin bulk play transaction: %w", err)
 	}
 	defer tx.Rollback()
+	plays, err = store.createBulkPlaysInTx(ctx, tx, plays)
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit bulk plays: %w", err)
+	}
+	return plays, nil
+}
+
+func (store *Store) createBulkPlaysInTx(ctx context.Context, tx *sql.Tx, plays []tracking.Play) ([]tracking.Play, error) {
 	var showID string
 	priorWatch := make(map[string]bool, len(plays))
 	for index, play := range plays {
@@ -152,10 +164,169 @@ func (store *Store) CreateBulkPlays(ctx context.Context, plays []tracking.Play) 
 			}
 		}
 	}
-	if err := tx.Commit(); err != nil {
-		return nil, fmt.Errorf("commit bulk plays: %w", err)
-	}
 	return plays, nil
+}
+
+func (store *Store) MarkEpisodesThrough(ctx context.Context, userID, showID string, season, number int, watchedAt, now time.Time, source string) (int, error) {
+	return store.markEpisodesMatching(ctx, userID, showID, watchedAt, now, source, func(episodes []domain.Episode, prior []domain.EpisodePlay, localNow time.Time) ([]domain.Episode, error) {
+		for _, episode := range episodes {
+			if episode.SeasonNumber == season && episode.EpisodeNumber == number {
+				if !episode.IsRegular() || !episode.IsReleasedAt(localNow) {
+					break
+				}
+				return domain.MissingEpisodesThrough(episodes, prior, episode, localNow), nil
+			}
+		}
+		return nil, fmt.Errorf("target must be a released regular episode of this show")
+	})
+}
+
+func (store *Store) MarkSeasonWatched(ctx context.Context, userID, showID string, season int, watchedAt, now time.Time, source string) (int, error) {
+	return store.markEpisodesMatching(ctx, userID, showID, watchedAt, now, source, func(episodes []domain.Episode, prior []domain.EpisodePlay, localNow time.Time) ([]domain.Episode, error) {
+		if season <= 0 {
+			return nil, fmt.Errorf("season_number must identify a regular season")
+		}
+		played := make(map[string]bool, len(prior))
+		for _, play := range prior {
+			played[play.EpisodeID] = true
+		}
+		missing := []domain.Episode{}
+		found := false
+		for _, episode := range episodes {
+			if episode.SeasonNumber != season {
+				continue
+			}
+			found = true
+			if episode.IsReleasedAt(localNow) && !played[episode.ID] {
+				missing = append(missing, episode)
+			}
+		}
+		if !found {
+			return nil, fmt.Errorf("season is not in this show's catalog")
+		}
+		return missing, nil
+	})
+}
+
+func (store *Store) MarkSelectedEpisodes(ctx context.Context, userID, showID string, episodeIDs []string, watchedAt, now time.Time, source string) (int, error) {
+	return store.markEpisodesMatching(ctx, userID, showID, watchedAt, now, source, func(episodes []domain.Episode, prior []domain.EpisodePlay, localNow time.Time) ([]domain.Episode, error) {
+		requested := make(map[string]bool, len(episodeIDs))
+		for _, id := range episodeIDs {
+			if id == "" || requested[id] {
+				return nil, fmt.Errorf("episode IDs must be non-empty and unique")
+			}
+			requested[id] = true
+		}
+		played := make(map[string]bool, len(prior))
+		for _, play := range prior {
+			played[play.EpisodeID] = true
+		}
+		missing := []domain.Episode{}
+		for _, episode := range episodes {
+			if !requested[episode.ID] {
+				continue
+			}
+			delete(requested, episode.ID)
+			if !episode.IsRegular() || !episode.IsReleasedAt(localNow) {
+				return nil, fmt.Errorf("selected episodes must be released regular episodes")
+			}
+			if !played[episode.ID] {
+				missing = append(missing, episode)
+			}
+		}
+		if len(requested) > 0 {
+			return nil, fmt.Errorf("selected episodes must belong to this show")
+		}
+		return missing, nil
+	})
+}
+
+func (store *Store) markEpisodesMatching(ctx context.Context, userID, showID string, watchedAt, now time.Time, source string, selectMissing func([]domain.Episode, []domain.EpisodePlay, time.Time) ([]domain.Episode, error)) (int, error) {
+	tx, err := store.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, fmt.Errorf("begin mark-through transaction: %w", err)
+	}
+	defer tx.Rollback()
+	// Take the write lock before selecting watched state, so concurrent repeats
+	// cannot both select and insert the same missing episodes.
+	result, err := tx.ExecContext(ctx, `UPDATE user_media SET updated_at=updated_at WHERE user_id=? AND media_id=?`, userID, showID)
+	if err != nil {
+		return 0, fmt.Errorf("check tracked show: %w", err)
+	}
+	changed, err := result.RowsAffected()
+	if err != nil {
+		return 0, fmt.Errorf("check tracked show: %w", err)
+	}
+	if changed == 0 {
+		return 0, tracking.ErrShowNotFound
+	}
+	var zoneName string
+	if err := tx.QueryRowContext(ctx, `SELECT timezone FROM user_settings WHERE user_id=?`, userID).Scan(&zoneName); err != nil {
+		return 0, fmt.Errorf("get user timezone: %w", err)
+	}
+	zone, err := time.LoadLocation(zoneName)
+	if err != nil {
+		return 0, fmt.Errorf("invalid user timezone: %w", err)
+	}
+	localNow := now.In(zone)
+	rows, err := tx.QueryContext(ctx, `SELECT e.id,e.season_number,e.episode_number,e.air_date,
+		EXISTS(SELECT 1 FROM plays p WHERE p.user_id=? AND p.episode_id=e.id)
+		FROM episodes e WHERE e.show_id=? ORDER BY e.season_number,e.episode_number`, userID, showID)
+	if err != nil {
+		return 0, fmt.Errorf("list show episodes: %w", err)
+	}
+	episodes := []domain.Episode{}
+	priorPlays := []domain.EpisodePlay{}
+	for rows.Next() {
+		var episode domain.Episode
+		var airDate sql.NullString
+		var watched bool
+		if err := rows.Scan(&episode.ID, &episode.SeasonNumber, &episode.EpisodeNumber, &airDate, &watched); err != nil {
+			rows.Close()
+			return 0, fmt.Errorf("scan show episode: %w", err)
+		}
+		episode.ShowID = showID
+		if airDate.Valid && airDate.String != "" {
+			parsed, err := time.Parse(time.DateOnly, airDate.String)
+			if err != nil {
+				rows.Close()
+				return 0, fmt.Errorf("parse episode air date: %w", err)
+			}
+			episode.AirDate = &parsed
+		}
+		episodes = append(episodes, episode)
+		if watched {
+			priorPlays = append(priorPlays, domain.EpisodePlay{EpisodeID: episode.ID})
+		}
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return 0, fmt.Errorf("iterate show episodes: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return 0, fmt.Errorf("close show episodes: %w", err)
+	}
+	missing, err := selectMissing(episodes, priorPlays, localNow)
+	if err != nil {
+		return 0, err
+	}
+	if len(missing) > 0 {
+		if _, err := tx.ExecContext(ctx, `UPDATE user_media SET status=CASE WHEN status='watchlist' THEN 'watching' ELSE status END, updated_at=? WHERE user_id=? AND media_id=?`, now.Format(time.RFC3339Nano), userID, showID); err != nil {
+			return 0, fmt.Errorf("update tracked show: %w", err)
+		}
+		plays := make([]tracking.Play, 0, len(missing))
+		for _, episode := range missing {
+			id := episode.ID
+			plays = append(plays, tracking.Play{UserID: userID, EpisodeID: &id, WatchedAt: watchedAt, Source: source})
+		}
+		if _, err := store.createBulkPlaysInTx(ctx, tx, plays); err != nil {
+			return 0, err
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("commit mark-through transaction: %w", err)
+	}
+	return len(missing), nil
 }
 
 func ensureWatchingRelationship(ctx context.Context, tx *sql.Tx, userID, mediaID string, createdAt time.Time) error {

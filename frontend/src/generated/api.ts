@@ -31,6 +31,7 @@ import type {
   CorrectPlayRequest,
   CreatePersonalAPITokenRequest,
   CreatePlayRequest,
+  DeleteLibraryMediaIDParams,
   DeletePlaysBulkBody,
   EpisodeRating,
   FeedPage,
@@ -71,6 +72,8 @@ import type {
   UnauthorizedResponse,
   UpdateLibraryRequest,
   User,
+  WatchThroughRequest,
+  WatchThroughResponse,
 } from "./models";
 
 import { customFetch } from "../lib/orvalMutator";
@@ -4884,6 +4887,113 @@ export const usePostLibrary = <
   return useMutation(getPostLibraryMutationOptions(options), queryClient);
 };
 
+export const getDeleteLibraryMediaIDUrl = (
+  mediaID: string,
+  params?: DeleteLibraryMediaIDParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : String(value));
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/library/${mediaID}?${stringifiedParams}`
+    : `/library/${mediaID}`;
+};
+
+/**
+ * @summary Remove an item from the authenticated user's watchlist or an unplayed Watching entry
+ */
+export const deleteLibraryMediaID = async (
+  mediaID: string,
+  params?: DeleteLibraryMediaIDParams,
+  options?: Parameters<typeof customFetch>[1],
+): Promise<void> => {
+  return customFetch<void>(getDeleteLibraryMediaIDUrl(mediaID, params), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteLibraryMediaIDMutationKey = () => ["deleteLibraryMediaID"] as const;
+
+export const getDeleteLibraryMediaIDMutationOptions = <
+  TError = BadRequestResponse | UnauthorizedResponse | void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteLibraryMediaID>>,
+    TError,
+    DeleteLibraryMediaIDMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteLibraryMediaID>>,
+  TError,
+  DeleteLibraryMediaIDMutationVariables,
+  TContext
+> => {
+  const mutationKey = getDeleteLibraryMediaIDMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteLibraryMediaID>>,
+    DeleteLibraryMediaIDMutationVariables
+  > = (props) => {
+    const { mediaID, params } = props ?? {};
+
+    return deleteLibraryMediaID(mediaID, params, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteLibraryMediaIDMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteLibraryMediaID>>
+>;
+
+export type DeleteLibraryMediaIDMutationError = BadRequestResponse | UnauthorizedResponse | void;
+export type DeleteLibraryMediaIDMutationVariables = {
+  mediaID: string;
+  params?: DeleteLibraryMediaIDParams;
+};
+
+/**
+ * @summary Remove an item from the authenticated user's watchlist or an unplayed Watching entry
+ */
+export const useDeleteLibraryMediaID = <
+  TError = BadRequestResponse | UnauthorizedResponse | void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof deleteLibraryMediaID>>,
+      TError,
+      DeleteLibraryMediaIDMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof deleteLibraryMediaID>>,
+  TError,
+  DeleteLibraryMediaIDMutationVariables,
+  TContext
+> => {
+  return useMutation(getDeleteLibraryMediaIDMutationOptions(options), queryClient);
+};
+
 export const getPatchLibraryMediaIDUrl = (mediaID: string) => {
   return `/library/${mediaID}`;
 };
@@ -5798,7 +5908,7 @@ export const getPostPlaysBulkUrl = () => {
 };
 
 /**
- * @summary Mark earlier episodes from one show watched as one bulk action
+ * @summary Record plays for selected episodes
  */
 export const postPlaysBulk = async (
   postPlaysBulkBody: PostPlaysBulkBody,
@@ -5875,7 +5985,7 @@ export type PostPlaysBulkMutationError = BadRequestResponse | UnauthorizedRespon
 export type PostPlaysBulkMutationVariables = { data: PostPlaysBulkBody };
 
 /**
- * @summary Mark earlier episodes from one show watched as one bulk action
+ * @summary Record plays for selected episodes
  */
 export const usePostPlaysBulk = <
   TError = BadRequestResponse | UnauthorizedResponse,
@@ -6014,7 +6124,7 @@ export const getDeletePlaysMediaMediaIDUrl = (mediaID: string) => {
 };
 
 /**
- * @summary Mark a movie unwatched by removing all of the user's movie plays
+ * @summary Mark a movie unwatched by removing its plays and the user's library entry
  */
 export const deletePlaysMediaMediaID = async (
   mediaID: string,
@@ -6072,7 +6182,7 @@ export type DeletePlaysMediaMediaIDMutationError = BadRequestResponse | Unauthor
 export type DeletePlaysMediaMediaIDMutationVariables = { mediaID: string };
 
 /**
- * @summary Mark a movie unwatched by removing all of the user's movie plays
+ * @summary Mark a movie unwatched by removing its plays and the user's library entry
  */
 export const useDeletePlaysMediaMediaID = <
   TError = BadRequestResponse | UnauthorizedResponse,
@@ -6232,6 +6342,122 @@ export function useGetShowsShowIDEpisodes<
 
   return withQueryKey(query, queryOptions.queryKey);
 }
+
+export const getPostShowsShowIDEpisodesWatchThroughUrl = (showID: string) => {
+  return `/shows/${showID}/episodes/watch-through`;
+};
+
+/**
+ * Includes the target episode and earlier regular episodes. Already watched episodes are skipped. The show must be in the user's library.
+ * @summary Mark missing released episodes through an episode watched
+ */
+export const postShowsShowIDEpisodesWatchThrough = async (
+  showID: string,
+  watchThroughRequest: WatchThroughRequest,
+  options?: Parameters<typeof customFetch>[1],
+): Promise<WatchThroughResponse> => {
+  const getHeaders = (
+    h?: NonNullable<RequestInit["headers"]>,
+  ): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(
+          h as Iterable<Iterable<string>>,
+          (entry) => Array.from(entry) as [string, string],
+        ),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+  return customFetch<WatchThroughResponse>(getPostShowsShowIDEpisodesWatchThroughUrl(showID), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getHeaders(options?.headers) },
+    body: JSON.stringify(watchThroughRequest),
+  });
+};
+
+export const getPostShowsShowIDEpisodesWatchThroughMutationKey = () =>
+  ["postShowsShowIDEpisodesWatchThrough"] as const;
+
+export const getPostShowsShowIDEpisodesWatchThroughMutationOptions = <
+  TError = BadRequestResponse | UnauthorizedResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof postShowsShowIDEpisodesWatchThrough>>,
+    TError,
+    PostShowsShowIDEpisodesWatchThroughMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof postShowsShowIDEpisodesWatchThrough>>,
+  TError,
+  PostShowsShowIDEpisodesWatchThroughMutationVariables,
+  TContext
+> => {
+  const mutationKey = getPostShowsShowIDEpisodesWatchThroughMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof postShowsShowIDEpisodesWatchThrough>>,
+    PostShowsShowIDEpisodesWatchThroughMutationVariables
+  > = (props) => {
+    const { showID, data } = props ?? {};
+
+    return postShowsShowIDEpisodesWatchThrough(showID, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PostShowsShowIDEpisodesWatchThroughMutationResult = NonNullable<
+  Awaited<ReturnType<typeof postShowsShowIDEpisodesWatchThrough>>
+>;
+export type PostShowsShowIDEpisodesWatchThroughMutationBody = WatchThroughRequest;
+export type PostShowsShowIDEpisodesWatchThroughMutationError =
+  BadRequestResponse | UnauthorizedResponse;
+export type PostShowsShowIDEpisodesWatchThroughMutationVariables = {
+  showID: string;
+  data: WatchThroughRequest;
+};
+
+/**
+ * @summary Mark missing released episodes through an episode watched
+ */
+export const usePostShowsShowIDEpisodesWatchThrough = <
+  TError = BadRequestResponse | UnauthorizedResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof postShowsShowIDEpisodesWatchThrough>>,
+      TError,
+      PostShowsShowIDEpisodesWatchThroughMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof postShowsShowIDEpisodesWatchThrough>>,
+  TError,
+  PostShowsShowIDEpisodesWatchThroughMutationVariables,
+  TContext
+> => {
+  return useMutation(getPostShowsShowIDEpisodesWatchThroughMutationOptions(options), queryClient);
+};
 
 export const getGetShowsShowIDSeasonsUrl = (showID: string) => {
   return `/shows/${showID}/seasons`;

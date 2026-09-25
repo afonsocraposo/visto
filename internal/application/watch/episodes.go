@@ -62,12 +62,36 @@ func (service *Service) ShowProgress(ctx context.Context, userID, showID string)
 			plans = append(plans, domain.EpisodePlay{ID: "progress:" + entry.Episode.ID, UserID: userID, EpisodeID: entry.Episode.ID})
 		}
 	}
-	progress := domain.CalculateShowProgress(episodes, plans, service.now().In(location))
-	return Progress{
+	now := service.now().In(location)
+	progress := domain.CalculateShowProgress(episodes, plans, now)
+	result := Progress{
 		ShowID:                showID,
 		Cursor:                progress.Cursor,
 		NextEpisode:           progress.NextEpisode,
 		LatestReleasedEpisode: progress.ReleasedEpisode,
 		IsCaughtUp:            progress.IsCaughtUp,
-	}, nil
+	}
+	watchedReleased := 0
+	for _, entry := range entries {
+		episode := entry.Episode
+		if !episode.IsRegular() {
+			continue
+		}
+		result.TotalEpisodes++
+		if entry.Watched {
+			result.WatchedEpisodes++
+		}
+		if !episode.IsReleasedAt(now) {
+			continue
+		}
+		result.ReleasedEpisodes++
+		if entry.Watched {
+			watchedReleased++
+		}
+		if !entry.Watched && progress.Cursor != nil && (episode.SeasonNumber < progress.Cursor.SeasonNumber || episode.SeasonNumber == progress.Cursor.SeasonNumber && episode.EpisodeNumber <= progress.Cursor.EpisodeNumber) {
+			result.MissingPriorEpisodes++
+		}
+	}
+	result.IsFullyWatched = result.ReleasedEpisodes > 0 && result.ReleasedEpisodes == watchedReleased
+	return result, nil
 }

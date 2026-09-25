@@ -7,6 +7,7 @@ import (
 
 	"github.com/afonsocosta/visto/internal/application/library"
 	"github.com/afonsocosta/visto/internal/application/oauth"
+	"github.com/afonsocosta/visto/internal/application/watch"
 	"github.com/afonsocosta/visto/internal/domain"
 )
 
@@ -29,18 +30,25 @@ func objectSchema(properties map[string]any, required ...string) map[string]any 
 func toolDefinitions() []toolDefinition {
 	readOnly := map[string]any{"readOnlyHint": true, "destructiveHint": false, "openWorldHint": true}
 	writeAction := map[string]any{"readOnlyHint": false, "destructiveHint": false, "openWorldHint": false}
+	deleteAction := map[string]any{"readOnlyHint": false, "destructiveHint": true, "openWorldHint": false}
 	readSecurity := []map[string]any{{"type": "oauth2", "scopes": []string{oauth.ReadScope}}}
 	writeSecurity := []map[string]any{{"type": "oauth2", "scopes": []string{oauth.WriteScope}}}
 	return []toolDefinition{
 		{Name: "search_media", Description: "Search TMDB for movies and TV shows.", InputSchema: objectSchema(map[string]any{"query": map[string]string{"type": "string"}, "language": map[string]string{"type": "string"}}, "query"), Annotations: readOnly, SecuritySchemes: readSecurity},
+		{Name: "get_library", Description: "List saved movies and TV shows with their library status and progress. Optionally filter by media type or status.", InputSchema: objectSchema(map[string]any{"media_type": map[string]any{"type": "string", "enum": []string{"movie", "tv"}}, "status": statusSchema()}), Annotations: readOnly, SecuritySchemes: readSecurity},
 		{Name: "get_currently_watching", Description: "List the next unwatched episode for each show the user is watching.", InputSchema: objectSchema(map[string]any{}), Annotations: readOnly, SecuritySchemes: readSecurity},
-		{Name: "get_show_progress", Description: "Get watched and next-episode progress for a tracked TV show. Use a Visto show ID such as tv:123.", InputSchema: objectSchema(map[string]any{"show_id": map[string]string{"type": "string"}}, "show_id"), Annotations: readOnly, SecuritySchemes: readSecurity},
+		{Name: "get_show_progress", Description: "Get a tracked TV show's watched counts, earlier gaps, and next episode. is_caught_up only means no newer released episode follows the furthest watched episode; is_fully_watched means all released regular episodes are watched. Use a Visto show ID such as tv:123.", InputSchema: objectSchema(map[string]any{"show_id": map[string]string{"type": "string"}}, "show_id"), Annotations: readOnly, SecuritySchemes: readSecurity},
+		{Name: "get_show_episodes", Description: "List a tracked TV show's episodes, IDs, air dates, and watched state. Optionally filter by season number.", InputSchema: objectSchema(map[string]any{"show_id": map[string]string{"type": "string"}, "season_number": map[string]any{"type": "integer", "minimum": 0}}, "show_id"), Annotations: readOnly, SecuritySchemes: readSecurity},
 		{Name: "get_upcoming_episodes", Description: "List upcoming unwatched episodes for shows in the user's watching list.", InputSchema: objectSchema(map[string]any{"from": map[string]string{"type": "string", "format": "date"}, "to": map[string]string{"type": "string", "format": "date"}}), Annotations: readOnly, SecuritySchemes: readSecurity},
 		{Name: "get_watch_history", Description: "Read recent watch history for the authenticated user.", InputSchema: objectSchema(map[string]any{"limit": map[string]any{"type": "integer", "minimum": 1, "maximum": 500}}), Annotations: readOnly, SecuritySchemes: readSecurity},
 		{Name: "add_to_watchlist", Description: "Save a movie or TV show to the user's watchlist. Pass a media result returned by search_media.", InputSchema: objectSchema(map[string]any{"media": searchResultSchema()}, "media"), Annotations: writeAction, SecuritySchemes: writeSecurity},
 		{Name: "set_show_status", Description: "Change a tracked TV show's library status.", InputSchema: objectSchema(map[string]any{"show_id": map[string]string{"type": "string"}, "status": statusSchema()}, "show_id", "status"), Annotations: writeAction, SecuritySchemes: writeSecurity},
 		{Name: "mark_movie_watched", Description: "Mark a movie watched. Pass a media result returned by search_media.", InputSchema: objectSchema(map[string]any{"media": searchResultSchema(), "watched_at": map[string]string{"type": "string", "format": "date-time"}}, "media"), Annotations: writeAction, SecuritySchemes: writeSecurity},
 		{Name: "mark_episode_watched", Description: "Mark one episode watched. Adds the show to Watching if needed. Does not mark prior episodes automatically. Pass a show result returned by search_media and the Visto episode ID.", InputSchema: objectSchema(map[string]any{"show": searchResultSchema(), "episode_id": map[string]string{"type": "string"}, "watched_at": map[string]string{"type": "string", "format": "date-time"}}, "show", "episode_id"), Annotations: writeAction, SecuritySchemes: writeSecurity},
+		{Name: "mark_episodes_through", Description: "Mark every missing released regular episode through the given season and episode, including that episode. Works even when the last episode is already watched. The show must already be tracked.", InputSchema: objectSchema(map[string]any{"show_id": map[string]string{"type": "string"}, "season_number": map[string]any{"type": "integer", "minimum": 1}, "episode_number": map[string]any{"type": "integer", "minimum": 1}, "watched_at": map[string]string{"type": "string", "format": "date-time"}}, "show_id", "season_number", "episode_number"), Annotations: writeAction, SecuritySchemes: writeSecurity},
+		{Name: "mark_season_watched", Description: "Mark missing released regular episodes in one season watched. Skips episodes already watched. The show must already be tracked.", InputSchema: objectSchema(map[string]any{"show_id": map[string]string{"type": "string"}, "season_number": map[string]any{"type": "integer", "minimum": 1}, "watched_at": map[string]string{"type": "string", "format": "date-time"}}, "show_id", "season_number"), Annotations: writeAction, SecuritySchemes: writeSecurity},
+		{Name: "mark_selected_episodes_watched", Description: "Mark selected released regular episodes of one tracked show watched. Skips episodes already watched.", InputSchema: objectSchema(map[string]any{"show_id": map[string]string{"type": "string"}, "episode_ids": map[string]any{"type": "array", "minItems": 1, "maxItems": 1000, "uniqueItems": true, "items": map[string]string{"type": "string"}}, "watched_at": map[string]string{"type": "string", "format": "date-time"}}, "show_id", "episode_ids"), Annotations: writeAction, SecuritySchemes: writeSecurity},
+		{Name: "mark_selected_episodes_unwatched", Description: "Mark selected episodes of one tracked show unwatched by removing their plays. Use get_show_episodes to find episode IDs.", InputSchema: objectSchema(map[string]any{"show_id": map[string]string{"type": "string"}, "episode_ids": map[string]any{"type": "array", "minItems": 1, "maxItems": 100, "uniqueItems": true, "items": map[string]string{"type": "string"}}}, "show_id", "episode_ids"), Annotations: deleteAction, SecuritySchemes: writeSecurity},
 		{Name: "rate_media", Description: "Set a 1–5 star rating, or pass null to clear it, for a tracked movie, TV show, or episode.", InputSchema: objectSchema(map[string]any{"media_id": map[string]string{"type": "string"}, "episode_id": map[string]string{"type": "string"}, "rating": map[string]any{"type": []string{"integer", "null"}, "minimum": 1, "maximum": 5}}, "rating"), Annotations: writeAction, SecuritySchemes: writeSecurity},
 	}
 }
@@ -69,6 +77,29 @@ func (server *Server) callTool(ctx context.Context, userID, name string, args ma
 			return nil, fmt.Errorf("query is required")
 		}
 		return provider.Search(ctx, query, stringArg(args, "language"))
+	case "get_library":
+		if server.library == nil {
+			return nil, fmt.Errorf("library is not configured")
+		}
+		mediaType := stringArg(args, "media_type")
+		status := stringArg(args, "status")
+		if mediaType != "" && mediaType != "movie" && mediaType != "tv" {
+			return nil, fmt.Errorf("media_type must be movie or tv")
+		}
+		if status != "" && status != "watchlist" && status != "watching" && status != "paused" && status != "dropped" {
+			return nil, fmt.Errorf("invalid library status")
+		}
+		entries, err := server.library.List(ctx, userID)
+		if err != nil {
+			return nil, err
+		}
+		filtered := make([]library.Entry, 0, len(entries))
+		for _, entry := range entries {
+			if (mediaType == "" || string(entry.Media.Type) == mediaType) && (status == "" || string(entry.Item.Status) == status) {
+				filtered = append(filtered, entry)
+			}
+		}
+		return filtered, nil
 	case "get_currently_watching":
 		if server.watch == nil {
 			return nil, fmt.Errorf("watch progress is not configured")
@@ -83,6 +114,29 @@ func (server *Server) callTool(ctx context.Context, userID, name string, args ma
 			return nil, fmt.Errorf("show_id must be a Visto TV ID such as tv:123")
 		}
 		return server.watch.ShowProgress(ctx, userID, showID)
+	case "get_show_episodes":
+		if server.watch == nil {
+			return nil, fmt.Errorf("show episodes are not configured")
+		}
+		showID := stringArg(args, "show_id")
+		if !strings.HasPrefix(showID, "tv:") {
+			return nil, fmt.Errorf("show_id must be a Visto TV ID such as tv:123")
+		}
+		entries, err := server.watch.Episodes(ctx, userID, showID)
+		if err != nil {
+			return nil, err
+		}
+		if args["season_number"] == nil {
+			return entries, nil
+		}
+		season := intArg(args, "season_number")
+		filtered := make([]watch.ShowEpisode, 0)
+		for _, entry := range entries {
+			if entry.Episode.SeasonNumber == season {
+				filtered = append(filtered, entry)
+			}
+		}
+		return filtered, nil
 	case "get_upcoming_episodes":
 		if server.watch == nil {
 			return nil, fmt.Errorf("watch calendar is not configured")
@@ -168,6 +222,100 @@ func (server *Server) callTool(ctx context.Context, userID, name string, args ma
 			return nil, err
 		}
 		return server.tracking.Record(ctx, userID, nil, &episodeID, watchedAt, "mcp")
+	case "mark_episodes_through":
+		if server.tracking == nil || server.watch == nil {
+			return nil, fmt.Errorf("episode tracking is not configured")
+		}
+		showID := stringArg(args, "show_id")
+		season, episode := intArg(args, "season_number"), intArg(args, "episode_number")
+		if !strings.HasPrefix(showID, "tv:") || season <= 0 || episode <= 0 {
+			return nil, fmt.Errorf("show_id, season_number, and episode_number are required")
+		}
+		watchedAt, err := timestampArg(args, "watched_at")
+		if err != nil {
+			return nil, err
+		}
+		marked, err := server.tracking.MarkEpisodesThrough(ctx, userID, showID, season, episode, watchedAt, "mcp")
+		if err != nil {
+			return nil, err
+		}
+		return server.episodeProgressResult(ctx, userID, showID, "marked_count", marked)
+	case "mark_season_watched":
+		if server.tracking == nil || server.watch == nil {
+			return nil, fmt.Errorf("episode tracking is not configured")
+		}
+		showID := stringArg(args, "show_id")
+		if !strings.HasPrefix(showID, "tv:") || args["season_number"] == nil {
+			return nil, fmt.Errorf("show_id and season_number are required")
+		}
+		watchedAt, err := timestampArg(args, "watched_at")
+		if err != nil {
+			return nil, err
+		}
+		marked, err := server.tracking.MarkSeasonWatched(ctx, userID, showID, intArg(args, "season_number"), watchedAt, "mcp")
+		if err != nil {
+			return nil, err
+		}
+		return server.episodeProgressResult(ctx, userID, showID, "marked_count", marked)
+	case "mark_selected_episodes_watched":
+		if server.tracking == nil || server.watch == nil {
+			return nil, fmt.Errorf("episode tracking is not configured")
+		}
+		showID := stringArg(args, "show_id")
+		ids, err := stringListArg(args, "episode_ids", 1000)
+		if err != nil {
+			return nil, err
+		}
+		if !strings.HasPrefix(showID, "tv:") {
+			return nil, fmt.Errorf("show_id must be a Visto TV ID such as tv:123")
+		}
+		watchedAt, err := timestampArg(args, "watched_at")
+		if err != nil {
+			return nil, err
+		}
+		marked, err := server.tracking.MarkSelectedEpisodes(ctx, userID, showID, ids, watchedAt, "mcp")
+		if err != nil {
+			return nil, err
+		}
+		return server.episodeProgressResult(ctx, userID, showID, "marked_count", marked)
+	case "mark_selected_episodes_unwatched":
+		if server.tracking == nil || server.watch == nil {
+			return nil, fmt.Errorf("episode tracking is not configured")
+		}
+		showID := stringArg(args, "show_id")
+		ids, err := stringListArg(args, "episode_ids", 100)
+		if err != nil {
+			return nil, err
+		}
+		if !strings.HasPrefix(showID, "tv:") {
+			return nil, fmt.Errorf("show_id must be a Visto TV ID such as tv:123")
+		}
+		for _, id := range ids {
+			if !strings.HasPrefix(id, showID+":episode:") {
+				return nil, fmt.Errorf("episode IDs must belong to the specified show")
+			}
+		}
+		entries, err := server.watch.Episodes(ctx, userID, showID)
+		if err != nil {
+			return nil, err
+		}
+		watched := make(map[string]bool, len(entries))
+		for _, entry := range entries {
+			watched[entry.Episode.ID] = entry.Watched
+		}
+		removed := 0
+		for _, id := range ids {
+			if _, ok := watched[id]; !ok {
+				return nil, fmt.Errorf("episode IDs must belong to the tracked show")
+			}
+			if watched[id] {
+				removed++
+			}
+		}
+		if err := server.tracking.RemoveEpisodes(ctx, userID, ids); err != nil {
+			return nil, err
+		}
+		return server.episodeProgressResult(ctx, userID, showID, "unmarked_count", removed)
 	case "rate_media":
 		if server.library == nil || server.tracking == nil {
 			return nil, fmt.Errorf("ratings are not configured")
@@ -196,6 +344,14 @@ func (server *Server) callTool(ctx context.Context, userID, name string, args ma
 	default:
 		return nil, fmt.Errorf("unknown Visto tool %q", name)
 	}
+}
+
+func (server *Server) episodeProgressResult(ctx context.Context, userID, showID, countKey string, count int) (any, error) {
+	progress, err := server.watch.ShowProgress(ctx, userID, showID)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{countKey: count, "progress": progress}, nil
 }
 
 func (server *Server) saveMedia(ctx context.Context, userID string, item domain.MediaSearchResult, status domain.LibraryStatus) (library.Item, error) {

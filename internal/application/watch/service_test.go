@@ -92,6 +92,24 @@ func TestShowProgress_GivenASeasonFifteenPlay_WhenProgressIsRequested_ThenTheCur
 	if progress.NextEpisode == nil || progress.NextEpisode.ID != "s16e1" || progress.IsCaughtUp {
 		t.Fatalf("progress=%+v, want next episode s16e1 and not caught up", progress)
 	}
+	if progress.WatchedEpisodes != 1 || progress.TotalEpisodes != 4 || progress.ReleasedEpisodes != 3 || progress.MissingPriorEpisodes != 1 || progress.IsFullyWatched {
+		t.Fatalf("progress counts=%+v, want 1 watched, 4 total, 3 released, and 1 earlier gap", progress)
+	}
+}
+
+func TestShowProgress_GivenOnlyLastEpisodeWatched_WhenProgressIsRequested_ThenEarlierGapIsVisible(t *testing.T) {
+	entries := []ShowEpisode{
+		{Episode: domain.Episode{ID: "s1e1", SeasonNumber: 1, EpisodeNumber: 1}},
+		{Episode: domain.Episode{ID: "s1e2", SeasonNumber: 1, EpisodeNumber: 2}, Watched: true},
+	}
+	service := NewService(repository{timezone: "UTC", episodes: entries})
+	progress, err := service.ShowProgress(context.Background(), "user-1", "tv:example")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !progress.IsCaughtUp || progress.IsFullyWatched || progress.MissingPriorEpisodes != 1 {
+		t.Fatalf("progress=%+v, want caught up cursor with one earlier gap", progress)
+	}
 }
 
 func TestEpisodes_GivenShowInUsersLibrary_WhenEpisodesAreRequested_ThenTheCatalogAndWatchedStateAreReturned(t *testing.T) {

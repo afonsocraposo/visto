@@ -71,6 +71,11 @@ type Progress struct {
 	NextEpisode           *domain.Episode `json:"next_episode"`
 	LatestReleasedEpisode *domain.Episode `json:"latest_released_episode"`
 	IsCaughtUp            bool            `json:"is_caught_up"`
+	IsFullyWatched        bool            `json:"is_fully_watched"`
+	WatchedEpisodes       int             `json:"watched_episodes"`
+	TotalEpisodes         int             `json:"total_episodes"`
+	ReleasedEpisodes      int             `json:"released_episodes"`
+	MissingPriorEpisodes  int             `json:"missing_prior_episodes"`
 }
 
 type Repository interface {

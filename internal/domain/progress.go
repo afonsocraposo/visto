@@ -58,6 +58,15 @@ func CalculateShowProgress(episodes []Episode, plays []EpisodePlay, now time.Tim
 // MissingPriorEpisodes returns released regular episodes before target that do
 // not have a play. The application uses it to ask before a bulk mark action.
 func MissingPriorEpisodes(episodes []Episode, plays []EpisodePlay, target Episode, now time.Time) []Episode {
+	return missingEpisodesThrough(episodes, plays, target, now, false)
+}
+
+// MissingEpisodesThrough includes the target when it has not been watched.
+func MissingEpisodesThrough(episodes []Episode, plays []EpisodePlay, target Episode, now time.Time) []Episode {
+	return missingEpisodesThrough(episodes, plays, target, now, true)
+}
+
+func missingEpisodesThrough(episodes []Episode, plays []EpisodePlay, target Episode, now time.Time, includeTarget bool) []Episode {
 	played := make(map[string]struct{}, len(plays))
 	for _, play := range plays {
 		played[play.EpisodeID] = struct{}{}
@@ -65,7 +74,8 @@ func MissingPriorEpisodes(episodes []Episode, plays []EpisodePlay, target Episod
 
 	missing := make([]Episode, 0)
 	for _, episode := range episodes {
-		if !episode.IsRegular() || !episode.IsReleasedAt(now) || compareEpisode(episode, target) >= 0 {
+		order := compareEpisode(episode, target)
+		if !episode.IsRegular() || !episode.IsReleasedAt(now) || order > 0 || order == 0 && !includeTarget {
 			continue
 		}
 		if _, ok := played[episode.ID]; !ok {

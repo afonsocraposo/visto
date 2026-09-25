@@ -11,6 +11,7 @@ import (
 var (
 	ErrFutureWatchTime = errors.New("watched_at cannot be in the future")
 	ErrPlayNotFound    = errors.New("play not found")
+	ErrShowNotFound    = errors.New("show is not in the user's library")
 )
 
 type Play struct {
@@ -58,6 +59,12 @@ type mediaPlayDeletionRepository interface {
 type episodeRatingRepository interface {
 	GetEpisodeRating(context.Context, string, string) (EpisodeRating, error)
 	SaveEpisodeRating(context.Context, string, string, *int) (EpisodeRating, error)
+}
+
+type episodesThroughRepository interface {
+	MarkEpisodesThrough(context.Context, string, string, int, int, time.Time, time.Time, string) (int, error)
+	MarkSeasonWatched(context.Context, string, string, int, time.Time, time.Time, string) (int, error)
+	MarkSelectedEpisodes(context.Context, string, string, []string, time.Time, time.Time, string) (int, error)
 }
 
 type Service struct {
@@ -132,6 +139,68 @@ func (service *Service) RecordEpisodes(ctx context.Context, userID string, episo
 		return nil, err
 	}
 	return plays, nil
+}
+
+// MarkEpisodesThrough records only missing, released regular episodes up to and
+// including the target. The repository performs selection and insertion in one
+// transaction so a repeated request cannot create rewatches.
+func (service *Service) MarkEpisodesThrough(ctx context.Context, userID, showID string, season, episode int, watchedAt time.Time, source string) (int, error) {
+	if userID == "" || !strings.HasPrefix(showID, "tv:") || season <= 0 || episode <= 0 {
+		return 0, fmt.Errorf("user, TV show, season, and episode are required")
+	}
+	watchedAt, now, err := service.bulkWatchTime(watchedAt, source)
+	if err != nil {
+		return 0, err
+	}
+	repository, ok := service.repository.(episodesThroughRepository)
+	if !ok {
+		return 0, fmt.Errorf("mark through is not configured")
+	}
+	return repository.MarkEpisodesThrough(ctx, userID, showID, season, episode, watchedAt, now, source)
+}
+
+func (service *Service) MarkSeasonWatched(ctx context.Context, userID, showID string, season int, watchedAt time.Time, source string) (int, error) {
+	if userID == "" || !strings.HasPrefix(showID, "tv:") || season <= 0 {
+		return 0, fmt.Errorf("user, TV show, and regular season are required")
+	}
+	watchedAt, now, err := service.bulkWatchTime(watchedAt, source)
+	if err != nil {
+		return 0, err
+	}
+	repository, ok := service.repository.(episodesThroughRepository)
+	if !ok {
+		return 0, fmt.Errorf("bulk episode tracking is not configured")
+	}
+	return repository.MarkSeasonWatched(ctx, userID, showID, season, watchedAt, now, source)
+}
+
+func (service *Service) MarkSelectedEpisodes(ctx context.Context, userID, showID string, episodeIDs []string, watchedAt time.Time, source string) (int, error) {
+	if userID == "" || !strings.HasPrefix(showID, "tv:") || len(episodeIDs) == 0 || len(episodeIDs) > 1000 {
+		return 0, fmt.Errorf("user, TV show, and 1 to 1000 episode IDs are required")
+	}
+	watchedAt, now, err := service.bulkWatchTime(watchedAt, source)
+	if err != nil {
+		return 0, err
+	}
+	repository, ok := service.repository.(episodesThroughRepository)
+	if !ok {
+		return 0, fmt.Errorf("bulk episode tracking is not configured")
+	}
+	return repository.MarkSelectedEpisodes(ctx, userID, showID, episodeIDs, watchedAt, now, source)
+}
+
+func (service *Service) bulkWatchTime(watchedAt time.Time, source string) (time.Time, time.Time, error) {
+	now := service.now().UTC()
+	if watchedAt.IsZero() {
+		watchedAt = now
+	}
+	if watchedAt.After(now) {
+		return time.Time{}, time.Time{}, ErrFutureWatchTime
+	}
+	if !validSource(source) {
+		return time.Time{}, time.Time{}, fmt.Errorf("invalid play source")
+	}
+	return watchedAt.UTC(), now, nil
 }
 
 func validSource(source string) bool {

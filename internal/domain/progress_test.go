@@ -77,6 +77,20 @@ func TestMissingPriorEpisodes_GivenLaterSelectedEpisode_WhenEarlierEpisodesAreUn
 	}
 }
 
+func TestMissingEpisodesThrough_IncludesUnwatchedTargetAndSkipsFutureAndSpecials(t *testing.T) {
+	now := date("2026-09-24")
+	episodes := []domain.Episode{
+		episode("special", 0, 1, "2026-01-01"),
+		episode("s1e1", 1, 1, "2026-01-02"),
+		episode("s1e2", 1, 2, "2026-01-03"),
+		episode("s1e3", 1, 3, "2026-10-01"),
+	}
+	missing := domain.MissingEpisodesThrough(episodes, []domain.EpisodePlay{{EpisodeID: "s1e1"}}, episodes[2], now)
+	if len(missing) != 1 || missing[0].ID != "s1e2" {
+		t.Fatalf("missing=%#v, want only target s1e2", missing)
+	}
+}
+
 func episode(id string, season, number int, airDate string) domain.Episode {
 	date := date(airDate)
 	return domain.Episode{ID: id, SeasonNumber: season, EpisodeNumber: number, AirDate: &date}

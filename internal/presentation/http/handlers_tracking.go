@@ -7,6 +7,7 @@ import "strconv"
 import "time"
 import "github.com/afonsocosta/visto/internal/application/auth"
 import "github.com/afonsocosta/visto/internal/application/tracking"
+import "github.com/afonsocosta/visto/internal/application/watch"
 
 func playHistory(authService *auth.Service, service *tracking.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -109,6 +110,47 @@ func createBulkPlays(authService *auth.Service, service *tracking.Service) http.
 			return
 		}
 		writeJSON(w, http.StatusCreated, plays)
+	}
+}
+
+func watchThroughEpisodes(authService *auth.Service, trackingService *tracking.Service, watchService *watch.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := authenticatedUser(w, r, authService)
+		if !ok {
+			return
+		}
+		if trackingService == nil || watchService == nil {
+			writeError(w, http.StatusServiceUnavailable, "episode tracking is not configured")
+			return
+		}
+		var request struct {
+			SeasonNumber  int        `json:"season_number"`
+			EpisodeNumber int        `json:"episode_number"`
+			WatchedAt     *time.Time `json:"watched_at"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid JSON")
+			return
+		}
+		watchedAt := time.Time{}
+		if request.WatchedAt != nil {
+			watchedAt = *request.WatchedAt
+		}
+		showID := r.PathValue("showID")
+		marked, err := trackingService.MarkEpisodesThrough(r.Context(), user.ID, showID, request.SeasonNumber, request.EpisodeNumber, watchedAt, "api")
+		if err != nil {
+			writeTrackingError(w, err)
+			return
+		}
+		progress, err := watchService.ShowProgress(r.Context(), user.ID, showID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "could not load show progress")
+			return
+		}
+		writeJSON(w, http.StatusOK, struct {
+			MarkedCount int            `json:"marked_count"`
+			Progress    watch.Progress `json:"progress"`
+		}{marked, progress})
 	}
 }
 
@@ -234,7 +276,7 @@ func deletePlay(authService *auth.Service, service *tracking.Service) http.Handl
 }
 
 func writeTrackingError(w http.ResponseWriter, err error) {
-	if errors.Is(err, tracking.ErrPlayNotFound) {
+	if errors.Is(err, tracking.ErrPlayNotFound) || errors.Is(err, tracking.ErrShowNotFound) {
 		writeError(w, http.StatusNotFound, err.Error())
 		return
 	}

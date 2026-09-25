@@ -12,5 +12,19 @@ export interface ShowProgress {
   cursor: Episode | null;
   next_episode: Episode | null;
   latest_released_episode: Episode | null;
+  /** No released episode follows the furthest watched episode; earlier unwatched gaps may remain. */
   is_caught_up: boolean;
+  /** Every released regular episode is watched. */
+  is_fully_watched: boolean;
+  /** @minimum 0 */
+  watched_episodes: number;
+  /** @minimum 0 */
+  total_episodes: number;
+  /** @minimum 0 */
+  released_episodes: number;
+  /**
+   * Released unwatched regular episodes at or before the furthest watched episode.
+   * @minimum 0
+   */
+  missing_prior_episodes: number;
 }

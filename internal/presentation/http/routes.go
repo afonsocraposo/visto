@@ -68,5 +68,6 @@ func registerAPIRoutes(mux *http.ServeMux, authService *auth.Service, metadataPr
 	mux.HandleFunc("GET /api/v1/shows/{showID}/progress", showProgress(authService, watchService))
 	mux.HandleFunc("GET /api/v1/shows/{showID}/seasons", showSeasons(authService, watchService))
 	mux.HandleFunc("GET /api/v1/shows/{showID}/episodes", showEpisodes(authService, watchService))
+	mux.HandleFunc("POST /api/v1/shows/{showID}/episodes/watch-through", watchThroughEpisodes(authService, trackingService, watchService))
 	mux.HandleFunc("GET /api/v1/seasons/{seasonID}/episodes", seasonEpisodes(authService, watchService))
 }

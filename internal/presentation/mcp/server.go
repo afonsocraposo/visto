@@ -40,11 +40,16 @@ type libraryUseCases interface {
 
 type trackingUseCases interface {
 	Record(context.Context, string, *string, *string, time.Time, string) (tracking.Play, error)
+	MarkEpisodesThrough(context.Context, string, string, int, int, time.Time, string) (int, error)
+	MarkSeasonWatched(context.Context, string, string, int, time.Time, string) (int, error)
+	MarkSelectedEpisodes(context.Context, string, string, []string, time.Time, string) (int, error)
+	RemoveEpisodes(context.Context, string, []string) error
 	History(context.Context, string, int) ([]tracking.HistoryEntry, error)
 	RateEpisode(context.Context, string, string, *int) (tracking.EpisodeRating, error)
 }
 
 type watchUseCases interface {
+	Episodes(context.Context, string, string) ([]watch.ShowEpisode, error)
 	Continue(context.Context, string) ([]watch.ContinueEntry, error)
 	Calendar(context.Context, string, time.Time, time.Time) ([]watch.CalendarEntry, error)
 	ShowProgress(context.Context, string, string) (watch.Progress, error)
@@ -270,9 +275,9 @@ func bearerToken(header string) string {
 
 func requiredScope(tool string) string {
 	switch tool {
-	case "search_media", "get_currently_watching", "get_show_progress", "get_upcoming_episodes", "get_watch_history":
+	case "search_media", "get_library", "get_currently_watching", "get_show_progress", "get_show_episodes", "get_upcoming_episodes", "get_watch_history":
 		return oauth.ReadScope
-	case "add_to_watchlist", "set_show_status", "mark_movie_watched", "mark_episode_watched", "rate_media":
+	case "add_to_watchlist", "set_show_status", "mark_movie_watched", "mark_episode_watched", "mark_episodes_through", "mark_season_watched", "mark_selected_episodes_watched", "mark_selected_episodes_unwatched", "rate_media":
 		return oauth.WriteScope
 	default:
 		return ""
