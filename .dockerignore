@@ -5,3 +5,22 @@ data
 frontend/node_modules
 frontend/dist
 frontend/*.tsbuildinfo
+
+# Files used only for local development, tests, or code generation
+frontend/e2e
+frontend/test
+frontend/test-results
+frontend/playwright-report
+frontend/playwright.config.ts
+frontend/scripts
+frontend/drizzle.config.ts
+frontend/orval.config.ts
+frontend/.prettierignore
+frontend/.prettierrc.json
+
+# Repository documentation and CI configuration
+.github
+README.md
+CHANGELOG.md
+SPEC.md
+PROJECT-IMPROVEMENT-PLAN.md
