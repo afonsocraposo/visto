@@ -11,10 +11,13 @@ type Item struct {
 	DisplayName   string    `json:"display_name"`
 	Kind          string    `json:"kind"`
 	Title         string    `json:"title"`
+	MediaType     string    `json:"media_type,omitempty"`
+	ArtworkPath   string    `json:"artwork_path,omitempty"`
 	Rating        *int      `json:"rating,omitempty"`
 	Count         int       `json:"count,omitempty"`
 	SeasonNumber  *int      `json:"season_number,omitempty"`
 	EpisodeNumber *int      `json:"episode_number,omitempty"`
+	EpisodeName   string    `json:"episode_name,omitempty"`
 	OccurredAt    time.Time `json:"occurred_at"`
 }
 

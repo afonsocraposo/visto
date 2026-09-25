@@ -50,10 +50,14 @@ export type FeedItem = {
   display_name: string;
   kind: "watch" | "rewatch" | "rating" | "bulk_watch";
   title: string;
+  media_type?: "movie" | "tv";
+  artwork_path?: string;
   rating?: number;
   count?: number;
   season_number?: number;
   episode_number?: number;
+  episode_name?: string;
+  occurred_at: string;
 };
 
 export type Episode = {

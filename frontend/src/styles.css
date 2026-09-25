@@ -154,26 +154,30 @@ select {
 .media-poster-card-subtitle { color: rgb(255 255 255 / .78); }
 .library-clickable { cursor: pointer; }
 .library-clickable:hover { color: var(--mantine-color-yellow-7); }
-.feed-card { border-left: 3px solid #48b7ae; }
-.feed-activity-content { flex: 1 1 0; min-width: 0; }
-.feed-activity-text { flex: 0 1 auto; }
-.history-intro { margin-top: 6px; }
-.history-list { position: relative; display: grid; gap: 12px; }
-.history-list::before { position: absolute; top: 18px; bottom: 18px; left: 19px; width: 1px; background: color-mix(in srgb, #48b7ae 45%, var(--mantine-color-gray-3)); content: ""; }
-.history-entry { position: relative; padding-left: 48px !important; background: var(--mantine-color-body); transition: border-color 150ms ease, transform 150ms ease; }
-.history-entry:hover { border-color: #48b7ae; transform: translateX(2px); }
-.history-entry-marker { position: absolute; top: 18px; left: 8px; display: grid; place-items: center; width: 24px; height: 24px; border: 4px solid var(--mantine-color-body); border-radius: 50%; background: #48b7ae; color: #0f3f3b; }
-.history-entry-title { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; }
-.history-episode-name { flex-basis: 100%; color: var(--mantine-color-dimmed); }
-.history-heading { min-width: 0; }
-.history-art { display: grid; place-items: center; width: 92px; height: 58px; flex: 0 0 92px; overflow: hidden; border-radius: 8px; background: #1b2430; color: #f2b544; }
-.history-art img { width: 100%; height: 100%; object-fit: cover; }
-.history-episode { color: #12675f; background: #dff4f1; }
-.history-date { white-space: nowrap; }
-.history-time { display: inline-flex; align-items: center; gap: 6px; }
-.history-edit { padding-top: 8px; border-top: 1px solid var(--mantine-color-gray-3); }
-.history-empty { text-align: center; }
-.feed-avatar { display: grid; place-items: center; width: 30px; height: 30px; flex: 0 0 30px; border-radius: 50%; background: #dff4f1; color: #12675f; font-weight: 800; }
+.activity-page > .page-heading { margin-bottom: 20px; }
+.activity-tabs .mantine-Tabs-list { width: fit-content; gap: 4px; padding: 4px; border: 1px solid var(--mantine-color-default-border); border-bottom: 1px solid var(--mantine-color-default-border); border-radius: 14px; background: color-mix(in srgb, var(--mantine-color-body) 90%, var(--mantine-color-gray-1)); }
+.activity-tabs .mantine-Tabs-tab { min-height: 38px; padding-inline: 16px; border: 0; border-radius: 10px; color: var(--mantine-color-dimmed); }
+.activity-tabs .mantine-Tabs-tab::before { display: none; }
+.activity-tabs .mantine-Tabs-tab[data-active] { background: #f2b544; color: #10141a; font-weight: 700; }
+.activity-tabs .mantine-Tabs-tab:hover:not([data-active]) { background: var(--mantine-color-default-hover); color: var(--mantine-color-text); }
+.activity-list { display: grid; gap: 12px; }
+.activity-row { display: grid; grid-template-columns: 128px minmax(0, 1fr); gap: 16px; align-items: stretch; padding: 12px; border-radius: 14px; background: var(--mantine-color-body); transition: border-color 150ms ease; }
+.activity-row:hover { border-color: var(--mantine-color-gray-5); }
+.activity-row-art { display: grid; place-items: center; min-height: 100%; overflow: hidden; border-radius: 10px; background: color-mix(in srgb, var(--mantine-color-body) 78%, #152130); color: #f2b544; }
+.activity-row-art .mantine-Image-root, .activity-row-art img { width: 100%; height: 100%; min-height: 84px; object-fit: cover; }
+.activity-row-main { display: flex; min-width: 0; flex-direction: column; align-items: flex-start; justify-content: center; gap: 5px; }
+.activity-row-heading { width: 100%; min-width: 0; }
+.activity-row-byline { min-width: 0; }
+.activity-row-byline > p { min-width: 0; }
+.activity-avatar { flex: 0 0 auto; background: color-mix(in srgb, #f2b544 22%, var(--mantine-color-body)); color: var(--mantine-color-text); font-weight: 750; }
+.activity-row-title { max-width: 100%; font-size: 1.03rem; line-height: 1.35; }
+.activity-row-episode { min-width: 0; }
+.activity-row-episode > p { min-width: 0; }
+.activity-episode-badge { padding: 2px 7px; border-radius: 6px; background: color-mix(in srgb, #f2b544 18%, var(--mantine-color-body)); color: var(--mantine-color-text); font-size: .72rem; font-weight: 750; letter-spacing: .015em; white-space: nowrap; }
+.activity-row-meta { margin-top: 2px; }
+.activity-row-exact-time { display: inline-flex; align-items: center; gap: 5px; }
+.activity-row .rating-stars { margin-top: 1px; }
+.activity-edit { width: 100%; margin-top: 8px; padding-top: 12px; border-top: 1px solid var(--mantine-color-default-border); }
 .empty-state { background: linear-gradient(135deg, color-mix(in srgb, var(--mantine-color-body) 90%, #f2b544), var(--mantine-color-body)); border-style: dashed; }
 .auth-screen { position: relative; display: flex; min-height: 100dvh; align-items: center; overflow: hidden; background: #10141a; isolation: isolate; }
 .auth-backdrop { position: absolute; inset: 0; z-index: -2; background-position: center; background-size: cover; }
@@ -229,15 +233,12 @@ select {
   .detail-actions { align-items: stretch; flex-direction: column; }
   .detail-actions > * { width: 100%; }
   .detail-actions > .rating-stars { width: max-content !important; flex: 0 0 auto; }
-  .history-list::before { left: 15px; }
-  .history-entry { padding-left: 38px !important; }
-  .history-entry-marker { left: 4px; }
-  .history-date { font-size: .78rem; }
-  .history-heading { min-width: 0; }
-  .history-art { width: 72px; height: 52px; flex-basis: 72px; }
-  .history-entry-content > .mantine-Group-root { align-items: flex-start; }
-  .history-edit { align-items: stretch; flex-direction: column; }
-  .history-edit > * { width: 100%; }
+  .activity-tabs .mantine-Tabs-list { width: 100%; }
+  .activity-tabs .mantine-Tabs-tab { flex: 1; padding-inline: 8px; }
+  .activity-row { grid-template-columns: 92px minmax(0, 1fr); gap: 11px; padding: 9px; }
+  .activity-row-art img, .activity-row-art .mantine-Image-root { min-height: 76px; }
+  .activity-row-title { font-size: .96rem; }
+  .activity-avatar { width: 26px; height: 26px; min-width: 26px; }
 }
 
 @media (min-width: 681px) and (max-width: 920px) {

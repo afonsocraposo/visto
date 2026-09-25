@@ -26,6 +26,7 @@ export * from './episode';
 export * from './episodeRating';
 export * from './feedItem';
 export * from './feedItemKind';
+export * from './feedItemMediaType';
 export * from './feedPage';
 export * from './getAuthStatus200';
 export * from './getCalendarParams';

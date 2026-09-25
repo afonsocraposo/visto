@@ -685,10 +685,13 @@ components:
         display_name: { type: string }
         kind: { type: string, enum: [watch, rewatch, rating, bulk_watch] }
         title: { type: string }
+        media_type: { type: string, enum: [movie, tv] }
+        artwork_path: { type: string, description: Episode still when available, otherwise the media poster path. }
         rating: { type: integer, minimum: 1, maximum: 5 }
         count: { type: integer }
         season_number: { type: integer }
         episode_number: { type: integer }
+        episode_name: { type: string }
         occurred_at: { type: string, format: date-time }
     FeedPage:
       type: object

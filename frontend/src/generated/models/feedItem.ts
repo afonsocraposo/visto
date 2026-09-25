@@ -6,12 +6,16 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { FeedItemKind } from './feedItemKind';
+import type { FeedItemMediaType } from './feedItemMediaType';
 
 export interface FeedItem {
   id: string;
   display_name: string;
   kind: FeedItemKind;
   title: string;
+  media_type?: FeedItemMediaType;
+  /** Episode still when available */
+  artwork_path?: string;
   /**
      * @minimum 1
      * @maximum 5
@@ -20,5 +24,6 @@ export interface FeedItem {
   count?: number;
   season_number?: number;
   episode_number?: number;
+  episode_name?: string;
   occurred_at: string;
 }
