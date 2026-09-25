@@ -1,8 +1,14 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
-const appVersion = readFileSync(new URL("../version.txt", import.meta.url), "utf8").trim();
+const versionFile = [
+  resolve(process.cwd(), "../version.txt"),
+  resolve(process.cwd(), "version.txt"),
+].find(existsSync);
+if (!versionFile) throw new Error("version.txt is missing from the build context");
+const appVersion = readFileSync(versionFile, "utf8").trim();
 
 export default defineConfig({
   plugins: [react()],
