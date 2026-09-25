@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "db:studio": "drizzle-kit studio --config=./drizzle.config.ts --host=127.0.0.1",
     "generate:api": "orval --config ./orval.config.ts",
     "preview": "vite preview",
     "test": "node --experimental-strip-types --test",
@@ -27,6 +28,10 @@
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "latest",
+    "better-sqlite3": "^13.0.3",
+    "dotenv": "^18.0.3",
+    "drizzle-kit": "^0.31.11",
+    "drizzle-orm": "^0.45.3",
     "orval": "8.37.0",
     "typescript": "7.0.2",
     "vite": "8.3.0"

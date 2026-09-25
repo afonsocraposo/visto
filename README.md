@@ -244,6 +244,23 @@ proxies `/api` and `/health` requests to the Go server on port 8080.
 Open `http://localhost:5173` during development. Use Docker on port 8080 for
 production-like checks only.
 
+### Inspect the development database
+
+To browse the local SQLite database during development, run this in a separate
+terminal:
+
+```sh
+cd frontend
+npm run db:studio
+```
+
+[Drizzle Studio](https://orm.drizzle.team/docs/drizzle-kit-studio) opens at
+<https://local.drizzle.studio> and connects to the database at
+`VISTO_DATABASE_PATH` from the repository's `.env` file. If unset, it uses
+`./data/visto.db`. This is a development/debugging tool; it does not run in
+the Visto server or Docker image. Use a local database path, not a
+container-only path such as `/data/visto.db`.
+
 ## Checks
 
 ```sh
