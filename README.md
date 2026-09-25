@@ -54,21 +54,31 @@ docker compose -f compose.yaml -f compose.build.yaml up -d --build
 
 Visto publishes multi-platform images for `linux/amd64` and `linux/arm64` to
 [`ghcr.io/afonsocraposo/visto`](https://github.com/afonsocraposo/visto/pkgs/container/visto).
-The GitHub Actions release workflow runs when a version tag such as `v0.1.0`
-is pushed. It publishes the matching version tag, the `0.1` minor tag, and
-`latest` after the backend, frontend, security, and container checks pass.
+Releases are generated from Conventional Commits by Release Please. When
+changes are merged to `main`, it opens or updates a release pull request with
+the next version and `CHANGELOG.md`. Review and merge that pull request to
+create the GitHub release and publish its matching image. Feature commits
+(`feat:`) request a minor release, fixes (`fix:`) and performance changes
+(`perf:`) request a patch release, and breaking changes request a minor bump
+while Visto is below 1.0.0. Documentation, test, build, CI, refactor, and chore
+commits do not trigger a release by themselves.
+
+The repository must allow GitHub Actions to create pull requests. GitHub exposes
+this as “Allow GitHub Actions to create and approve pull requests” under
+Settings → Actions → General. Visto does not use Actions to approve pull
+requests; the setting is required only because GitHub does not offer a
+separate switch for workflow-created pull requests.
+
+The workflow publishes version and minor-version tags, plus `latest`, after a
+release pull request is merged. Images are public and can be pulled without
+logging in:
 
 ```sh
-git tag v0.1.0
-git push origin v0.1.0
+docker pull ghcr.io/afonsocraposo/visto:0.1.0
 ```
 
-The first published GitHub Container Registry package is private by default.
-After the first successful publish, open the package settings on GitHub and
-change its visibility to Public so self-hosters can pull without authenticating.
-See [GitHub's container registry documentation](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry)
-for package visibility and access settings. After publishing, set
-`VISTO_VERSION=0.1.0` to pin the release, then update with:
+To pin a deployment to a release, set `VISTO_VERSION=0.1.0` in `.env`. Update
+to a newer release with:
 
 ```sh
 docker compose pull
