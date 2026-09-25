@@ -25,6 +25,17 @@ function cacheBackdrop(selection: LoginBackdrop): void {
   try { saveLoginBackdrop(window.localStorage, selection); } catch { /* Storage is optional. */ }
 }
 
+function GoogleIcon() {
+  return (
+    <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24">
+      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.22 3.31v2.77h3.58c2.1-1.93 3.28-4.78 3.28-8.09Z" />
+      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.58-2.77c-.98.66-2.23 1.06-3.7 1.06-2.85 0-5.27-1.92-6.13-4.5H2.18v2.84A11 11 0 0 0 12 23Z" />
+      <path fill="#FBBC05" d="M5.87 14.13a6.6 6.6 0 0 1 0-4.2V7.09H2.18a11 11 0 0 0 0 9.82l3.69-2.78Z" />
+      <path fill="#EA4335" d="M12 4.5c1.62 0 3.06.56 4.21 1.64l3.15-3.15A10.56 10.56 0 0 0 12 0a11 11 0 0 0-9.82 7.09l3.69 2.84C6.73 7.42 9.15 4.5 12 4.5Z" />
+    </svg>
+  );
+}
+
 export function AuthGate() {
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<"login" | "signup">("login");
@@ -151,7 +162,7 @@ export function AuthGate() {
           {isFirstRun ? "Create administrator" : isSignup ? "Create account" : "Sign in"}
         </Button>
       </form>}
-      {!setup.isPending && !setup.isError && !isFirstRun && setup.data?.google_enabled && <Button component="a" href="/api/v1/auth/google" variant="default" fullWidth mt="md">Continue with Google</Button>}
+      {!setup.isPending && !setup.isError && !isFirstRun && setup.data?.google_enabled && <Button component="a" href="/api/v1/auth/google" variant="default" fullWidth mt="md" leftSection={<GoogleIcon />}>Continue with Google</Button>}
       {!setup.isPending && !setup.isError && !isFirstRun && setup.data?.signup_enabled && <Button variant="subtle" fullWidth mt="xs" onClick={() => { setError(""); setMode(isSignup ? "login" : "signup"); }}>
         {isSignup ? "Already have an account? Sign in" : "New here? Create an account"}
       </Button>}
