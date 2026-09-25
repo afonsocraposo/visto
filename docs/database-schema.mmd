@@ -1,0 +1,240 @@
+%% Generated from the SQLite database. Run `npm run db:diagram` from frontend to refresh.
+erDiagram
+
+  activity_events {
+    text id PK
+    text user_id FK
+    text kind
+    text play_id FK
+    text media_id FK
+    text episode_id FK
+    integer rating
+    text detail_json
+    text occurred_at
+    text created_at
+  }
+
+  episode_ratings {
+    text user_id PK, FK
+    text episode_id PK, FK
+    integer rating
+    text created_at
+    text updated_at
+  }
+
+  episodes {
+    text id PK
+    text show_id FK
+    text season_id FK
+    integer tmdb_id
+    integer season_number
+    integer episode_number
+    text name
+    text overview
+    text air_date
+    integer runtime
+    text still_path
+    text raw_metadata
+    text metadata_updated_at
+  }
+
+  media {
+    text id PK
+    text media_type
+    integer tmdb_id
+    text title
+    text original_title
+    text overview
+    text release_date
+    text status
+    text poster_path
+    text backdrop_path
+    text original_language
+    text raw_metadata
+    text metadata_updated_at
+    text created_at
+    text catalog_updated_at
+  }
+
+  notification_deliveries {
+    text user_id PK, FK
+    text episode_id PK, FK
+    text state
+    text attempted_at
+    text sent_at
+    integer attempt_count
+    text next_attempt_at
+  }
+
+  oauth_access_tokens {
+    text token_hash PK
+    text client_id FK
+    text user_id FK
+    text scope
+    text resource
+    text expires_at
+    text revoked_at
+    text created_at
+    text last_used_at
+  }
+
+  oauth_authorization_codes {
+    text code_hash PK
+    text client_id FK
+    text user_id FK
+    text redirect_uri
+    text code_challenge
+    text scope
+    text resource
+    text expires_at
+    text created_at
+  }
+
+  oauth_clients {
+    text client_id PK
+    text client_name
+    text redirect_uris_json
+    text created_at
+  }
+
+  oauth_refresh_tokens {
+    text token_hash PK
+    text client_id FK
+    text user_id FK
+    text scope
+    text resource
+    text expires_at
+    text revoked_at
+    text created_at
+  }
+
+  personal_api_tokens {
+    text id PK
+    text user_id FK
+    text name
+    text token_hash
+    text created_at
+    text last_used_at
+    text expires_at
+  }
+
+  plays {
+    text id PK
+    text user_id FK
+    text media_id FK
+    text episode_id FK
+    text watched_at
+    text source
+    text created_at
+  }
+
+  plex_webhook_events {
+    integer id PK
+    text user_id FK
+    text fingerprint
+    text status
+    text title
+    text media_type
+    integer tmdb_id
+    text message
+    text occurred_at
+    text created_at
+  }
+
+  plex_webhooks {
+    text user_id PK, FK
+    text token_hash
+    text created_at
+    text last_used_at
+  }
+
+  schema_migrations {
+    integer version PK
+    text name
+    text checksum
+    text applied_at
+  }
+
+  seasons {
+    text id PK
+    text show_id FK
+    integer tmdb_id
+    integer season_number
+    text name
+    text overview
+    text poster_path
+    text air_date
+    integer episode_count
+  }
+
+  sessions {
+    text id PK
+    text user_id FK
+    text token_hash
+    text expires_at
+    text created_at
+    text last_used_at
+  }
+
+  user_media {
+    text id PK
+    text user_id FK
+    text media_id FK
+    text status
+    integer rating
+    integer notifications_enabled
+    text added_at
+    text updated_at
+    text notifications_since
+  }
+
+  user_settings {
+    text user_id PK, FK
+    text timezone
+    text activity_visibility
+    text created_at
+    text updated_at
+    text pushover_user_key_encrypted
+    integer pushover_notifications_enabled
+    text pushover_app_token_encrypted
+  }
+
+  users {
+    text id PK
+    text username
+    text display_name
+    text password_hash
+    text role
+    text created_at
+    text updated_at
+    text email
+    text google_subject
+  }
+
+  episodes ||--o{ activity_events : episode_id
+  episodes ||--o{ episode_ratings : episode_id
+  episodes ||--o{ notification_deliveries : episode_id
+  episodes ||--o{ plays : episode_id
+  media ||--o{ activity_events : media_id
+  media ||--o{ episodes : show_id
+  media ||--o{ plays : media_id
+  media ||--o{ seasons : show_id
+  media ||--o{ user_media : media_id
+  oauth_clients ||--o{ oauth_access_tokens : client_id
+  oauth_clients ||--o{ oauth_authorization_codes : client_id
+  oauth_clients ||--o{ oauth_refresh_tokens : client_id
+  plays ||--o{ activity_events : play_id
+  seasons ||--o{ episodes : season_id
+  users ||--o{ activity_events : user_id
+  users ||--o{ episode_ratings : user_id
+  users ||--o{ notification_deliveries : user_id
+  users ||--o{ oauth_access_tokens : user_id
+  users ||--o{ oauth_authorization_codes : user_id
+  users ||--o{ oauth_refresh_tokens : user_id
+  users ||--o{ personal_api_tokens : user_id
+  users ||--o{ plays : user_id
+  users ||--o{ plex_webhook_events : user_id
+  users ||--o{ sessions : user_id
+  users ||--o{ user_media : user_id
+  users ||--o| plex_webhooks : user_id
+  users ||--o| user_settings : user_id

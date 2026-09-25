@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "db:diagram": "node ./scripts/generate-db-diagram.mjs",
     "db:studio": "drizzle-kit studio --config=./drizzle.config.ts --host=127.0.0.1",
     "generate:api": "orval --config ./orval.config.ts",
     "preview": "vite preview",

@@ -45,26 +45,26 @@ reads `.env` for the values shown in `${...}` and passes them into the Visto
 container. You only need to set `VISTO_TMDB_API_KEY` for a standard local
 deployment; the other settings have defaults.
 
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `VISTO_TMDB_API_KEY` | empty | TMDB API key. Set this to enable metadata features. |
-| `VISTO_GOOGLE_CLIENT_ID` | empty | Google OAuth client ID. Set with the secret and redirect URL to show “Continue with Google” on the sign-in page. |
-| `VISTO_GOOGLE_CLIENT_SECRET` | empty | Secret for the Google OAuth client. |
-| `VISTO_GOOGLE_REDIRECT_URL` | empty | Exact callback URL registered in Google Cloud, such as `https://visto.example.com/api/v1/auth/google/callback`. All three Google variables are required; if any is missing, Google sign-in stays disabled. |
-| `VISTO_ALLOW_SIGNUPS` | `true` | Allow public account creation. Set to `false` to disable it. The first-admin setup and admin-created accounts remain available. |
-| `VISTO_PUBLIC_URL` | empty | Public HTTPS origin, such as `https://visto.example.com`. Set this when ChatGPT MCP or OAuth clients connect, or when users create Plex webhook URLs. Do not include a path such as `/mcp`. |
-| `VISTO_TRUSTED_PROXY_CIDRS` | empty | Comma-separated IP ranges for trusted reverse proxies. Set this when deploying behind a proxy; only then are its forwarded client and HTTPS headers trusted. |
-| `VISTO_LISTEN_ADDR` | `:8080` | Address used by the server inside the container. Keep the default with the example port mapping. |
-| `VISTO_DATABASE_PATH` | `/data/visto.db` | SQLite database path inside the persistent volume. |
-| `VISTO_BACKUP_DIR` | `/data/backups` | Directory for automatic SQLite backups. |
-| `VISTO_BACKUP_INTERVAL` | `24h` | Time between automatic backups. |
-| `VISTO_BACKUP_RETENTION` | `720h` | How long automatic backups are kept (30 days by default). |
-| `VISTO_CATALOG_REFRESH_INTERVAL` | `6h` | How often the backend checks tracked TV metadata for refresh. |
-| `VISTO_CATALOG_ACTIVE_TTL` | `24h` | Minimum age of metadata for active shows before refresh. |
-| `VISTO_CATALOG_FINISHED_TTL` | `720h` | Minimum age of metadata for ended or cancelled shows before refresh (30 days). |
-| `VISTO_SECRET_ENCRYPTION_KEY` | empty | Optional base64-encoded 32-byte key for encrypting users’ Pushover credentials. Generate it with `openssl rand -base64 32` and keep it safe; losing it makes saved credentials unreadable. |
-| `VISTO_PUSHOVER_INTERVAL` | `15m` | How often the backend checks for new-episode alerts. Each user configures their own Pushover app token and user key in Profile. |
-| `VISTO_OAUTH_CLEANUP_INTERVAL` | `24h` | How often expired OAuth data is cleaned up. |
+| Variable                         | Default          | Purpose                                                                                                                                                                                                    |
+| -------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `VISTO_TMDB_API_KEY`             | empty            | TMDB API key. Set this to enable metadata features.                                                                                                                                                        |
+| `VISTO_GOOGLE_CLIENT_ID`         | empty            | Google OAuth client ID. Set with the secret and redirect URL to show “Continue with Google” on the sign-in page.                                                                                           |
+| `VISTO_GOOGLE_CLIENT_SECRET`     | empty            | Secret for the Google OAuth client.                                                                                                                                                                        |
+| `VISTO_GOOGLE_REDIRECT_URL`      | empty            | Exact callback URL registered in Google Cloud, such as `https://visto.example.com/api/v1/auth/google/callback`. All three Google variables are required; if any is missing, Google sign-in stays disabled. |
+| `VISTO_ALLOW_SIGNUPS`            | `true`           | Allow public account creation. Set to `false` to disable it. The first-admin setup and admin-created accounts remain available.                                                                            |
+| `VISTO_PUBLIC_URL`               | empty            | Public HTTPS origin, such as `https://visto.example.com`. Set this when ChatGPT MCP or OAuth clients connect, or when users create Plex webhook URLs. Do not include a path such as `/mcp`.                |
+| `VISTO_TRUSTED_PROXY_CIDRS`      | empty            | Comma-separated IP ranges for trusted reverse proxies. Set this when deploying behind a proxy; only then are its forwarded client and HTTPS headers trusted.                                               |
+| `VISTO_LISTEN_ADDR`              | `:8080`          | Address used by the server inside the container. Keep the default with the example port mapping.                                                                                                           |
+| `VISTO_DATABASE_PATH`            | `/data/visto.db` | SQLite database path inside the persistent volume.                                                                                                                                                         |
+| `VISTO_BACKUP_DIR`               | `/data/backups`  | Directory for automatic SQLite backups.                                                                                                                                                                    |
+| `VISTO_BACKUP_INTERVAL`          | `24h`            | Time between automatic backups.                                                                                                                                                                            |
+| `VISTO_BACKUP_RETENTION`         | `720h`           | How long automatic backups are kept (30 days by default).                                                                                                                                                  |
+| `VISTO_CATALOG_REFRESH_INTERVAL` | `6h`             | How often the backend checks tracked TV metadata for refresh.                                                                                                                                              |
+| `VISTO_CATALOG_ACTIVE_TTL`       | `24h`            | Minimum age of metadata for active shows before refresh.                                                                                                                                                   |
+| `VISTO_CATALOG_FINISHED_TTL`     | `720h`           | Minimum age of metadata for ended or cancelled shows before refresh (30 days).                                                                                                                             |
+| `VISTO_SECRET_ENCRYPTION_KEY`    | empty            | Optional base64-encoded 32-byte key for encrypting users’ Pushover credentials. Generate it with `openssl rand -base64 32` and keep it safe; losing it makes saved credentials unreadable.                 |
+| `VISTO_PUSHOVER_INTERVAL`        | `15m`            | How often the backend checks for new-episode alerts. Each user configures their own Pushover app token and user key in Profile.                                                                            |
+| `VISTO_OAUTH_CLEANUP_INTERVAL`   | `24h`            | How often expired OAuth data is cleaned up.                                                                                                                                                                |
 
 The interval values use Go duration syntax, such as `12h` or `30m`. Pushover
 and ChatGPT MCP are optional. To use Pushover, set a persistent
@@ -260,6 +260,21 @@ npm run db:studio
 `./data/visto.db`. This is a development/debugging tool; it does not run in
 the Visto server or Docker image. Use a local database path, not a
 container-only path such as `/data/visto.db`.
+
+### Generate a database diagram
+
+After Visto has created and migrated the local database, generate a Mermaid ER
+diagram with:
+
+```sh
+cd frontend
+npm run db:diagram
+```
+
+This reads the database at `VISTO_DATABASE_PATH` from the repository's `.env`
+file, or `./data/visto.db` when unset. It opens the database read-only and writes
+`docs/database-schema.mmd`. Run the command again after schema migrations to
+refresh the diagram.
 
 ## Checks
 
