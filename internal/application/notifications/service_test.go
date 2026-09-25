@@ -50,16 +50,17 @@ func (repository *notificationRepositoryFake) FailNotification(context.Context, 
 }
 
 type notificationSenderFake struct {
-	userKey string
-	title   string
-	body    string
-	err     error
-	calls   int
+	appToken string
+	userKey  string
+	title    string
+	body     string
+	err      error
+	calls    int
 }
 
-func (sender *notificationSenderFake) Send(_ context.Context, userKey, title, body string) error {
+func (sender *notificationSenderFake) Send(_ context.Context, appToken, userKey, title, body string) error {
 	sender.calls++
-	sender.userKey, sender.title, sender.body = userKey, title, body
+	sender.appToken, sender.userKey, sender.title, sender.body = appToken, userKey, title, body
 	return sender.err
 }
 
@@ -71,7 +72,7 @@ func (notificationDecryptorFake) Decrypt(value string) (string, error) {
 
 func TestDispatchSendsClaimedNewEpisodeOnce(t *testing.T) {
 	repository := &notificationRepositoryFake{candidates: []Candidate{{
-		UserID: "user-1", EpisodeID: "episode-1", EncryptedUserKey: "ciphertext", ShowTitle: "Severance", EpisodeName: "Hello, Ms. Cobel", SeasonNumber: 2, EpisodeNumber: 3,
+		UserID: "user-1", EpisodeID: "episode-1", EncryptedAppToken: "app-ciphertext", EncryptedUserKey: "user-ciphertext", ShowTitle: "Severance", EpisodeName: "Hello, Ms. Cobel", SeasonNumber: 2, EpisodeNumber: 3,
 	}}}
 	sender := &notificationSenderFake{}
 	service := NewService(repository, sender, notificationDecryptorFake{})
@@ -85,13 +86,13 @@ func TestDispatchSendsClaimedNewEpisodeOnce(t *testing.T) {
 	if sender.calls != 1 || repository.completed != 1 || repository.failed != 0 {
 		t.Fatalf("calls=%d completed=%d failed=%d", sender.calls, repository.completed, repository.failed)
 	}
-	if sender.userKey != "decrypted:ciphertext" || sender.title != "New episode: Severance" || sender.body != "Severance · S02E03 — Hello, Ms. Cobel is available" {
+	if sender.appToken != "decrypted:app-ciphertext" || sender.userKey != "decrypted:user-ciphertext" || sender.title != "New episode: Severance" || sender.body != "Severance · S02E03 — Hello, Ms. Cobel is available" {
 		t.Fatalf("unexpected Pushover message: %#v", sender)
 	}
 }
 
 func TestDispatchRecordsFailedDeliveryAndContinues(t *testing.T) {
-	repository := &notificationRepositoryFake{candidates: []Candidate{{UserID: "user-1", EpisodeID: "episode-1", EncryptedUserKey: "ciphertext", ShowTitle: "Severance", SeasonNumber: 2, EpisodeNumber: 3}}}
+	repository := &notificationRepositoryFake{candidates: []Candidate{{UserID: "user-1", EpisodeID: "episode-1", EncryptedAppToken: "app-ciphertext", EncryptedUserKey: "user-ciphertext", ShowTitle: "Severance", SeasonNumber: 2, EpisodeNumber: 3}}}
 	sender := &notificationSenderFake{err: errors.New("provider unavailable")}
 	service := NewService(repository, sender, notificationDecryptorFake{})
 	if err := service.Dispatch(context.Background()); err == nil {

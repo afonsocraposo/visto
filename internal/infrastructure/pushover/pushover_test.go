@@ -55,12 +55,9 @@ func TestPushoverClientPostsFormAndChecksProviderStatus(t *testing.T) {
 		_, _ = io.WriteString(w, `{"status":1}`)
 	}))
 	defer server.Close()
-	client, err := NewClient("app-token", server.Client())
-	if err != nil {
-		t.Fatal(err)
-	}
+	client := NewClient(server.Client())
 	client.endpoint = server.URL + "/1/messages.json"
-	if err := client.Send(context.Background(), "user-key", "Visto", "New episode is available"); err != nil {
+	if err := client.Send(context.Background(), "app-token", "user-key", "Visto", "New episode is available"); err != nil {
 		t.Fatal(err)
 	}
 
@@ -70,7 +67,7 @@ func TestPushoverClientPostsFormAndChecksProviderStatus(t *testing.T) {
 	}))
 	defer invalidServer.Close()
 	client.endpoint = invalidServer.URL + "/1/messages.json"
-	if err := client.Send(context.Background(), "user-key", "Visto", "New episode is available"); err == nil {
+	if err := client.Send(context.Background(), "app-token", "user-key", "Visto", "New episode is available"); err == nil {
 		t.Fatal("expected provider error")
 	}
 }

@@ -10,14 +10,14 @@ import (
 )
 
 func (store *Store) NotificationCandidates(ctx context.Context, now time.Time, limit int) ([]notifications.Candidate, error) {
-	rows, err := store.DB.QueryContext(ctx, `SELECT um.user_id,e.id,us.pushover_user_key_encrypted,m.title,
+	rows, err := store.DB.QueryContext(ctx, `SELECT um.user_id,e.id,us.pushover_app_token_encrypted,us.pushover_user_key_encrypted,m.title,
 		COALESCE(e.name,''),e.season_number,e.episode_number
 		FROM user_media um
 		JOIN media m ON m.id=um.media_id AND m.media_type='tv'
 		JOIN user_settings us ON us.user_id=um.user_id
 		JOIN episodes e ON e.show_id=m.id
 		WHERE um.status='watching' AND um.notifications_enabled=1
-			AND us.pushover_notifications_enabled=1 AND us.pushover_user_key_encrypted IS NOT NULL
+			AND us.pushover_notifications_enabled=1 AND us.pushover_app_token_encrypted IS NOT NULL AND us.pushover_user_key_encrypted IS NOT NULL
 			AND e.season_number>0 AND e.air_date IS NOT NULL
 			AND date(e.air_date)<=date(?) AND date(e.air_date)>=date(COALESCE(um.notifications_since,um.added_at))
 			AND NOT EXISTS (SELECT 1 FROM plays p WHERE p.user_id=um.user_id AND p.episode_id=e.id)
@@ -31,7 +31,7 @@ func (store *Store) NotificationCandidates(ctx context.Context, now time.Time, l
 	var candidates []notifications.Candidate
 	for rows.Next() {
 		var candidate notifications.Candidate
-		if err := rows.Scan(&candidate.UserID, &candidate.EpisodeID, &candidate.EncryptedUserKey, &candidate.ShowTitle, &candidate.EpisodeName, &candidate.SeasonNumber, &candidate.EpisodeNumber); err != nil {
+		if err := rows.Scan(&candidate.UserID, &candidate.EpisodeID, &candidate.EncryptedAppToken, &candidate.EncryptedUserKey, &candidate.ShowTitle, &candidate.EpisodeName, &candidate.SeasonNumber, &candidate.EpisodeNumber); err != nil {
 			return nil, fmt.Errorf("read notification candidate: %w", err)
 		}
 		candidates = append(candidates, candidate)

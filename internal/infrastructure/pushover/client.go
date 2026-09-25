@@ -14,25 +14,24 @@ import (
 const messagesEndpoint = "https://api.pushover.net/1/messages.json"
 
 type Client struct {
-	appToken string
 	endpoint string
 	http     *http.Client
 }
 
-func NewClient(appToken string, client *http.Client) (*Client, error) {
-	appToken = strings.TrimSpace(appToken)
-	if appToken == "" {
-		return nil, errors.New("Pushover application token is required")
-	}
+func NewClient(client *http.Client) *Client {
 	if client == nil {
 		client = &http.Client{Timeout: 10 * time.Second}
 	}
-	return &Client{appToken: appToken, endpoint: messagesEndpoint, http: client}, nil
+	return &Client{endpoint: messagesEndpoint, http: client}
 }
 
-func (client *Client) Send(ctx context.Context, userKey, title, message string) error {
+func (client *Client) Send(ctx context.Context, appToken, userKey, title, message string) error {
+	appToken, userKey = strings.TrimSpace(appToken), strings.TrimSpace(userKey)
+	if appToken == "" || userKey == "" {
+		return errors.New("Pushover application token and user key are required")
+	}
 	form := url.Values{
-		"token":   {client.appToken},
+		"token":   {appToken},
 		"user":    {userKey},
 		"title":   {title},
 		"message": {message},

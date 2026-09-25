@@ -8,13 +8,14 @@ import (
 )
 
 type Candidate struct {
-	UserID           string
-	EpisodeID        string
-	EncryptedUserKey string
-	ShowTitle        string
-	EpisodeName      string
-	SeasonNumber     int
-	EpisodeNumber    int
+	UserID            string
+	EpisodeID         string
+	EncryptedAppToken string
+	EncryptedUserKey  string
+	ShowTitle         string
+	EpisodeName       string
+	SeasonNumber      int
+	EpisodeNumber     int
 }
 
 type Repository interface {
@@ -25,7 +26,7 @@ type Repository interface {
 }
 
 type Sender interface {
-	Send(context.Context, string, string, string) error
+	Send(context.Context, string, string, string, string) error
 }
 
 type Decryptor interface {
@@ -70,13 +71,17 @@ func (service *Service) Dispatch(ctx context.Context) error {
 		if !claimed {
 			continue
 		}
-		userKey, err := service.decryptor.Decrypt(candidate.EncryptedUserKey)
+		appToken, err := service.decryptor.Decrypt(candidate.EncryptedAppToken)
+		var userKey string
+		if err == nil {
+			userKey, err = service.decryptor.Decrypt(candidate.EncryptedUserKey)
+		}
 		if err == nil {
 			message := fmt.Sprintf("%s · S%02dE%02d is available", candidate.ShowTitle, candidate.SeasonNumber, candidate.EpisodeNumber)
 			if candidate.EpisodeName != "" {
 				message = fmt.Sprintf("%s · S%02dE%02d — %s is available", candidate.ShowTitle, candidate.SeasonNumber, candidate.EpisodeNumber, candidate.EpisodeName)
 			}
-			err = service.sender.Send(ctx, userKey, "New episode: "+candidate.ShowTitle, message)
+			err = service.sender.Send(ctx, appToken, userKey, "New episode: "+candidate.ShowTitle, message)
 		}
 		if err != nil {
 			if markErr := service.repository.FailNotification(ctx, candidate.UserID, candidate.EpisodeID, now); markErr != nil && firstError == nil {

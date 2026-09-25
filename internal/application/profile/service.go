@@ -14,11 +14,12 @@ const (
 )
 
 type Settings struct {
-	ActivityVisibility string `json:"activity_visibility"`
-	Timezone           string `json:"timezone"`
-	PushoverEnabled    bool   `json:"pushover_enabled"`
-	HasPushoverKey     bool   `json:"has_pushover_key"`
-	PushoverAvailable  bool   `json:"pushover_available"`
+	ActivityVisibility  string `json:"activity_visibility"`
+	Timezone            string `json:"timezone"`
+	PushoverEnabled     bool   `json:"pushover_enabled"`
+	HasPushoverAppToken bool   `json:"has_pushover_app_token"`
+	HasPushoverUserKey  bool   `json:"has_pushover_user_key"`
+	PushoverAvailable   bool   `json:"pushover_available"`
 }
 
 type Repository interface {
@@ -31,18 +32,17 @@ type SecretCipher interface {
 }
 
 type pushoverSettingsRepository interface {
-	GetPushoverSettings(context.Context, string) (enabled, hasKey bool, err error)
-	SetPushoverSettings(context.Context, string, *string, bool) error
-	ClearPushoverKey(context.Context, string) error
+	GetPushoverSettings(context.Context, string) (enabled, hasAppToken, hasUserKey bool, err error)
+	SetPushoverSettings(context.Context, string, *string, *string, bool) error
+	ClearPushoverCredentials(context.Context, string) error
 }
 
 type PushoverConfig struct {
-	Available bool
-	Cipher    SecretCipher
+	Cipher SecretCipher
 }
 
 var (
-	ErrPushoverUnavailable     = errors.New("Pushover is not configured for this instance")
+	ErrPushoverUnavailable     = errors.New("secure storage for per-user Pushover credentials is unavailable")
 	ErrInvalidPushoverSettings = errors.New("invalid Pushover settings")
 )
 
@@ -67,9 +67,9 @@ func (service *Service) Get(ctx context.Context, userID string) (Settings, error
 	if err != nil {
 		return Settings{}, err
 	}
-	settings.PushoverAvailable = service.pushover.Available && service.pushover.Cipher != nil
+	settings.PushoverAvailable = service.pushover.Cipher != nil
 	if repository, ok := service.repository.(pushoverSettingsRepository); ok {
-		settings.PushoverEnabled, settings.HasPushoverKey, err = repository.GetPushoverSettings(ctx, userID)
+		settings.PushoverEnabled, settings.HasPushoverAppToken, settings.HasPushoverUserKey, err = repository.GetPushoverSettings(ctx, userID)
 		if err != nil {
 			return Settings{}, err
 		}
@@ -77,7 +77,7 @@ func (service *Service) Get(ctx context.Context, userID string) (Settings, error
 	return settings, nil
 }
 
-func (service *Service) UpdatePushover(ctx context.Context, userID string, enabled bool, userKey string) error {
+func (service *Service) UpdatePushover(ctx context.Context, userID string, enabled bool, appToken, userKey string) error {
 	if userID == "" {
 		return fmt.Errorf("user is required")
 	}
@@ -85,37 +85,57 @@ func (service *Service) UpdatePushover(ctx context.Context, userID string, enabl
 	if !ok {
 		return ErrPushoverUnavailable
 	}
-	var encryptedKey *string
+	var encryptedAppToken, encryptedUserKey *string
+	appToken = strings.TrimSpace(appToken)
 	userKey = strings.TrimSpace(userKey)
-	if userKey != "" {
-		if !service.pushover.Available || service.pushover.Cipher == nil {
+	if appToken != "" || userKey != "" {
+		if service.pushover.Cipher == nil {
 			return ErrPushoverUnavailable
 		}
-		if len(userKey) < 20 || len(userKey) > 80 || strings.ContainsAny(userKey, " \t\r\n") {
-			return fmt.Errorf("%w: user key must be 20–80 characters without spaces", ErrInvalidPushoverSettings)
+		if appToken != "" {
+			if err := validatePushoverSecret("application token", appToken); err != nil {
+				return err
+			}
+			ciphertext, err := service.pushover.Cipher.Encrypt(appToken)
+			if err != nil {
+				return fmt.Errorf("encrypt Pushover application token: %w", err)
+			}
+			encryptedAppToken = &ciphertext
 		}
-		ciphertext, err := service.pushover.Cipher.Encrypt(userKey)
-		if err != nil {
-			return fmt.Errorf("encrypt Pushover user key: %w", err)
+		if userKey != "" {
+			if err := validatePushoverSecret("user key", userKey); err != nil {
+				return err
+			}
+			ciphertext, err := service.pushover.Cipher.Encrypt(userKey)
+			if err != nil {
+				return fmt.Errorf("encrypt Pushover user key: %w", err)
+			}
+			encryptedUserKey = &ciphertext
 		}
-		encryptedKey = &ciphertext
 	}
-	if enabled && (!service.pushover.Available || service.pushover.Cipher == nil) {
+	if enabled && service.pushover.Cipher == nil {
 		return ErrPushoverUnavailable
 	}
-	if enabled && encryptedKey == nil {
-		_, hasKey, err := repository.GetPushoverSettings(ctx, userID)
+	if enabled && (encryptedAppToken == nil || encryptedUserKey == nil) {
+		_, hasAppToken, hasUserKey, err := repository.GetPushoverSettings(ctx, userID)
 		if err != nil {
 			return err
 		}
-		if !hasKey {
-			return fmt.Errorf("%w: add a Pushover user key before enabling notifications", ErrInvalidPushoverSettings)
+		if (encryptedAppToken == nil && !hasAppToken) || (encryptedUserKey == nil && !hasUserKey) {
+			return fmt.Errorf("%w: add a Pushover application token and user key before enabling notifications", ErrInvalidPushoverSettings)
 		}
 	}
-	return repository.SetPushoverSettings(ctx, userID, encryptedKey, enabled)
+	return repository.SetPushoverSettings(ctx, userID, encryptedAppToken, encryptedUserKey, enabled)
 }
 
-func (service *Service) ClearPushoverKey(ctx context.Context, userID string) error {
+func validatePushoverSecret(name, value string) error {
+	if len(value) < 20 || len(value) > 80 || strings.ContainsAny(value, " \t\r\n") {
+		return fmt.Errorf("%w: Pushover %s must be 20–80 characters without spaces", ErrInvalidPushoverSettings, name)
+	}
+	return nil
+}
+
+func (service *Service) ClearPushoverCredentials(ctx context.Context, userID string) error {
 	if userID == "" {
 		return fmt.Errorf("user is required")
 	}
@@ -123,7 +143,7 @@ func (service *Service) ClearPushoverKey(ctx context.Context, userID string) err
 	if !ok {
 		return ErrPushoverUnavailable
 	}
-	return repository.ClearPushoverKey(ctx, userID)
+	return repository.ClearPushoverCredentials(ctx, userID)
 }
 
 func (service *Service) SetActivityVisibility(ctx context.Context, userID, visibility string) error {

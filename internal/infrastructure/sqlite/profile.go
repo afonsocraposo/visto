@@ -47,18 +47,18 @@ func (store *Store) SetSettings(ctx context.Context, userID string, settings pro
 	return tx.Commit()
 }
 
-func (store *Store) GetPushoverSettings(ctx context.Context, userID string) (enabled, hasKey bool, err error) {
-	err = store.DB.QueryRowContext(ctx, `SELECT pushover_notifications_enabled,pushover_user_key_encrypted IS NOT NULL FROM user_settings WHERE user_id=?`, userID).Scan(&enabled, &hasKey)
+func (store *Store) GetPushoverSettings(ctx context.Context, userID string) (enabled, hasAppToken, hasUserKey bool, err error) {
+	err = store.DB.QueryRowContext(ctx, `SELECT pushover_notifications_enabled,pushover_app_token_encrypted IS NOT NULL,pushover_user_key_encrypted IS NOT NULL FROM user_settings WHERE user_id=?`, userID).Scan(&enabled, &hasAppToken, &hasUserKey)
 	if errors.Is(err, sql.ErrNoRows) {
-		return false, false, fmt.Errorf("settings not found")
+		return false, false, false, fmt.Errorf("settings not found")
 	}
 	if err != nil {
-		return false, false, fmt.Errorf("get Pushover settings: %w", err)
+		return false, false, false, fmt.Errorf("get Pushover settings: %w", err)
 	}
-	return enabled, hasKey, nil
+	return enabled, hasAppToken, hasUserKey, nil
 }
 
-func (store *Store) SetPushoverSettings(ctx context.Context, userID string, encryptedKey *string, enabled bool) error {
+func (store *Store) SetPushoverSettings(ctx context.Context, userID string, encryptedAppToken, encryptedUserKey *string, enabled bool) error {
 	tx, err := store.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -70,8 +70,9 @@ func (store *Store) SetPushoverSettings(ctx context.Context, userID string, encr
 	}
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	_, err = tx.ExecContext(ctx, `UPDATE user_settings SET
+		pushover_app_token_encrypted=COALESCE(?,pushover_app_token_encrypted),
 		pushover_user_key_encrypted=COALESCE(?,pushover_user_key_encrypted),pushover_notifications_enabled=?,updated_at=?
-		WHERE user_id=?`, encryptedKey, enabled, now, userID)
+		WHERE user_id=?`, encryptedAppToken, encryptedUserKey, enabled, now, userID)
 	if err != nil {
 		return fmt.Errorf("save Pushover settings: %w", err)
 	}
@@ -83,14 +84,14 @@ func (store *Store) SetPushoverSettings(ctx context.Context, userID string, encr
 	return tx.Commit()
 }
 
-func (store *Store) ClearPushoverKey(ctx context.Context, userID string) error {
-	result, err := store.DB.ExecContext(ctx, `UPDATE user_settings SET pushover_user_key_encrypted=NULL,pushover_notifications_enabled=0,updated_at=? WHERE user_id=?`, time.Now().UTC().Format(time.RFC3339Nano), userID)
+func (store *Store) ClearPushoverCredentials(ctx context.Context, userID string) error {
+	result, err := store.DB.ExecContext(ctx, `UPDATE user_settings SET pushover_app_token_encrypted=NULL,pushover_user_key_encrypted=NULL,pushover_notifications_enabled=0,updated_at=? WHERE user_id=?`, time.Now().UTC().Format(time.RFC3339Nano), userID)
 	if err != nil {
-		return fmt.Errorf("clear Pushover user key: %w", err)
+		return fmt.Errorf("clear Pushover credentials: %w", err)
 	}
 	changed, err := result.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("inspect cleared Pushover settings: %w", err)
+		return fmt.Errorf("inspect cleared Pushover credentials: %w", err)
 	}
 	if changed == 0 {
 		return fmt.Errorf("settings not found")

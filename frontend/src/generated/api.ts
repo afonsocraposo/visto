@@ -1341,7 +1341,7 @@ export const getPatchProfilePushoverSettingsUrl = () => {
 }
 
 /**
- * @summary Save the authenticated user's Pushover user key and notification preference
+ * @summary Save the authenticated user's Pushover app token, user key, and notification preference
  */
 export const patchProfilePushoverSettings = async (pushoverSettingsRequest: PushoverSettingsRequest, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
 
@@ -1407,7 +1407,7 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
     export type PatchProfilePushoverSettingsMutationVariables = {data: PushoverSettingsRequest}
 
     /**
- * @summary Save the authenticated user's Pushover user key and notification preference
+ * @summary Save the authenticated user's Pushover app token, user key, and notification preference
  */
 export const usePatchProfilePushoverSettings = <TError = BadRequestResponse | UnauthorizedResponse | void,
     TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof patchProfilePushoverSettings>>, TError,PatchProfilePushoverSettingsMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
@@ -1420,20 +1420,20 @@ export const usePatchProfilePushoverSettings = <TError = BadRequestResponse | Un
       return useMutation(getPatchProfilePushoverSettingsMutationOptions(options), queryClient);
     }
 
-export const getDeleteProfilePushoverKeyUrl = () => {
+export const getDeleteProfilePushoverCredentialsUrl = () => {
 
 
 
 
-  return `/profile/pushover-key`
+  return `/profile/pushover-credentials`
 }
 
 /**
- * @summary Remove the authenticated user's encrypted Pushover key and disable notifications
+ * @summary Remove the authenticated user's encrypted Pushover credentials and disable notifications
  */
-export const deleteProfilePushoverKey = async ( options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+export const deleteProfilePushoverCredentials = async ( options?: Parameters<typeof customFetch>[1]): Promise<void> => {
 
-  return customFetch<void>(getDeleteProfilePushoverKeyUrl(),
+  return customFetch<void>(getDeleteProfilePushoverCredentialsUrl(),
   {
     ...options,
     method: 'DELETE'
@@ -1446,13 +1446,13 @@ export const deleteProfilePushoverKey = async ( options?: Parameters<typeof cust
 
 
 
-export const getDeleteProfilePushoverKeyMutationKey = () => ['deleteProfilePushoverKey'] as const;
+export const getDeleteProfilePushoverCredentialsMutationKey = () => ['deleteProfilePushoverCredentials'] as const;
 
-export const getDeleteProfilePushoverKeyMutationOptions = <TError = UnauthorizedResponse,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteProfilePushoverKey>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
-): UseMutationOptions<Awaited<ReturnType<typeof deleteProfilePushoverKey>>, TError,void, TContext> => {
+export const getDeleteProfilePushoverCredentialsMutationOptions = <TError = UnauthorizedResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteProfilePushoverCredentials>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteProfilePushoverCredentials>>, TError,void, TContext> => {
 
-const mutationKey = getDeleteProfilePushoverKeyMutationKey();
+const mutationKey = getDeleteProfilePushoverCredentialsMutationKey();
 const {mutation: mutationOptions, request: requestOptions} = options ?
       options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
       options
@@ -1462,10 +1462,10 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
 
 
-      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteProfilePushoverKey>>, void> = () => {
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteProfilePushoverCredentials>>, void> = () => {
 
 
-          return  deleteProfilePushoverKey(requestOptions)
+          return  deleteProfilePushoverCredentials(requestOptions)
         }
 
 
@@ -1475,23 +1475,23 @@ const {mutation: mutationOptions, request: requestOptions} = options ?
 
   return  { mutationFn, ...mutationOptions }}
 
-    export type DeleteProfilePushoverKeyMutationResult = NonNullable<Awaited<ReturnType<typeof deleteProfilePushoverKey>>>
+    export type DeleteProfilePushoverCredentialsMutationResult = NonNullable<Awaited<ReturnType<typeof deleteProfilePushoverCredentials>>>
 
-    export type DeleteProfilePushoverKeyMutationError = UnauthorizedResponse
+    export type DeleteProfilePushoverCredentialsMutationError = UnauthorizedResponse
 
 
     /**
- * @summary Remove the authenticated user's encrypted Pushover key and disable notifications
+ * @summary Remove the authenticated user's encrypted Pushover credentials and disable notifications
  */
-export const useDeleteProfilePushoverKey = <TError = UnauthorizedResponse,
-    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteProfilePushoverKey>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+export const useDeleteProfilePushoverCredentials = <TError = UnauthorizedResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteProfilePushoverCredentials>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient): UseMutationResult<
-        Awaited<ReturnType<typeof deleteProfilePushoverKey>>,
+        Awaited<ReturnType<typeof deleteProfilePushoverCredentials>>,
         TError,
         void,
         TContext
       > => {
-      return useMutation(getDeleteProfilePushoverKeyMutationOptions(options), queryClient);
+      return useMutation(getDeleteProfilePushoverCredentialsMutationOptions(options), queryClient);
     }
 
 export const getGetFeedUrl = (params?: GetFeedParams,) => {

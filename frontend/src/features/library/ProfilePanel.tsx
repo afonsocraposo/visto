@@ -11,13 +11,13 @@ import type { User } from "../../types";
 export function ProfilePanel({ user }: { user: User }) {
   const queryClient = useQueryClient();
   const userQueryKey = useUserQueryKey();
-  const form = useForm({ initialValues: { visibility: "private", timezone: "UTC", pushoverUserKey: "" } });
+  const form = useForm({ initialValues: { visibility: "private", timezone: "UTC", pushoverAppToken: "", pushoverUserKey: "" } });
   const settings = useQuery({
     queryKey: userQueryKey("profile-settings"),
     queryFn: async () => {
       const response = await fetch("/api/v1/profile/activity-settings");
       if (!response.ok) throw new Error();
-      return response.json() as Promise<{ activity_visibility: string; timezone: string; pushover_available: boolean; pushover_enabled: boolean; has_pushover_key: boolean }>;
+      return response.json() as Promise<{ activity_visibility: string; timezone: string; pushover_available: boolean; pushover_enabled: boolean; has_pushover_app_token: boolean; has_pushover_user_key: boolean }>;
     },
   });
   useEffect(() => {
@@ -41,14 +41,14 @@ export function ProfilePanel({ user }: { user: User }) {
     mutationFn: async () => {
       const response = await fetch("/api/v1/profile/pushover-settings", {
         method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ enabled: settings.data?.pushover_enabled ?? false, user_key: form.values.pushoverUserKey }),
+        body: JSON.stringify({ enabled: settings.data?.pushover_enabled ?? false, app_token: form.values.pushoverAppToken, user_key: form.values.pushoverUserKey }),
       });
       if (!response.ok) {
         const result = await response.json().catch(() => ({}));
         throw new Error(result.error || "Could not save Pushover settings.");
       }
     }, onSuccess: async () => {
-      form.setFieldValue("pushoverUserKey", "");
+      form.setValues({ pushoverAppToken: "", pushoverUserKey: "" });
       await queryClient.invalidateQueries({ queryKey: userQueryKey("profile-settings") });
     },
   });
@@ -56,21 +56,21 @@ export function ProfilePanel({ user }: { user: User }) {
     mutationFn: async (enabled: boolean) => {
       const response = await fetch("/api/v1/profile/pushover-settings", {
         method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ enabled, user_key: form.values.pushoverUserKey }),
+        body: JSON.stringify({ enabled, app_token: form.values.pushoverAppToken, user_key: form.values.pushoverUserKey }),
       });
       if (!response.ok) {
         const result = await response.json().catch(() => ({}));
         throw new Error(result.error || "Could not update notification settings.");
       }
     }, onSuccess: async () => {
-      form.setFieldValue("pushoverUserKey", "");
+      form.setValues({ pushoverAppToken: "", pushoverUserKey: "" });
       await queryClient.invalidateQueries({ queryKey: userQueryKey("profile-settings") });
     },
   });
   const removePushoverKey = useMutation({
     mutationFn: async () => {
-      const response = await fetch("/api/v1/profile/pushover-key", { method: "DELETE" });
-      if (!response.ok) throw new Error("Could not remove the Pushover key.");
+      const response = await fetch("/api/v1/profile/pushover-credentials", { method: "DELETE" });
+      if (!response.ok) throw new Error("Could not remove Pushover credentials.");
     }, onSuccess: async () => queryClient.invalidateQueries({ queryKey: userQueryKey("profile-settings") }),
   });
   const settingsUnavailable = settings.isPending || settings.isError;
@@ -90,15 +90,16 @@ export function ProfilePanel({ user }: { user: User }) {
       <Title order={3} mt="xl">New episode alerts</Title>
       {settings.data?.pushover_available ? <>
         <Text size="sm" c="dimmed" mt="xs">Get a Pushover alert when an unwatched regular episode airs for a show you are watching.</Text>
-        <PasswordInput mt="md" label={settings.data.has_pushover_key ? "Replace Pushover user key" : "Pushover user key"} autoComplete="off" {...form.getInputProps("pushoverUserKey")} />
-        <Text size="xs" c="dimmed" mt={5}>Your key is encrypted before it is saved and is never shown again.</Text>
+        <PasswordInput mt="md" label={settings.data.has_pushover_app_token ? "Replace your Pushover application token" : "Your Pushover application token"} description="Create an application in your Pushover account to get this token." autoComplete="off" {...form.getInputProps("pushoverAppToken")} />
+        <PasswordInput mt="md" label={settings.data.has_pushover_user_key ? "Replace your Pushover user key" : "Your Pushover user key"} autoComplete="off" {...form.getInputProps("pushoverUserKey")} />
+        <Text size="xs" c="dimmed" mt={5}>Both credentials are encrypted before saving and are never shown again.</Text>
         {(savePushover.isError || updatePushover.isError || removePushoverKey.isError) && <Alert color="red" mt="md">{savePushover.error?.message || updatePushover.error?.message || removePushoverKey.error?.message}</Alert>}
         <Group mt="md">
-          {form.values.pushoverUserKey && <Button loading={savePushover.isPending} onClick={() => savePushover.mutate()}>Save key</Button>}
-          {settings.data.has_pushover_key && <Button variant="default" loading={updatePushover.isPending} onClick={() => updatePushover.mutate(!settings.data!.pushover_enabled)}>{settings.data.pushover_enabled ? "Turn alerts off" : "Turn alerts on"}</Button>}
-          {settings.data.has_pushover_key && <Button color="red" variant="subtle" loading={removePushoverKey.isPending} onClick={() => removePushoverKey.mutate()}>Remove key</Button>}
+          {(form.values.pushoverAppToken || form.values.pushoverUserKey) && <Button loading={savePushover.isPending} onClick={() => savePushover.mutate()}>Save credentials</Button>}
+          {settings.data.pushover_enabled || (settings.data.has_pushover_app_token && settings.data.has_pushover_user_key) ? <Button variant="default" loading={updatePushover.isPending} onClick={() => updatePushover.mutate(!settings.data!.pushover_enabled)}>{settings.data.pushover_enabled ? "Turn alerts off" : "Turn alerts on"}</Button> : null}
+          {(settings.data.has_pushover_app_token || settings.data.has_pushover_user_key) && <Button color="red" variant="subtle" loading={removePushoverKey.isPending} onClick={() => removePushoverKey.mutate()}>Remove credentials</Button>}
         </Group>
-      </> : <Text size="sm" c="dimmed" mt="xs">Pushover alerts are not configured by this Visto instance.</Text>}
+      </> : <Text size="sm" c="dimmed" mt="xs">This instance must enable encrypted storage for users’ notification credentials before Pushover can be used. Ask the administrator to configure VISTO_SECRET_ENCRYPTION_KEY.</Text>}
 
       <Title order={3} mt="xl">Export your data</Title>
       <Text size="sm" c="dimmed" mt="xs">These downloads include only your library, ratings, and watch history.</Text>

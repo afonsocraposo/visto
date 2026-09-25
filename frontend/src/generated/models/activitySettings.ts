@@ -11,8 +11,10 @@ export interface ActivitySettings {
   activity_visibility: ActivitySettingsActivityVisibility;
   timezone: string;
   pushover_enabled: boolean;
-  /** Indicates whether an encrypted key exists. The key is never returned. */
-  has_pushover_key: boolean;
-  /** Indicates that instance-level Pushover settings are configured. */
+  /** Indicates that an encrypted per-user application token exists. The token is never returned. */
+  has_pushover_app_token: boolean;
+  /** Indicates that an encrypted per-user user key exists. The key is never returned. */
+  has_pushover_user_key: boolean;
+  /** Indicates that the instance can encrypt and store per-user Pushover credentials. */
   pushover_available: boolean;
 }

@@ -81,11 +81,7 @@ func main() {
 	startWorker(func(ctx context.Context) {
 		backupjob.Run(ctx, databasePath, backupDirectory, backupInterval, backupRetention, log.Default())
 	})
-	appToken := os.Getenv("VISTO_PUSHOVER_APP_TOKEN")
 	encryptionKey := os.Getenv("VISTO_SECRET_ENCRYPTION_KEY")
-	if appToken != "" && encryptionKey == "" {
-		log.Fatal("VISTO_SECRET_ENCRYPTION_KEY is required when Pushover is configured")
-	}
 	var profileConfig profile.PushoverConfig
 	var secretCipher *pushover.AESGCMCipher
 	if encryptionKey != "" {
@@ -95,14 +91,10 @@ func main() {
 		}
 		secretCipher = cipher
 		profileConfig.Cipher = cipher
-		profileConfig.Available = appToken != ""
 	}
 	profiles := profile.NewService(store, profileConfig)
-	if appToken != "" {
-		pushoverClient, err := pushover.NewClient(appToken, nil)
-		if err != nil {
-			log.Fatalf("configure Pushover: %v", err)
-		}
+	if secretCipher != nil {
+		pushoverClient := pushover.NewClient(nil)
 		dispatchInterval := durationEnvironment("VISTO_PUSHOVER_INTERVAL", 15*time.Minute)
 		startWorker(func(ctx context.Context) {
 			notifications.NewService(store, pushoverClient, secretCipher).Run(ctx, dispatchInterval, log.Default())

@@ -30,7 +30,7 @@ func registerAPIRoutes(mux *http.ServeMux, authService *auth.Service, metadataPr
 	mux.HandleFunc("GET /api/v1/profile/activity-settings", activitySettings(authService, profileService))
 	mux.HandleFunc("PATCH /api/v1/profile/activity-settings", setActivitySettings(authService, profileService))
 	mux.HandleFunc("PATCH /api/v1/profile/pushover-settings", setPushoverSettings(authService, profileService))
-	mux.HandleFunc("DELETE /api/v1/profile/pushover-key", clearPushoverKey(authService, profileService))
+	mux.HandleFunc("DELETE /api/v1/profile/pushover-credentials", clearPushoverCredentials(authService, profileService))
 	mux.HandleFunc("GET /api/v1/feed", instanceFeed(authService, feedService))
 	mux.HandleFunc("GET /api/v1/export/json", jsonExport(authService, exportService))
 	mux.HandleFunc("GET /api/v1/export/csv", csvExport(authService, exportService))

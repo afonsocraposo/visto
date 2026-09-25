@@ -17,7 +17,7 @@ func TestNotificationCandidates_GivenOptedInWatchingShow_WhenEpisodeHasAired_The
 	}
 	defer store.Close()
 	_, err = store.DB.Exec(`INSERT INTO users(id,username,display_name,password_hash,role,created_at,updated_at) VALUES('user-1','user-1','Alex','hash','user','2026-09-01','2026-09-01');
-		INSERT INTO user_settings(user_id,timezone,activity_visibility,created_at,updated_at,pushover_user_key_encrypted,pushover_notifications_enabled) VALUES('user-1','UTC','private','2026-09-01','2026-09-01','ciphertext',1);
+		INSERT INTO user_settings(user_id,timezone,activity_visibility,created_at,updated_at,pushover_user_key_encrypted,pushover_notifications_enabled,pushover_app_token_encrypted) VALUES('user-1','UTC','private','2026-09-01','2026-09-01','user-ciphertext',1,'app-ciphertext');
 		INSERT INTO media(id,media_type,tmdb_id,title,metadata_updated_at,created_at) VALUES('tv:42','tv',42,'Example Show','2026-09-01','2026-09-01');
 		INSERT INTO seasons(id,show_id,season_number,name) VALUES('tv:42:season:1','tv:42',1,'Season 1'),('tv:42:season:0','tv:42',0,'Specials');
 		INSERT INTO episodes(id,show_id,season_id,season_number,episode_number,name,air_date) VALUES
@@ -35,7 +35,7 @@ func TestNotificationCandidates_GivenOptedInWatchingShow_WhenEpisodeHasAired_The
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(candidates) != 1 || candidates[0].EpisodeID != "episode-new" || candidates[0].ShowTitle != "Example Show" {
+	if len(candidates) != 1 || candidates[0].EpisodeID != "episode-new" || candidates[0].ShowTitle != "Example Show" || candidates[0].EncryptedAppToken != "app-ciphertext" || candidates[0].EncryptedUserKey != "user-ciphertext" {
 		t.Fatalf("notification candidates=%+v", candidates)
 	}
 	claimedAt := now
@@ -67,7 +67,7 @@ func TestNotificationCandidates_GivenFailedDelivery_WhenBackoffExpires_ThenItRet
 	}
 	defer store.Close()
 	_, err = store.DB.Exec(`INSERT INTO users(id,username,display_name,password_hash,role,created_at,updated_at) VALUES('user-1','user-1','Alex','hash','user','2026-09-01','2026-09-01');
-		INSERT INTO user_settings(user_id,timezone,activity_visibility,created_at,updated_at,pushover_user_key_encrypted,pushover_notifications_enabled) VALUES('user-1','UTC','private','2026-09-01','2026-09-01','ciphertext',1);
+		INSERT INTO user_settings(user_id,timezone,activity_visibility,created_at,updated_at,pushover_user_key_encrypted,pushover_notifications_enabled,pushover_app_token_encrypted) VALUES('user-1','UTC','private','2026-09-01','2026-09-01','user-ciphertext',1,'app-ciphertext');
 		INSERT INTO media(id,media_type,tmdb_id,title,metadata_updated_at,created_at) VALUES('tv:42','tv',42,'Example Show','2026-09-01','2026-09-01');
 		INSERT INTO seasons(id,show_id,season_number,name) VALUES('tv:42:season:1','tv:42',1,'Season 1');
 		INSERT INTO episodes(id,show_id,season_id,season_number,episode_number,name,air_date) VALUES('episode-new','tv:42','tv:42:season:1',1,1,'New Episode','2026-09-23');

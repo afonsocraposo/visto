@@ -86,14 +86,15 @@ func setPushoverSettings(authService *auth.Service, service *profile.Service) ht
 			return
 		}
 		var request struct {
-			Enabled bool   `json:"enabled"`
-			UserKey string `json:"user_key"`
+			Enabled  bool   `json:"enabled"`
+			AppToken string `json:"app_token"`
+			UserKey  string `json:"user_key"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid JSON")
 			return
 		}
-		if err := service.UpdatePushover(r.Context(), user.ID, request.Enabled, request.UserKey); err != nil {
+		if err := service.UpdatePushover(r.Context(), user.ID, request.Enabled, request.AppToken, request.UserKey); err != nil {
 			if errors.Is(err, profile.ErrPushoverUnavailable) {
 				writeError(w, http.StatusServiceUnavailable, err.Error())
 				return
@@ -109,7 +110,7 @@ func setPushoverSettings(authService *auth.Service, service *profile.Service) ht
 	}
 }
 
-func clearPushoverKey(authService *auth.Service, service *profile.Service) http.HandlerFunc {
+func clearPushoverCredentials(authService *auth.Service, service *profile.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		user, ok := authenticatedUser(w, r, authService)
 		if !ok {
@@ -119,12 +120,12 @@ func clearPushoverKey(authService *auth.Service, service *profile.Service) http.
 			writeError(w, http.StatusServiceUnavailable, "profile is not configured")
 			return
 		}
-		if err := service.ClearPushoverKey(r.Context(), user.ID); err != nil {
+		if err := service.ClearPushoverCredentials(r.Context(), user.ID); err != nil {
 			if errors.Is(err, profile.ErrPushoverUnavailable) {
 				writeError(w, http.StatusServiceUnavailable, err.Error())
 				return
 			}
-			writeError(w, http.StatusInternalServerError, "Pushover key could not be removed")
+			writeError(w, http.StatusInternalServerError, "Pushover credentials could not be removed")
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)

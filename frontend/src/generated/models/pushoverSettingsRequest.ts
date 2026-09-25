@@ -8,6 +8,8 @@
 
 export interface PushoverSettingsRequest {
   enabled: boolean;
+  /** Optional replacement application token. It is encrypted and never returned. */
+  app_token?: string;
   /** Optional replacement user key. It is encrypted and never returned. */
   user_key?: string;
 }

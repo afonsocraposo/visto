@@ -48,13 +48,16 @@ can be changed with `VISTO_CATALOG_REFRESH_INTERVAL`,
 
 ## Pushover alerts
 
-Pushover alerts are optional. Configure `VISTO_PUSHOVER_APP_TOKEN` and a
-base64-encoded 32-byte `VISTO_SECRET_ENCRYPTION_KEY` in the server environment.
-Generate an encryption key with `openssl rand -base64 32`. Keep a secure copy:
-Visto uses it to encrypt each user's Pushover key, and losing it makes saved
-keys unreadable. Users can add their Pushover user key and opt in under Profile
-settings. The default check interval is 15 minutes and can be changed with
-`VISTO_PUSHOVER_INTERVAL`.
+Pushover alerts are optional and configured per user. Each user adds their own
+Pushover application token and user key under Profile settings, then opts in.
+Visto encrypts both credentials before it stores them. To enable secure storage,
+set a base64-encoded 32-byte `VISTO_SECRET_ENCRYPTION_KEY` in the server
+environment. Generate it with `openssl rand -base64 32` and keep a secure copy:
+losing it makes saved credentials unreadable. Users must create or use their
+own Pushover application and user keys; the server does not need a shared
+Pushover application token. After an upgrade, users must opt in again because
+the previous server-wide application token is no longer used. The default
+check interval is 15 minutes and can be changed with `VISTO_PUSHOVER_INTERVAL`.
 
 Visto alerts for newly aired regular episodes in shows a user is watching.
 Specials, paused or dropped shows, disabled show alerts, and episodes already

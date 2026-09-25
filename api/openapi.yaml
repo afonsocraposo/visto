@@ -117,21 +117,22 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
   /profile/pushover-settings:
     patch:
-      summary: Save the authenticated user's Pushover user key and notification preference
+      summary: Save the authenticated user's Pushover app token, user key, and notification preference
       security: [{ sessionCookie: [] }, { bearerToken: [] }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/PushoverSettingsRequest' } } } }
       responses:
         '204': { description: Pushover settings updated }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
-        '503': { description: Pushover is not configured on this instance }
-  /profile/pushover-key:
+        '503': { description: Secure storage for per-user Pushover credentials is not configured on this instance }
+  /profile/pushover-credentials:
     delete:
-      summary: Remove the authenticated user's encrypted Pushover key and disable notifications
+      summary: Remove the authenticated user's encrypted Pushover credentials and disable notifications
       security: [{ sessionCookie: [] }, { bearerToken: [] }]
       responses:
-        '204': { description: Pushover key removed }
+        '204': { description: Pushover credentials removed }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '503': { description: Secure storage for per-user Pushover credentials is not configured on this instance }
   /feed:
     get:
       summary: List recent opted-in activity on this instance
@@ -543,18 +544,20 @@ components:
         created_at: { type: string, format: date-time }
     ActivitySettings:
       type: object
-      required: [activity_visibility, timezone, pushover_enabled, has_pushover_key, pushover_available]
+      required: [activity_visibility, timezone, pushover_enabled, has_pushover_app_token, has_pushover_user_key, pushover_available]
       properties:
         activity_visibility: { type: string, enum: [private, instance] }
         timezone: { type: string, example: Europe/Lisbon }
         pushover_enabled: { type: boolean }
-        has_pushover_key: { type: boolean, description: Indicates whether an encrypted key exists. The key is never returned. }
-        pushover_available: { type: boolean, description: Indicates that instance-level Pushover settings are configured. }
+        has_pushover_app_token: { type: boolean, description: Indicates that an encrypted per-user application token exists. The token is never returned. }
+        has_pushover_user_key: { type: boolean, description: Indicates that an encrypted per-user user key exists. The key is never returned. }
+        pushover_available: { type: boolean, description: Indicates that the instance can encrypt and store per-user Pushover credentials. }
     PushoverSettingsRequest:
       type: object
       required: [enabled]
       properties:
         enabled: { type: boolean }
+        app_token: { type: string, description: Optional replacement application token. It is encrypted and never returned. }
         user_key: { type: string, description: Optional replacement user key. It is encrypted and never returned. }
     FeedItem:
       type: object
