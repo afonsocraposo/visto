@@ -144,7 +144,7 @@ func main() {
 	appHandler.Handle("/", appServer.Handler())
 	server := &http.Server{
 		Addr:              environment("VISTO_LISTEN_ADDR", ":8080"),
-		Handler:           appHandler,
+		Handler:           requestLogger(appHandler),
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}

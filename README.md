@@ -34,6 +34,9 @@ docker compose up -d
 docker compose logs -f visto
 ```
 
+The container logs each HTTP request with its method, path, status, response
+size, and duration. Query strings and Plex webhook secrets are omitted.
+
 Open <http://localhost:8080>. The first account created is the instance
 administrator. After setup, that account can use the app and sign in again
 normally. Other people can create accounts from the sign-in page when public
