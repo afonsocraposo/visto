@@ -19,7 +19,11 @@ type toolDefinition struct {
 }
 
 func objectSchema(properties map[string]any, required ...string) map[string]any {
-	return map[string]any{"type": "object", "properties": properties, "required": required}
+	schema := map[string]any{"type": "object", "properties": properties}
+	if len(required) > 0 {
+		schema["required"] = required
+	}
+	return schema
 }
 
 func toolDefinitions() []toolDefinition {

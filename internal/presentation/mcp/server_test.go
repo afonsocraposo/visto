@@ -61,6 +61,14 @@ func TestMCPHandler_GivenValidPersonalToken_WhenToolsListIsRequested_ThenReturns
 	if len(payload.Result.Tools) != 10 {
 		t.Fatalf("tool count = %d, want 10", len(payload.Result.Tools))
 	}
+	for _, tool := range payload.Result.Tools {
+		if len(tool.SecuritySchemes) != 1 {
+			t.Errorf("%s security schemes = %v, want one root-level scheme", tool.Name, tool.SecuritySchemes)
+		}
+		if required, present := tool.InputSchema["required"]; present && required == nil {
+			t.Errorf("%s has null required in its input schema", tool.Name)
+		}
+	}
 }
 
 func TestMCPHandler_GivenMissingToken_WhenCalled_ThenRequiresAuthentication(t *testing.T) {

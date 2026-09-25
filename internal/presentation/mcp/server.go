@@ -1,10 +1,13 @@
 package mcp
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
 	"sync"
@@ -115,7 +118,8 @@ func (server *Server) sdkHTTPHandler() http.Handler {
 			definition := definition
 			mcpServer.AddTool(&mcpgo.Tool{Name: definition.Name, Description: definition.Description, InputSchema: definition.InputSchema, Annotations: sdkToolAnnotations(definition.Annotations), Meta: mcpgo.Meta{"securitySchemes": definition.SecuritySchemes}}, server.sdkToolHandler(definition.Name))
 		}
-		handler := mcpgo.NewStreamableHTTPHandler(func(*http.Request) *mcpgo.Server { return mcpServer }, &mcpgo.StreamableHTTPOptions{Stateless: true, JSONResponse: true, MaxRequestBodyBytes: 1 << 20, PropagateRequestCancellation: true})
+		var handler http.Handler = mcpgo.NewStreamableHTTPHandler(func(*http.Request) *mcpgo.Server { return mcpServer }, &mcpgo.StreamableHTTPOptions{Stateless: true, JSONResponse: true, MaxRequestBodyBytes: 1 << 20, PropagateRequestCancellation: true})
+		handler = toolDiscoveryHandler(handler)
 		server.mcpHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if !validOrigin(r) {
 				http.Error(w, "Origin is not allowed", http.StatusForbidden)
@@ -131,6 +135,65 @@ func (server *Server) sdkHTTPHandler() http.Handler {
 		})
 	})
 	return server.mcpHandler
+}
+
+// The SDK emits securitySchemes only in _meta. OpenAI clients also read the
+// root-level field during action discovery, so mirror it on tools/list.
+func toolDiscoveryHandler(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			next.ServeHTTP(w, r)
+			return
+		}
+		prefix, err := io.ReadAll(io.LimitReader(r.Body, (1<<20)+1))
+		r.Body = struct {
+			io.Reader
+			io.Closer
+		}{io.MultiReader(bytes.NewReader(prefix), r.Body), r.Body}
+		if err != nil {
+			next.ServeHTTP(w, r)
+			return
+		}
+		var request struct {
+			Method string `json:"method"`
+		}
+		if json.Unmarshal(prefix, &request) != nil || request.Method != "tools/list" {
+			next.ServeHTTP(w, r)
+			return
+		}
+		response := httptest.NewRecorder()
+		next.ServeHTTP(response, r)
+		body := response.Body.Bytes()
+		if response.Code == http.StatusOK {
+			var payload map[string]any
+			if json.Unmarshal(body, &payload) == nil {
+				if result, ok := payload["result"].(map[string]any); ok {
+					if tools, ok := result["tools"].([]any); ok {
+						for _, item := range tools {
+							tool, ok := item.(map[string]any)
+							if !ok {
+								continue
+							}
+							if meta, ok := tool["_meta"].(map[string]any); ok {
+								tool["securitySchemes"] = meta["securitySchemes"]
+							}
+						}
+						if encoded, err := json.Marshal(payload); err == nil {
+							body = encoded
+						}
+					}
+				}
+			}
+		}
+		for key, values := range response.Header() {
+			for _, value := range values {
+				w.Header().Add(key, value)
+			}
+		}
+		w.Header().Del("Content-Length")
+		w.WriteHeader(response.Code)
+		_, _ = w.Write(body)
+	})
 }
 
 func (server *Server) authenticateMCP(r *http.Request) (mcpIdentity, bool) {
