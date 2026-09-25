@@ -64,6 +64,53 @@ func TestPlexWebhook_GivenExternalMultipartRequests_WhenValidated_ThenOnlySecret
 		}
 	})
 
+	t.Run("Plex multipart callback with thumbnail", func(t *testing.T) {
+		var body bytes.Buffer
+		writer := multipart.NewWriter(&body)
+		if err := writer.WriteField("payload", `{"event":"media.scrobble","Metadata":{"type":"movie","title":"Example"}}`); err != nil {
+			t.Fatal(err)
+		}
+		thumbnail, err := writer.CreateFormFile("thumb", "thumb.jpg")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := thumbnail.Write([]byte("jpeg thumbnail")); err != nil {
+			t.Fatal(err)
+		}
+		if err := writer.Close(); err != nil {
+			t.Fatal(err)
+		}
+		request := httptest.NewRequest(http.MethodPost, "/api/v1/webhooks/plex/"+secret, &body)
+		request.Header.Set("Content-Type", writer.FormDataContentType())
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		if response.Code != http.StatusNoContent {
+			t.Fatalf("status=%d body=%s, want 204", response.Code, response.Body.String())
+		}
+	})
+
+	t.Run("Plex multipart callback with payload file", func(t *testing.T) {
+		var body bytes.Buffer
+		writer := multipart.NewWriter(&body)
+		payload, err := writer.CreateFormFile("payload", "payload.json")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := payload.Write([]byte(`{"event":"media.scrobble","Metadata":{"type":"movie","title":"Example"}}`)); err != nil {
+			t.Fatal(err)
+		}
+		if err := writer.Close(); err != nil {
+			t.Fatal(err)
+		}
+		request := httptest.NewRequest(http.MethodPost, "/api/v1/webhooks/plex/"+secret, &body)
+		request.Header.Set("Content-Type", writer.FormDataContentType())
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		if response.Code != http.StatusNoContent {
+			t.Fatalf("status=%d body=%s, want 204", response.Code, response.Body.String())
+		}
+	})
+
 	t.Run("invalid secret", func(t *testing.T) {
 		body, contentType := plexMultipart(t, `{"event":"media.scrobble"}`)
 		request := httptest.NewRequest(http.MethodPost, "/api/v1/webhooks/plex/this-is-an-invalid-secret-value-that-is-long-enough", body)

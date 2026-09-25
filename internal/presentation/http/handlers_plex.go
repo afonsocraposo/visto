@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"errors"
+	"io"
 	"mime"
 	"net/http"
 	"strings"
@@ -84,8 +85,27 @@ func plexWebhook(service *plexsync.Service) http.HandlerFunc {
 			defer r.MultipartForm.RemoveAll()
 		}
 		var payload string
-		if r.MultipartForm != nil && len(r.MultipartForm.Value["payload"]) == 1 && len(r.MultipartForm.File) == 0 {
-			payload = r.MultipartForm.Value["payload"][0]
+		if r.MultipartForm != nil {
+			values := r.MultipartForm.Value["payload"]
+			files := r.MultipartForm.File["payload"]
+			if len(values)+len(files) == 1 {
+				if len(values) == 1 {
+					payload = values[0]
+				} else {
+					file, err := files[0].Open()
+					if err != nil {
+						writeError(w, http.StatusBadRequest, "Could not read Plex webhook form")
+						return
+					}
+					data, err := io.ReadAll(io.LimitReader(file, (1<<20)+1))
+					file.Close()
+					if err != nil {
+						writeError(w, http.StatusBadRequest, "Could not read Plex webhook form")
+						return
+					}
+					payload = string(data)
+				}
+			}
 		}
 		if payload == "" || len(payload) > 1<<20 {
 			writeError(w, http.StatusBadRequest, "Plex webhook payload is missing or too large")
