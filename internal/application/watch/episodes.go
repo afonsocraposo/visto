@@ -1,0 +1,73 @@
+package watch
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/afonsocosta/visto/internal/domain"
+)
+
+func (service *Service) Episodes(ctx context.Context, userID, showID string) ([]ShowEpisode, error) {
+	if userID == "" || showID == "" {
+		return nil, fmt.Errorf("user and show are required")
+	}
+	repository, ok := service.repository.(episodeRepository)
+	if !ok {
+		return nil, fmt.Errorf("show episode storage is not configured")
+	}
+	return repository.ListShowEpisodes(ctx, userID, showID)
+}
+
+func (service *Service) Seasons(ctx context.Context, userID, showID string) ([]Season, error) {
+	if userID == "" || showID == "" {
+		return nil, fmt.Errorf("user and show are required")
+	}
+	repository, ok := service.repository.(episodeRepository)
+	if !ok {
+		return nil, fmt.Errorf("show season storage is not configured")
+	}
+	return repository.ListShowSeasons(ctx, userID, showID)
+}
+
+func (service *Service) SeasonEpisodes(ctx context.Context, userID, seasonID string) ([]ShowEpisode, error) {
+	if userID == "" || seasonID == "" {
+		return nil, fmt.Errorf("user and season are required")
+	}
+	repository, ok := service.repository.(episodeRepository)
+	if !ok {
+		return nil, fmt.Errorf("season episode storage is not configured")
+	}
+	return repository.ListSeasonEpisodes(ctx, userID, seasonID)
+}
+
+func (service *Service) ShowProgress(ctx context.Context, userID, showID string) (Progress, error) {
+	entries, err := service.Episodes(ctx, userID, showID)
+	if err != nil {
+		return Progress{}, err
+	}
+	timezone, err := service.repository.Timezone(ctx, userID)
+	if err != nil {
+		return Progress{}, err
+	}
+	location, err := time.LoadLocation(timezone)
+	if err != nil {
+		return Progress{}, fmt.Errorf("invalid user timezone")
+	}
+	episodes := make([]domain.Episode, 0, len(entries))
+	plans := make([]domain.EpisodePlay, 0, len(entries))
+	for _, entry := range entries {
+		episodes = append(episodes, entry.Episode)
+		if entry.Watched {
+			plans = append(plans, domain.EpisodePlay{ID: "progress:" + entry.Episode.ID, UserID: userID, EpisodeID: entry.Episode.ID})
+		}
+	}
+	progress := domain.CalculateShowProgress(episodes, plans, service.now().In(location))
+	return Progress{
+		ShowID:                showID,
+		Cursor:                progress.Cursor,
+		NextEpisode:           progress.NextEpisode,
+		LatestReleasedEpisode: progress.ReleasedEpisode,
+		IsCaughtUp:            progress.IsCaughtUp,
+	}, nil
+}
