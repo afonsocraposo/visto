@@ -314,6 +314,12 @@ export function ProfilePanel({
       <PlexSyncPanel />
       <PersonalTokensPanel />
       <ConnectedAppsPanel />
+      <Paper withBorder p="md" mt="lg">
+        <Title order={3}>About Visto</Title>
+        <Text size="sm" c="dimmed" mt="xs">
+          Version {__APP_VERSION__}
+        </Text>
+      </Paper>
     </>
   );
 }

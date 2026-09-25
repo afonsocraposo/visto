@@ -3,6 +3,7 @@ WORKDIR /build
 RUN apk add --no-cache python3 make g++
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
+COPY version.txt ./version.txt
 COPY frontend/ ./
 RUN npm run build
 
