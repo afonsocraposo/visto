@@ -82,6 +82,33 @@ test("Given a signed-in user, When they navigate and manage appearance and accou
   await expect(page.getByRole("heading", { name: "Welcome to Visto" })).toBeVisible();
 });
 
+test("Given a signed-in user, When they open /logout, Then their session ends and they return to sign in", async ({
+  page,
+}) => {
+  let authenticated = true;
+  let logoutRequests = 0;
+  await page.route("**/api/v1/auth/status", (route) =>
+    fulfillJSON(route, { bootstrap_available: false, signup_enabled: true, google_enabled: false }),
+  );
+  await page.route("**/api/v1/me", (route) =>
+    authenticated ? fulfillJSON(route, user) : route.fulfill({ status: 401, body: "" }),
+  );
+  await page.route("**/api/v1/auth/logout", async (route) => {
+    logoutRequests++;
+    authenticated = false;
+    await route.fulfill({ status: 204, body: "" });
+  });
+  await page.route("**/api/v1/public/trending**", (route) =>
+    fulfillJSON(route, { tv: [], movies: [] }),
+  );
+
+  await page.goto("/logout");
+
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.getByRole("heading", { name: "Welcome to Visto" })).toBeVisible();
+  expect(logoutRequests).toBe(1);
+});
+
 test("Given Plex sync settings, When the user creates, rotates, and revokes a URL, Then only the current secret URL is shown", async ({
   page,
 }) => {

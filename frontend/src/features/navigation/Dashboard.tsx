@@ -12,6 +12,7 @@ import {
 import { WatchNow, WatchCalendar } from "../watch/Watch";
 import type { LibraryStatus, MediaDetailTarget, Tab, Theme, User } from "../../types";
 import { connectionUnavailableEvent } from "../../lib/api";
+import { clearSignedInCache, endCurrentSession } from "../auth/logout";
 
 const SearchPanel = lazy(async () => ({
   default: (await import("../search/SearchPanel")).SearchPanel,
@@ -89,17 +90,8 @@ export function Dashboard({
   const [online, setOnline] = useState(() => navigator.onLine);
   const [checkingConnection, setCheckingConnection] = useState(false);
   const logout = useMutation({
-    mutationFn: async () => {
-      const response = await fetch("/api/v1/auth/logout", { method: "POST" });
-      if (!response.ok) throw new Error("Could not sign out.");
-    },
-    onSuccess: () => {
-      queryClient.removeQueries({
-        predicate: (query) =>
-          query.queryKey[0] !== "session" && query.queryKey[0] !== "auth-status",
-      });
-      queryClient.setQueryData(["session"], null);
-    },
+    mutationFn: endCurrentSession,
+    onSuccess: () => clearSignedInCache(queryClient),
   });
 
   const retryConnection = async () => {

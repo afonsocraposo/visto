@@ -1,6 +1,7 @@
 import { createRootRouteWithContext, createRoute, createRouter } from "@tanstack/react-router";
 import { z } from "zod";
 import { Dashboard, type DashboardPage } from "../features/navigation/Dashboard";
+import { LogoutPage } from "../features/auth/LogoutPage";
 import type { Theme, User } from "../types";
 
 export type RouterContext = { user: User; theme: Theme; setTheme: (theme: Theme) => void };
@@ -30,6 +31,11 @@ const profileRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/profile",
   component: () => <DashboardRoute page={{ kind: "profile" }} />,
+});
+const logoutRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/logout",
+  component: LogoutPage,
 });
 
 const statusSchema = z.enum(["watching", "completed", "watchlist", "paused", "dropped"]);
@@ -84,6 +90,7 @@ const routeTree = rootRoute.addChildren([
   discoverRoute,
   feedRoute,
   profileRoute,
+  logoutRoute,
   profileLibraryListRoute,
   mediaRoute,
   personRoute,
