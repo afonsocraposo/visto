@@ -145,6 +145,39 @@ Profile. To use MCP or Plex webhooks outside your network, set
 `VISTO_PUBLIC_URL` and configure the reverse proxy to pass the required paths
 to Visto.
 
+#### Reverse proxy HTTPS
+
+If a reverse proxy terminates HTTPS, set `VISTO_TRUSTED_PROXY_CIDRS` to the
+proxy's address as seen by Visto. Visto uses this setting to trust the proxy's
+`X-Forwarded-Proto` and client-address headers. Without it, Visto sees the
+connection as HTTP and can reject browser write requests from the HTTPS site
+with `cross-origin request rejected`.
+
+For Nginx Proxy Manager on a Docker network, find its address on the shared
+network (replace `npm_network` if yours has a different name):
+
+```sh
+docker network inspect npm_network --format '{{range .Containers}}{{println .Name .IPv4Address}}{{end}}'
+```
+
+Set the NPM address as a `/32` CIDR in Visto's Compose environment. Replace the
+example with the address from the command:
+
+```yaml
+environment:
+  VISTO_TRUSTED_PROXY_CIDRS: "172.20.0.5/32"
+```
+
+Make sure the proxy preserves the original `Host` and forwards
+`X-Forwarded-Proto: https`; Nginx Proxy Manager normally does this. If the
+proxy's address changes, use a stable address or the smallest subnet reserved
+for trusted proxies. Do not trust all addresses (`0.0.0.0/0`). Recreate Visto
+after changing the setting so the container receives the updated environment:
+
+```sh
+docker compose up -d --force-recreate visto
+```
+
 To enable Google sign-in, create a Google OAuth web client and register the
 redirect URL shown above as an authorized redirect URI. Set all three Google
 variables in `.env`. The Google button appears automatically. Google accounts
