@@ -157,6 +157,9 @@ Statuses have these meanings:
 
 `completed` and `caught_up` are computed display states. They are not stored as
 library statuses. A movie is considered watched when it has at least one play.
+Recording a movie play moves a watchlisted movie to the watched display state.
+Removing a movie's watches also removes its library entry. A user can remove a
+watchlist item by selecting Watchlist again in the title's list control.
 
 ### Watch plays and corrections
 

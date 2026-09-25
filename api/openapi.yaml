@@ -409,6 +409,17 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
   /library/{mediaID}:
+    delete:
+      summary: Remove an item from the authenticated user's watchlist or an unplayed Watching entry
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      parameters:
+        - { name: mediaID, in: path, required: true, schema: { type: string } }
+        - { name: status, in: query, required: false, schema: { type: string, enum: [watchlist, watching], default: watchlist } }
+      responses:
+        '204': { description: Item removed from the selected list }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: "Title is not in the selected list, or has watch history" }
     patch:
       summary: Change the authenticated user's status and rating for a library item
       security: [{ sessionCookie: [] }, { bearerToken: [] }]
@@ -505,12 +516,12 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
   /plays/media/{mediaID}:
     delete:
-      summary: Mark a movie unwatched by removing all of the user's movie plays
+      summary: Mark a movie unwatched by removing its plays and the user's library entry
       security: [{ sessionCookie: [] }, { bearerToken: [] }]
       parameters:
         - { name: mediaID, in: path, required: true, schema: { type: string } }
       responses:
-        '204': { description: All plays for the movie were removed }
+        '204': { description: Movie plays and its library entry were removed }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
   /shows/{showID}/episodes:

@@ -203,6 +203,63 @@ test("Given an unsaved TV show, When the user adds it or chooses Watch later, Th
   await expect.poll(() => savedStatuses).toEqual(["watching", "watchlist"]);
 });
 
+test("Given a movie in Watchlist, When it is marked watched from search, Then Undo restores Watchlist", async ({
+  page,
+}) => {
+  await mockSignedInSession(page);
+  const movie = {
+    id: "movie:10",
+    tmdb_id: 10,
+    type: "movie",
+    title: "Example Movie",
+    original_title: "Example Movie",
+    overview: "A test movie.",
+    release_date: "2024-01-01",
+    poster_path: "",
+    original_language: "en",
+  };
+  let status = "watchlist";
+  let playDeleted = false;
+  await page.route("**/api/v1/search**", (route) => fulfillJSON(route, [movie]));
+  await page.route("**/api/v1/library", (route) =>
+    fulfillJSON(route, [
+      {
+        item: {
+          media_id: movie.id,
+          status,
+          rating: 4,
+          notifications_enabled: true,
+          updated_at: "2026-09-25T00:00:00Z",
+        },
+        media: movie,
+        completed: status === "watching",
+      },
+    ]),
+  );
+  await page.route("**/api/v1/plays", async (route) => {
+    if (route.request().method() === "POST") status = "watching";
+    await fulfillJSON(route, { id: "play-1" }, 201);
+  });
+  await page.route("**/api/v1/plays/play-1", async (route) => {
+    playDeleted = true;
+    await route.fulfill({ status: 204, body: "" });
+  });
+  await page.route("**/api/v1/library/movie%3A10", async (route) => {
+    if (route.request().method() === "PATCH") status = route.request().postDataJSON().status;
+    await fulfillJSON(route, {});
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Discover" }).click();
+  await page.getByRole("textbox", { name: "Search TMDB" }).fill("Example");
+  await expect(page.getByText("In Watchlist")).toBeVisible();
+  await page.getByRole("button", { name: "Mark Example Movie watched" }).click();
+  await expect(page.getByText("Example Movie marked watched.")).toBeVisible();
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect.poll(() => playDeleted).toBe(true);
+  await expect.poll(() => status).toBe("watchlist");
+  await expect(page.getByText("In Watchlist")).toBeVisible();
+});
+
 test("Given the ordinary next episode, When the user taps Watched, Then only that episode is recorded", async ({
   page,
 }) => {

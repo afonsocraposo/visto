@@ -16,8 +16,8 @@ export function SearchPanel({
   const [query, setQuery] = useState("");
   const [debouncedQuery] = useDebouncedValue(query.trim(), 300);
   const { library, results, trending } = useDiscoverQueries(debouncedQuery);
-  const { addToLibrary, addMovieAsWatched } = useDiscoverMutations();
-  const libraryIDs = new Set(library.data?.map((entry) => entry.item.media_id) ?? []);
+  const { addToLibrary, addMovieAsWatched, markWatchlistMovieWatched } = useDiscoverMutations();
+  const libraryEntries = new Map(library.data?.map((entry) => [entry.item.media_id, entry]) ?? []);
 
   return (
     <>
@@ -94,9 +94,34 @@ export function SearchPanel({
           {addToLibrary.error.message}
         </Alert>
       )}
+      {addMovieAsWatched.isError && (
+        <Alert color="red" mt="md">
+          {addMovieAsWatched.error.message}
+        </Alert>
+      )}
+      {markWatchlistMovieWatched.isError && (
+        <Alert color="red" mt="md">
+          {markWatchlistMovieWatched.error.message}
+        </Alert>
+      )}
       {results.data?.map((item) => {
         const mediaID = `${item.type}:${item.tmdb_id}`;
-        const saved = libraryIDs.has(mediaID);
+        const savedEntry = libraryEntries.get(mediaID);
+        const savedLabel = savedEntry?.completed
+          ? item.type === "movie"
+            ? "Watched"
+            : "Completed"
+          : savedEntry?.item.status === "watchlist"
+            ? "In Watchlist"
+            : savedEntry?.item.status === "watching"
+              ? item.type === "movie"
+                ? "Watched"
+                : "In Watching"
+              : savedEntry?.item.status === "paused"
+                ? "Paused"
+                : savedEntry?.item.status === "dropped"
+                  ? "Dropped"
+                  : "In your library";
         return (
           <Paper
             className="search-result-card search-result-clickable"
@@ -142,14 +167,30 @@ export function SearchPanel({
               </Group>
               <MediaQuickActions
                 media={item}
-                saved={saved}
-                busy={addToLibrary.isPending || addMovieAsWatched.isPending}
+                saved={Boolean(savedEntry)}
+                savedLabel={savedLabel}
+                canMarkSavedWatched={
+                  item.type === "movie" &&
+                  savedEntry?.item.status === "watchlist" &&
+                  !savedEntry.completed
+                }
+                busy={
+                  addToLibrary.isPending ||
+                  addMovieAsWatched.isPending ||
+                  markWatchlistMovieWatched.isPending
+                }
                 onWatch={() =>
                   item.type === "tv"
                     ? addToLibrary.mutate({ media: item, status: "watching" })
                     : addMovieAsWatched.mutate(item)
                 }
                 onWatchlist={() => addToLibrary.mutate({ media: item, status: "watchlist" })}
+                onMarkSavedWatched={() =>
+                  markWatchlistMovieWatched.mutate({
+                    media: item,
+                    rating: savedEntry?.item.rating ?? null,
+                  })
+                }
               />
             </Group>
           </Paper>

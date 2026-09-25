@@ -84,6 +84,7 @@ type MediaActionsProps = {
   watched: boolean;
   onWatch: () => void;
   onUnwatch: () => void;
+  onRemoveWatchlist: () => void;
   pending: boolean;
 };
 
@@ -99,6 +100,7 @@ export function MediaActions({
   watched,
   onWatch,
   onUnwatch,
+  onRemoveWatchlist,
   pending,
 }: MediaActionsProps) {
   if (!isSaved)
@@ -112,16 +114,17 @@ export function MediaActions({
         />
       </Group>
     );
-  const statusOptions: { value: string; label: string; disabled?: boolean }[] = [
-    { value: "watchlist", label: "Watchlist" },
-    { value: "watching", label: "Watching" },
-    ...(media.type === "movie"
-      ? []
+  const statusOptions: { value: string; label: string; disabled?: boolean }[] =
+    media.type === "movie"
+      ? watched
+        ? [{ value: "watching", label: "Watched" }]
+        : [{ value: "watchlist", label: "Watchlist" }]
       : [
+          { value: "watchlist", label: "Watchlist" },
+          { value: "watching", label: "Watching" },
           { value: "paused", label: "Paused" },
           { value: "dropped", label: "Dropped" },
-        ]),
-  ];
+        ];
   if (media.type === "movie" && status && !statusOptions.some((option) => option.value === status))
     statusOptions.push({
       value: status,
@@ -132,9 +135,13 @@ export function MediaActions({
     <Group className="detail-actions" mt="lg">
       <Select
         aria-label="Current list"
-        value={status}
-        onChange={(value) => value && update.mutate({ status: value, rating: rating ?? null })}
+        value={media.type === "movie" && watched ? "watching" : status}
+        onChange={(value) => {
+          if (value) update.mutate({ status: value, rating: rating ?? null });
+          else if (status === "watchlist") onRemoveWatchlist();
+        }}
         data={statusOptions}
+        disabled={pending || update.isPending}
         w={150}
       />
       <RatingStars

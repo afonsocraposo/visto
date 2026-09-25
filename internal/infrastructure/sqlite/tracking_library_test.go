@@ -10,6 +10,106 @@ import (
 	"github.com/afonsocosta/visto/internal/infrastructure/sqlite"
 )
 
+func TestRemoveWatchlistItem_OnlyRemovesUsersWatchlistEntry(t *testing.T) {
+	ctx := context.Background()
+	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "visto.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	aliceID := insertTestUser(t, store.DB, "alice", "Alice", "private")
+	bobID := insertTestUser(t, store.DB, "bob", "Bob", "private")
+	if _, err := store.DB.Exec(`INSERT INTO media(id,media_type,tmdb_id,title,metadata_updated_at,created_at) VALUES('movie:10','movie',10,'Example Movie',?,?)`, testTimestamp, testTimestamp); err != nil {
+		t.Fatal(err)
+	}
+	for _, item := range []struct{ userID, status string }{{aliceID, "watchlist"}, {bobID, "watchlist"}} {
+		if _, err := store.DB.Exec(`INSERT INTO user_media(id,user_id,media_id,status,added_at,updated_at) VALUES(?,?, 'movie:10',?,?,?)`, item.userID+":movie:10", item.userID, item.status, testTimestamp, testTimestamp); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := store.RemoveWatchlistItem(ctx, aliceID, "movie:10"); err != nil {
+		t.Fatal(err)
+	}
+	var aliceCount, bobCount int
+	if err := store.DB.QueryRow(`SELECT COUNT(*) FROM user_media WHERE user_id=?`, aliceID).Scan(&aliceCount); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.DB.QueryRow(`SELECT COUNT(*) FROM user_media WHERE user_id=?`, bobID).Scan(&bobCount); err != nil {
+		t.Fatal(err)
+	}
+	if aliceCount != 0 || bobCount != 1 {
+		t.Fatalf("library entries Alice=%d Bob=%d, want 0 and 1", aliceCount, bobCount)
+	}
+	if _, err := store.DB.Exec(`UPDATE user_media SET status='watching' WHERE user_id=?`, bobID); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.RemoveWatchlistItem(ctx, bobID, "movie:10"); err == nil {
+		t.Fatal("watching item should not be removed as a watchlist item")
+	}
+}
+
+func TestMovieWatch_MovesMovieOutOfWatchlist(t *testing.T) {
+	ctx := context.Background()
+	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "visto.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	userID := insertTestUser(t, store.DB, "alice", "Alice", "private")
+	if _, err := store.DB.Exec(`INSERT INTO media(id,media_type,tmdb_id,title,metadata_updated_at,created_at) VALUES('movie:10','movie',10,'Example Movie',?,?)`, testTimestamp, testTimestamp); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.DB.Exec(`INSERT INTO user_media(id,user_id,media_id,status,added_at,updated_at) VALUES(?,?,'movie:10','watchlist',?,?)`, userID+":movie:10", userID, testTimestamp, testTimestamp); err != nil {
+		t.Fatal(err)
+	}
+	mediaID := "movie:10"
+	if _, err := store.CreatePlay(ctx, tracking.Play{UserID: userID, MediaID: &mediaID, WatchedAt: time.Now().UTC(), Source: "web"}); err != nil {
+		t.Fatal(err)
+	}
+	var status string
+	if err := store.DB.QueryRow(`SELECT status FROM user_media WHERE user_id=? AND media_id=?`, userID, mediaID).Scan(&status); err != nil {
+		t.Fatal(err)
+	}
+	if status != "watching" {
+		t.Fatalf("movie status=%q, want watching", status)
+	}
+}
+
+func TestRemoveUnplayedWatchingItem_KeepsTitlesWithWatchHistory(t *testing.T) {
+	ctx := context.Background()
+	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "visto.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	userID := insertTestUser(t, store.DB, "alice", "Alice", "private")
+	if _, err := store.DB.Exec(`INSERT INTO media(id,media_type,tmdb_id,title,metadata_updated_at,created_at) VALUES('movie:10','movie',10,'Movie',?,?),('movie:11','movie',11,'Other movie',?,?)`, testTimestamp, testTimestamp, testTimestamp, testTimestamp); err != nil {
+		t.Fatal(err)
+	}
+	for _, mediaID := range []string{"movie:10", "movie:11"} {
+		if _, err := store.DB.Exec(`INSERT INTO user_media(id,user_id,media_id,status,added_at,updated_at) VALUES(?,?,?,'watching',?,?)`, userID+":"+mediaID, userID, mediaID, testTimestamp, testTimestamp); err != nil {
+			t.Fatal(err)
+		}
+	}
+	playedID := "movie:11"
+	if _, err := store.CreatePlay(ctx, tracking.Play{UserID: userID, MediaID: &playedID, WatchedAt: time.Now().UTC(), Source: "web"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.RemoveUnplayedWatchingItem(ctx, userID, "movie:10"); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.RemoveUnplayedWatchingItem(ctx, userID, playedID); err == nil {
+		t.Fatal("watching entry with a play should remain")
+	}
+	var remaining int
+	if err := store.DB.QueryRow(`SELECT COUNT(*) FROM user_media WHERE user_id=?`, userID).Scan(&remaining); err != nil {
+		t.Fatal(err)
+	}
+	if remaining != 1 {
+		t.Fatalf("remaining entries=%d, want 1", remaining)
+	}
+}
+
 func TestTracking_GivenNewAndExistingTitles_WhenPlaysAreRecorded_ThenItCreatesOrPreservesLibraryRelationships(t *testing.T) {
 	ctx := context.Background()
 	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "visto.db"))

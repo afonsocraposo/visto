@@ -20,6 +20,8 @@ import {
 } from "@mantine/core";
 import { IconArrowLeft, IconClock, IconEye, IconEyeCheck, IconRefresh } from "@tabler/icons-react";
 import { api } from "../../lib/api";
+import { showActionFeedback } from "../../components/ActionFeedback";
+import type { Play } from "../../generated/models/play";
 import { useInvalidateUserCache, userCache } from "../../lib/userCache";
 import { backdropURL, posterURL } from "../../lib/artwork";
 import { useUserQueryKey } from "../auth/SessionContext";
@@ -122,14 +124,38 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
         { status, rating },
         "Could not update this title.",
       ),
-    onSuccess: () =>
-      invalidate(
+    onSuccess: (_result, changed) => {
+      void invalidate(
         userCache.library,
         userCache.continue,
         userCache.calendar,
         userCache.feed,
         detailScope,
-      ),
+      );
+      const previousStatus = library.data?.item.status;
+      const previousRating = library.data?.item.rating ?? null;
+      if (
+        previousStatus &&
+        (previousStatus !== changed.status || previousRating !== changed.rating)
+      ) {
+        showActionFeedback(
+          previousStatus !== changed.status ? "List updated." : "Rating saved.",
+          async () => {
+            await api.patch(`/api/v1/library/${encodeURIComponent(showID!)}`, {
+              status: previousStatus,
+              rating: previousRating,
+            });
+            await invalidate(
+              userCache.library,
+              userCache.continue,
+              userCache.calendar,
+              userCache.feed,
+              detailScope,
+            );
+          },
+        );
+      }
+    },
   });
   const updateNotifications = useMutation({
     mutationFn: (enabled: boolean) =>
@@ -143,7 +169,38 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
   const add = useMutation({
     mutationFn: (status: "watching" | "watchlist") =>
       api.post("/api/v1/library", { media, status }, "Could not add this title."),
-    onSuccess: () => invalidate(userCache.library, detailScope),
+    onSuccess: (_result, status) => {
+      void invalidate(userCache.library, detailScope);
+      showActionFeedback(
+        status === "watchlist"
+          ? `${media?.title} added to Watchlist.`
+          : `${media?.title} added to Watching.`,
+        async () => {
+          await api.delete(
+            `/api/v1/library/${encodeURIComponent(showID!)}${status === "watching" ? "?status=watching" : ""}`,
+          );
+          await invalidate(userCache.library, detailScope);
+        },
+      );
+    },
+  });
+  const removeWatchlist = useMutation({
+    mutationFn: () =>
+      api.delete(
+        `/api/v1/library/${encodeURIComponent(showID!)}`,
+        "Could not remove this title from your watchlist.",
+      ),
+    onSuccess: () => {
+      void invalidate(userCache.library, detailScope);
+      showActionFeedback(`${media?.title} removed from Watchlist.`, async () => {
+        await api.post("/api/v1/library", {
+          media,
+          status: "watchlist",
+          rating: library.data?.item.rating ?? null,
+        });
+        await invalidate(userCache.library, detailScope);
+      });
+    },
   });
   const markMovieWatched = useMutation({
     mutationFn: async () => {
@@ -153,9 +210,41 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
           { media, status: "watching" },
           "Could not add this title.",
         );
-      return api.post("/api/v1/plays", { media_id: showID }, "Could not record this watch.");
+      let play: Play;
+      try {
+        play = await api.post<Play>(
+          "/api/v1/plays",
+          { media_id: showID },
+          "Could not record this watch.",
+        );
+      } catch (error) {
+        if (!savedMediaID)
+          await api
+            .delete(`/api/v1/library/${encodeURIComponent(showID!)}?status=watching`)
+            .catch(() => undefined);
+        throw error;
+      }
+      return {
+        play,
+        wasSaved: Boolean(savedMediaID),
+        previousStatus: library.data?.item.status,
+        previousRating: library.data?.item.rating ?? null,
+      };
     },
-    onSuccess: () => invalidate(userCache.library, userCache.history, userCache.feed, detailScope),
+    onSuccess: ({ play, wasSaved, previousStatus, previousRating }) => {
+      void invalidate(userCache.library, userCache.history, userCache.feed, detailScope);
+      showActionFeedback(`${media?.title} marked watched.`, async () => {
+        await api.delete(`/api/v1/plays/${encodeURIComponent(play.id)}`);
+        if (!wasSaved)
+          await api.delete(`/api/v1/library/${encodeURIComponent(showID!)}?status=watching`);
+        else if (previousStatus === "watchlist")
+          await api.patch(`/api/v1/library/${encodeURIComponent(showID!)}`, {
+            status: "watchlist",
+            rating: previousRating,
+          });
+        await invalidate(userCache.library, userCache.history, userCache.feed, detailScope);
+      });
+    },
   });
   const prepareEpisodeWatch = useMutation({
     mutationFn: async (entry: ShowEpisodeEntry) => {
@@ -175,10 +264,14 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
   });
   const markEpisodeWatched = useMutation({
     mutationFn: (episodeID: string) =>
-      api.post("/api/v1/plays", { episode_id: episodeID }, "Could not record this watch."),
-    onSuccess: () => {
+      api.post<Play>("/api/v1/plays", { episode_id: episodeID }, "Could not record this watch."),
+    onSuccess: (play) => {
       setPendingWatch(null);
       setShowWatchModal(false);
+      showActionFeedback("Episode marked watched.", async () => {
+        await api.delete(`/api/v1/plays/${encodeURIComponent(play.id)}`);
+        await invalidateEpisodeData();
+      });
       return invalidateEpisodeData();
     },
   });
@@ -199,17 +292,30 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
           ? selectWatchedEpisodes(all, selectedSeasons)
           : selectUnwatchedEpisodes(all, selectedSeasons, today)
         : (episodeIDs ?? []);
+      const created: Play[] = [];
       for (const batch of chunk([...new Set(selectedIDs)], 100)) {
-        await api.post(
-          "/api/v1/plays/bulk",
-          { episode_ids: batch },
-          "Could not record these watches.",
+        created.push(
+          ...(await api.post<Play[]>(
+            "/api/v1/plays/bulk",
+            { episode_ids: batch },
+            "Could not record these watches.",
+          )),
         );
       }
+      return created;
     },
-    onSuccess: () => {
+    onSuccess: (plays) => {
       setPendingWatch(null);
       setShowWatchModal(false);
+      if (plays.length)
+        showActionFeedback(
+          `${plays.length} ${plays.length === 1 ? "episode" : "episodes"} marked watched.`,
+          async () => {
+            for (const play of plays)
+              await api.delete(`/api/v1/plays/${encodeURIComponent(play.id)}`);
+            await invalidateEpisodeData();
+          },
+        );
       return invalidateEpisodeData();
     },
   });
@@ -224,6 +330,7 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
     onSuccess: () => {
       setPendingWatch(null);
       setShowWatchModal(false);
+      showActionFeedback("Episodes marked unwatched.");
       return invalidateEpisodeData();
     },
   });
@@ -233,14 +340,16 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
         `/api/v1/plays/media/${encodeURIComponent(showID!)}`,
         "Could not mark this movie unwatched.",
       ),
-    onSuccess: () =>
-      invalidate(
+    onSuccess: () => {
+      showActionFeedback(`${media?.title} marked unwatched.`);
+      return invalidate(
         ["detail-history"],
         userCache.library,
         userCache.history,
         userCache.feed,
         detailScope,
-      ),
+      );
+    },
   });
   const isSaved = Boolean(savedMediaID);
   const availableSeasonNumbers = isSaved
@@ -712,7 +821,12 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
               watched={Boolean(watchedPlay) || library.data?.completed === true}
               onWatch={() => markMovieWatched.mutate()}
               onUnwatch={() => removeMovieWatches.mutate()}
-              pending={markMovieWatched.isPending || removeMovieWatches.isPending}
+              onRemoveWatchlist={() => removeWatchlist.mutate()}
+              pending={
+                markMovieWatched.isPending ||
+                removeMovieWatches.isPending ||
+                removeWatchlist.isPending
+              }
             />
           )}
         </div>
@@ -725,6 +839,11 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
       {removeMovieWatches.isError && (
         <Alert color="red" mt="sm">
           {removeMovieWatches.error.message}
+        </Alert>
+      )}
+      {removeWatchlist.isError && (
+        <Alert color="red" mt="sm">
+          {removeWatchlist.error.message}
         </Alert>
       )}
       {markMovieWatched.isError && (

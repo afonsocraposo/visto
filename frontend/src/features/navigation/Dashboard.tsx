@@ -12,6 +12,7 @@ import {
 import { WatchNow, WatchCalendar } from "../watch/Watch";
 import type { LibraryStatus, MediaDetailTarget, Tab, Theme, User } from "../../types";
 import { connectionUnavailableEvent } from "../../lib/api";
+import { ActionFeedback } from "../../components/ActionFeedback";
 import { clearSignedInCache, endCurrentSession } from "../auth/logout";
 
 const SearchPanel = lazy(async () => ({
@@ -139,6 +140,7 @@ export function Dashboard({
 
   return (
     <AppShell className="visto-shell" footer={{ height: 76 }} padding={0}>
+      <ActionFeedback />
       <AppShell.Main className="visto-main">
         {!online && (
           <Alert color="yellow" mb="md">

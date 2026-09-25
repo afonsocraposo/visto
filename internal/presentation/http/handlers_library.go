@@ -9,6 +9,39 @@ import "github.com/afonsocosta/visto/internal/application/auth"
 import "github.com/afonsocosta/visto/internal/application/library"
 import "github.com/afonsocosta/visto/internal/domain"
 
+func removeWatchlistItem(authService *auth.Service, service *library.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := authenticatedUser(w, r, authService)
+		if !ok {
+			return
+		}
+		if service == nil {
+			writeError(w, http.StatusServiceUnavailable, "library is not configured")
+			return
+		}
+		var err error
+		status := r.URL.Query().Get("status")
+		if status != "" && status != "watchlist" && status != "watching" {
+			writeError(w, http.StatusBadRequest, "invalid library status")
+			return
+		}
+		if status == "watching" {
+			err = service.RemoveUnplayedWatchingItem(r.Context(), user.ID, r.PathValue("mediaID"))
+		} else {
+			err = service.RemoveWatchlistItem(r.Context(), user.ID, r.PathValue("mediaID"))
+		}
+		if err != nil {
+			if errors.Is(err, library.ErrMediaNotFound) {
+				writeError(w, http.StatusNotFound, "title is not in the selected list")
+				return
+			}
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
 func updateLibrary(authService *auth.Service, service *library.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		user, ok := authenticatedUser(w, r, authService)

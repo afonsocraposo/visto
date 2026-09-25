@@ -42,7 +42,9 @@ export function LibraryListPage({
       </Alert>
     );
   const entries = library.data
-    .filter((entry) => (status === "completed" ? entry.completed : entry.item.status === status))
+    .filter((entry) =>
+      status === "completed" ? entry.completed : !entry.completed && entry.item.status === status,
+    )
     .sort((a, b) => Date.parse(b.item.updated_at) - Date.parse(a.item.updated_at));
   return (
     <div className="library-list-page">

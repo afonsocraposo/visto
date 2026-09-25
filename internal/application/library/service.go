@@ -64,6 +64,12 @@ type listRepository interface {
 type getRepository interface {
 	GetMediaByTMDBID(context.Context, string, domain.MediaType, int64) (Entry, error)
 }
+type watchlistRemovalRepository interface {
+	RemoveWatchlistItem(context.Context, string, string) error
+}
+type watchingRemovalRepository interface {
+	RemoveUnplayedWatchingItem(context.Context, string, string) error
+}
 type showMetadataRepository interface {
 	ImportShowMetadata(context.Context, string, domain.TVShowMetadata) error
 	ShowMetadataNeedsRefresh(context.Context, string, time.Duration) (bool, error)
@@ -139,6 +145,28 @@ func (s *Service) List(ctx context.Context, userID string) ([]Entry, error) {
 		return nil, fmt.Errorf("library storage is not configured")
 	}
 	return repository.ListItems(ctx, userID)
+}
+
+func (s *Service) RemoveWatchlistItem(ctx context.Context, userID, mediaID string) error {
+	if userID == "" || mediaID == "" {
+		return fmt.Errorf("user and media are required")
+	}
+	repository, ok := s.repository.(watchlistRemovalRepository)
+	if !ok {
+		return fmt.Errorf("watchlist removal is not configured")
+	}
+	return repository.RemoveWatchlistItem(ctx, userID, mediaID)
+}
+
+func (s *Service) RemoveUnplayedWatchingItem(ctx context.Context, userID, mediaID string) error {
+	if userID == "" || mediaID == "" {
+		return fmt.Errorf("user and media are required")
+	}
+	repository, ok := s.repository.(watchingRemovalRepository)
+	if !ok {
+		return fmt.Errorf("watching removal is not configured")
+	}
+	return repository.RemoveUnplayedWatchingItem(ctx, userID, mediaID)
 }
 
 func (s *Service) SetNotificationsEnabled(ctx context.Context, userID, mediaID string, enabled bool) error {

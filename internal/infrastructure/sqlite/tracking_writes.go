@@ -161,7 +161,8 @@ func (store *Store) CreateBulkPlays(ctx context.Context, plays []tracking.Play) 
 func ensureWatchingRelationship(ctx context.Context, tx *sql.Tx, userID, mediaID string, createdAt time.Time) error {
 	timestamp := createdAt.Format(time.RFC3339Nano)
 	_, err := tx.ExecContext(ctx, `INSERT INTO user_media(id,user_id,media_id,status,added_at,updated_at,notifications_since)
-		VALUES(?,?,?,'watching',?,?,?) ON CONFLICT(user_id,media_id) DO UPDATE SET updated_at=excluded.updated_at`, userID+":"+mediaID, userID, mediaID, timestamp, timestamp, timestamp)
+		VALUES(?,?,?,'watching',?,?,?) ON CONFLICT(user_id,media_id) DO UPDATE SET updated_at=excluded.updated_at,
+		status=CASE WHEN excluded.media_id LIKE 'movie:%' AND user_media.status='watchlist' THEN 'watching' ELSE user_media.status END`, userID+":"+mediaID, userID, mediaID, timestamp, timestamp, timestamp)
 	if err != nil {
 		return fmt.Errorf("ensure library relationship for tracked media: %w", err)
 	}
@@ -290,6 +291,9 @@ func (store *Store) DeleteMediaPlays(ctx context.Context, userID, mediaID string
 	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM plays WHERE user_id=? AND media_id=?`, userID, mediaID); err != nil {
 		return fmt.Errorf("remove media watches: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM user_media WHERE user_id=? AND media_id=?`, userID, mediaID); err != nil {
+		return fmt.Errorf("remove movie from library: %w", err)
 	}
 	return tx.Commit()
 }

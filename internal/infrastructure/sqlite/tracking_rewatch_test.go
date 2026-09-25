@@ -59,7 +59,7 @@ func TestTracking_GivenRewatches_WhenMarkedUnwatched_ThenAllPlaysAndTheirFeedEve
 	if err := store.DeleteMediaPlays(ctx, aliceID, movieID); err != nil {
 		t.Fatalf("mark movie unwatched: %v", err)
 	}
-	var alicePlays, aliceEvents, bobPlays int
+	var alicePlays, aliceEvents, bobPlays, aliceMovieEntries, bobMovieEntries, aliceShowEntries int
 	if err := store.DB.QueryRow(`SELECT COUNT(*) FROM plays WHERE user_id=?`, aliceID).Scan(&alicePlays); err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +69,19 @@ func TestTracking_GivenRewatches_WhenMarkedUnwatched_ThenAllPlaysAndTheirFeedEve
 	if err := store.DB.QueryRow(`SELECT COUNT(*) FROM plays WHERE user_id=?`, bobID).Scan(&bobPlays); err != nil {
 		t.Fatal(err)
 	}
+	if err := store.DB.QueryRow(`SELECT COUNT(*) FROM user_media WHERE user_id=? AND media_id=?`, aliceID, movieID).Scan(&aliceMovieEntries); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.DB.QueryRow(`SELECT COUNT(*) FROM user_media WHERE user_id=? AND media_id=?`, bobID, movieID).Scan(&bobMovieEntries); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.DB.QueryRow(`SELECT COUNT(*) FROM user_media WHERE user_id=? AND media_id='tv:42'`, aliceID).Scan(&aliceShowEntries); err != nil {
+		t.Fatal(err)
+	}
 	if alicePlays != 0 || aliceEvents != 0 || bobPlays != 1 {
 		t.Fatalf("remaining plays/events alice=%d/%d bob=%d, want 0/0 and 1", alicePlays, aliceEvents, bobPlays)
+	}
+	if aliceMovieEntries != 0 || bobMovieEntries != 1 || aliceShowEntries != 1 {
+		t.Fatalf("remaining library entries: Alice movie=%d, Bob movie=%d, Alice show=%d; want 0, 1, 1", aliceMovieEntries, bobMovieEntries, aliceShowEntries)
 	}
 }

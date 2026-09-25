@@ -121,6 +121,38 @@ func (s *Store) UpsertItem(ctx context.Context, item library.Item) error {
 	return nil
 }
 
+func (s *Store) RemoveWatchlistItem(ctx context.Context, userID, mediaID string) error {
+	result, err := s.DB.ExecContext(ctx, `DELETE FROM user_media WHERE user_id=? AND media_id=? AND status='watchlist'`, userID, mediaID)
+	if err != nil {
+		return fmt.Errorf("remove watchlist item: %w", err)
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("check watchlist removal: %w", err)
+	}
+	if count == 0 {
+		return library.ErrMediaNotFound
+	}
+	return nil
+}
+
+func (s *Store) RemoveUnplayedWatchingItem(ctx context.Context, userID, mediaID string) error {
+	result, err := s.DB.ExecContext(ctx, `DELETE FROM user_media WHERE user_id=? AND media_id=? AND status='watching'
+		AND NOT EXISTS (SELECT 1 FROM plays p WHERE p.user_id=? AND
+			(p.media_id=? OR p.episode_id IN (SELECT id FROM episodes WHERE show_id=?)))`, userID, mediaID, userID, mediaID, mediaID)
+	if err != nil {
+		return fmt.Errorf("remove unplayed watching item: %w", err)
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("check watching removal: %w", err)
+	}
+	if count == 0 {
+		return library.ErrMediaNotFound
+	}
+	return nil
+}
+
 func (s *Store) ListItems(ctx context.Context, userID string) ([]library.Entry, error) {
 	rows, err := s.DB.QueryContext(ctx, `SELECT um.user_id,um.media_id,um.status,um.rating,um.added_at,um.updated_at,um.notifications_enabled,m.media_type,m.tmdb_id,m.title,COALESCE(m.original_title,''),COALESCE(m.overview,''),COALESCE(m.release_date,''),COALESCE(m.poster_path,''),COALESCE(m.original_language,''),COALESCE(m.status,''),
 		((m.media_type='movie' AND EXISTS(SELECT 1 FROM plays p WHERE p.user_id=um.user_id AND p.media_id=um.media_id)) OR

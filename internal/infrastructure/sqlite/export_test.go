@@ -45,7 +45,7 @@ func TestExport_GivenTwoUsersWithSharedMedia_WhenEachExports_ThenEachReceivesOnl
 		wantRating                                          bool
 	}{
 		{aliceID, alicePlay.ID, bobPlay.ID, "watching", true},
-		{bobID, bobPlay.ID, alicePlay.ID, "watchlist", false},
+		{bobID, bobPlay.ID, alicePlay.ID, "watching", false},
 	} {
 		data, err := store.Export(ctx, expectation.userID)
 		if err != nil {

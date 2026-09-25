@@ -18,6 +18,8 @@ import { IconCheck, IconEye } from "@tabler/icons-react";
 import { EmptyState } from "../../components/EmptyState";
 import { useUserQueryKey } from "../auth/SessionContext";
 import { api } from "../../lib/api";
+import { showActionFeedback } from "../../components/ActionFeedback";
+import type { Play } from "../../generated/models/play";
 import { useInvalidateUserCache, userCache } from "../../lib/userCache";
 import {
   calendarMonthRange,
@@ -47,14 +49,30 @@ export function WatchNow({ onOpenDetail }: { onOpenDetail?: (target: MediaDetail
   });
   const markWatched = useMutation({
     mutationFn: ({ episodeIDs, bulk }: { episodeIDs: string[]; bulk: boolean; showID: string }) =>
-      api.post(
+      api.post<Play | Play[]>(
         bulk ? "/api/v1/plays/bulk" : "/api/v1/plays",
         bulk ? { episode_ids: episodeIDs } : { episode_id: episodeIDs[0] },
         "Could not mark episode watched.",
       ),
-    onSuccess: async (_result, variables) => {
+    onSuccess: async (result, variables) => {
       setConfirmation(null);
       setCompletedShowID(variables.showID);
+      const plays = Array.isArray(result) ? result : [result];
+      showActionFeedback(
+        `${plays.length} ${plays.length === 1 ? "episode" : "episodes"} marked watched.`,
+        async () => {
+          for (const play of plays)
+            await api.delete(`/api/v1/plays/${encodeURIComponent(play.id)}`);
+          await invalidate(
+            userCache.progress,
+            userCache.calendar,
+            userCache.feed,
+            userCache.history,
+            userCache.library,
+            userCache.continue,
+          );
+        },
+      );
       await invalidate(
         userCache.progress,
         userCache.calendar,
