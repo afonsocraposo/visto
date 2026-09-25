@@ -93,6 +93,9 @@ func (service *Service) Record(ctx context.Context, userID string, mediaID, epis
 	if source == "" {
 		source = "web"
 	}
+	if !validSource(source) {
+		return Play{}, fmt.Errorf("invalid play source")
+	}
 	play := Play{ID: service.newID(), UserID: userID, MediaID: mediaID, EpisodeID: episodeID, WatchedAt: watchedAt.UTC(), Source: source}
 	if err := service.repository.CreatePlay(ctx, play); err != nil {
 		return Play{}, err
@@ -117,6 +120,9 @@ func (service *Service) RecordEpisodes(ctx context.Context, userID string, episo
 	if source == "" {
 		source = "web"
 	}
+	if !validSource(source) {
+		return nil, fmt.Errorf("invalid play source")
+	}
 	seen := map[string]bool{}
 	plays := make([]Play, 0, len(episodeIDs))
 	for _, episodeID := range episodeIDs {
@@ -131,6 +137,15 @@ func (service *Service) RecordEpisodes(ctx context.Context, userID string, episo
 		return nil, err
 	}
 	return plays, nil
+}
+
+func validSource(source string) bool {
+	switch source {
+	case "web", "api", "mcp", "import", "plex":
+		return true
+	default:
+		return false
+	}
 }
 
 func (service *Service) Correct(ctx context.Context, userID, playID string, watchedAt time.Time) error {

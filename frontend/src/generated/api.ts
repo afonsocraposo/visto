@@ -55,7 +55,10 @@ import type {
   PatchUsersUserIDBody,
   PersonalAPIToken,
   Play,
+  PlexWebhookStatus,
   PostPlaysBulkBody,
+  PostProfilePlexWebhook201,
+  PostWebhooksPlexSecretBody,
   PushoverSettingsRequest,
   SaveLibraryRequest,
   Season,
@@ -2048,6 +2051,332 @@ export const useDeleteProfilePushoverCredentials = <TError = UnauthorizedRespons
         TContext
       > => {
       return useMutation(getDeleteProfilePushoverCredentialsMutationOptions(options), queryClient);
+    }
+
+export const getGetProfilePlexWebhookUrl = () => {
+
+
+
+
+  return `/profile/plex-webhook`
+}
+
+/**
+ * @summary Get this user's Plex webhook status and recent sync events
+ */
+export const getProfilePlexWebhook = async ( options?: Parameters<typeof customFetch>[1]): Promise<PlexWebhookStatus> => {
+
+  return customFetch<PlexWebhookStatus>(getGetProfilePlexWebhookUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getGetProfilePlexWebhookQueryKey = () => {
+    return [
+    `/profile/plex-webhook`
+    ] as const;
+    }
+
+
+export const getGetProfilePlexWebhookQueryOptions = <TData = Awaited<ReturnType<typeof getProfilePlexWebhook>>, TError = UnauthorizedResponse>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getProfilePlexWebhook>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getGetProfilePlexWebhookQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof getProfilePlexWebhook>>> = ({ signal }) => getProfilePlexWebhook({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof getProfilePlexWebhook>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type GetProfilePlexWebhookQueryResult = NonNullable<Awaited<ReturnType<typeof getProfilePlexWebhook>>>
+export type GetProfilePlexWebhookQueryError = UnauthorizedResponse
+
+
+export function useGetProfilePlexWebhook<TData = Awaited<ReturnType<typeof getProfilePlexWebhook>>, TError = UnauthorizedResponse>(
+  options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getProfilePlexWebhook>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getProfilePlexWebhook>>,
+          TError,
+          Awaited<ReturnType<typeof getProfilePlexWebhook>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetProfilePlexWebhook<TData = Awaited<ReturnType<typeof getProfilePlexWebhook>>, TError = UnauthorizedResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getProfilePlexWebhook>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getProfilePlexWebhook>>,
+          TError,
+          Awaited<ReturnType<typeof getProfilePlexWebhook>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useGetProfilePlexWebhook<TData = Awaited<ReturnType<typeof getProfilePlexWebhook>>, TError = UnauthorizedResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getProfilePlexWebhook>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary Get this user's Plex webhook status and recent sync events
+ */
+
+export function useGetProfilePlexWebhook<TData = Awaited<ReturnType<typeof getProfilePlexWebhook>>, TError = UnauthorizedResponse>(
+  options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getProfilePlexWebhook>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getGetProfilePlexWebhookQueryOptions(options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getPostProfilePlexWebhookUrl = () => {
+
+
+
+
+  return `/profile/plex-webhook`
+}
+
+/**
+ * @summary Create or rotate this user's Plex webhook URL; the secret is returned once
+ */
+export const postProfilePlexWebhook = async ( options?: Parameters<typeof customFetch>[1]): Promise<PostProfilePlexWebhook201> => {
+
+  return customFetch<PostProfilePlexWebhook201>(getPostProfilePlexWebhookUrl(),
+  {
+    ...options,
+    method: 'POST'
+
+
+  }
+);}
+
+
+
+
+
+export const getPostProfilePlexWebhookMutationKey = () => ['postProfilePlexWebhook'] as const;
+
+export const getPostProfilePlexWebhookMutationOptions = <TError = UnauthorizedResponse | void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postProfilePlexWebhook>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof postProfilePlexWebhook>>, TError,void, TContext> => {
+
+const mutationKey = getPostProfilePlexWebhookMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postProfilePlexWebhook>>, void> = () => {
+
+
+          return  postProfilePlexWebhook(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PostProfilePlexWebhookMutationResult = NonNullable<Awaited<ReturnType<typeof postProfilePlexWebhook>>>
+
+    export type PostProfilePlexWebhookMutationError = UnauthorizedResponse | void
+
+
+    /**
+ * @summary Create or rotate this user's Plex webhook URL; the secret is returned once
+ */
+export const usePostProfilePlexWebhook = <TError = UnauthorizedResponse | void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postProfilePlexWebhook>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof postProfilePlexWebhook>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getPostProfilePlexWebhookMutationOptions(options), queryClient);
+    }
+
+export const getDeleteProfilePlexWebhookUrl = () => {
+
+
+
+
+  return `/profile/plex-webhook`
+}
+
+/**
+ * @summary Revoke this user's Plex webhook URL
+ */
+export const deleteProfilePlexWebhook = async ( options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+
+  return customFetch<void>(getDeleteProfilePlexWebhookUrl(),
+  {
+    ...options,
+    method: 'DELETE'
+
+
+  }
+);}
+
+
+
+
+
+export const getDeleteProfilePlexWebhookMutationKey = () => ['deleteProfilePlexWebhook'] as const;
+
+export const getDeleteProfilePlexWebhookMutationOptions = <TError = UnauthorizedResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteProfilePlexWebhook>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof deleteProfilePlexWebhook>>, TError,void, TContext> => {
+
+const mutationKey = getDeleteProfilePlexWebhookMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof deleteProfilePlexWebhook>>, void> = () => {
+
+
+          return  deleteProfilePlexWebhook(requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type DeleteProfilePlexWebhookMutationResult = NonNullable<Awaited<ReturnType<typeof deleteProfilePlexWebhook>>>
+
+    export type DeleteProfilePlexWebhookMutationError = UnauthorizedResponse
+
+
+    /**
+ * @summary Revoke this user's Plex webhook URL
+ */
+export const useDeleteProfilePlexWebhook = <TError = UnauthorizedResponse,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof deleteProfilePlexWebhook>>, TError,void, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof deleteProfilePlexWebhook>>,
+        TError,
+        void,
+        TContext
+      > => {
+      return useMutation(getDeleteProfilePlexWebhookMutationOptions(options), queryClient);
+    }
+
+export const getPostWebhooksPlexSecretUrl = (secret: string,) => {
+
+
+
+
+  return `/webhooks/plex/${secret}`
+}
+
+/**
+ * @summary Receive a Plex media.scrobble webhook
+ */
+export const postWebhooksPlexSecret = async (secret: string,
+    postWebhooksPlexSecretBody: PostWebhooksPlexSecretBody, options?: Parameters<typeof customFetch>[1]): Promise<void> => {
+    const formData = new FormData();
+formData.append(`payload`, postWebhooksPlexSecretBody.payload);
+
+  return customFetch<void>(getPostWebhooksPlexSecretUrl(secret),
+  {
+    ...options,
+    method: 'POST'
+    ,
+    body: formData
+  }
+);}
+
+
+
+
+
+export const getPostWebhooksPlexSecretMutationKey = () => ['postWebhooksPlexSecret'] as const;
+
+export const getPostWebhooksPlexSecretMutationOptions = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postWebhooksPlexSecret>>, TError,PostWebhooksPlexSecretMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof postWebhooksPlexSecret>>, TError,PostWebhooksPlexSecretMutationVariables, TContext> => {
+
+const mutationKey = getPostWebhooksPlexSecretMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof postWebhooksPlexSecret>>, PostWebhooksPlexSecretMutationVariables> = (props) => {
+          const {secret,data} = props ?? {};
+
+          return  postWebhooksPlexSecret(secret,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type PostWebhooksPlexSecretMutationResult = NonNullable<Awaited<ReturnType<typeof postWebhooksPlexSecret>>>
+    export type PostWebhooksPlexSecretMutationBody = PostWebhooksPlexSecretBody
+    export type PostWebhooksPlexSecretMutationError = void
+    export type PostWebhooksPlexSecretMutationVariables = {secret: string;data: PostWebhooksPlexSecretBody}
+
+    /**
+ * @summary Receive a Plex media.scrobble webhook
+ */
+export const usePostWebhooksPlexSecret = <TError = void,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof postWebhooksPlexSecret>>, TError,PostWebhooksPlexSecretMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof postWebhooksPlexSecret>>,
+        TError,
+        PostWebhooksPlexSecretMutationVariables,
+        TContext
+      > => {
+      return useMutation(getPostWebhooksPlexSecretMutationOptions(options), queryClient);
     }
 
 export const getGetFeedUrl = (params?: GetFeedParams,) => {

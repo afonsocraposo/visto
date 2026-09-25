@@ -193,3 +193,31 @@ func (s *Service) ImportShow(ctx context.Context, tmdbID int64, provider domain.
 	}
 	return repository.ImportShowMetadata(ctx, fmt.Sprintf("tv:%d", tmdbID), metadata)
 }
+
+// ImportShowSeason stores show-level metadata and one fetched season. It is
+// used by integrations that need a single watched episode without importing
+// every episode in a series.
+func (s *Service) ImportShowSeason(ctx context.Context, userID string, show domain.TVShowMetadata, season domain.TVSeasonMetadata) error {
+	if userID == "" || show.TMDBID <= 0 || show.Name == "" {
+		return fmt.Errorf("user and valid TV show metadata are required")
+	}
+	if season.Number < 0 || len(season.Episodes) == 0 {
+		return fmt.Errorf("a valid TV season with episodes is required")
+	}
+	repository, ok := s.repository.(showMetadataRepository)
+	if !ok {
+		return fmt.Errorf("show metadata storage is not configured")
+	}
+	foundSeason := false
+	for index := range show.Seasons {
+		if show.Seasons[index].Number == season.Number {
+			show.Seasons[index] = season
+			foundSeason = true
+			break
+		}
+	}
+	if !foundSeason {
+		show.Seasons = append(show.Seasons, season)
+	}
+	return repository.ImportShowMetadata(ctx, fmt.Sprintf("tv:%d", show.TMDBID), show)
+}

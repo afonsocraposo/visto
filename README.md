@@ -51,7 +51,7 @@ deployment; the other settings have defaults.
 | `VISTO_GOOGLE_CLIENT_SECRET` | empty | Secret for the Google OAuth client. |
 | `VISTO_GOOGLE_REDIRECT_URL` | empty | Exact callback URL registered in Google Cloud, such as `https://visto.example.com/api/v1/auth/google/callback`. All three Google variables are required; if any is missing, Google sign-in stays disabled. |
 | `VISTO_ALLOW_SIGNUPS` | `true` | Allow public account creation. Set to `false` to disable it. The first-admin setup and admin-created accounts remain available. |
-| `VISTO_PUBLIC_URL` | empty | Public HTTPS origin, such as `https://visto.example.com`. Set this when ChatGPT MCP or OAuth clients will connect through a public proxy. Do not include `/mcp`. |
+| `VISTO_PUBLIC_URL` | empty | Public HTTPS origin, such as `https://visto.example.com`. Set this when ChatGPT MCP or OAuth clients connect, or when users create Plex webhook URLs. Do not include a path such as `/mcp`. |
 | `VISTO_TRUSTED_PROXY_CIDRS` | empty | Comma-separated IP ranges for trusted reverse proxies. Set this when deploying behind a proxy; only then are its forwarded client and HTTPS headers trusted. |
 | `VISTO_LISTEN_ADDR` | `:8080` | Address used by the server inside the container. Keep the default with the example port mapping. |
 | `VISTO_DATABASE_PATH` | `/data/visto.db` | SQLite database path inside the persistent volume. |
@@ -68,9 +68,9 @@ deployment; the other settings have defaults.
 The interval values use Go duration syntax, such as `12h` or `30m`. Pushover
 and ChatGPT MCP are optional. To use Pushover, set a persistent
 `VISTO_SECRET_ENCRYPTION_KEY`; users then enter their own credentials in
-Profile. To use MCP from outside your network, set `VISTO_PUBLIC_URL` and
-configure the reverse proxy to pass `/mcp`, `/oauth/`, and `/.well-known/` to
-Visto.
+Profile. To use MCP or Plex webhooks outside your network, set
+`VISTO_PUBLIC_URL` and configure the reverse proxy to pass the required paths
+to Visto.
 
 To enable Google sign-in, create a Google OAuth web client and register the
 redirect URL shown above as an authorized redirect URI. Set all three Google
@@ -165,6 +165,30 @@ check interval is 15 minutes and can be changed with `VISTO_PUSHOVER_INTERVAL`.
 Visto alerts for newly aired regular episodes in shows a user is watching.
 Specials, paused or dropped shows, disabled show alerts, and episodes already
 marked watched are excluded. Delivery is deduplicated per user and episode.
+
+## Plex watched-content sync
+
+Plex sync is configured separately by each Visto user under Profile →
+Settings → Plex watch sync. Plex Pass is required. Create a webhook URL in
+Visto, copy it when it is shown, then add it in Plex Web under your account's
+webhook settings. Visto shows the URL secret only once; rotate it in Profile if
+you lose it. Revoking or rotating the URL immediately invalidates the old URL.
+
+Plex must be able to reach Visto over HTTPS. Set `VISTO_PUBLIC_URL` to the
+public origin (for example, `https://visto.example.com`) and forward
+`/api/v1/webhooks/plex/` to Visto. Each URL is unique to one Visto user. The
+server stores only a hash of its secret. Keep the URL private because it grants
+Plex permission to record watches for that account.
+
+Visto processes Plex `media.scrobble` events for movies and TV episodes. It
+uses TMDB IDs from Plex when available, then falls back to exact title and
+year matching. Ambiguous titles and episodes without an exact season/episode
+match are skipped and shown in Recent sync activity. Successful events add the
+title to that user's library and record the watched movie or episode. Plex
+events only sync watches that happen after webhook setup; existing Plex
+history is not imported. Visto suppresses repeat events when a play for the
+same item was recorded in the last seven days. The latest 100 event outcomes
+are retained per user; Profile displays the latest 20.
 
 ## ChatGPT MCP connection
 

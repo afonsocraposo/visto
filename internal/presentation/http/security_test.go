@@ -129,4 +129,17 @@ func TestCSRFProtectionBDD(t *testing.T) {
 			t.Fatalf("expected 403, got %d", response.Code)
 		}
 	})
+
+	t.Run("Given Plex sends a cross-origin webhook, When the secret URL is valid, Then CSRF origin checks defer to webhook authentication", func(t *testing.T) {
+		called := false
+		handler := csrfProtection(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { called = true }), &security.ProxyResolver{})
+		request := httptest.NewRequest(http.MethodPost, "http://visto.local/api/v1/webhooks/plex/a-secret", nil)
+		request.Header.Set("Origin", "https://plex.tv")
+		response := httptest.NewRecorder()
+
+		handler.ServeHTTP(response, request)
+		if !called || response.Code == http.StatusForbidden {
+			t.Fatalf("webhook was blocked by CSRF middleware: called=%v status=%d", called, response.Code)
+		}
+	})
 }

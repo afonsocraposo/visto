@@ -93,13 +93,14 @@ type TVCastMember struct {
 }
 
 type TVSeasonMetadata struct {
-	TMDBID     int64
-	Number     int
-	Name       string
-	Overview   string
-	PosterPath string
-	AirDate    string
-	Episodes   []TVEpisodeMetadata
+	TMDBID       int64
+	Number       int
+	EpisodeCount int
+	Name         string
+	Overview     string
+	PosterPath   string
+	AirDate      string
+	Episodes     []TVEpisodeMetadata
 }
 
 type TVEpisodeMetadata struct {

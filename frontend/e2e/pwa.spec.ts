@@ -26,9 +26,12 @@ async function fulfillJSON(route: Route, value: unknown, status = 200) {
 }
 
 async function mockSignedInSession(page: Page) {
+  await page.route("**/api/v1/auth/status", route => fulfillJSON(route, { bootstrap_available: false, signup_enabled: true, google_enabled: false }));
   await page.route("**/api/v1/me", route => fulfillJSON(route, user));
+  await page.route("**/api/v1/public/trending**", route => fulfillJSON(route, { tv: [], movies: [] }));
   await page.route("**/api/v1/continue-watching", route => fulfillJSON(route, [continueEntry]));
   await page.route("**/api/v1/profile/activity-settings", route => fulfillJSON(route, { activity_visibility: "private", timezone: "Europe/Lisbon" }));
+  await page.route("**/api/v1/profile/plex-webhook", route => fulfillJSON(route, { enabled: false, recent_events: [] }));
   await page.route("**/api/v1/library", route => fulfillJSON(route, []));
   await page.route("**/api/v1/feed**", route => fulfillJSON(route, { items: [], next_cursor: null }));
   await page.route("**/api/v1/search**", route => fulfillJSON(route, []));
@@ -56,6 +59,43 @@ test("Given a signed-in user, When they move through the app and choose a theme,
   await page.getByRole("combobox", { name: "Color theme" }).click();
   await page.getByRole("option", { name: "Light" }).click();
   await expect(page.locator("html")).toHaveAttribute("data-mantine-color-scheme", "light");
+});
+
+test("Given Plex sync settings, When the user creates, rotates, and revokes a URL, Then only the current secret URL is shown", async ({ page }) => {
+  await mockSignedInSession(page);
+  let enabled = false;
+  let issueCount = 0;
+  const requests: string[] = [];
+  await page.route("**/api/v1/profile/plex-webhook", async route => {
+    const method = route.request().method();
+    requests.push(method);
+    if (method === "GET") {
+      await fulfillJSON(route, { enabled, recent_events: [] });
+    } else if (method === "POST") {
+      enabled = true;
+      issueCount++;
+      await fulfillJSON(route, { webhook_url: `https://visto.example.com/api/v1/webhooks/plex/secret-${issueCount}` }, 201);
+    } else if (method === "DELETE") {
+      enabled = false;
+      await route.fulfill({ status: 204, body: "" });
+    }
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Profile" }).click();
+  await page.getByRole("tab", { name: "Settings" }).click();
+  await page.getByRole("button", { name: "Create webhook URL" }).click();
+  await expect(page.getByText("https://visto.example.com/api/v1/webhooks/plex/secret-1")).toBeVisible();
+
+  page.once("dialog", dialog => dialog.accept());
+  await page.getByRole("button", { name: "Rotate webhook URL" }).click();
+  await expect(page.getByText("https://visto.example.com/api/v1/webhooks/plex/secret-2")).toBeVisible();
+  await expect(page.getByText("https://visto.example.com/api/v1/webhooks/plex/secret-1")).toHaveCount(0);
+
+  page.once("dialog", dialog => dialog.accept());
+  await page.getByRole("button", { name: "Revoke" }).click();
+  await expect(page.getByRole("button", { name: "Create webhook URL" })).toBeVisible();
+  await expect(page.getByText("https://visto.example.com/api/v1/webhooks/plex/secret-2")).toHaveCount(0);
+  expect(requests).toContain("DELETE");
 });
 
 test("Given an unsaved TV show, When the user adds it or chooses Watch later, Then the selected library status is saved", async ({ page }) => {

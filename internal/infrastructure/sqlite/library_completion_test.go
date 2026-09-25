@@ -26,8 +26,8 @@ func TestLibrary_GivenMovieAndShowPlays_WhenLibraryIsRead_ThenCompletionAndRegul
 		('tv:42','tv',42,'Tracked Show',?,?)`, testTimestamp, testTimestamp, testTimestamp, testTimestamp, testTimestamp, testTimestamp); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.DB.Exec(`INSERT INTO seasons(id,show_id,season_number,name) VALUES
-		('tv:42:season:0','tv:42',0,'Specials'),('tv:42:season:1','tv:42',1,'Season 1')`); err != nil {
+	if _, err := store.DB.Exec(`INSERT INTO seasons(id,show_id,season_number,name,episode_count) VALUES
+		('tv:42:season:0','tv:42',0,'Specials',1),('tv:42:season:1','tv:42',1,'Season 1',2)`); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := store.DB.Exec(`INSERT INTO episodes(id,show_id,season_id,season_number,episode_number,name) VALUES

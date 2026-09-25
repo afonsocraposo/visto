@@ -6,6 +6,7 @@ import { IconDownload } from "@tabler/icons-react";
 import { useUserQueryKey } from "../auth/SessionContext";
 import { PersonalTokensPanel } from "./PersonalTokensPanel";
 import { ConnectedAppsPanel } from "./ConnectedAppsPanel";
+import { PlexSyncPanel } from "./PlexSyncPanel";
 
 export function ProfilePanel() {
   const queryClient = useQueryClient();
@@ -111,6 +112,7 @@ export function ProfilePanel() {
         </Button>
       </Group>
     </Paper>
+    <PlexSyncPanel />
     <PersonalTokensPanel />
     <ConnectedAppsPanel />
   </>;

@@ -185,6 +185,45 @@ paths:
         '204': { description: Pushover credentials removed }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '503': { description: Secure storage for per-user Pushover credentials is not configured on this instance }
+  /profile/plex-webhook:
+    get:
+      summary: Get this user's Plex webhook status and recent sync events
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      responses:
+        '200': { description: Plex webhook status, content: { application/json: { schema: { $ref: '#/components/schemas/PlexWebhookStatus' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      summary: Create or rotate this user's Plex webhook URL; the secret is returned once
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      responses:
+        '201': { description: Created webhook URL, content: { application/json: { schema: { type: object, required: [webhook_url], properties: { webhook_url: { type: string, format: uri } } } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '503': { description: VISTO_PUBLIC_URL is not configured }
+    delete:
+      summary: Revoke this user's Plex webhook URL
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      responses:
+        '204': { description: Webhook URL revoked }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /webhooks/plex/{secret}:
+    post:
+      summary: Receive a Plex media.scrobble webhook
+      parameters:
+        - { name: secret, in: path, required: true, schema: { type: string, minLength: 40, maxLength: 80 } }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [payload]
+              properties:
+                payload: { type: string, description: Plex JSON event payload }
+      responses:
+        '204': { description: Event accepted or safely skipped }
+        '400': { description: Invalid webhook form or missing payload }
+        '404': { description: Unknown or revoked webhook secret }
+        '413': { description: Webhook payload exceeds the 1 MiB limit }
   /feed:
     get:
       summary: List recent opted-in activity on this instance
@@ -618,6 +657,26 @@ components:
         enabled: { type: boolean }
         app_token: { type: string, description: Optional replacement application token. It is encrypted and never returned. }
         user_key: { type: string, description: Optional replacement user key. It is encrypted and never returned. }
+    PlexWebhookEvent:
+      type: object
+      required: [id, status, occurred_at]
+      properties:
+        id: { type: integer, format: int64 }
+        tmdb_id: { type: integer, format: int64 }
+        status: { type: string, enum: [synced, skipped, failed] }
+        title: { type: string }
+        media_type: { type: string }
+        message: { type: string }
+        occurred_at: { type: string, format: date-time }
+    PlexWebhookStatus:
+      type: object
+      required: [enabled, recent_events]
+      properties:
+        enabled: { type: boolean }
+        created_at: { type: string, format: date-time }
+        last_used_at: { type: string, format: date-time }
+        last_synced_at: { type: string, format: date-time }
+        recent_events: { type: array, maxItems: 20, items: { $ref: '#/components/schemas/PlexWebhookEvent' } }
     FeedItem:
       type: object
       required: [id, display_name, kind, title, occurred_at]
@@ -785,7 +844,7 @@ components:
         media_id: { type: string }
         episode_id: { type: string }
         watched_at: { type: string, format: date-time, description: Must not be in the future. Defaults to now. }
-        source: { type: string, enum: [web, api, mcp, import], default: web }
+        source: { type: string, enum: [web, api, mcp, import, plex], default: web }
       oneOf:
         - required: [media_id]
         - required: [episode_id]
@@ -803,7 +862,7 @@ components:
         media_id: { type: [string, 'null'] }
         episode_id: { type: [string, 'null'] }
         watched_at: { type: string, format: date-time }
-        source: { type: string, enum: [web, api, mcp, import] }
+        source: { type: string, enum: [web, api, mcp, import, plex] }
     HistoryEntry:
       type: object
       required: [play, title]

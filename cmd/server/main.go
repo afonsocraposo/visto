@@ -20,6 +20,7 @@ import (
 	"github.com/afonsocosta/visto/internal/application/library"
 	"github.com/afonsocosta/visto/internal/application/notifications"
 	"github.com/afonsocosta/visto/internal/application/oauth"
+	"github.com/afonsocosta/visto/internal/application/plexsync"
 	"github.com/afonsocosta/visto/internal/application/profile"
 	"github.com/afonsocosta/visto/internal/application/tracking"
 	"github.com/afonsocosta/visto/internal/application/watch"
@@ -121,7 +122,14 @@ func main() {
 	appHandler.Handle("/mcp", mcpHandler)
 	appHandler.Handle("/oauth/", mcpHandler)
 	appHandler.Handle("/.well-known/", mcpHandler)
-	appHandler.Handle("/", httpserver.New(authService, metadataProvider, os.Getenv("VISTO_WEB_DIR"), library.NewService(store), tracking.NewService(store), profiles, feed.NewService(store), exportapp.NewService(store), watchService).WithTrustedProxies(trustedProxies).WithOAuth(oauthService).WithGoogleOAuth(googleOAuth).Handler())
+	appServer := httpserver.New(authService, metadataProvider, os.Getenv("VISTO_WEB_DIR"), library.NewService(store), tracking.NewService(store), profiles, feed.NewService(store), exportapp.NewService(store), watchService).
+		WithTrustedProxies(trustedProxies).WithOAuth(oauthService).WithGoogleOAuth(googleOAuth)
+	var plexMetadataProvider plexsync.MetadataProvider
+	if metadataProvider != nil {
+		plexMetadataProvider = metadataProvider
+	}
+	appServer.WithPlexSync(plexsync.NewService(store, plexMetadataProvider, library.NewService(store), publicURL))
+	appHandler.Handle("/", appServer.Handler())
 	server := &http.Server{
 		Addr:              environment("VISTO_LISTEN_ADDR", ":8080"),
 		Handler:           appHandler,

@@ -14,4 +14,5 @@ export const CreatePlayRequestSource = {
   api: 'api',
   mcp: 'mcp',
   import: 'import',
+  plex: 'plex',
 } as const;

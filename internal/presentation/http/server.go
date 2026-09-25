@@ -9,6 +9,7 @@ import exportapp "github.com/afonsocosta/visto/internal/application/export"
 import "github.com/afonsocosta/visto/internal/application/feed"
 import "github.com/afonsocosta/visto/internal/application/library"
 import "github.com/afonsocosta/visto/internal/application/oauth"
+import "github.com/afonsocosta/visto/internal/application/plexsync"
 import "github.com/afonsocosta/visto/internal/application/profile"
 import "github.com/afonsocosta/visto/internal/application/tracking"
 import "github.com/afonsocosta/visto/internal/application/watch"
@@ -57,6 +58,18 @@ func (server *Server) WithGoogleOAuth(config GoogleOAuthConfig) *Server {
 		server.mux.HandleFunc("GET /api/v1/auth/google", googleLogin(config, server.authService, server.proxies))
 		server.mux.HandleFunc("GET /api/v1/auth/google/callback", googleCallback(config, server.authService, server.proxies))
 	}
+	return server
+}
+
+// WithPlexSync adds per-user Plex webhook management and the public callback.
+func (server *Server) WithPlexSync(service *plexsync.Service) *Server {
+	if service == nil {
+		return server
+	}
+	server.mux.HandleFunc("GET /api/v1/profile/plex-webhook", plexWebhookStatus(server.authService, service))
+	server.mux.HandleFunc("POST /api/v1/profile/plex-webhook", issuePlexWebhook(server.authService, service))
+	server.mux.HandleFunc("DELETE /api/v1/profile/plex-webhook", revokePlexWebhook(server.authService, service))
+	server.mux.HandleFunc("POST /api/v1/webhooks/plex/{secret}", plexWebhook(service))
 	return server
 }
 

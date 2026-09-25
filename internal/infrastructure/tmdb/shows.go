@@ -189,7 +189,7 @@ func (client *Client) fetchShowSummary(ctx context.Context, tmdbID int64) (domai
 		}
 	}
 	for _, season := range details.Seasons {
-		show.Seasons = append(show.Seasons, domain.TVSeasonMetadata{TMDBID: season.ID, Number: season.SeasonNumber, Name: season.Name, Overview: season.Overview, PosterPath: season.PosterPath, AirDate: season.AirDate})
+		show.Seasons = append(show.Seasons, domain.TVSeasonMetadata{TMDBID: season.ID, Number: season.SeasonNumber, EpisodeCount: season.EpisodeCount, Name: season.Name, Overview: season.Overview, PosterPath: season.PosterPath, AirDate: season.AirDate})
 	}
 	return show, nil
 }
@@ -208,6 +208,7 @@ func (client *Client) fetchSeason(ctx context.Context, tmdbID int64, seasonNumbe
 		return domain.TVSeasonMetadata{}, err
 	}
 	season := domain.TVSeasonMetadata{TMDBID: seasonDetails.ID, Number: seasonDetails.SeasonNumber, Name: seasonDetails.Name, Overview: seasonDetails.Overview, PosterPath: seasonDetails.PosterPath, AirDate: seasonDetails.AirDate}
+	season.EpisodeCount = len(seasonDetails.Episodes)
 	for _, episode := range seasonDetails.Episodes {
 		season.Episodes = append(season.Episodes, domain.TVEpisodeMetadata{TMDBID: episode.ID, SeasonNumber: episode.SeasonNumber, EpisodeNumber: episode.EpisodeNumber, Name: episode.Name, Overview: episode.Overview, AirDate: episode.AirDate, Runtime: episode.Runtime, StillPath: episode.StillPath})
 	}

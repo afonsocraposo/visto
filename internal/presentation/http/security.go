@@ -86,6 +86,12 @@ func (limiter *LoginLimiter) reset(ip string) {
 
 func csrfProtection(next http.Handler, proxies *security.ProxyResolver) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Plex authenticates callbacks with the per-user high-entropy path
+		// secret, so browser-origin checks are not applicable to this route.
+		if r.Method == http.MethodPost && strings.HasPrefix(r.URL.Path, "/api/v1/webhooks/plex/") {
+			next.ServeHTTP(w, r)
+			return
+		}
 		if r.Method == http.MethodGet || r.Method == http.MethodHead || r.Method == http.MethodOptions {
 			next.ServeHTTP(w, r)
 			return

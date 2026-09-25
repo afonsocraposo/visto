@@ -39,8 +39,12 @@ func (s *Store) ImportShowMetadata(ctx context.Context, showID string, show doma
 		if season.TMDBID > 0 {
 			seasonTMDB = season.TMDBID
 		}
+		episodeCount := season.EpisodeCount
+		if episodeCount < len(season.Episodes) {
+			episodeCount = len(season.Episodes)
+		}
 		if _, err := tx.ExecContext(ctx, `INSERT INTO seasons(id,show_id,tmdb_id,season_number,name,overview,poster_path,air_date,episode_count) VALUES(?,?,?,?,?,?,?,?,?)
-			ON CONFLICT(show_id,season_number) DO UPDATE SET tmdb_id=excluded.tmdb_id,name=excluded.name,overview=excluded.overview,poster_path=excluded.poster_path,air_date=excluded.air_date,episode_count=excluded.episode_count`, seasonID, showID, seasonTMDB, season.Number, season.Name, season.Overview, season.PosterPath, season.AirDate, len(season.Episodes)); err != nil {
+			ON CONFLICT(show_id,season_number) DO UPDATE SET tmdb_id=excluded.tmdb_id,name=excluded.name,overview=excluded.overview,poster_path=excluded.poster_path,air_date=excluded.air_date,episode_count=excluded.episode_count`, seasonID, showID, seasonTMDB, season.Number, season.Name, season.Overview, season.PosterPath, season.AirDate, episodeCount); err != nil {
 			return fmt.Errorf("upsert season %d: %w", season.Number, err)
 		}
 		for _, episode := range season.Episodes {
@@ -120,14 +124,17 @@ func (s *Store) UpsertItem(ctx context.Context, item library.Item) error {
 func (s *Store) ListItems(ctx context.Context, userID string) ([]library.Entry, error) {
 	rows, err := s.DB.QueryContext(ctx, `SELECT um.user_id,um.media_id,um.status,um.rating,um.added_at,um.updated_at,um.notifications_enabled,m.media_type,m.tmdb_id,m.title,COALESCE(m.original_title,''),COALESCE(m.overview,''),COALESCE(m.release_date,''),COALESCE(m.poster_path,''),COALESCE(m.original_language,''),COALESCE(m.status,''),
 		((m.media_type='movie' AND EXISTS(SELECT 1 FROM plays p WHERE p.user_id=um.user_id AND p.media_id=um.media_id)) OR
-		 (m.media_type='tv' AND (COALESCE(m.status,'') IN ('Ended','Canceled','Cancelled') OR COALESCE(m.status,'')='') AND EXISTS(SELECT 1 FROM episodes e WHERE e.show_id=m.id AND e.season_number>0) AND NOT EXISTS(SELECT 1 FROM episodes e WHERE e.show_id=m.id AND e.season_number>0 AND (e.air_date IS NULL OR e.air_date<=date('now')) AND NOT EXISTS(SELECT 1 FROM plays p WHERE p.user_id=um.user_id AND p.episode_id=e.id)))),
+		 (m.media_type='tv' AND (COALESCE(m.status,'') IN ('Ended','Canceled','Cancelled') OR COALESCE(m.status,'')='') AND EXISTS(SELECT 1 FROM episodes e WHERE e.show_id=m.id AND e.season_number>0) AND
+		  COALESCE((SELECT SUM(s.episode_count) FROM seasons s WHERE s.show_id=m.id AND s.season_number>0),0) <= (SELECT COUNT(*) FROM episodes e WHERE e.show_id=m.id AND e.season_number>0) AND
+		  NOT EXISTS(SELECT 1 FROM episodes e WHERE e.show_id=m.id AND e.season_number>0 AND (e.air_date IS NULL OR e.air_date<=date('now')) AND NOT EXISTS(SELECT 1 FROM plays p WHERE p.user_id=um.user_id AND p.episode_id=e.id)))),
 		progress.watched_episodes,progress.total_episodes
 		FROM user_media um JOIN media m ON m.id=um.media_id
 		LEFT JOIN (
-			SELECT e.show_id,COUNT(*) AS total_episodes,COUNT(p.episode_id) AS watched_episodes
-			FROM episodes e
+			SELECT s.show_id,(SELECT SUM(COALESCE(s2.episode_count,0)) FROM seasons s2 WHERE s2.show_id=s.show_id AND s2.season_number>0) AS total_episodes,COUNT(DISTINCT p.episode_id) AS watched_episodes
+			FROM seasons s
+			LEFT JOIN episodes e ON e.season_id=s.id AND e.season_number>0
 			LEFT JOIN (SELECT DISTINCT episode_id FROM plays WHERE user_id=?) p ON p.episode_id=e.id
-			WHERE e.season_number>0 GROUP BY e.show_id
+			WHERE s.season_number>0 GROUP BY s.show_id
 		) progress ON progress.show_id=m.id
 		WHERE um.user_id=? ORDER BY um.updated_at DESC`, userID, userID)
 	if err != nil {

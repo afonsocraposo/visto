@@ -31,10 +31,10 @@ func TestMigrator_GivenFreshDatabase_WhenAppliedTwice_ThenSchemaIsCreatedAndSeco
 	if err := db.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&count); err != nil {
 		t.Fatalf("count migrations: %v", err)
 	}
-	if count != 10 {
-		t.Fatalf("migration count = %d, want 10", count)
+	if count != len(migrator.Migrations) {
+		t.Fatalf("migration count = %d, want %d", count, len(migrator.Migrations))
 	}
-	for _, table := range []string{"users", "media", "episodes", "plays", "activity_events", "episode_ratings", "personal_api_tokens", "notification_deliveries", "oauth_clients", "oauth_authorization_codes", "oauth_access_tokens", "oauth_refresh_tokens"} {
+	for _, table := range []string{"users", "media", "episodes", "plays", "activity_events", "episode_ratings", "personal_api_tokens", "notification_deliveries", "oauth_clients", "oauth_authorization_codes", "oauth_access_tokens", "oauth_refresh_tokens", "plex_webhooks", "plex_webhook_events"} {
 		var name string
 		if err := db.QueryRow(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?`, table).Scan(&name); err != nil {
 			t.Fatalf("expected table %q: %v", table, err)
@@ -46,6 +46,42 @@ func TestMigrator_GivenFreshDatabase_WhenAppliedTwice_ThenSchemaIsCreatedAndSeco
 	}
 	if err := db.QueryRow(`SELECT name FROM pragma_table_info('oauth_access_tokens') WHERE name='last_used_at'`).Scan(&column); err != nil {
 		t.Fatalf("expected OAuth connection metadata migration: %v", err)
+	}
+}
+
+func TestMigrator_GivenExistingPlaysAndFeedActivity_WhenPlexSourceIsAdded_ThenMigrationPreservesBoth(t *testing.T) {
+	db := openTestDatabase(t)
+	migrator, err := sqlite.NewMigrator()
+	if err != nil {
+		t.Fatal(err)
+	}
+	migrations := migrator.Migrations
+	migrator.Migrations = migrations[:10]
+	if err := migrator.Apply(context.Background(), db); err != nil {
+		t.Fatalf("apply original schema: %v", err)
+	}
+	if _, err := db.Exec(`INSERT INTO users(id,username,display_name,password_hash,role,created_at,updated_at) VALUES('alice','alice','Alice','hash','user',?,?)`, testTimestamp, testTimestamp); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`INSERT INTO media(id,media_type,tmdb_id,title,metadata_updated_at,created_at) VALUES('movie:10','movie',10,'Example Movie',?,?)`, testTimestamp, testTimestamp); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`INSERT INTO plays(id,user_id,media_id,watched_at,source,created_at) VALUES('play-1','alice','movie:10',?,'web',?)`, testTimestamp, testTimestamp); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`INSERT INTO activity_events(id,user_id,kind,play_id,media_id,occurred_at,created_at) VALUES('activity-1','alice','watch','play-1','movie:10',?,?)`, testTimestamp, testTimestamp); err != nil {
+		t.Fatal(err)
+	}
+	migrator.Migrations = migrations
+	if err := migrator.Apply(context.Background(), db); err != nil {
+		t.Fatalf("apply Plex source migration: %v", err)
+	}
+	var source, playID string
+	if err := db.QueryRow(`SELECT p.source,a.play_id FROM plays p JOIN activity_events a ON a.play_id=p.id WHERE p.id='play-1'`).Scan(&source, &playID); err != nil {
+		t.Fatalf("existing play/feed row was not preserved: %v", err)
+	}
+	if source != "web" || playID != "play-1" {
+		t.Fatalf("preserved source=%q play ID=%q", source, playID)
 	}
 }
 

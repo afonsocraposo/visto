@@ -70,6 +70,10 @@ trademark policy.
 - Automated SQLite backups and retention.
 - Personal API tokens.
 - Optional Pushover notifications.
+- Per-user Plex webhook sync for new movie and TV episode scrobbles. Each
+  user owns a rotatable secret URL; matching uses TMDB identifiers where
+  available and exact title/year/episode matching otherwise. Existing Plex
+  history is not imported.
 
 ### v0.3: remote MCP
 
@@ -107,6 +111,29 @@ Every user has an activity visibility preference:
 - `private` (default): activity does not appear in the instance feed.
 - `instance`: eligible activity appears to authenticated users on this Visto
   installation.
+
+### Plex webhook sync
+
+Each user can create, rotate, and revoke one Plex webhook URL under Profile
+settings. The URL contains a high-entropy per-user secret. The secret is shown
+only when it is issued or rotated; Visto stores only its hash. Creating a URL
+requires `VISTO_PUBLIC_URL` and a publicly reachable HTTPS endpoint. Plex Pass
+is required on the Plex account.
+
+Visto accepts Plex `media.scrobble` events for movies and TV episodes. It uses
+TMDB IDs from Plex when available. Otherwise, a match must have the same media
+type and exact normalized title, the same year when Plex supplies one, and a
+unique TMDB result. TV episodes also require an exact season and episode
+number. Ambiguous or unavailable matches are skipped or reported as failed in
+the user's recent sync activity. No raw Plex payload is retained.
+
+The integration is forward-only. A successful event adds its movie or show to
+the user's `watching` list and records the watched movie or episode. For TV,
+the backend imports show metadata and only the affected season. Plex retries
+must not create duplicate plays. A play for the same item in the last seven
+days suppresses a new play; a later Plex scrobble is recorded as a rewatch.
+Profile shows the latest 20 sync outcomes; the database retains at most 100
+events per user. Revoked or rotated URLs stop authenticating immediately.
 
 ## 7. Core user workflows
 
@@ -411,6 +438,8 @@ Core entities are:
 ```text
 User(id, email, name, password_hash?, google_subject?, role, created_at, updated_at)
 UserSettings(user_id, timezone, activity_visibility, created_at, updated_at)
+PlexWebhook(user_id, token_hash, created_at, last_used_at)
+PlexWebhookEvent(id, user_id, fingerprint, status, media summary, occurred_at, created_at)
 Media(id, type, tmdb_id, title, original_title, overview, release_date, ...)
 Season(id, show_id, tmdb_id, season_number, name, air_date, ...)
 Episode(id, show_id, season_id, tmdb_id, season_number, episode_number, ...)
@@ -430,6 +459,11 @@ OAuth, notification-delivery, and backup metadata tables. Key indexes include
 user-media by `(user_id, status)`, plays by `(user_id, watched_at DESC)` and
 `(user_id, episode_id)`, episodes by show ordering and air date, and feed
 events by `(occurred_at DESC, id)`.
+
+`plays.source` is validated by application rules but is intentionally open in
+SQLite so new integrations do not require rebuilding the growing play-history
+table to add a source label. Stable domain invariants, such as valid library
+statuses and ratings, remain database constrained.
 
 SQLite initialization enables foreign keys, WAL mode, and a busy timeout:
 
@@ -586,6 +620,5 @@ credentials, API keys, generated local databases, backups, or other secrets.
 ## 17. Future options
 
 Potential later work includes alternate anime orders, imports from Trakt/Simkl/
-IMDb, Plex and Jellyfin integration, scrobbling, calendar feeds, additional
-notification channels, webhooks, custom lists, tags, statistics, and a yearly
-review.
+IMDb, Jellyfin integration, calendar feeds, additional notification
+channels, custom lists, tags, statistics, and a yearly review.
