@@ -117,25 +117,33 @@ func TestGoogleAccounts_GivenConfiguredProvider_WhenUserSignsIn_ThenItCreatesAnd
 	if _, err := service.Bootstrap(ctx, "owner@example.com", "Owner", "a-long-admin-password"); err != nil {
 		t.Fatal(err)
 	}
+	localUser, err := service.CreateUser(ctx, "person@example.com", "Local Person", "a-long-local-password")
+	if err != nil {
+		t.Fatal(err)
+	}
 	first, firstToken, _, err := service.LoginWithGoogle(ctx, "google-sub-1", " Person@Example.com ", "Google Person")
 	if err != nil {
 		t.Fatalf("first Google sign-in: %v", err)
 	}
-	if first.Email != "person@example.com" || first.DisplayName != "Google Person" || first.Role != domain.UserRole || firstToken == "" {
-		t.Fatalf("new Google user = %+v", first)
+	if first.ID != localUser.ID || first.Email != "person@example.com" || first.DisplayName != "Local Person" || first.Role != domain.UserRole || firstToken == "" {
+		t.Fatalf("linked Google user = %+v", first)
 	}
 	second, secondToken, _, err := service.LoginWithGoogle(ctx, "google-sub-1", "person@example.com", "Changed Google Name")
 	if err != nil {
 		t.Fatalf("repeat Google sign-in: %v", err)
 	}
-	if second.ID != first.ID || second.DisplayName != "Google Person" || secondToken == "" {
+	if second.ID != first.ID || second.DisplayName != "Local Person" || secondToken == "" {
 		t.Fatalf("repeat sign-in user = %+v", second)
 	}
 	if _, _, _, err := service.LoginWithGoogle(ctx, "google-sub-2", "person@example.com", "Different Google Account"); err == nil {
 		t.Fatal("a different Google account must not attach to an existing email automatically")
 	}
-	if _, err := service.AuthenticateCredentials(ctx, "person@example.com", "a-long-admin-password"); err == nil {
-		t.Fatal("Google user must not inherit another user's password")
+	if _, err := service.AuthenticateCredentials(ctx, "person@example.com", "a-long-local-password"); err != nil {
+		t.Fatalf("local password should still work after linking: %v", err)
+	}
+	created, _, _, err := service.LoginWithGoogle(ctx, "google-sub-3", "another@example.com", "Another Person")
+	if err != nil || created.Email != "another@example.com" {
+		t.Fatalf("new Google account = %+v, %v", created, err)
 	}
 }
 
@@ -146,11 +154,20 @@ func TestGoogleAccounts_GivenDisabledSignups_WhenNewGoogleAccountSignsIn_ThenItI
 		t.Fatal(err)
 	}
 	defer store.Close()
-	if _, err := auth.NewService(store).Bootstrap(ctx, "owner@example.com", "Owner", "a-long-admin-password"); err != nil {
+	localService := auth.NewService(store)
+	if _, err := localService.Bootstrap(ctx, "owner@example.com", "Owner", "a-long-admin-password"); err != nil {
+		t.Fatal(err)
+	}
+	localUser, err := localService.CreateUser(ctx, "existing@example.com", "Existing User", "a-long-local-password")
+	if err != nil {
 		t.Fatal(err)
 	}
 	service := auth.NewService(store, auth.Config{AllowSignups: false, GoogleEnabled: true})
 	if _, _, _, err := service.LoginWithGoogle(ctx, "google-sub-new", "new@example.com", "New User"); err != auth.ErrSignupsDisabled {
 		t.Fatalf("new Google account error = %v, want ErrSignupsDisabled", err)
+	}
+	linked, _, _, err := service.LoginWithGoogle(ctx, "google-sub-existing", localUser.Email, localUser.DisplayName)
+	if err != nil || linked.ID != localUser.ID {
+		t.Fatalf("existing local account should link even when signups are disabled: %+v, %v", linked, err)
 	}
 }

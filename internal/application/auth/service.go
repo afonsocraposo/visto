@@ -33,6 +33,7 @@ type Repository interface {
 
 type googleRepository interface {
 	FindUserByGoogleSubject(context.Context, string) (domain.User, error)
+	LinkGoogleSubject(context.Context, string, string) error
 	CreateGoogleUser(context.Context, domain.User, string) error
 }
 
@@ -227,16 +228,26 @@ func (service *Service) LoginWithGoogle(ctx context.Context, subject, email, nam
 	}
 	user, err := repository.FindUserByGoogleSubject(ctx, subject)
 	if errors.Is(err, ErrInvalidCredentials) {
-		if !service.allowSignups {
-			return domain.User{}, "", time.Time{}, ErrSignupsDisabled
-		}
 		email, name, err = validateIdentity(email, name)
 		if err != nil {
 			return domain.User{}, "", time.Time{}, err
 		}
-		user = domain.User{ID: newID(), Email: email, DisplayName: name, Role: domain.UserRole, CreatedAt: service.now().UTC()}
-		if err := repository.CreateGoogleUser(ctx, user, subject); err != nil {
-			return domain.User{}, "", time.Time{}, err
+		localUser, _, lookupErr := service.repository.FindUserByEmail(ctx, email)
+		if lookupErr == nil {
+			user = localUser
+			if err := repository.LinkGoogleSubject(ctx, user.ID, subject); err != nil {
+				return domain.User{}, "", time.Time{}, err
+			}
+		} else if errors.Is(lookupErr, ErrInvalidCredentials) {
+			if !service.allowSignups {
+				return domain.User{}, "", time.Time{}, ErrSignupsDisabled
+			}
+			user = domain.User{ID: newID(), Email: email, DisplayName: name, Role: domain.UserRole, CreatedAt: service.now().UTC()}
+			if err := repository.CreateGoogleUser(ctx, user, subject); err != nil {
+				return domain.User{}, "", time.Time{}, err
+			}
+		} else {
+			return domain.User{}, "", time.Time{}, lookupErr
 		}
 	} else if err != nil {
 		return domain.User{}, "", time.Time{}, err

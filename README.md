@@ -75,9 +75,11 @@ Visto.
 To enable Google sign-in, create a Google OAuth web client and register the
 redirect URL shown above as an authorized redirect URI. Set all three Google
 variables in `.env`. The Google button appears automatically. Google accounts
-must have a verified email address. New Google accounts follow
-`VISTO_ALLOW_SIGNUPS`; the first administrator must still be created with email
-and password before Google users can join.
+must have a verified email address. If that email already belongs to a local
+account, Visto links the Google sign-in to that account and keeps its password
+login active. New Google accounts follow `VISTO_ALLOW_SIGNUPS`; the first
+administrator must still be created with email and password before Google
+users can join.
 
 Example `compose.yaml`:
 

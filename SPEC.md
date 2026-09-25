@@ -48,8 +48,9 @@ trademark policy.
 - Local user accounts, roles, sessions, and initial admin setup.
 - Local accounts use a name and email address, with password login supported.
 - Optional Google OAuth sign-in is enabled only when client ID, client secret,
-  and callback URL are configured. Google email addresses must be verified;
-  new Google accounts follow the instance signup setting.
+  and callback URL are configured. Verified Google email addresses link to an
+  existing local account with the same email; new Google accounts follow the
+  instance signup setting.
 - TMDB search and lazy local metadata import for movies and TV shows.
 - Per-user library states: `watchlist`, `watching`, `paused`, and `dropped`.
 - Movie and episode watch-play history, including rewatches and corrections.

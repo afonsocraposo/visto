@@ -98,6 +98,21 @@ func (store *Store) FindUserByGoogleSubject(ctx context.Context, subject string)
 	return user, err
 }
 
+func (store *Store) LinkGoogleSubject(ctx context.Context, userID, subject string) error {
+	result, err := store.DB.ExecContext(ctx, `UPDATE users SET google_subject=?,updated_at=? WHERE id=? AND google_subject IS NULL`, subject, time.Now().UTC().Format(time.RFC3339Nano), userID)
+	if err != nil {
+		return fmt.Errorf("link Google account: %w", err)
+	}
+	updated, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("check Google account link: %w", err)
+	}
+	if updated == 0 {
+		return fmt.Errorf("Google account cannot be linked to this user")
+	}
+	return nil
+}
+
 func (store *Store) CreateGoogleUser(ctx context.Context, user domain.User, subject string) error {
 	tx, err := store.DB.BeginTx(ctx, nil)
 	if err != nil {
