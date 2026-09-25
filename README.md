@@ -13,7 +13,7 @@ search, artwork, cast, episode details, and other metadata features. Copy
 VISTO_TMDB_API_KEY=replace_with_your_tmdb_api_key
 VISTO_ALLOW_SIGNUPS=true
 # Optional: pin a published Docker release instead of using latest.
-# VISTO_VERSION=0.3.0
+# VISTO_VERSION=0.1.0
 # Optional: set all three values to enable Google sign-in.
 # VISTO_GOOGLE_CLIENT_ID=your-google-oauth-client-id
 # VISTO_GOOGLE_CLIENT_SECRET=your-google-oauth-client-secret
@@ -43,7 +43,7 @@ container restarts. Stop the app with `docker compose down`; this keeps the
 volume and its data.
 
 By default, Compose uses the `latest` image. Set `VISTO_VERSION` in `.env` to a
-release tag such as `0.3.0` to pin an instance. To build and run the current
+release tag such as `0.1.0` to pin an instance. To build and run the current
 source checkout instead, use:
 
 ```sh
@@ -54,13 +54,13 @@ docker compose -f compose.yaml -f compose.build.yaml up -d --build
 
 Visto publishes multi-platform images for `linux/amd64` and `linux/arm64` to
 [`ghcr.io/afonsocraposo/visto`](https://github.com/afonsocraposo/visto/pkgs/container/visto).
-The GitHub Actions release workflow runs when a version tag such as `v0.3.0`
-is pushed. It publishes the matching version tag, the `0.3` minor tag, and
+The GitHub Actions release workflow runs when a version tag such as `v0.1.0`
+is pushed. It publishes the matching version tag, the `0.1` minor tag, and
 `latest` after the backend, frontend, security, and container checks pass.
 
 ```sh
-git tag v0.3.0
-git push origin v0.3.0
+git tag v0.1.0
+git push origin v0.1.0
 ```
 
 The first published GitHub Container Registry package is private by default.
@@ -68,7 +68,7 @@ After the first successful publish, open the package settings on GitHub and
 change its visibility to Public so self-hosters can pull without authenticating.
 See [GitHub's container registry documentation](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry)
 for package visibility and access settings. After publishing, set
-`VISTO_VERSION=0.3.0` to pin the release, then update with:
+`VISTO_VERSION=0.1.0` to pin the release, then update with:
 
 ```sh
 docker compose pull
@@ -85,7 +85,7 @@ defaults.
 
 | Variable                         | Default          | Purpose                                                                                                                                                                                                    |
 | -------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `VISTO_VERSION`                  | `latest`         | Docker image tag used by Compose. Pin to a release such as `0.3.0` for predictable upgrades.                                                                                                               |
+| `VISTO_VERSION`                  | `latest`         | Docker image tag used by Compose. Pin to a release such as `0.1.0` for predictable upgrades.                                                                                                               |
 | `VISTO_TMDB_API_KEY`             | empty            | TMDB API key. Set this to enable metadata features.                                                                                                                                                        |
 | `VISTO_GOOGLE_CLIENT_ID`         | empty            | Google OAuth client ID. Set with the secret and redirect URL to show “Continue with Google” on the sign-in page.                                                                                           |
 | `VISTO_GOOGLE_CLIENT_SECRET`     | empty            | Secret for the Google OAuth client.                                                                                                                                                                        |

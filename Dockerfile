@@ -1,5 +1,6 @@
 FROM node:22-alpine AS web
 WORKDIR /build
+RUN apk add --no-cache python3 make g++
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci
 COPY frontend/ ./

@@ -57,7 +57,7 @@ test("Given a signed-in user, When they navigate and manage appearance and accou
   await expect(page.locator(".visto-header")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Watching", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Feed" }).click();
-  await page.getByRole("tab", { name: "Community feed" }).click();
+  await page.getByRole("tab", { name: "Community" }).click();
   await expect(page.getByText("No shared activity yet")).toBeVisible();
   await page.getByRole("button", { name: "Discover" }).click();
   await expect(page.getByRole("textbox", { name: "Search TMDB" })).toBeVisible();
@@ -263,8 +263,10 @@ test("Given an installed service worker, When the app shell loads, Then the PWA 
     expect(manifestResponse.ok()).toBeTruthy();
     const manifest = await manifestResponse.json();
     expect(manifest.display).toBe("standalone");
-    expect(manifest.icons.some((icon: { src: string }) => icon.src === "/icon.svg")).toBeTruthy();
-    expect((await page.request.get("/icon.svg")).ok()).toBeTruthy();
+    expect(
+      manifest.icons.some((icon: { src: string }) => icon.src === "/icon.svg?v=2"),
+    ).toBeTruthy();
+    expect((await page.request.get("/icon.svg?v=2")).ok()).toBeTruthy();
   } finally {
     await context.close();
   }
