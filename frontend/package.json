@@ -29,7 +29,7 @@
   "devDependencies": {
     "@playwright/test": "^1.63.0",
     "@types/react": "19.2.14",
-    "@types/react-dom": "19.2.3",
+    "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "latest",
     "better-sqlite3": "^13.0.3",
     "dotenv": "^18.0.3",
