@@ -10,8 +10,8 @@ type LibrarySection = "library" | "settings" | "admin";
 export function LibraryArea({ user, theme, onThemeChange, onSignOut, signingOut, signOutError, onOpenDetail, onOpenList }: { user: User; theme: Theme; onThemeChange: (theme: Theme) => void; onSignOut: () => void; signingOut: boolean; signOutError?: string; onOpenDetail?: (target: MediaDetailTarget) => void; onOpenList?: (status: LibraryStatus) => void }) {
   const [section, setSection] = useState<LibrarySection>("library");
 
-  return <Tabs value={section} keepMounted={false} onChange={value => setSection((value || "library") as LibrarySection)}>
-    <Tabs.List grow>
+  return <Tabs className="section-tabs" value={section} keepMounted={false} onChange={value => setSection((value || "library") as LibrarySection)}>
+    <Tabs.List>
       <Tabs.Tab value="library">Library</Tabs.Tab>
       <Tabs.Tab value="settings">Settings</Tabs.Tab>
       {user.role === "admin" && <Tabs.Tab value="admin">Admin</Tabs.Tab>}

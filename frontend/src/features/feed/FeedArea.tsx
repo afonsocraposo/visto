@@ -14,7 +14,7 @@ export function FeedArea() {
       <Title order={1}>Activity</Title>
       <Text c="dimmed" mt={6}>Your watch history and what others have shared.</Text>
     </div>
-    <Tabs className="activity-tabs" value={section} keepMounted={false} onChange={value => setSection((value || "history") as FeedSection)}>
+    <Tabs className="section-tabs" value={section} keepMounted={false} onChange={value => setSection((value || "history") as FeedSection)}>
       <Tabs.List>
         <Tabs.Tab value="history">History</Tabs.Tab>
         <Tabs.Tab value="community">Community</Tabs.Tab>

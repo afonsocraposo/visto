@@ -111,7 +111,7 @@ export function Dashboard({ user, theme, setTheme, page }: { user: User; theme: 
         )}
         {personID ? <Deferred><PersonDetailPage personID={personID} onBack={() => void navigate({ to: safeReturnPath(returnTo, "/discover") })} onOpenDetail={openDetail} /></Deferred> : detail ? <Deferred><MediaDetailPage target={detail} onBack={() => void navigate({ to: safeReturnPath(returnTo, detail.mediaType === "tv" ? "/profile" : "/discover") })} onOpenDetail={openDetail} onOpenPerson={openPerson} /></Deferred> : listStatus ? <Deferred><LibraryListPage status={listStatus} onBack={() => void navigate({ to: "/profile" })} onOpenDetail={openDetail} /></Deferred> : tab === "watch" && (
           <>
-            <Tabs className="watch-tabs" value={view} onChange={value => setView(value || "now")}>
+            <Tabs className="section-tabs" value={view} onChange={value => setView(value || "now")}>
               <Tabs.List>
                 <Tabs.Tab value="now">To watch</Tabs.Tab>
                 <Tabs.Tab value="calendar" leftSection={<IconCalendar size={16} />}>Calendar</Tabs.Tab>
