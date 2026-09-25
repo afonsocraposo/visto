@@ -6,8 +6,8 @@ SQLite and uses TMDB only for metadata.
 ## Run with Docker
 
 Install Docker Compose and create a TMDB API key. TMDB access is needed for
-search, artwork, cast, episode details, and other metadata features. Create a
-`.env` file beside `compose.yaml`:
+search, artwork, cast, episode details, and other metadata features. Copy
+`.env.example` to `.env` beside `compose.yaml`, then set `VISTO_TMDB_API_KEY`:
 
 ```dotenv
 VISTO_TMDB_API_KEY=replace_with_your_tmdb_api_key
@@ -19,6 +19,7 @@ VISTO_ALLOW_SIGNUPS=true
 ```
 
 The repository ignores `.env`. Keep your API key there and do not commit it.
+`.env.example` lists all supported environment variables and safe defaults.
 Local accounts use a name, email address, and password. Google sign-in is
 optional; configure it below to show the Google button on the sign-in screen.
 
