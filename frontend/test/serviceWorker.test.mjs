@@ -46,6 +46,9 @@ function createHarness() {
     async delete(name) {
       return cacheStore.delete(name);
     },
+    async keys() {
+      return [...cacheStore.keys()];
+    },
   };
   const self = {
     location: { origin },
@@ -91,6 +94,18 @@ function createHarness() {
       });
       await installPromise;
     },
+    async activate() {
+      let activatePromise;
+      listeners.get("activate")({
+        waitUntil(promise) {
+          activatePromise = promise;
+        },
+      });
+      await activatePromise;
+    },
+    openCache(name) {
+      return caches.open(name);
+    },
   };
 }
 
@@ -99,10 +114,23 @@ test("Given a fresh install, When the service worker installs, Then it precaches
   await harness.start();
   await harness.install();
 
-  const shell = harness.cacheStore.get("visto-shell-v1");
+  const shell = harness.cacheStore.get("visto-shell-v2");
   assert.ok(await shell.match(`${origin}/`));
   assert.ok(await shell.match(`${origin}/manifest.webmanifest`));
-  assert.ok(await shell.match(`${origin}/icon.svg`));
+  assert.ok(await shell.match(`${origin}/icon.svg?v=2`));
+});
+
+test("Given a new app shell, When the service worker activates, Then it removes only the old shell cache", async () => {
+  const harness = createHarness();
+  await harness.start();
+  await harness.openCache("visto-shell-v1");
+  await harness.openCache("visto-user-v1-alice");
+  await harness.install();
+  await harness.activate();
+
+  assert.equal(harness.cacheStore.has("visto-shell-v1"), false);
+  assert.equal(harness.cacheStore.has("visto-shell-v2"), true);
+  assert.equal(harness.cacheStore.has("visto-user-v1-alice"), true);
 });
 
 test("Given a browser install prompt, When it reads the web manifest, Then Visto has standalone mode and an app icon", async () => {
@@ -110,15 +138,28 @@ test("Given a browser install prompt, When it reads the web manifest, Then Visto
     await readFile(new URL("../public/manifest.webmanifest", import.meta.url), "utf8"),
   );
   const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
+  const authGate = await readFile(
+    new URL("../src/features/auth/AuthGate.tsx", import.meta.url),
+    "utf8",
+  );
+  const icon = await readFile(new URL("../public/icon.svg", import.meta.url), "utf8");
+  const iconURL = "/icon.svg?v=2";
 
   assert.equal(manifest.start_url, "/");
   assert.equal(manifest.display, "standalone");
   assert.ok(
     manifest.icons.some(
-      (icon) => icon.src && icon.type === "image/svg+xml" && icon.sizes === "any",
+      (manifestIcon) =>
+        manifestIcon.src === iconURL &&
+        manifestIcon.type === "image/svg+xml" &&
+        manifestIcon.sizes === "any",
     ),
   );
   assert.match(html, /<link\s+rel="manifest"\s+href="\/manifest\.webmanifest"/);
+  assert.match(html, /<link\s+rel="icon"\s+href="\/icon\.svg\?v=2"/);
+  assert.match(authGate, /src="\/icon\.svg\?v=2"/);
+  assert.match(icon, /fill="#f2b544"/);
+  assert.match(icon, /fill="#10141a"/);
 });
 
 test("Given a signed-in user, When an allowed GET is cached, Then offline reads are user-scoped and capped at 100", async () => {

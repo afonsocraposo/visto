@@ -44,11 +44,12 @@ select {
   border-top: 1px solid var(--mantine-color-gray-3);
 }
 .auth-mark {
-  display: grid;
-  place-items: center;
-  background: #f2b544;
-  color: #10141a;
-  font-weight: 900;
+  display: block;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  margin-bottom: 22px;
+  object-fit: cover;
   box-shadow: 0 8px 20px rgb(242 181 68 / 0.23);
 }
 .bottom-nav {
@@ -877,13 +878,6 @@ select {
   background: color-mix(in srgb, var(--mantine-color-body) 94%, transparent);
   box-shadow: 0 24px 70px rgb(0 0 0 / 0.35);
   backdrop-filter: blur(20px);
-}
-.auth-mark {
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
-  margin-bottom: 22px;
-  font-size: 1.35rem;
 }
 .auth-feature-caption {
   position: absolute;

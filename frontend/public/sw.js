@@ -1,4 +1,4 @@
-const shell = "visto-shell-v1";
+const shell = "visto-shell-v2";
 const userIndex = "visto-user-index-v1";
 const maxCachedAPIEntries = 100;
 const cacheableAPIPaths = new Set([
@@ -14,10 +14,25 @@ const cacheableAPIPaths = new Set([
 const activeUserRequest = new Request(`${self.location.origin}/__visto_active_user__`);
 self.addEventListener("install", (event) =>
   event.waitUntil(
-    caches.open(shell).then((cache) => cache.addAll(["/", "/manifest.webmanifest", "/icon.svg"])),
+    caches
+      .open(shell)
+      .then((cache) => cache.addAll(["/", "/manifest.webmanifest", "/icon.svg?v=2"])),
   ),
 );
-self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
+self.addEventListener("activate", (event) =>
+  event.waitUntil(
+    caches
+      .keys()
+      .then((cacheNames) =>
+        Promise.all(
+          cacheNames
+            .filter((cacheName) => cacheName.startsWith("visto-shell-") && cacheName !== shell)
+            .map((cacheName) => caches.delete(cacheName)),
+        ),
+      )
+      .then(() => self.clients.claim()),
+  ),
+);
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   if (event.request.method === "POST" && url.pathname === "/api/v1/auth/login") {

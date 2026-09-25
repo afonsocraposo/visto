@@ -205,9 +205,7 @@ export function AuthGate() {
       />
       <div className="auth-screen-inner">
         <Paper className="auth-card" withBorder radius="xl" p="xl">
-          <div className="auth-mark" aria-hidden="true">
-            V
-          </div>
+          <img className="auth-mark" src="/icon.svg?v=2" alt="" aria-hidden="true" />
           <Title order={1}>
             {isFirstRun ? "Set up Visto" : isSignup ? "Create your account" : "Welcome to Visto"}
           </Title>
