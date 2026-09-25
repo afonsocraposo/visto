@@ -4,8 +4,9 @@ tmp_dir = "tmp"
 [build]
 cmd = "GOCACHE=/private/tmp/visto-go-cache go build -ldflags='-linkmode=external' -o ./tmp/visto ./cmd/server"
 bin = "tmp/visto"
-full_bin = "./tmp/visto"
-include_ext = ["go", "sql"]
+full_bin = "if [ -f .env ]; then set -a; . ./.env; set +a; fi; exec ./tmp/visto"
+include_ext = ["go", "sql", "env"]
+include_file = [".env"]
 exclude_dir = ["tmp", "data", "frontend"]
 delay = 500
 stop_on_error = true

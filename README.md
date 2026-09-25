@@ -226,7 +226,6 @@ needed for the development loop.
 
 ```sh
 # terminal 1
-set -a; source .env; set +a
 air
 
 # terminal 2
@@ -238,6 +237,10 @@ npm run dev
 Air rebuilds and restarts the Go server when Go or SQL files change. Vite
 reloads the frontend when TypeScript or CSS files change. The Vite server
 proxies `/api` and `/health` requests to the Go server on port 8080.
+Air watches `.env` and reloads its values before each backend start. The
+repository config uses this approach for compatibility with the Air version
+installed on the development machine; newer Air versions also support the
+`env_files` setting directly.
 
 Open `http://localhost:5173` during development. Use Docker on port 8080 for
 production-like checks only.
