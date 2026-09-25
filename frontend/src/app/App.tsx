@@ -12,7 +12,18 @@ const themeDefinition = createTheme({
   primaryColor: "amber",
   primaryShade: { light: 7, dark: 5 },
   colors: {
-    amber: ["#fff7e0", "#ffedbd", "#ffe090", "#ffd064", "#fac147", "#f2b544", "#d99420", "#b77316", "#925912", "#77480f"],
+    amber: [
+      "#fff7e0",
+      "#ffedbd",
+      "#ffe090",
+      "#ffd064",
+      "#fac147",
+      "#f2b544",
+      "#d99420",
+      "#b77316",
+      "#925912",
+      "#77480f",
+    ],
   },
   fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
   headings: { fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif", fontWeight: "750" },
@@ -35,16 +46,24 @@ export function App() {
       return response.ok ? response.json() : null;
     },
   });
-  const [theme, setTheme] = useState<Theme>(() => (localStorage.getItem("visto-theme") as Theme) || "system");
+  const [theme, setTheme] = useState<Theme>(
+    () => (localStorage.getItem("visto-theme") as Theme) || "system",
+  );
 
   useEffect(() => {
     localStorage.setItem("visto-theme", theme);
   }, [theme]);
 
   return (
-    <MantineProvider theme={themeDefinition} defaultColorScheme="auto" forceColorScheme={forcedColorScheme(theme)}>
+    <MantineProvider
+      theme={themeDefinition}
+      defaultColorScheme="auto"
+      forceColorScheme={forcedColorScheme(theme)}
+    >
       {setup.isPending || session.isPending ? (
-        <Group justify="center" mt="xl"><Loader /></Group>
+        <Group justify="center" mt="xl">
+          <Loader />
+        </Group>
       ) : !setup.isError && !setup.data?.bootstrap_available && session.data ? (
         <SessionProvider user={session.data}>
           <RouterProvider router={router} context={{ user: session.data, theme, setTheme }} />

@@ -5,9 +5,9 @@
  * Self-hosted movie and TV tracking API.
  * OpenAPI spec version: 0.1.0
  */
-import type { CastMember } from './castMember';
-import type { MediaSnapshot } from './mediaSnapshot';
-import type { TemporarySeasonDetails } from './temporarySeasonDetails';
+import type { CastMember } from "./castMember";
+import type { MediaSnapshot } from "./mediaSnapshot";
+import type { TemporarySeasonDetails } from "./temporarySeasonDetails";
 
 export interface TemporaryShowDetails {
   media: MediaSnapshot;

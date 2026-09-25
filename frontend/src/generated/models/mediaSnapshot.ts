@@ -5,7 +5,7 @@
  * Self-hosted movie and TV tracking API.
  * OpenAPI spec version: 0.1.0
  */
-import type { MediaSnapshotType } from './mediaSnapshotType';
+import type { MediaSnapshotType } from "./mediaSnapshotType";
 
 export interface MediaSnapshot {
   id: string;

@@ -6,12 +6,12 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type SaveLibraryRequestStatus = typeof SaveLibraryRequestStatus[keyof typeof SaveLibraryRequestStatus];
-
+export type SaveLibraryRequestStatus =
+  (typeof SaveLibraryRequestStatus)[keyof typeof SaveLibraryRequestStatus];
 
 export const SaveLibraryRequestStatus = {
-  watchlist: 'watchlist',
-  watching: 'watching',
-  paused: 'paused',
-  dropped: 'dropped',
+  watchlist: "watchlist",
+  watching: "watching",
+  paused: "paused",
+  dropped: "dropped",
 } as const;

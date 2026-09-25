@@ -5,7 +5,7 @@
  * Self-hosted movie and TV tracking API.
  * OpenAPI spec version: 0.1.0
  */
-import type { PlaySource } from './playSource';
+import type { PlaySource } from "./playSource";
 
 export interface Play {
   id: string;

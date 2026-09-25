@@ -5,7 +5,7 @@
  * Self-hosted movie and TV tracking API.
  * OpenAPI spec version: 0.1.0
  */
-import type { ConnectedAppScopesItem } from './connectedAppScopesItem';
+import type { ConnectedAppScopesItem } from "./connectedAppScopesItem";
 
 export interface ConnectedApp {
   client_id: string;

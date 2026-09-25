@@ -15,8 +15,13 @@ function localAPIProxy() {
   return {
     target: "http://localhost:8080",
     changeOrigin: true,
-    configure(proxy: { on: (event: string, listener: (request: { setHeader: (name: string, value: string) => void }) => void) => void }) {
-      proxy.on("proxyReq", request => request.setHeader("Origin", "http://localhost:8080"));
+    configure(proxy: {
+      on: (
+        event: string,
+        listener: (request: { setHeader: (name: string, value: string) => void }) => void,
+      ) => void;
+    }) {
+      proxy.on("proxyReq", (request) => request.setHeader("Origin", "http://localhost:8080"));
     },
   };
 }

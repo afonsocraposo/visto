@@ -6,12 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type FeedItemKind = typeof FeedItemKind[keyof typeof FeedItemKind];
-
+export type FeedItemKind = (typeof FeedItemKind)[keyof typeof FeedItemKind];
 
 export const FeedItemKind = {
-  watch: 'watch',
-  rewatch: 'rewatch',
-  rating: 'rating',
-  bulk_watch: 'bulk_watch',
+  watch: "watch",
+  rewatch: "rewatch",
+  rating: "rating",
+  bulk_watch: "bulk_watch",
 } as const;

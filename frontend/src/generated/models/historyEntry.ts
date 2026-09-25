@@ -5,7 +5,7 @@
  * Self-hosted movie and TV tracking API.
  * OpenAPI spec version: 0.1.0
  */
-import type { Play } from './play';
+import type { Play } from "./play";
 
 export interface HistoryEntry {
   play: Play;

@@ -5,7 +5,7 @@
  * Self-hosted movie and TV tracking API.
  * OpenAPI spec version: 0.1.0
  */
-import type { ShowEpisode } from './showEpisode';
+import type { ShowEpisode } from "./showEpisode";
 
 export interface TemporarySeasonDetails {
   tmdb_id: number;

@@ -5,7 +5,7 @@
  * Self-hosted movie and TV tracking API.
  * OpenAPI spec version: 0.1.0
  */
-import type { Episode } from './episode';
+import type { Episode } from "./episode";
 
 export interface CalendarEntry {
   show_id: string;

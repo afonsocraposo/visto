@@ -20,12 +20,18 @@ test("Given a media detail opened from Watching, When the footer tab is resolved
 
 test("Given an actor page opened from a media detail in Profile, When the footer tab is resolved, Then Profile stays selected", () => {
   const mediaDetail = `/media/tv/42?from=${encodeURIComponent("/profile")}`;
-  assert.equal(activeTabForLocation("/people/123", `?from=${encodeURIComponent(mediaDetail)}`, origin), "library");
+  assert.equal(
+    activeTabForLocation("/people/123", `?from=${encodeURIComponent(mediaDetail)}`, origin),
+    "library",
+  );
 });
 
 test("Given a media detail opened from an actor page in Profile, When the footer tab is resolved, Then Profile stays selected", () => {
   const actorPage = `/people/123?from=${encodeURIComponent("/profile")}`;
-  assert.equal(activeTabForLocation("/media/movie/42", `?from=${encodeURIComponent(actorPage)}`, origin), "library");
+  assert.equal(
+    activeTabForLocation("/media/movie/42", `?from=${encodeURIComponent(actorPage)}`, origin),
+    "library",
+  );
 });
 
 test("Given a normal Discover page, When the footer tab is resolved, Then Discover is selected", () => {
@@ -33,5 +39,8 @@ test("Given a normal Discover page, When the footer tab is resolved, Then Discov
 });
 
 test("Given an external return URL, When the footer tab is resolved, Then it safely defaults to Watching", () => {
-  assert.equal(activeTabForLocation("/media/tv/42", "?from=https%3A%2F%2Fevil.test%2Fprofile", origin), "watch");
+  assert.equal(
+    activeTabForLocation("/media/tv/42", "?from=https%3A%2F%2Fevil.test%2Fprofile", origin),
+    "watch",
+  );
 });

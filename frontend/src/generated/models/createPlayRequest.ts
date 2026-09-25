@@ -5,12 +5,12 @@
  * Self-hosted movie and TV tracking API.
  * OpenAPI spec version: 0.1.0
  */
-import type { CreatePlayRequestSource } from './createPlayRequestSource';
+import type { CreatePlayRequestSource } from "./createPlayRequestSource";
 
-export type CreatePlayRequest = (unknown & {
+export type CreatePlayRequest = unknown & {
   media_id?: string;
   episode_id?: string;
   /** Must not be in the future. Defaults to now. */
   watched_at?: string;
   source?: CreatePlayRequestSource;
-});
+};

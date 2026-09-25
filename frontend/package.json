@@ -9,6 +9,8 @@
     "db:studio": "drizzle-kit studio --config=./drizzle.config.ts --host=127.0.0.1",
     "generate:api": "orval --config ./orval.config.ts",
     "preview": "vite preview",
+    "format": "prettier --write . && prettier --write public/icon.svg --parser html",
+    "format:check": "prettier --check . && prettier --check public/icon.svg --parser html",
     "test": "node --experimental-strip-types --test",
     "test:e2e": "playwright test"
   },
@@ -33,6 +35,7 @@
     "drizzle-kit": "^0.31.11",
     "drizzle-orm": "^0.45.3",
     "orval": "8.37.0",
+    "prettier": "^3.9.9",
     "typescript": "7.0.2",
     "vite": "8.3.0"
   }

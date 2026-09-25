@@ -6,10 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type FeedItemMediaType = typeof FeedItemMediaType[keyof typeof FeedItemMediaType];
-
+export type FeedItemMediaType = (typeof FeedItemMediaType)[keyof typeof FeedItemMediaType];
 
 export const FeedItemMediaType = {
-  movie: 'movie',
-  tv: 'tv',
+  movie: "movie",
+  tv: "tv",
 } as const;

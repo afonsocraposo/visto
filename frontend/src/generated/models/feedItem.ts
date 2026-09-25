@@ -5,8 +5,8 @@
  * Self-hosted movie and TV tracking API.
  * OpenAPI spec version: 0.1.0
  */
-import type { FeedItemKind } from './feedItemKind';
-import type { FeedItemMediaType } from './feedItemMediaType';
+import type { FeedItemKind } from "./feedItemKind";
+import type { FeedItemMediaType } from "./feedItemMediaType";
 
 export interface FeedItem {
   id: string;
@@ -17,9 +17,9 @@ export interface FeedItem {
   /** Episode still when available */
   artwork_path?: string;
   /**
-     * @minimum 1
-     * @maximum 5
-     */
+   * @minimum 1
+   * @maximum 5
+   */
   rating?: number;
   count?: number;
   season_number?: number;

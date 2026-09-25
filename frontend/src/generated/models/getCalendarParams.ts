@@ -7,6 +7,6 @@
  */
 
 export type GetCalendarParams = {
-from?: string;
-to?: string;
+  from?: string;
+  to?: string;
 };

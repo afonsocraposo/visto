@@ -5,7 +5,7 @@
  * Self-hosted movie and TV tracking API.
  * OpenAPI spec version: 0.1.0
  */
-import type { PersonCreditType } from './personCreditType';
+import type { PersonCreditType } from "./personCreditType";
 
 export interface PersonCredit {
   tmdb_id: number;

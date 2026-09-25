@@ -6,11 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type ConnectedAppScopesItem = typeof ConnectedAppScopesItem[keyof typeof ConnectedAppScopesItem];
-
+export type ConnectedAppScopesItem =
+  (typeof ConnectedAppScopesItem)[keyof typeof ConnectedAppScopesItem];
 
 export const ConnectedAppScopesItem = {
-  read: 'read',
-  write: 'write',
-  offline_access: 'offline_access',
+  read: "read",
+  write: "write",
+  offline_access: "offline_access",
 } as const;

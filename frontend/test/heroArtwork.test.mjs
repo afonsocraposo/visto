@@ -19,7 +19,10 @@ test("Given an episode detail is still loading, When hero art is selected, Then 
 });
 
 test("Given episode art is available, When hero layers are built, Then episode art is above show art with show art as fallback", () => {
-  assert.deepEqual(heroArtworkLayers(true, "/episode.jpg", false, "/show.jpg"), ["/episode.jpg", "/show.jpg"]);
+  assert.deepEqual(heroArtworkLayers(true, "/episode.jpg", false, "/show.jpg"), [
+    "/episode.jpg",
+    "/show.jpg",
+  ]);
 });
 
 test("Given an episode has no art after loading, When hero layers are built, Then show art is used as fallback", () => {

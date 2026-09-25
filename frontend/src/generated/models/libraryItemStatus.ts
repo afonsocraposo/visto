@@ -6,12 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type LibraryItemStatus = typeof LibraryItemStatus[keyof typeof LibraryItemStatus];
-
+export type LibraryItemStatus = (typeof LibraryItemStatus)[keyof typeof LibraryItemStatus];
 
 export const LibraryItemStatus = {
-  watchlist: 'watchlist',
-  watching: 'watching',
-  paused: 'paused',
-  dropped: 'dropped',
+  watchlist: "watchlist",
+  watching: "watching",
+  paused: "paused",
+  dropped: "dropped",
 } as const;

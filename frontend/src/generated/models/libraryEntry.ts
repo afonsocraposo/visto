@@ -5,9 +5,9 @@
  * Self-hosted movie and TV tracking API.
  * OpenAPI spec version: 0.1.0
  */
-import type { LibraryItem } from './libraryItem';
-import type { MediaSearchResult } from './mediaSearchResult';
-import type { ShowLibraryProgress } from './showLibraryProgress';
+import type { LibraryItem } from "./libraryItem";
+import type { MediaSearchResult } from "./mediaSearchResult";
+import type { ShowLibraryProgress } from "./showLibraryProgress";
 
 export interface LibraryEntry {
   item: LibraryItem;

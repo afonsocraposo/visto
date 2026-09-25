@@ -6,12 +6,12 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type UpdateLibraryRequestStatus = typeof UpdateLibraryRequestStatus[keyof typeof UpdateLibraryRequestStatus];
-
+export type UpdateLibraryRequestStatus =
+  (typeof UpdateLibraryRequestStatus)[keyof typeof UpdateLibraryRequestStatus];
 
 export const UpdateLibraryRequestStatus = {
-  watchlist: 'watchlist',
-  watching: 'watching',
-  paused: 'paused',
-  dropped: 'dropped',
+  watchlist: "watchlist",
+  watching: "watching",
+  paused: "paused",
+  dropped: "dropped",
 } as const;

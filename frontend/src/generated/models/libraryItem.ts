@@ -5,17 +5,17 @@
  * Self-hosted movie and TV tracking API.
  * OpenAPI spec version: 0.1.0
  */
-import type { LibraryItemStatus } from './libraryItemStatus';
+import type { LibraryItemStatus } from "./libraryItemStatus";
 
 export interface LibraryItem {
   user_id: string;
   media_id: string;
   status: LibraryItemStatus;
   /**
-     * @minimum 1
-     * @maximum 5
-     * @nullable
-     */
+   * @minimum 1
+   * @maximum 5
+   * @nullable
+   */
   rating?: number | null;
   /** Per-show new-episode notification preference. */
   notifications_enabled: boolean;

@@ -13,5 +13,7 @@ export function heroArtworkLayers(
   fallbackArtwork: string | null,
 ): string[] {
   if (hasSelectedEpisode && episodeArtworkPending && !episodeArtwork) return [];
-  return [...new Set([episodeArtwork, fallbackArtwork].filter((art): art is string => Boolean(art)))];
+  return [
+    ...new Set([episodeArtwork, fallbackArtwork].filter((art): art is string => Boolean(art))),
+  ];
 }

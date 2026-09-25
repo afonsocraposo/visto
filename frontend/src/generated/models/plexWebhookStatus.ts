@@ -5,7 +5,7 @@
  * Self-hosted movie and TV tracking API.
  * OpenAPI spec version: 0.1.0
  */
-import type { PlexWebhookEvent } from './plexWebhookEvent';
+import type { PlexWebhookEvent } from "./plexWebhookEvent";
 
 export interface PlexWebhookStatus {
   enabled: boolean;

@@ -9,7 +9,7 @@ export function dateInTimezone(timeZone: string, instant = new Date()): string {
     month: "2-digit",
     day: "2-digit",
   }).formatToParts(instant);
-  const part = (type: string) => parts.find(value => value.type === type)?.value ?? "";
+  const part = (type: string) => parts.find((value) => value.type === type)?.value ?? "";
   return `${part("year")}-${part("month")}-${part("day")}`;
 }
 
@@ -25,7 +25,8 @@ export function shiftCalendarMonth(month: string, amount: number): string {
 export function calendarMonthRange(month: string, today: string): { from: string; to: string } {
   const firstDay = `${month}-01`;
   const lastDay = new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0))
-    .toISOString().slice(0, 10);
+    .toISOString()
+    .slice(0, 10);
   return { from: month === today.slice(0, 7) && today > firstDay ? today : firstDay, to: lastDay };
 }
 
@@ -48,10 +49,11 @@ export function groupCalendarEntries(entries: CalendarEntry[]): CalendarGroup[] 
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([date, items]) => ({
       date,
-      entries: items.sort((left, right) =>
-        left.title.localeCompare(right.title)
-        || left.episode.season_number - right.episode.season_number
-        || left.episode.episode_number - right.episode.episode_number,
+      entries: items.sort(
+        (left, right) =>
+          left.title.localeCompare(right.title) ||
+          left.episode.season_number - right.episode.season_number ||
+          left.episode.episode_number - right.episode.episode_number,
       ),
     }));
 }

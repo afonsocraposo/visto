@@ -5,15 +5,15 @@
  * Self-hosted movie and TV tracking API.
  * OpenAPI spec version: 0.1.0
  */
-import type { MediaSearchResult } from './mediaSearchResult';
-import type { SaveLibraryRequestStatus } from './saveLibraryRequestStatus';
+import type { MediaSearchResult } from "./mediaSearchResult";
+import type { SaveLibraryRequestStatus } from "./saveLibraryRequestStatus";
 
 export interface SaveLibraryRequest {
   media: MediaSearchResult;
   status: SaveLibraryRequestStatus;
   /**
-     * @minimum 1
-     * @maximum 5
-     */
+   * @minimum 1
+   * @maximum 5
+   */
   rating?: number;
 }

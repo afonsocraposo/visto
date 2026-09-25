@@ -5,7 +5,7 @@
  * Self-hosted movie and TV tracking API.
  * OpenAPI spec version: 0.1.0
  */
-import type { ActivitySettingsActivityVisibility } from './activitySettingsActivityVisibility';
+import type { ActivitySettingsActivityVisibility } from "./activitySettingsActivityVisibility";
 
 export interface ActivitySettings {
   activity_visibility: ActivitySettingsActivityVisibility;

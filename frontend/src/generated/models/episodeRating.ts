@@ -9,10 +9,10 @@
 export interface EpisodeRating {
   episode_id: string;
   /**
-     * @minimum 1
-     * @maximum 5
-     * @nullable
-     */
+   * @minimum 1
+   * @maximum 5
+   * @nullable
+   */
   rating: number | null;
   updated_at?: string;
 }

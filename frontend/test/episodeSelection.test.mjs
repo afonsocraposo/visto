@@ -3,7 +3,13 @@ import test from "node:test";
 import { findMissingPriorEpisodes } from "../src/features/library/episodeSelection.ts";
 
 const episode = (id, season, number, airDate, watched = false) => ({
-  episode: { id, show_id: "tv:42", season_number: season, episode_number: number, air_date: airDate },
+  episode: {
+    id,
+    show_id: "tv:42",
+    season_number: season,
+    episode_number: number,
+    air_date: airDate,
+  },
   name: id,
   watched,
 });

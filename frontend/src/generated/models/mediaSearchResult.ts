@@ -5,7 +5,7 @@
  * Self-hosted movie and TV tracking API.
  * OpenAPI spec version: 0.1.0
  */
-import type { MediaSearchResultType } from './mediaSearchResultType';
+import type { MediaSearchResultType } from "./mediaSearchResultType";
 
 export interface MediaSearchResult {
   tmdb_id: number;

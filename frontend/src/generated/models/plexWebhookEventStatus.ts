@@ -6,11 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type PlexWebhookEventStatus = typeof PlexWebhookEventStatus[keyof typeof PlexWebhookEventStatus];
-
+export type PlexWebhookEventStatus =
+  (typeof PlexWebhookEventStatus)[keyof typeof PlexWebhookEventStatus];
 
 export const PlexWebhookEventStatus = {
-  synced: 'synced',
-  skipped: 'skipped',
-  failed: 'failed',
+  synced: "synced",
+  skipped: "skipped",
+  failed: "failed",
 } as const;

@@ -16,10 +16,22 @@ function createHarness() {
           async addAll(urls) {
             for (const url of urls) entries.set(new URL(url, origin).href, new Response("shell"));
           },
-          async match(request) { return entries.get(typeof request === "string" ? new URL(request, origin).href : request.url)?.clone(); },
-          async put(request, response) { entries.set(request.url, response.clone()); },
-          async delete(request) { return entries.delete(typeof request === "string" ? new URL(request, origin).href : request.url); },
-          async keys() { return [...entries.keys()].map(url => new Request(url)); },
+          async match(request) {
+            return entries
+              .get(typeof request === "string" ? new URL(request, origin).href : request.url)
+              ?.clone();
+          },
+          async put(request, response) {
+            entries.set(request.url, response.clone());
+          },
+          async delete(request) {
+            return entries.delete(
+              typeof request === "string" ? new URL(request, origin).href : request.url,
+            );
+          },
+          async keys() {
+            return [...entries.keys()].map((url) => new Request(url));
+          },
         });
       }
       return cacheStore.get(name);
@@ -31,7 +43,9 @@ function createHarness() {
       }
       return undefined;
     },
-    async delete(name) { return cacheStore.delete(name); },
+    async delete(name) {
+      return cacheStore.delete(name);
+    },
   };
   const self = {
     location: { origin },
@@ -40,26 +54,41 @@ function createHarness() {
   };
   let networkFetch = async () => new Response("network");
   const context = vm.createContext({
-    self, caches, Request, Response, URL, JSON,
-    fetch: request => networkFetch(request),
+    self,
+    caches,
+    Request,
+    Response,
+    URL,
+    JSON,
+    fetch: (request) => networkFetch(request),
   });
   const loaded = readFile(new URL("../public/sw.js", import.meta.url), "utf8");
 
   return {
     cacheStore,
-    async start() { vm.runInContext(await loaded, context); },
-    setNetworkFetch(fetcher) { networkFetch = fetcher; },
+    async start() {
+      vm.runInContext(await loaded, context);
+    },
+    setNetworkFetch(fetcher) {
+      networkFetch = fetcher;
+    },
     async dispatchFetch(url, method = "GET") {
       let responsePromise;
       listeners.get("fetch")({
         request: new Request(new URL(url, origin), { method }),
-        respondWith(promise) { responsePromise = promise; },
+        respondWith(promise) {
+          responsePromise = promise;
+        },
       });
       return responsePromise ? responsePromise : null;
     },
     async install() {
       let installPromise;
-      listeners.get("install")({ waitUntil(promise) { installPromise = promise; } });
+      listeners.get("install")({
+        waitUntil(promise) {
+          installPromise = promise;
+        },
+      });
       await installPromise;
     },
   };
@@ -77,12 +106,18 @@ test("Given a fresh install, When the service worker installs, Then it precaches
 });
 
 test("Given a browser install prompt, When it reads the web manifest, Then Visto has standalone mode and an app icon", async () => {
-  const manifest = JSON.parse(await readFile(new URL("../public/manifest.webmanifest", import.meta.url), "utf8"));
+  const manifest = JSON.parse(
+    await readFile(new URL("../public/manifest.webmanifest", import.meta.url), "utf8"),
+  );
   const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
 
   assert.equal(manifest.start_url, "/");
   assert.equal(manifest.display, "standalone");
-  assert.ok(manifest.icons.some(icon => icon.src && icon.type === "image/svg+xml" && icon.sizes === "any"));
+  assert.ok(
+    manifest.icons.some(
+      (icon) => icon.src && icon.type === "image/svg+xml" && icon.sizes === "any",
+    ),
+  );
   assert.match(html, /<link\s+rel="manifest"\s+href="\/manifest\.webmanifest"/);
 });
 
@@ -90,10 +125,13 @@ test("Given a signed-in user, When an allowed GET is cached, Then offline reads 
   const harness = createHarness();
   let userID = "alice";
   let online = true;
-  harness.setNetworkFetch(async request => {
+  harness.setNetworkFetch(async (request) => {
     if (!online) throw new Error("offline");
     if (new URL(request.url).pathname === "/api/v1/me") {
-      return new Response(JSON.stringify({ id: userID }), { status: 200, headers: { "Content-Type": "application/json" } });
+      return new Response(JSON.stringify({ id: userID }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
     }
     if (new URL(request.url).pathname === "/api/v1/library") {
       return new Response(`${userID}'s library`, { status: 200 });
@@ -113,7 +151,10 @@ test("Given a signed-in user, When an allowed GET is cached, Then offline reads 
   await harness.dispatchFetch("/api/v1/me");
   online = false;
   assert.equal((await harness.dispatchFetch("/api/v1/library")).status, 503);
-  assert.equal((await harness.dispatchFetch("/api/v1/library")).headers.get("X-Visto-Offline"), "true");
+  assert.equal(
+    (await harness.dispatchFetch("/api/v1/library")).headers.get("X-Visto-Offline"),
+    "true",
+  );
 
   // Only successful GETs from the explicit allow-list are retained, with a hard cap.
   online = true;
@@ -140,7 +181,7 @@ test("Given an offline client, When a write or failed GET is requested, Then it 
 test("Given cached account content, When logout succeeds, Then its account cache and offline pointer are removed", async () => {
   const harness = createHarness();
   let online = true;
-  harness.setNetworkFetch(async request => {
+  harness.setNetworkFetch(async (request) => {
     if (!online) throw new Error("offline");
     if (new URL(request.url).pathname === "/api/v1/me") {
       return new Response(JSON.stringify({ id: "alice" }), { status: 200 });

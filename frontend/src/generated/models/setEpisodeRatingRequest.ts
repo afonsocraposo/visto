@@ -8,9 +8,9 @@
 
 export interface SetEpisodeRatingRequest {
   /**
-     * @minimum 1
-     * @maximum 5
-     * @nullable
-     */
+   * @minimum 1
+   * @maximum 5
+   * @nullable
+   */
   rating: number | null;
 }

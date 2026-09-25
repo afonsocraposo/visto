@@ -6,10 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type ContinueEntryKind = typeof ContinueEntryKind[keyof typeof ContinueEntryKind];
-
+export type ContinueEntryKind = (typeof ContinueEntryKind)[keyof typeof ContinueEntryKind];
 
 export const ContinueEntryKind = {
-  continue: 'continue',
-  start: 'start',
+  continue: "continue",
+  start: "start",
 } as const;

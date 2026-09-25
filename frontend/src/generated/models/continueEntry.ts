@@ -5,8 +5,8 @@
  * Self-hosted movie and TV tracking API.
  * OpenAPI spec version: 0.1.0
  */
-import type { ContinueEntryKind } from './continueEntryKind';
-import type { Episode } from './episode';
+import type { ContinueEntryKind } from "./continueEntryKind";
+import type { Episode } from "./episode";
 
 export interface ContinueEntry {
   show_id: string;

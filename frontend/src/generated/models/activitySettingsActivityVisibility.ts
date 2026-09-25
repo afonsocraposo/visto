@@ -6,10 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type ActivitySettingsActivityVisibility = typeof ActivitySettingsActivityVisibility[keyof typeof ActivitySettingsActivityVisibility];
-
+export type ActivitySettingsActivityVisibility =
+  (typeof ActivitySettingsActivityVisibility)[keyof typeof ActivitySettingsActivityVisibility];
 
 export const ActivitySettingsActivityVisibility = {
-  private: 'private',
-  instance: 'instance',
+  private: "private",
+  instance: "instance",
 } as const;

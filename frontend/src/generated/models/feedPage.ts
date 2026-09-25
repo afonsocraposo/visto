@@ -5,7 +5,7 @@
  * Self-hosted movie and TV tracking API.
  * OpenAPI spec version: 0.1.0
  */
-import type { FeedItem } from './feedItem';
+import type { FeedItem } from "./feedItem";
 
 export interface FeedPage {
   items: FeedItem[];

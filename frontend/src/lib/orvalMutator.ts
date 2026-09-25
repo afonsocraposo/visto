@@ -14,8 +14,11 @@ export async function customFetch<T>(url: string, options: RequestInit): Promise
     window.dispatchEvent(new Event(connectionUnavailableEvent));
   }
   if (!response.ok) {
-    const body = await response.json().catch(() => ({})) as APIErrorBody;
-    throw new APIRequestError(body.error || `Request failed (${response.status}).`, response.status);
+    const body = (await response.json().catch(() => ({}))) as APIErrorBody;
+    throw new APIRequestError(
+      body.error || `Request failed (${response.status}).`,
+      response.status,
+    );
   }
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;

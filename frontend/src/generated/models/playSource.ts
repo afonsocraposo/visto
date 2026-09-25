@@ -6,13 +6,12 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type PlaySource = typeof PlaySource[keyof typeof PlaySource];
-
+export type PlaySource = (typeof PlaySource)[keyof typeof PlaySource];
 
 export const PlaySource = {
-  web: 'web',
-  api: 'api',
-  mcp: 'mcp',
-  import: 'import',
-  plex: 'plex',
+  web: "web",
+  api: "api",
+  mcp: "mcp",
+  import: "import",
+  plex: "plex",
 } as const;

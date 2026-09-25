@@ -5,7 +5,7 @@
  * Self-hosted movie and TV tracking API.
  * OpenAPI spec version: 0.1.0
  */
-import type { MediaSearchResult } from './mediaSearchResult';
+import type { MediaSearchResult } from "./mediaSearchResult";
 
 export interface TrendingResponse {
   tv: MediaSearchResult[];

@@ -5,8 +5,8 @@
  * Self-hosted movie and TV tracking API.
  * OpenAPI spec version: 0.1.0
  */
-import type { GetTrendingWindow } from './getTrendingWindow';
+import type { GetTrendingWindow } from "./getTrendingWindow";
 
 export type GetTrendingParams = {
-window?: GetTrendingWindow;
+  window?: GetTrendingWindow;
 };

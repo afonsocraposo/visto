@@ -6,10 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type MediaSnapshotType = typeof MediaSnapshotType[keyof typeof MediaSnapshotType];
-
+export type MediaSnapshotType = (typeof MediaSnapshotType)[keyof typeof MediaSnapshotType];
 
 export const MediaSnapshotType = {
-  movie: 'movie',
-  tv: 'tv',
+  movie: "movie",
+  tv: "tv",
 } as const;

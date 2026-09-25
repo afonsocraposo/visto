@@ -34,7 +34,7 @@ async function request<T>(path: string, init: RequestInit, fallback: string): Pr
   }
   if (response.headers.get("X-Visto-Offline") === "true") reportConnectionUnavailable();
   if (!response.ok) {
-    const body = await response.json().catch(() => ({})) as APIError;
+    const body = (await response.json().catch(() => ({}))) as APIError;
     throw new APIRequestError(body.error || fallback, response.status);
   }
   if (response.status === 204) return undefined as T;
@@ -54,7 +54,11 @@ export const api = {
     return request<T>(path, {}, fallback);
   },
   post<T = void>(path: string, body?: unknown, fallback = "Request failed."): Promise<T> {
-    return request<T>(path, body === undefined ? { method: "POST" } : jsonInit("POST", body), fallback);
+    return request<T>(
+      path,
+      body === undefined ? { method: "POST" } : jsonInit("POST", body),
+      fallback,
+    );
   },
   patch<T = void>(path: string, body: unknown, fallback = "Request failed."): Promise<T> {
     return request<T>(path, jsonInit("PATCH", body), fallback);
@@ -62,7 +66,11 @@ export const api = {
   put<T = void>(path: string, body: unknown, fallback = "Request failed."): Promise<T> {
     return request<T>(path, jsonInit("PUT", body), fallback);
   },
-	delete(path: string, fallback = "Request failed.", body?: unknown): Promise<void> {
-	return request<void>(path, body === undefined ? { method: "DELETE" } : jsonInit("DELETE", body), fallback);
-	},
+  delete(path: string, fallback = "Request failed.", body?: unknown): Promise<void> {
+    return request<void>(
+      path,
+      body === undefined ? { method: "DELETE" } : jsonInit("DELETE", body),
+      fallback,
+    );
+  },
 };

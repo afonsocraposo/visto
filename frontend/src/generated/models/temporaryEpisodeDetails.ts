@@ -5,8 +5,8 @@
  * Self-hosted movie and TV tracking API.
  * OpenAPI spec version: 0.1.0
  */
-import type { CastMember } from './castMember';
-import type { CrewMember } from './crewMember';
+import type { CastMember } from "./castMember";
+import type { CrewMember } from "./crewMember";
 
 export interface TemporaryEpisodeDetails {
   name: string;
@@ -16,9 +16,9 @@ export interface TemporaryEpisodeDetails {
   runtime?: number;
   still_path?: string;
   /**
-     * @minimum 0
-     * @maximum 10
-     */
+   * @minimum 0
+   * @maximum 10
+   */
   vote_average?: number;
   production_code?: string;
   guest_stars?: CastMember[];

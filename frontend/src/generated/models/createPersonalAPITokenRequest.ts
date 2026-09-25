@@ -8,9 +8,9 @@
 
 export interface CreatePersonalAPITokenRequest {
   /**
-     * @minLength 1
-     * @maxLength 80
-     */
+   * @minLength 1
+   * @maxLength 80
+   */
   name: string;
   /** Optional expiry timestamp. Omit for a token that remains active until revoked. */
   expires_at?: string;

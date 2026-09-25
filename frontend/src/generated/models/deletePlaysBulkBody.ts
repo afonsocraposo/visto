@@ -8,8 +8,8 @@
 
 export type DeletePlaysBulkBody = {
   /**
-     * @minItems 1
-     * @maxItems 100
-     */
+   * @minItems 1
+   * @maxItems 100
+   */
   episode_ids: string[];
 };

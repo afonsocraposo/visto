@@ -6,10 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type PersonCreditType = typeof PersonCreditType[keyof typeof PersonCreditType];
-
+export type PersonCreditType = (typeof PersonCreditType)[keyof typeof PersonCreditType];
 
 export const PersonCreditType = {
-  movie: 'movie',
-  tv: 'tv',
+  movie: "movie",
+  tv: "tv",
 } as const;

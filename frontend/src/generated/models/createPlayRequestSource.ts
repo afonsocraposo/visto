@@ -6,13 +6,13 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type CreatePlayRequestSource = typeof CreatePlayRequestSource[keyof typeof CreatePlayRequestSource];
-
+export type CreatePlayRequestSource =
+  (typeof CreatePlayRequestSource)[keyof typeof CreatePlayRequestSource];
 
 export const CreatePlayRequestSource = {
-  web: 'web',
-  api: 'api',
-  mcp: 'mcp',
-  import: 'import',
-  plex: 'plex',
+  web: "web",
+  api: "api",
+  mcp: "mcp",
+  import: "import",
+  plex: "plex",
 } as const;

@@ -20,7 +20,11 @@ export function useInvalidateUserCache() {
   const queryClient = useQueryClient();
   const userQueryKey = useUserQueryKey();
 
-  return useCallback((...scopes: CacheScope[]) => Promise.all(
-    scopes.map(scope => queryClient.invalidateQueries({ queryKey: userQueryKey(...scope) })),
-  ), [queryClient, userQueryKey]);
+  return useCallback(
+    (...scopes: CacheScope[]) =>
+      Promise.all(
+        scopes.map((scope) => queryClient.invalidateQueries({ queryKey: userQueryKey(...scope) })),
+      ),
+    [queryClient, userQueryKey],
+  );
 }

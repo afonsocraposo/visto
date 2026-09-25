@@ -7,9 +7,9 @@
  */
 
 export type GetSearchParams = {
-/**
- * @minLength 1
- */
-q: string;
-language?: string;
+  /**
+   * @minLength 1
+   */
+  q: string;
+  language?: string;
 };

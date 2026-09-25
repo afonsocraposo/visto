@@ -8,9 +8,9 @@
 
 export type PostPlaysBulkBody = {
   /**
-     * @minItems 1
-     * @maxItems 100
-     */
+   * @minItems 1
+   * @maxItems 100
+   */
   episode_ids: string[];
   watched_at?: string;
 };

@@ -60,54 +60,134 @@ export function PlexSyncPanel() {
     },
   });
 
-  return <Paper withBorder p="md" mt="lg">
-    <Title order={3}>Plex watch sync</Title>
-    <Text size="sm" c="dimmed" mt="xs">
-      Sync new watched movies and episodes from your Plex account. Plex Pass and a public HTTPS address for this Visto instance are required.
-    </Text>
-    {status.isError && <Alert color="red" mt="md">{status.error.message}</Alert>}
-    {issue.isError && <Alert color="red" mt="md">{issue.error.message}</Alert>}
-    {revoke.isError && <Alert color="red" mt="md">{revoke.error.message}</Alert>}
-    {status.data?.enabled && <Text size="sm" mt="md">
-      Webhook active{status.data.created_at ? ` since ${formatActivityTime(status.data.created_at)}` : ""}.
-      {status.data.last_synced_at ? ` Last successful sync ${formatActivityTime(status.data.last_synced_at)}.` : " No watched events synced yet."}
-    </Text>}
-    {issuedURL && <Stack gap="xs" mt="md">
-      <Alert color="yellow" title="Copy this URL into Plex now">
-        Visto only shows the secret URL once. If you leave this page, rotate the URL to get a new one.
-      </Alert>
-      {copyError && <Alert color="red">{copyError}</Alert>}
-      <Group align="end" wrap="nowrap">
-        <Code style={{ flex: 1, overflowWrap: "anywhere", whiteSpace: "normal", padding: 10 }}>{issuedURL}</Code>
-        <Button variant="default" leftSection={<IconCopy size={16} />} onClick={() => {
-          navigator.clipboard.writeText(issuedURL).then(() => setCopyError("")).catch(() => setCopyError("Could not copy the URL. Select and copy it instead."));
-        }}>Copy URL</Button>
+  return (
+    <Paper withBorder p="md" mt="lg">
+      <Title order={3}>Plex watch sync</Title>
+      <Text size="sm" c="dimmed" mt="xs">
+        Sync new watched movies and episodes from your Plex account. Plex Pass and a public HTTPS
+        address for this Visto instance are required.
+      </Text>
+      {status.isError && (
+        <Alert color="red" mt="md">
+          {status.error.message}
+        </Alert>
+      )}
+      {issue.isError && (
+        <Alert color="red" mt="md">
+          {issue.error.message}
+        </Alert>
+      )}
+      {revoke.isError && (
+        <Alert color="red" mt="md">
+          {revoke.error.message}
+        </Alert>
+      )}
+      {status.data?.enabled && (
+        <Text size="sm" mt="md">
+          Webhook active
+          {status.data.created_at ? ` since ${formatActivityTime(status.data.created_at)}` : ""}.
+          {status.data.last_synced_at
+            ? ` Last successful sync ${formatActivityTime(status.data.last_synced_at)}.`
+            : " No watched events synced yet."}
+        </Text>
+      )}
+      {issuedURL && (
+        <Stack gap="xs" mt="md">
+          <Alert color="yellow" title="Copy this URL into Plex now">
+            Visto only shows the secret URL once. If you leave this page, rotate the URL to get a
+            new one.
+          </Alert>
+          {copyError && <Alert color="red">{copyError}</Alert>}
+          <Group align="end" wrap="nowrap">
+            <Code style={{ flex: 1, overflowWrap: "anywhere", whiteSpace: "normal", padding: 10 }}>
+              {issuedURL}
+            </Code>
+            <Button
+              variant="default"
+              leftSection={<IconCopy size={16} />}
+              onClick={() => {
+                navigator.clipboard
+                  .writeText(issuedURL)
+                  .then(() => setCopyError(""))
+                  .catch(() => setCopyError("Could not copy the URL. Select and copy it instead."));
+              }}
+            >
+              Copy URL
+            </Button>
+          </Group>
+        </Stack>
+      )}
+      <Group mt="md">
+        <Button
+          loading={issue.isPending}
+          leftSection={status.data?.enabled ? <IconRefresh size={16} /> : undefined}
+          onClick={() => {
+            if (
+              status.data?.enabled &&
+              !window.confirm("Rotate your Plex webhook URL? The old URL will stop working.")
+            )
+              return;
+            issue.mutate();
+          }}
+        >
+          {status.data?.enabled ? "Rotate webhook URL" : "Create webhook URL"}
+        </Button>
+        {status.data?.enabled && (
+          <Button
+            color="red"
+            variant="subtle"
+            loading={revoke.isPending}
+            leftSection={<IconTrash size={16} />}
+            onClick={() => {
+              if (
+                window.confirm("Revoke your Plex webhook? Plex will stop syncing watched content.")
+              )
+                revoke.mutate();
+            }}
+          >
+            Revoke
+          </Button>
+        )}
       </Group>
-    </Stack>}
-    <Group mt="md">
-      <Button loading={issue.isPending} leftSection={status.data?.enabled ? <IconRefresh size={16} /> : undefined}
-        onClick={() => {
-          if (status.data?.enabled && !window.confirm("Rotate your Plex webhook URL? The old URL will stop working.")) return;
-          issue.mutate();
-        }}>
-        {status.data?.enabled ? "Rotate webhook URL" : "Create webhook URL"}
-      </Button>
-      {status.data?.enabled && <Button color="red" variant="subtle" loading={revoke.isPending} leftSection={<IconTrash size={16} />}
-        onClick={() => {
-          if (window.confirm("Revoke your Plex webhook? Plex will stop syncing watched content.")) revoke.mutate();
-        }}>Revoke</Button>}
-    </Group>
-    {(status.data?.recent_events.length ?? 0) > 0 && <>
-      <Title order={4} mt="xl">Recent sync activity</Title>
-      <Table mt="sm" striped highlightOnHover withTableBorder>
-        <Table.Thead><Table.Tr><Table.Th>Media</Table.Th><Table.Th>Status</Table.Th><Table.Th>Details</Table.Th><Table.Th>Time</Table.Th></Table.Tr></Table.Thead>
-        <Table.Tbody>{status.data!.recent_events.map((event) => <Table.Tr key={event.id}>
-          <Table.Td>{event.title || event.media_type || "Plex event"}</Table.Td>
-          <Table.Td><Badge color={event.status === "synced" ? "green" : event.status === "failed" ? "red" : "gray"}>{event.status}</Badge></Table.Td>
-          <Table.Td>{event.message || "—"}</Table.Td>
-          <Table.Td>{formatActivityTime(event.occurred_at)}</Table.Td>
-        </Table.Tr>)}</Table.Tbody>
-      </Table>
-    </>}
-  </Paper>;
+      {(status.data?.recent_events.length ?? 0) > 0 && (
+        <>
+          <Title order={4} mt="xl">
+            Recent sync activity
+          </Title>
+          <Table mt="sm" striped highlightOnHover withTableBorder>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Media</Table.Th>
+                <Table.Th>Status</Table.Th>
+                <Table.Th>Details</Table.Th>
+                <Table.Th>Time</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {status.data!.recent_events.map((event) => (
+                <Table.Tr key={event.id}>
+                  <Table.Td>{event.title || event.media_type || "Plex event"}</Table.Td>
+                  <Table.Td>
+                    <Badge
+                      color={
+                        event.status === "synced"
+                          ? "green"
+                          : event.status === "failed"
+                            ? "red"
+                            : "gray"
+                      }
+                    >
+                      {event.status}
+                    </Badge>
+                  </Table.Td>
+                  <Table.Td>{event.message || "—"}</Table.Td>
+                  <Table.Td>{formatActivityTime(event.occurred_at)}</Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+        </>
+      )}
+    </Paper>
+  );
 }

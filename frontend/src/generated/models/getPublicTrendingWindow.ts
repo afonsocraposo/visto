@@ -6,10 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type GetPublicTrendingWindow = typeof GetPublicTrendingWindow[keyof typeof GetPublicTrendingWindow];
-
+export type GetPublicTrendingWindow =
+  (typeof GetPublicTrendingWindow)[keyof typeof GetPublicTrendingWindow];
 
 export const GetPublicTrendingWindow = {
-  day: 'day',
-  week: 'week',
+  day: "day",
+  week: "week",
 } as const;

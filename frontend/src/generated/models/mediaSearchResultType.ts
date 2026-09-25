@@ -6,10 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type MediaSearchResultType = typeof MediaSearchResultType[keyof typeof MediaSearchResultType];
-
+export type MediaSearchResultType =
+  (typeof MediaSearchResultType)[keyof typeof MediaSearchResultType];
 
 export const MediaSearchResultType = {
-  movie: 'movie',
-  tv: 'tv',
+  movie: "movie",
+  tv: "tv",
 } as const;

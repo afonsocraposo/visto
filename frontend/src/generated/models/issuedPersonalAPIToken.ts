@@ -5,7 +5,7 @@
  * Self-hosted movie and TV tracking API.
  * OpenAPI spec version: 0.1.0
  */
-import type { PersonalAPIToken } from './personalAPIToken';
+import type { PersonalAPIToken } from "./personalAPIToken";
 
 export type IssuedPersonalAPIToken = PersonalAPIToken & {
   /** One-time secret. Store securely; subsequent responses never include it. */

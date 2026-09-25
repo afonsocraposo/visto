@@ -5,17 +5,17 @@
  * Self-hosted movie and TV tracking API.
  * OpenAPI spec version: 0.1.0
  */
-import type { CastMember } from './castMember';
-import type { MediaSnapshot } from './mediaSnapshot';
+import type { CastMember } from "./castMember";
+import type { MediaSnapshot } from "./mediaSnapshot";
 
 export interface TemporaryMovieDetails {
   media: MediaSnapshot;
   /** @minimum 0 */
   runtime?: number;
   /**
-     * @minimum 0
-     * @maximum 10
-     */
+   * @minimum 0
+   * @maximum 10
+   */
   vote_average?: number;
   genres: string[];
   cast: CastMember[];
