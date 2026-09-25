@@ -1,8 +1,8 @@
 import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import { Alert, AppShell, Button, Center, Group, Loader, Select, Tabs, Text, Title } from "@mantine/core";
-import { IconCalendar, IconCompass, IconHome, IconLogout, IconSearch, IconUserCircle } from "@tabler/icons-react";
+import { Alert, AppShell, Button, Center, Group, Loader, Tabs, Text } from "@mantine/core";
+import { IconCalendar, IconCompass, IconHome, IconSearch, IconUserCircle } from "@tabler/icons-react";
 import { WatchNow, WatchCalendar } from "../watch/Watch";
 import type { LibraryStatus, MediaDetailTarget, Tab, Theme, User } from "../../types";
 import { connectionUnavailableEvent } from "../../lib/api";
@@ -57,7 +57,7 @@ export function Dashboard({ user, theme, setTheme, page }: { user: User; theme: 
       if (!response.ok) throw new Error("Could not sign out.");
     },
     onSuccess: () => {
-      queryClient.clear();
+      queryClient.removeQueries({ predicate: query => query.queryKey[0] !== "session" && query.queryKey[0] !== "auth-status" });
       queryClient.setQueryData(["session"], null);
     },
   });
@@ -97,36 +97,7 @@ export function Dashboard({ user, theme, setTheme, page }: { user: User; theme: 
   );
 
   return (
-    <AppShell className="visto-shell" header={{ height: 72 }} footer={{ height: 76 }} padding={0}>
-      <AppShell.Header className="visto-header">
-        <Group className="visto-header-inner" h="100%" justify="space-between">
-          <Group gap="sm">
-            <div className="visto-mark" aria-hidden="true">V</div>
-            <div>
-              <Title className="visto-wordmark" order={2}>Visto</Title>
-              <Text className="visto-subtitle" size="xs">Your watchroom</Text>
-            </div>
-          </Group>
-          <Group gap="xs">
-            <Text className="welcome-name" size="sm">Hi, {user.name}</Text>
-            <Button size="xs" variant="subtle" leftSection={<IconLogout size={16} />} loading={logout.isPending} onClick={() => logout.mutate()}>
-              Sign out
-            </Button>
-            <Select
-              aria-label="Color theme"
-              value={theme}
-              onChange={value => setTheme((value || "system") as Theme)}
-              data={[
-                { value: "system", label: "System" },
-                { value: "light", label: "Light" },
-                { value: "dark", label: "Dark" },
-              ]}
-              className="theme-select"
-              w={108}
-            />
-          </Group>
-        </Group>
-      </AppShell.Header>
+    <AppShell className="visto-shell" footer={{ height: 76 }} padding={0}>
       <AppShell.Main className="visto-main">
         {!online && (
           <Alert color="yellow" mb="md">
@@ -138,7 +109,6 @@ export function Dashboard({ user, theme, setTheme, page }: { user: User; theme: 
             </Group>
           </Alert>
         )}
-        {logout.isError && <Alert color="red" mb="md">{logout.error.message}</Alert>}
         {personID ? <Deferred><PersonDetailPage personID={personID} onBack={() => void navigate({ to: safeReturnPath(returnTo, "/discover") })} onOpenDetail={openDetail} /></Deferred> : detail ? <Deferred><MediaDetailPage target={detail} onBack={() => void navigate({ to: safeReturnPath(returnTo, detail.mediaType === "tv" ? "/profile" : "/discover") })} onOpenDetail={openDetail} onOpenPerson={openPerson} /></Deferred> : listStatus ? <Deferred><LibraryListPage status={listStatus} onBack={() => void navigate({ to: "/profile" })} onOpenDetail={openDetail} /></Deferred> : tab === "watch" && (
           <>
             <Tabs className="watch-tabs" value={view} onChange={value => setView(value || "now")}>
@@ -152,7 +122,7 @@ export function Dashboard({ user, theme, setTheme, page }: { user: User; theme: 
         )}
         {!detail && !personID && tab === "search" && <Deferred><SearchPanel onOpenDetail={openDetail} /></Deferred>}
         {!detail && !personID && tab === "feed" && <Deferred><FeedArea /></Deferred>}
-        {!detail && !personID && !listStatus && tab === "library" && <Deferred><LibraryArea user={user} onOpenDetail={openDetail} onOpenList={status => void navigate({ to: `/profile/library/${status}` })} /></Deferred>}
+        {!detail && !personID && !listStatus && tab === "library" && <Deferred><LibraryArea user={user} theme={theme} onThemeChange={setTheme} onSignOut={() => logout.mutate()} signingOut={logout.isPending} signOutError={logout.isError ? logout.error.message : undefined} onOpenDetail={openDetail} onOpenList={status => void navigate({ to: `/profile/library/${status}` })} /></Deferred>}
       </AppShell.Main>
       <AppShell.Footer className="visto-footer">
         <Group className="bottom-nav" justify="space-around" h="100%">

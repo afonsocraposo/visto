@@ -2,13 +2,14 @@ import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "@mantine/form";
 import { Alert, Button, Group, Paper, PasswordInput, Select, Text, TextInput, Title } from "@mantine/core";
-import { IconDownload } from "@tabler/icons-react";
+import { IconDownload, IconLogout } from "@tabler/icons-react";
 import { useUserQueryKey } from "../auth/SessionContext";
+import type { Theme } from "../../types";
 import { PersonalTokensPanel } from "./PersonalTokensPanel";
 import { ConnectedAppsPanel } from "./ConnectedAppsPanel";
 import { PlexSyncPanel } from "./PlexSyncPanel";
 
-export function ProfilePanel() {
+export function ProfilePanel({ theme, onThemeChange, onSignOut, signingOut, signOutError }: { theme: Theme; onThemeChange: (theme: Theme) => void; onSignOut: () => void; signingOut: boolean; signOutError?: string }) {
   const queryClient = useQueryClient();
   const userQueryKey = useUserQueryKey();
   const form = useForm({ initialValues: { visibility: "private", timezone: "UTC", pushoverAppToken: "", pushoverUserKey: "" } });
@@ -76,6 +77,15 @@ export function ProfilePanel() {
   const settingsUnavailable = settings.isPending || settings.isError;
 
   return <>
+    <Paper withBorder p="md" mb="md">
+      <Title order={2}>Appearance &amp; account</Title>
+      <Text size="sm" c="dimmed" mt="xs">Choose how Visto looks or sign out of your account.</Text>
+      <Select mt="md" label="Color theme" value={theme} onChange={value => onThemeChange((value || "system") as Theme)} data={[
+        { value: "system", label: "System" }, { value: "light", label: "Light" }, { value: "dark", label: "Dark" },
+      ]} />
+      {signOutError && <Alert color="red" mt="md">{signOutError}</Alert>}
+      <Button mt="md" variant="default" leftSection={<IconLogout size={16} />} loading={signingOut} onClick={onSignOut}>Sign out</Button>
+    </Paper>
     <Paper withBorder p="md" mt="lg">
       <Title order={2}>Profile</Title>
       <Text size="sm" c="dimmed" mt="xs">Choose who can see your activity and which time zone the calendar uses.</Text>

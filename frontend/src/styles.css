@@ -23,17 +23,11 @@ select {
 :root[data-mantine-color-scheme="dark"] body { background: #10141a; }
 
 .visto-shell { min-height: 100vh; }
-.visto-header, .visto-footer { background: color-mix(in srgb, var(--mantine-color-body) 92%, transparent); backdrop-filter: blur(16px); }
-.visto-header { border-bottom: 1px solid var(--mantine-color-gray-3); }
-.visto-header-inner, .visto-main { width: min(100% - 32px, 1120px); margin: 0 auto; }
-.visto-main { padding: 104px 0 112px; }
-.visto-main button, .visto-main [role="tab"] { scroll-margin-top: 96px; }
+.visto-footer { background: color-mix(in srgb, var(--mantine-color-body) 92%, transparent); backdrop-filter: blur(16px); }
+.visto-main { width: min(100% - 32px, 1120px); margin: 0 auto; padding: 32px 0 112px; }
+.visto-main button, .visto-main [role="tab"] { scroll-margin-top: 24px; }
 .visto-footer { border-top: 1px solid var(--mantine-color-gray-3); }
-.visto-wordmark { font-size: 1.23rem; letter-spacing: -0.06em; line-height: 1; }
-.visto-subtitle { color: var(--mantine-color-dimmed); letter-spacing: .03em; }
-.visto-mark, .auth-mark { display: grid; place-items: center; background: #f2b544; color: #10141a; font-weight: 900; box-shadow: 0 8px 20px rgb(242 181 68 / .23); }
-.visto-mark { width: 32px; height: 32px; border-radius: 10px; }
-.welcome-name { color: var(--mantine-color-dimmed); }
+.auth-mark { display: grid; place-items: center; background: #f2b544; color: #10141a; font-weight: 900; box-shadow: 0 8px 20px rgb(242 181 68 / .23); }
 .bottom-nav { width: min(100% - 24px, 680px); margin: 0 auto; }
 .bottom-nav-button { border-radius: 12px; min-width: 84px; }
 .section-kicker { display: block; color: var(--mantine-color-yellow-7); font-size: .71rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
@@ -197,9 +191,7 @@ select {
   .auth-screen-inner { width: min(100% - 32px, 440px); padding: 44px 0 88px; }
   .auth-screen::before { background: linear-gradient(180deg, rgb(8 12 17 / .5), rgb(8 12 17 / .8)); }
   .auth-feature-caption { right: 18px; bottom: 16px; max-width: 70vw; font-size: .85rem; }
-  .visto-header-inner, .visto-main { width: min(100% - 24px, 1120px); }
-  .visto-main { padding-top: 96px; }
-  .welcome-name, .theme-select { display: none; }
+  .visto-main { width: min(100% - 24px, 1120px); padding-top: 24px; }
   .bottom-nav-button { min-width: auto; padding-inline: 9px; font-size: .71rem; }
   .bottom-nav-button .mantine-Button-section { margin-inline-end: 4px; }
   .bottom-nav { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; }

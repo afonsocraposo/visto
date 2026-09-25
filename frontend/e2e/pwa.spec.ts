@@ -28,6 +28,7 @@ async function fulfillJSON(route: Route, value: unknown, status = 200) {
 async function mockSignedInSession(page: Page) {
   await page.route("**/api/v1/auth/status", route => fulfillJSON(route, { bootstrap_available: false, signup_enabled: true, google_enabled: false }));
   await page.route("**/api/v1/me", route => fulfillJSON(route, user));
+  await page.route("**/api/v1/auth/logout", route => route.fulfill({ status: 204, body: "" }));
   await page.route("**/api/v1/public/trending**", route => fulfillJSON(route, { tv: [], movies: [] }));
   await page.route("**/api/v1/continue-watching", route => fulfillJSON(route, [continueEntry]));
   await page.route("**/api/v1/profile/activity-settings", route => fulfillJSON(route, { activity_visibility: "private", timezone: "Europe/Lisbon" }));
@@ -37,10 +38,11 @@ async function mockSignedInSession(page: Page) {
   await page.route("**/api/v1/search**", route => fulfillJSON(route, []));
 }
 
-test("Given a signed-in user, When they move through the app and choose a theme, Then navigation and the theme update", async ({ page }) => {
+test("Given a signed-in user, When they navigate and manage appearance and account settings, Then the shell stays compact and actions work", async ({ page }) => {
   await mockSignedInSession(page);
   await page.goto("/");
 
+  await expect(page.locator(".visto-header")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Watching", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Feed" }).click();
   await page.getByRole("tab", { name: "Community feed" }).click();
@@ -59,6 +61,13 @@ test("Given a signed-in user, When they move through the app and choose a theme,
   await page.getByRole("combobox", { name: "Color theme" }).click();
   await page.getByRole("option", { name: "Light" }).click();
   await expect(page.locator("html")).toHaveAttribute("data-mantine-color-scheme", "light");
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  for (const label of ["Watching", "Discover", "Feed", "Profile"]) {
+    await expect(page.getByRole("button", { name: label, exact: true })).toBeVisible();
+  }
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await expect(page.getByRole("heading", { name: "Welcome to Visto" })).toBeVisible();
 });
 
 test("Given Plex sync settings, When the user creates, rotates, and revokes a URL, Then only the current secret URL is shown", async ({ page }) => {
