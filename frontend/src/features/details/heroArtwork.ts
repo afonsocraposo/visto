@@ -1,3 +1,11 @@
+export function resolveMediaArtwork(
+  backdropArtwork: string | null,
+  posterFallback: string | null,
+  detailsPending: boolean,
+): string | null {
+  return backdropArtwork ?? (detailsPending ? null : posterFallback);
+}
+
 export function heroArtworkLayers(
   hasSelectedEpisode: boolean,
   episodeArtwork: string | null,

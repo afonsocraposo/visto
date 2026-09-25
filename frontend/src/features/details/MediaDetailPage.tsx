@@ -11,7 +11,7 @@ import { CastSection } from "../../components/CastSection";
 import { MediaPosterCard } from "../../components/MediaPosterCard";
 import { regularSeasonsThrough, selectUnwatchedEpisodes, selectWatchedEpisodes } from "./watchSelection";
 import { resolveMediaID } from "./mediaIdentity";
-import { heroArtworkLayers } from "./heroArtwork";
+import { heroArtworkLayers, resolveMediaArtwork } from "./heroArtwork";
 import { EpisodeActions, MediaActions } from "./MediaDetailActions";
 import { chunk } from "./batch";
 import { useDetailHistoryQuery, useEpisodeDetailsQuery, useEpisodeRatingQuery, useMediaDetailQueries, useShowEpisodesQuery, useTemporarySeasonEpisodesQuery } from "./queries";
@@ -148,7 +148,8 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
   const episodeStill = episodeDetails.data?.still_path || selectedEpisode?.still_path;
   const episodeArtwork = episodeStill ? backdropURL(episodeStill, "w780") : null;
   const episodeArtworkPending = Boolean(target.episodeID) && !episodeArtwork && (episodeDetails.isFetching || (isSaved ? episodes.isFetching : temporaryEpisodes.isFetching));
-  const artLayers = heroArtworkLayers(Boolean(target.episodeID), episodeArtwork, episodeArtworkPending, backdropURL(media.backdrop_path, "w1280") ?? art);
+  const mediaArtwork = resolveMediaArtwork(backdropURL(media.backdrop_path, "w1280"), art, fallbackDetails.isPending);
+  const artLayers = heroArtworkLayers(Boolean(target.episodeID), episodeArtwork, episodeArtworkPending, mediaArtwork);
   const heroBackground = [
     "linear-gradient(0deg, rgba(9,13,18,.94) 0%, rgba(9,13,18,.52) 28%, rgba(9,13,18,.08) 72%)",
     "linear-gradient(90deg, rgba(9,13,18,.55) 0%, rgba(9,13,18,.2) 60%, rgba(9,13,18,.08) 100%)",

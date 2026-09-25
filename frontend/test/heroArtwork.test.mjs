@@ -1,6 +1,18 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { heroArtworkLayers } from "../src/features/details/heroArtwork.ts";
+import { heroArtworkLayers, resolveMediaArtwork } from "../src/features/details/heroArtwork.ts";
+
+test("keeps the hero on its gradient while a preferred media backdrop is loading", () => {
+  assert.equal(resolveMediaArtwork(null, "/poster.jpg", true), null);
+});
+
+test("shows the preferred backdrop immediately when it is available", () => {
+  assert.equal(resolveMediaArtwork("/backdrop.jpg", "/poster.jpg", true), "/backdrop.jpg");
+});
+
+test("uses the poster only after the backdrop request is complete without art", () => {
+  assert.equal(resolveMediaArtwork(null, "/poster.jpg", false), "/poster.jpg");
+});
 
 test("Given an episode detail is still loading, When hero art is selected, Then it waits instead of flashing show art", () => {
   assert.deepEqual(heroArtworkLayers(true, null, true, "/show.jpg"), []);
