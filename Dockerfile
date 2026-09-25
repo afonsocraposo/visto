@@ -1,4 +1,4 @@
-FROM node:22-alpine AS web
+FROM --platform=$BUILDPLATFORM node:22-alpine AS web
 WORKDIR /build
 RUN apk add --no-cache python3 make g++
 COPY frontend/package.json frontend/package-lock.json ./
@@ -6,13 +6,15 @@ RUN npm ci
 COPY frontend/ ./
 RUN npm run build
 
-FROM golang:1.25.13-alpine AS server
+FROM --platform=$BUILDPLATFORM golang:1.25.13-alpine AS server
+ARG TARGETOS
+ARG TARGETARCH
 WORKDIR /build
 COPY go.mod go.sum ./
 RUN go mod download
 COPY cmd/ cmd/
 COPY internal/ internal/
-RUN CGO_ENABLED=0 go build -trimpath -ldflags='-s -w' -o /out/visto ./cmd/server
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -trimpath -ldflags='-s -w' -o /out/visto ./cmd/server
 
 FROM alpine:3.21
 LABEL org.opencontainers.image.source="https://github.com/afonsocraposo/visto"
