@@ -110,7 +110,8 @@ func (s *Store) UpsertItem(ctx context.Context, item library.Item) error {
 		}
 		if visibility == "instance" {
 			eventID := fmt.Sprintf("rating:%s:%s:%d", item.UserID, item.MediaID, item.UpdatedAt.UnixNano())
-			if _, err := tx.ExecContext(ctx, `INSERT INTO activity_events(id,user_id,kind,media_id,rating,occurred_at,created_at) VALUES(?,?,?,?,?,?,?)`, eventID, item.UserID, "rating", item.MediaID, *item.Rating, item.UpdatedAt.Format(time.RFC3339Nano), item.UpdatedAt.Format(time.RFC3339Nano)); err != nil {
+			createdAt := time.Now().UTC().Format(time.RFC3339Nano)
+			if _, err := tx.ExecContext(ctx, `INSERT INTO activity_events(id,user_id,kind,media_id,rating,occurred_at,created_at) VALUES(?,?,?,?,?,?,?)`, eventID, item.UserID, "rating", item.MediaID, *item.Rating, item.UpdatedAt.Format(time.RFC3339Nano), createdAt); err != nil {
 				return fmt.Errorf("create rating activity event: %w", err)
 			}
 		}

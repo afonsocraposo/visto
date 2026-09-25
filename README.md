@@ -62,6 +62,8 @@ deployment; the other settings have defaults.
 | `VISTO_CATALOG_REFRESH_INTERVAL` | `6h`             | How often the backend checks tracked TV metadata for refresh.                                                                                                                                              |
 | `VISTO_CATALOG_ACTIVE_TTL`       | `24h`            | Minimum age of metadata for active shows before refresh.                                                                                                                                                   |
 | `VISTO_CATALOG_FINISHED_TTL`     | `720h`           | Minimum age of metadata for ended or cancelled shows before refresh (30 days).                                                                                                                             |
+| `VISTO_ACTIVITY_CLEANUP_INTERVAL` | `24h`          | How often the backend removes old activity feed events.                                                                                                                                                    |
+| `VISTO_ACTIVITY_RETENTION`       | `8760h`          | How long activity feed events are kept (365 days). This does not remove watch history.                                                                                                                     |
 | `VISTO_SECRET_ENCRYPTION_KEY`    | empty            | Optional base64-encoded 32-byte key for encrypting users’ Pushover credentials. Generate it with `openssl rand -base64 32` and keep it safe; losing it makes saved credentials unreadable.                 |
 | `VISTO_PUSHOVER_INTERVAL`        | `15m`            | How often the backend checks for new-episode alerts. Each user configures their own Pushover app token and user key in Profile.                                                                            |
 | `VISTO_OAUTH_CLEANUP_INTERVAL`   | `24h`            | How often expired OAuth data is cleaned up.                                                                                                                                                                |
@@ -107,6 +109,8 @@ services:
       VISTO_CATALOG_REFRESH_INTERVAL: ${VISTO_CATALOG_REFRESH_INTERVAL:-6h}
       VISTO_CATALOG_ACTIVE_TTL: ${VISTO_CATALOG_ACTIVE_TTL:-24h}
       VISTO_CATALOG_FINISHED_TTL: ${VISTO_CATALOG_FINISHED_TTL:-720h}
+      VISTO_ACTIVITY_CLEANUP_INTERVAL: ${VISTO_ACTIVITY_CLEANUP_INTERVAL:-24h}
+      VISTO_ACTIVITY_RETENTION: ${VISTO_ACTIVITY_RETENTION:-8760h}
       VISTO_SECRET_ENCRYPTION_KEY: ${VISTO_SECRET_ENCRYPTION_KEY:-}
       VISTO_PUSHOVER_INTERVAL: ${VISTO_PUSHOVER_INTERVAL:-15m}
     volumes:
@@ -149,6 +153,13 @@ Defaults are every 6 hours, with a 24-hour freshness window for active shows
 and a 30-day freshness window for ended or cancelled shows. These defaults
 can be changed with `VISTO_CATALOG_REFRESH_INTERVAL`,
 `VISTO_CATALOG_ACTIVE_TTL`, and `VISTO_CATALOG_FINISHED_TTL`.
+
+Activity feed events are removed after 365 days by default. The backend runs
+this cleanup daily in bounded batches and uses the event's recorded creation
+time, not the watch time supplied by the user. It removes only `activity_events`;
+watch history in `plays`, library entries, and ratings are retained. Set
+`VISTO_ACTIVITY_RETENTION` or `VISTO_ACTIVITY_CLEANUP_INTERVAL` to change the
+retention period or cleanup interval.
 
 ## Pushover alerts
 

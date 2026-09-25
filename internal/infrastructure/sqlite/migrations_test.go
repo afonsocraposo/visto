@@ -47,6 +47,10 @@ func TestMigrator_GivenFreshDatabase_WhenAppliedTwice_ThenSchemaIsCreatedAndSeco
 	if err := db.QueryRow(`SELECT name FROM pragma_table_info('oauth_access_tokens') WHERE name='last_used_at'`).Scan(&column); err != nil {
 		t.Fatalf("expected OAuth connection metadata migration: %v", err)
 	}
+	var index string
+	if err := db.QueryRow(`SELECT name FROM sqlite_master WHERE type='index' AND name='idx_activity_events_created_at'`).Scan(&index); err != nil {
+		t.Fatalf("expected activity-event retention index migration: %v", err)
+	}
 }
 
 func TestMigrator_GivenExistingPlaysAndFeedActivity_WhenPlaySourceConstraintIsRemoved_ThenMigrationPreservesBoth(t *testing.T) {

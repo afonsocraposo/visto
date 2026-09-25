@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/afonsocosta/visto/internal/application/activity"
 	"github.com/afonsocosta/visto/internal/application/auth"
 	exportapp "github.com/afonsocosta/visto/internal/application/export"
 	"github.com/afonsocosta/visto/internal/application/feed"
@@ -117,6 +118,17 @@ func main() {
 	oauthCleanupInterval := durationEnvironment("VISTO_OAUTH_CLEANUP_INTERVAL", 24*time.Hour)
 	startWorker(func(ctx context.Context) {
 		oauthService.RunCleanup(ctx, oauthCleanupInterval, func(err error) { log.Printf("OAuth cleanup failed: %v", err) })
+	})
+	activityCleanupInterval := durationEnvironment("VISTO_ACTIVITY_CLEANUP_INTERVAL", 24*time.Hour)
+	activityRetention := durationEnvironment("VISTO_ACTIVITY_RETENTION", 365*24*time.Hour)
+	startWorker(func(ctx context.Context) {
+		activity.NewRetentionService(store).RunCleanup(ctx, activityCleanupInterval, activityRetention, func(removed int, err error) {
+			if err != nil {
+				log.Printf("activity retention cleanup failed after removing %d events: %v", removed, err)
+				return
+			}
+			log.Printf("activity retention cleanup removed %d events", removed)
+		})
 	})
 	mcpHandler := mcpserver.NewWithTrustedProxies(authService, oauthService, publicURL, metadataProvider, library.NewService(store), tracking.NewService(store), watchService, trustedProxies)
 	appHandler.Handle("/mcp", mcpHandler)

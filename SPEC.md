@@ -558,6 +558,12 @@ request is logged and retried at a later scheduled run, not in a tight loop.
 Each show refresh fetches its summary and, at most, the latest regular season;
 it does not re-fetch every season of long-running shows.
 
+The scheduler removes activity-feed events older than 365 days by default.
+Cleanup runs daily in bounded batches and uses each event's recorded creation
+time rather than its user-supplied watch time. It deletes only activity events;
+play history and library data remain. Operators can configure the policy with
+`VISTO_ACTIVITY_RETENTION` and `VISTO_ACTIVITY_CLEANUP_INTERVAL`.
+
 Automatic SQLite backups use the online backup API. They run daily by default,
 are written under `/data/backups`, and are retained for 30 days. Operators can
 set `VISTO_BACKUP_DIR`, `VISTO_BACKUP_INTERVAL`, and
