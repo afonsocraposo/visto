@@ -477,30 +477,29 @@ All timestamps are stored as UTC ISO-8601 values.
 
 ### SQLite migrations
 
-The database schema is managed exclusively through ordered SQL migration files
-in `internal/infrastructure/sqlite/migrations/`. Each file has a unique,
-zero-padded version prefix and an immutable descriptive name, for example:
+The database schema is managed through SQL migration files in
+`internal/infrastructure/sqlite/migrations/`. While Visto is in development,
+this directory contains one baseline migration, `0001_initial_schema.sql`,
+which creates the current schema for a fresh database. This baseline replaces
+the earlier development migration history. Existing databases from before the
+squash are not upgraded by it and must be reset before use with this version.
 
-```text
-0001_initial_schema.sql
-0002_add_activity_events.sql
-```
+After the first release, applied migrations are append-only. Schema changes
+must add a new migration with a unique, zero-padded version and descriptive
+name; they must not edit, rename, reorder, or delete a migration that may have
+shipped.
 
 At application startup, the migration runner creates and reads a
 `schema_migrations` table containing the migration version, checksum, and apply
-time. It runs pending migrations in version order, each inside a transaction,
+time. It applies pending migrations in version order, each inside a transaction,
 and records a migration only after its transaction succeeds. Startup fails if a
-previously applied migration is missing or its checksum has changed.
+previously applied migration is missing or its checksum has changed. Tests
+verify that a fresh database receives the full current schema, generated IDs
+use SQLite integer primary keys, and a second startup is a no-op.
 
-Applied migrations are append-only: they are never edited, renamed, reordered,
-or deleted. Schema changes always add a new forward migration. Migrations must
-be safe for an empty database and preserve existing user data during upgrades.
 The generated row IDs for users, sessions, plays, activity events, and personal
 API tokens use SQLite integer primary keys. The API continues to expose these
-IDs as decimal strings. The migration remaps existing references and checks
-foreign-key integrity before it commits. The test suite runs the complete
-migration sequence against a fresh SQLite database, verifies existing data is
-preserved during key conversion, and verifies that re-running it is a no-op.
+IDs as decimal strings.
 
 ## 12. Testing
 
