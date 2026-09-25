@@ -49,14 +49,14 @@ func TestMigrator_GivenFreshDatabase_WhenAppliedTwice_ThenSchemaIsCreatedAndSeco
 	}
 }
 
-func TestMigrator_GivenExistingPlaysAndFeedActivity_WhenPlexSourceIsAdded_ThenMigrationPreservesBoth(t *testing.T) {
+func TestMigrator_GivenExistingPlaysAndFeedActivity_WhenPlaySourceConstraintIsRemoved_ThenMigrationPreservesBoth(t *testing.T) {
 	db := openTestDatabase(t)
 	migrator, err := sqlite.NewMigrator()
 	if err != nil {
 		t.Fatal(err)
 	}
 	migrations := migrator.Migrations
-	migrator.Migrations = migrations[:10]
+	migrator.Migrations = migrations[:11]
 	if err := migrator.Apply(context.Background(), db); err != nil {
 		t.Fatalf("apply original schema: %v", err)
 	}
@@ -74,7 +74,7 @@ func TestMigrator_GivenExistingPlaysAndFeedActivity_WhenPlexSourceIsAdded_ThenMi
 	}
 	migrator.Migrations = migrations
 	if err := migrator.Apply(context.Background(), db); err != nil {
-		t.Fatalf("apply Plex source migration: %v", err)
+		t.Fatalf("apply open play source migration: %v", err)
 	}
 	var source, playID string
 	if err := db.QueryRow(`SELECT p.source,a.play_id FROM plays p JOIN activity_events a ON a.play_id=p.id WHERE p.id='play-1'`).Scan(&source, &playID); err != nil {
@@ -82,6 +82,9 @@ func TestMigrator_GivenExistingPlaysAndFeedActivity_WhenPlexSourceIsAdded_ThenMi
 	}
 	if source != "web" || playID != "play-1" {
 		t.Fatalf("preserved source=%q play ID=%q", source, playID)
+	}
+	if _, err := db.Exec(`UPDATE plays SET source='future-integration' WHERE id='play-1'`); err != nil {
+		t.Fatalf("new source was rejected: %v", err)
 	}
 }
 
