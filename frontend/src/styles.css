@@ -148,7 +148,7 @@ select {
 }
 .watch-row-art {
   width: 240px;
-  min-height: 144px;
+  height: 144px;
   flex: 0 0 240px;
   overflow: hidden;
   background: #1b2430;
@@ -1047,7 +1047,7 @@ select {
   }
   .watch-row-art {
     width: 112px;
-    min-height: 104px;
+    height: 104px;
     flex-basis: 112px;
   }
   .watch-row-action {
