@@ -12,4 +12,8 @@ export type GetPlaysParams = {
    * @maximum 500
    */
   limit?: number;
+  /**
+   * Filter watches to one movie ID.
+   */
+  media_id?: string;
 };

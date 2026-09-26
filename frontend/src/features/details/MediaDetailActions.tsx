@@ -1,5 +1,13 @@
-import { Badge, Button, Group, Select, Switch, Text } from "@mantine/core";
-import { IconCheck, IconEye, IconRefresh } from "@tabler/icons-react";
+import { ActionIcon, Group, Menu, Select, Switch, Text, Tooltip } from "@mantine/core";
+import {
+  IconBookmark,
+  IconCheck,
+  IconChevronDown,
+  IconEye,
+  IconHistory,
+  IconEdit,
+  IconRefresh,
+} from "@tabler/icons-react";
 import { RatingStars } from "../../components/RatingStars";
 import { MediaQuickActions } from "../../components/MediaQuickActions";
 import type { SearchMedia, ShowEpisodeEntry } from "../../types";
@@ -28,10 +36,38 @@ export function EpisodeActions({
   pending,
 }: EpisodeActionsProps) {
   return (
-    <Group className="detail-actions" mt="lg">
-      <Badge color={entry.watched ? "teal" : "yellow"} variant="light">
-        {entry.watched ? "Watched" : "Not watched"}
-      </Badge>
+    <Group className="detail-actions detail-icon-actions" mt="lg" gap="xs">
+      <Tooltip label={entry.watched ? "Mark unwatched" : "Mark watched"} withArrow>
+        <ActionIcon
+          size="lg"
+          color="yellow"
+          variant="filled"
+          aria-label={`Mark episode ${entry.episode.episode_number} ${entry.watched ? "unwatched" : "watched"}`}
+          onClick={entry.watched ? onUnwatch : onWatch}
+          loading={pending}
+        >
+          {entry.watched ? <IconCheck size={18} /> : <IconEye size={18} />}
+        </ActionIcon>
+      </Tooltip>
+      {entry.watched && (
+        <Menu withinPortal position="bottom-start">
+          <Menu.Target>
+            <ActionIcon
+              size="lg"
+              variant="default"
+              aria-label="More episode actions"
+              disabled={pending}
+            >
+              <IconChevronDown size={18} />
+            </ActionIcon>
+          </Menu.Target>
+          <Menu.Dropdown>
+            <Menu.Item leftSection={<IconRefresh size={16} />} onClick={onRewatch}>
+              Mark rewatched
+            </Menu.Item>
+          </Menu.Dropdown>
+        </Menu>
+      )}
       <RatingStars
         value={rating}
         onChange={onRate}
@@ -43,30 +79,6 @@ export function EpisodeActions({
         <Text size="xs" c="dimmed">
           Add to library to rate
         </Text>
-      )}
-      {entry.watched ? (
-        <>
-          <Button
-            variant="light"
-            leftSection={<IconRefresh size={16} />}
-            loading={pending}
-            onClick={onRewatch}
-          >
-            Rewatch episode
-          </Button>
-          <Button
-            variant="default"
-            leftSection={<IconEye size={16} />}
-            loading={pending}
-            onClick={onUnwatch}
-          >
-            Mark unwatched
-          </Button>
-        </>
-      ) : (
-        <Button leftSection={<IconEye size={16} />} loading={pending} onClick={onWatch}>
-          Mark watched
-        </Button>
       )}
     </Group>
   );
@@ -85,6 +97,9 @@ type MediaActionsProps = {
   onWatch: () => void;
   onUnwatch: () => void;
   onRemoveWatchlist: () => void;
+  onRemoveCurrentList: () => void;
+  onViewWatchHistory: () => void;
+  onChangeWatchDate: () => void;
   pending: boolean;
 };
 
@@ -101,8 +116,74 @@ export function MediaActions({
   onWatch,
   onUnwatch,
   onRemoveWatchlist,
+  onRemoveCurrentList,
+  onViewWatchHistory,
+  onChangeWatchDate,
   pending,
 }: MediaActionsProps) {
+  if (media.type === "movie")
+    return (
+      <Group className="detail-actions detail-icon-actions" mt="lg" gap="xs">
+        <Tooltip label={watched ? "Mark unwatched" : "Mark watched"} withArrow>
+          <ActionIcon
+            size="lg"
+            color="yellow"
+            variant="filled"
+            aria-label={`Mark ${media.title} ${watched ? "unwatched" : "watched"}`}
+            onClick={watched ? onUnwatch : onWatch}
+            loading={pending}
+          >
+            {watched ? <IconCheck size={18} /> : <IconEye size={18} />}
+          </ActionIcon>
+        </Tooltip>
+        {watched ? (
+          <Menu withinPortal position="bottom-start">
+            <Menu.Target>
+              <ActionIcon
+                size="lg"
+                variant="default"
+                aria-label={`More actions for ${media.title}`}
+                disabled={pending}
+              >
+                <IconChevronDown size={18} />
+              </ActionIcon>
+            </Menu.Target>
+            <Menu.Dropdown>
+              <Menu.Item leftSection={<IconRefresh size={16} />} onClick={onWatch}>
+                Mark rewatched
+              </Menu.Item>
+              <Menu.Item leftSection={<IconHistory size={16} />} onClick={onViewWatchHistory}>
+                View watch history
+              </Menu.Item>
+              <Menu.Item leftSection={<IconEdit size={16} />} onClick={onChangeWatchDate}>
+                Change watch date
+              </Menu.Item>
+            </Menu.Dropdown>
+          </Menu>
+        ) : (
+          <Tooltip label={isSaved ? "Remove from Watchlist" : "Save for later"} withArrow>
+            <ActionIcon
+              size="lg"
+              variant={isSaved ? "light" : "default"}
+              aria-label={`${isSaved ? "Remove" : "Save"} ${media.title} ${isSaved ? "from Watchlist" : "for later"}`}
+              onClick={isSaved ? onRemoveWatchlist : () => add.mutate("watchlist")}
+              loading={pending || add.isPending}
+            >
+              <IconBookmark size={18} />
+            </ActionIcon>
+          </Tooltip>
+        )}
+        {isSaved && (
+          <RatingStars
+            value={rating}
+            onChange={(value) => update.mutate({ status: status!, rating: value })}
+            label="Media rating"
+            disabled={pending}
+            size="md"
+          />
+        )}
+      </Group>
+    );
   if (!isSaved)
     return (
       <Group className="detail-actions" mt="lg">
@@ -114,31 +195,22 @@ export function MediaActions({
         />
       </Group>
     );
-  const statusOptions: { value: string; label: string; disabled?: boolean }[] =
-    media.type === "movie"
-      ? watched
-        ? [{ value: "watching", label: "Watched" }]
-        : [{ value: "watchlist", label: "Watchlist" }]
-      : [
-          { value: "watchlist", label: "Watchlist" },
-          { value: "watching", label: "Watching" },
-          { value: "paused", label: "Paused" },
-          { value: "dropped", label: "Dropped" },
-        ];
-  if (media.type === "movie" && status && !statusOptions.some((option) => option.value === status))
-    statusOptions.push({
-      value: status,
-      label: `${status[0].toUpperCase()}${status.slice(1)} (not available for movies)`,
-      disabled: true,
-    });
+  const statusOptions = [
+    { value: "watchlist", label: "Watchlist" },
+    { value: "watching", label: "Watching" },
+    { value: "paused", label: "Paused" },
+    { value: "dropped", label: "Dropped" },
+  ];
   return (
     <Group className="detail-actions" mt="lg">
       <Select
         aria-label="Current list"
-        value={media.type === "movie" && watched ? "watching" : status}
+        allowDeselect
+        value={status}
         onChange={(value) => {
           if (value) update.mutate({ status: value, rating: rating ?? null });
           else if (status === "watchlist") onRemoveWatchlist();
+          else onRemoveCurrentList();
         }}
         data={statusOptions}
         disabled={pending || update.isPending}
@@ -151,45 +223,13 @@ export function MediaActions({
         disabled={pending}
         size="md"
       />
-      {media.type === "tv" && (
-        <Switch
-          aria-label="New episode notifications for this show"
-          label="Episode alerts"
-          checked={notificationsEnabled}
-          disabled={updateNotifications.isPending}
-          onChange={(event) => updateNotifications.mutate(event.currentTarget.checked)}
-        />
-      )}
-      {media.type === "movie" &&
-        (watched ? (
-          <>
-            <Button
-              variant="light"
-              leftSection={<IconRefresh size={16} />}
-              loading={pending}
-              onClick={onWatch}
-            >
-              Rewatch movie
-            </Button>
-            <Button
-              variant="default"
-              leftSection={<IconEye size={16} />}
-              loading={pending}
-              onClick={onUnwatch}
-            >
-              Mark unwatched
-            </Button>
-          </>
-        ) : (
-          <Button
-            variant="light"
-            leftSection={<IconCheck size={16} />}
-            loading={pending}
-            onClick={onWatch}
-          >
-            Mark watched
-          </Button>
-        ))}
+      <Switch
+        aria-label="New episode notifications for this show"
+        label="Episode alerts"
+        checked={notificationsEnabled}
+        disabled={updateNotifications.isPending}
+        onChange={(event) => updateNotifications.mutate(event.currentTarget.checked)}
+      />
     </Group>
   );
 }

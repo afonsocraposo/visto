@@ -28,7 +28,14 @@ func playHistory(authService *auth.Service, service *tracking.Service) http.Hand
 			}
 			limit = value
 		}
-		entries, err := service.History(r.Context(), user.ID, limit)
+		mediaID := r.URL.Query().Get("media_id")
+		var entries []tracking.HistoryEntry
+		var err error
+		if mediaID != "" {
+			entries, err = service.MediaHistory(r.Context(), user.ID, mediaID, limit)
+		} else {
+			entries, err = service.History(r.Context(), user.ID, limit)
+		}
 		if err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return

@@ -1037,6 +1037,13 @@ select {
   .detail-actions > * {
     width: 100%;
   }
+  .detail-icon-actions {
+    flex-direction: row;
+    align-items: center;
+  }
+  .detail-icon-actions > :not(.rating-stars) {
+    width: auto;
+  }
   .detail-actions > .rating-stars {
     width: max-content !important;
     flex: 0 0 auto;

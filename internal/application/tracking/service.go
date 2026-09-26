@@ -49,6 +49,10 @@ type historyRepository interface {
 	ListPlays(context.Context, string, int) ([]HistoryEntry, error)
 }
 
+type mediaHistoryRepository interface {
+	ListMediaPlays(context.Context, string, string, int) ([]HistoryEntry, error)
+}
+
 type episodePlayDeletionRepository interface {
 	DeleteEpisodePlays(context.Context, string, []string) error
 }
@@ -286,6 +290,23 @@ func (service *Service) History(ctx context.Context, userID string, limit int) (
 		return nil, fmt.Errorf("history storage is not configured")
 	}
 	return repository.ListPlays(ctx, userID, limit)
+}
+
+func (service *Service) MediaHistory(ctx context.Context, userID, mediaID string, limit int) ([]HistoryEntry, error) {
+	if userID == "" || !strings.HasPrefix(mediaID, "movie:") {
+		return nil, fmt.Errorf("user and movie are required")
+	}
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 500 {
+		return nil, fmt.Errorf("limit must not exceed 500")
+	}
+	repository, ok := service.repository.(mediaHistoryRepository)
+	if !ok {
+		return nil, fmt.Errorf("movie history storage is not configured")
+	}
+	return repository.ListMediaPlays(ctx, userID, mediaID, limit)
 }
 
 func (service *Service) EpisodeRating(ctx context.Context, userID, episodeID string) (EpisodeRating, error) {

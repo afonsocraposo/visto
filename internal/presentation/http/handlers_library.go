@@ -21,12 +21,14 @@ func removeWatchlistItem(authService *auth.Service, service *library.Service) ht
 		}
 		var err error
 		status := r.URL.Query().Get("status")
-		if status != "" && status != "watchlist" && status != "watching" {
+		if status != "" && status != "watchlist" && status != "watching" && status != "paused" && status != "dropped" {
 			writeError(w, http.StatusBadRequest, "invalid library status")
 			return
 		}
 		if status == "watching" {
-			err = service.RemoveUnplayedWatchingItem(r.Context(), user.ID, r.PathValue("mediaID"))
+			err = service.RemoveWatchingItem(r.Context(), user.ID, r.PathValue("mediaID"))
+		} else if status == "paused" || status == "dropped" {
+			err = service.RemoveStatusItem(r.Context(), user.ID, r.PathValue("mediaID"), domain.LibraryStatus(status))
 		} else {
 			err = service.RemoveWatchlistItem(r.Context(), user.ID, r.PathValue("mediaID"))
 		}

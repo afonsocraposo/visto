@@ -136,12 +136,26 @@ func (s *Store) RemoveWatchlistItem(ctx context.Context, userID, mediaID string)
 	return nil
 }
 
-func (s *Store) RemoveUnplayedWatchingItem(ctx context.Context, userID, mediaID string) error {
-	result, err := s.DB.ExecContext(ctx, `DELETE FROM user_media WHERE user_id=? AND media_id=? AND status='watching'
-		AND NOT EXISTS (SELECT 1 FROM plays p WHERE p.user_id=? AND
-			(p.media_id=? OR p.episode_id IN (SELECT id FROM episodes WHERE show_id=?)))`, userID, mediaID, userID, mediaID, mediaID)
+func (s *Store) RemoveStatusItem(ctx context.Context, userID, mediaID string, status domain.LibraryStatus) error {
+	result, err := s.DB.ExecContext(ctx, `DELETE FROM user_media WHERE user_id=? AND media_id=? AND status=?`, userID, mediaID, status)
 	if err != nil {
-		return fmt.Errorf("remove unplayed watching item: %w", err)
+		return fmt.Errorf("remove library item: %w", err)
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("check library removal: %w", err)
+	}
+	if count == 0 {
+		return library.ErrMediaNotFound
+	}
+	return nil
+}
+
+func (s *Store) RemoveWatchingItem(ctx context.Context, userID, mediaID string) error {
+	result, err := s.DB.ExecContext(ctx, `DELETE FROM user_media WHERE user_id=? AND media_id=? AND status='watching'
+		AND (media_id LIKE 'tv:%' OR NOT EXISTS (SELECT 1 FROM plays p WHERE p.user_id=? AND p.media_id=?))`, userID, mediaID, userID, mediaID)
+	if err != nil {
+		return fmt.Errorf("remove watching item: %w", err)
 	}
 	count, err := result.RowsAffected()
 	if err != nil {

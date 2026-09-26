@@ -12,4 +12,6 @@ export type DeleteLibraryMediaIDStatus =
 export const DeleteLibraryMediaIDStatus = {
   watchlist: "watchlist",
   watching: "watching",
+  paused: "paused",
+  dropped: "dropped",
 } as const;

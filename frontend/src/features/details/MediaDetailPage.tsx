@@ -18,7 +18,14 @@ import {
   Title,
   Tooltip,
 } from "@mantine/core";
-import { IconArrowLeft, IconClock, IconEye, IconEyeCheck, IconRefresh } from "@tabler/icons-react";
+import {
+  IconArrowLeft,
+  IconCheck,
+  IconChevronDown,
+  IconClock,
+  IconEye,
+  IconRefresh,
+} from "@tabler/icons-react";
 import { api } from "../../lib/api";
 import { postPlaysBulk } from "../../generated/api";
 import { showActionFeedback } from "../../components/ActionFeedback";
@@ -28,6 +35,7 @@ import { backdropURL, posterURL } from "../../lib/artwork";
 import { useUserQueryKey } from "../auth/SessionContext";
 import { findMissingPriorEpisodes } from "../library/episodeSelection";
 import { CastSection } from "../../components/CastSection";
+import { HistoryPanel } from "../library/HistoryPanel";
 import { MediaPosterCard } from "../../components/MediaPosterCard";
 import {
   regularSeasonsThrough,
@@ -68,6 +76,7 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
   const [season, setSeason] = useState<string | null>(null);
   const [pendingWatch, setPendingWatch] = useState<PendingWatch | null>(null);
   const [showWatchModal, setShowWatchModal] = useState(false);
+  const [movieHistoryMode, setMovieHistoryMode] = useState<"view" | "edit" | null>(null);
   const [showWatchAction, setShowWatchAction] = useState<"watch" | "rewatch" | "unwatch">("watch");
   const [selectedShowSeasons, setSelectedShowSeasons] = useState<Record<number, boolean>>({});
   const { library, show: temporary, movie: movieDetails, related } = useMediaDetailQueries(target);
@@ -203,6 +212,25 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
       });
     },
   });
+  const removeCurrentList = useMutation({
+    mutationFn: (status: "watching" | "paused" | "dropped") =>
+      api.delete(
+        `/api/v1/library/${encodeURIComponent(showID!)}?status=${status}`,
+        "Could not remove this show from its list.",
+      ),
+    onSuccess: (_result, status) => {
+      const label = status[0].toUpperCase() + status.slice(1);
+      void invalidate(userCache.library, userCache.continue, detailScope);
+      showActionFeedback(`${media?.title} removed from ${label}.`, async () => {
+        await api.post("/api/v1/library", {
+          media,
+          status,
+          rating: library.data?.item.rating ?? null,
+        });
+        await invalidate(userCache.library, userCache.continue, detailScope);
+      });
+    },
+  });
   const markMovieWatched = useMutation({
     mutationFn: async () => {
       if (!savedMediaID)
@@ -295,9 +323,7 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
         : (episodeIDs ?? []);
       const created: Play[] = [];
       for (const batch of chunk([...new Set(selectedIDs)], 100)) {
-        created.push(
-          ...(await postPlaysBulk({ episode_ids: batch })),
-        );
+        created.push(...(await postPlaysBulk({ episode_ids: batch })));
       }
       return created;
     },
@@ -466,6 +492,7 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
   const releasedSeasonEpisodes = visibleEpisodes.filter(
     (entry) => !entry.watched && (!entry.episode.air_date || entry.episode.air_date <= today),
   );
+  const watchedSeasonEpisodes = visibleEpisodes.filter((entry) => entry.watched);
   const seasonGroups = [
     ...new Set(
       isSaved
@@ -555,6 +582,21 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
 
   return (
     <div className="detail-page">
+      <Modal
+        opened={movieHistoryMode !== null}
+        onClose={() => setMovieHistoryMode(null)}
+        title={movieHistoryMode === "edit" ? "Change watch date" : "Watch history"}
+        size="lg"
+        centered
+      >
+        {movieHistoryMode && showID && (
+          <HistoryPanel
+            key={movieHistoryMode}
+            mediaID={showID}
+            editLatest={movieHistoryMode === "edit"}
+          />
+        )}
+      </Modal>
       <Modal
         opened={pendingWatch !== null}
         onClose={() => setPendingWatch(null)}
@@ -819,10 +861,16 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
               onWatch={() => markMovieWatched.mutate()}
               onUnwatch={() => removeMovieWatches.mutate()}
               onRemoveWatchlist={() => removeWatchlist.mutate()}
+              onRemoveCurrentList={() =>
+                removeCurrentList.mutate(status as "watching" | "paused" | "dropped")
+              }
+              onViewWatchHistory={() => setMovieHistoryMode("view")}
+              onChangeWatchDate={() => setMovieHistoryMode("edit")}
               pending={
                 markMovieWatched.isPending ||
                 removeMovieWatches.isPending ||
-                removeWatchlist.isPending
+                removeWatchlist.isPending ||
+                removeCurrentList.isPending
               }
             />
           )}
@@ -841,6 +889,11 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
       {removeWatchlist.isError && (
         <Alert color="red" mt="sm">
           {removeWatchlist.error.message}
+        </Alert>
+      )}
+      {removeCurrentList.isError && (
+        <Alert color="red" mt="sm">
+          {removeCurrentList.error.message}
         </Alert>
       )}
       {markMovieWatched.isError && (
@@ -876,16 +929,66 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
               <Title order={2}>Seasons & episodes</Title>
             </div>
             <Group gap="xs">
-              {seasonGroups.length > 0 && (!isSaved || releasedShowEpisodes.length > 0) && (
-                <Button size="xs" onClick={openShowWatchModal}>
-                  Mark show watched
-                </Button>
-              )}
-              {releasedSeasonEpisodes.length > 0 && (
-                <Button size="xs" variant="light" onClick={() => requestSeasonWatch("watch")}>
-                  Mark season watched
-                </Button>
-              )}
+              {seasonGroups.length > 0 &&
+                (releasedShowEpisodes.length > 0 || hasWatchedShowEpisodes) && (
+                  <Group gap={4}>
+                    <Text size="xs" c="dimmed" mr={4}>
+                      Show
+                    </Text>
+                    <Tooltip
+                      label={
+                        releasedShowEpisodes.length > 0
+                          ? "Mark show watched"
+                          : "Mark show unwatched"
+                      }
+                      withArrow
+                    >
+                      <ActionIcon
+                        size="lg"
+                        color="yellow"
+                        variant="filled"
+                        aria-label={
+                          releasedShowEpisodes.length > 0
+                            ? "Mark show watched"
+                            : "Mark show unwatched"
+                        }
+                        onClick={
+                          releasedShowEpisodes.length > 0
+                            ? openShowWatchModal
+                            : () => openShowActionModal("unwatch")
+                        }
+                      >
+                        {releasedShowEpisodes.length > 0 ? (
+                          <IconEye size={18} />
+                        ) : (
+                          <IconCheck size={18} />
+                        )}
+                      </ActionIcon>
+                    </Tooltip>
+                    {hasWatchedShowEpisodes && (
+                      <Menu withinPortal position="bottom-start">
+                        <Menu.Target>
+                          <ActionIcon size="lg" variant="default" aria-label="More show actions">
+                            <IconChevronDown size={18} />
+                          </ActionIcon>
+                        </Menu.Target>
+                        <Menu.Dropdown>
+                          <Menu.Item
+                            leftSection={<IconRefresh size={16} />}
+                            onClick={() => openShowActionModal("rewatch")}
+                          >
+                            Mark show rewatched
+                          </Menu.Item>
+                          {releasedShowEpisodes.length > 0 && (
+                            <Menu.Item onClick={() => openShowActionModal("unwatch")}>
+                              Mark show unwatched
+                            </Menu.Item>
+                          )}
+                        </Menu.Dropdown>
+                      </Menu>
+                    )}
+                  </Group>
+                )}
               {seasons.length > 0 && (
                 <Select
                   aria-label="Season"
@@ -898,23 +1001,62 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
                   w={150}
                 />
               )}
+              {(releasedSeasonEpisodes.length > 0 || watchedSeasonEpisodes.length > 0) && (
+                <Group gap={4}>
+                  <Tooltip
+                    label={
+                      releasedSeasonEpisodes.length > 0
+                        ? "Mark season watched"
+                        : "Mark season unwatched"
+                    }
+                    withArrow
+                  >
+                    <ActionIcon
+                      size="lg"
+                      color="yellow"
+                      variant="filled"
+                      aria-label={
+                        releasedSeasonEpisodes.length > 0
+                          ? "Mark season watched"
+                          : "Mark season unwatched"
+                      }
+                      onClick={() =>
+                        requestSeasonWatch(releasedSeasonEpisodes.length > 0 ? "watch" : "unwatch")
+                      }
+                    >
+                      {releasedSeasonEpisodes.length > 0 ? (
+                        <IconEye size={18} />
+                      ) : (
+                        <IconCheck size={18} />
+                      )}
+                    </ActionIcon>
+                  </Tooltip>
+                  {watchedSeasonEpisodes.length > 0 && (
+                    <Menu withinPortal position="bottom-start">
+                      <Menu.Target>
+                        <ActionIcon size="lg" variant="default" aria-label="More season actions">
+                          <IconChevronDown size={18} />
+                        </ActionIcon>
+                      </Menu.Target>
+                      <Menu.Dropdown>
+                        <Menu.Item
+                          leftSection={<IconRefresh size={16} />}
+                          onClick={() => requestSeasonWatch("rewatch")}
+                        >
+                          Mark season rewatched
+                        </Menu.Item>
+                        {releasedSeasonEpisodes.length > 0 && (
+                          <Menu.Item onClick={() => requestSeasonWatch("unwatch")}>
+                            Mark season unwatched
+                          </Menu.Item>
+                        )}
+                      </Menu.Dropdown>
+                    </Menu>
+                  )}
+                </Group>
+              )}
             </Group>
           </Group>
-          {hasWatchedShowEpisodes && (
-            <Group gap="xs" mb="sm">
-              <Button
-                size="xs"
-                variant="default"
-                leftSection={<IconRefresh size={14} />}
-                onClick={() => openShowActionModal("rewatch")}
-              >
-                Rewatch show
-              </Button>
-              <Button size="xs" variant="default" onClick={() => openShowActionModal("unwatch")}>
-                Mark show unwatched
-              </Button>
-            </Group>
-          )}
           {((isSaved && episodes.isPending) ||
             (!isSaved && (temporary.isPending || temporaryEpisodes.isPending))) && (
             <Group justify="center" py="lg">
@@ -1008,34 +1150,44 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
                       </div>
                     </Group>
                     {entry.watched ? (
-                      <Menu withinPortal position="bottom-end">
-                        <Menu.Target>
+                      <Group
+                        gap={4}
+                        wrap="nowrap"
+                        mr={8}
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <Tooltip label="Mark unwatched" withArrow>
                           <ActionIcon
-                            className="episode-row-action"
-                            aria-label={`Episode ${entry.episode.episode_number} watched actions`}
+                            aria-label={`Mark episode ${entry.episode.episode_number} unwatched`}
                             size="lg"
-                            variant="light"
-                            color="teal"
-                            onClick={(event) => event.stopPropagation()}
-                          >
-                            <IconEyeCheck size={18} />
-                          </ActionIcon>
-                        </Menu.Target>
-                        <Menu.Dropdown onClick={(event) => event.stopPropagation()}>
-                          <Menu.Item
-                            leftSection={<IconRefresh size={15} />}
-                            onClick={() => markEpisodeWatched.mutate(entry.episode.id)}
-                          >
-                            Rewatch episode
-                          </Menu.Item>
-                          <Menu.Item
-                            leftSection={<IconEye size={15} />}
+                            color="yellow"
+                            variant="filled"
                             onClick={() => removeEpisodesWatched.mutate([entry.episode.id])}
+                            disabled={removeEpisodesWatched.isPending}
                           >
-                            Mark unwatched
-                          </Menu.Item>
-                        </Menu.Dropdown>
-                      </Menu>
+                            <IconCheck size={18} />
+                          </ActionIcon>
+                        </Tooltip>
+                        <Menu withinPortal position="bottom-end">
+                          <Menu.Target>
+                            <ActionIcon
+                              aria-label={`More actions for episode ${entry.episode.episode_number}`}
+                              size="lg"
+                              variant="default"
+                            >
+                              <IconChevronDown size={18} />
+                            </ActionIcon>
+                          </Menu.Target>
+                          <Menu.Dropdown>
+                            <Menu.Item
+                              leftSection={<IconRefresh size={15} />}
+                              onClick={() => markEpisodeWatched.mutate(entry.episode.id)}
+                            >
+                              Mark rewatched
+                            </Menu.Item>
+                          </Menu.Dropdown>
+                        </Menu>
+                      </Group>
                     ) : (
                       <Tooltip
                         label={`Mark episode ${entry.episode.episode_number} watched`}

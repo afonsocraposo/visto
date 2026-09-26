@@ -67,8 +67,12 @@ type getRepository interface {
 type watchlistRemovalRepository interface {
 	RemoveWatchlistItem(context.Context, string, string) error
 }
+
+type statusRemovalRepository interface {
+	RemoveStatusItem(context.Context, string, string, domain.LibraryStatus) error
+}
 type watchingRemovalRepository interface {
-	RemoveUnplayedWatchingItem(context.Context, string, string) error
+	RemoveWatchingItem(context.Context, string, string) error
 }
 type showMetadataRepository interface {
 	ImportShowMetadata(context.Context, string, domain.TVShowMetadata) error
@@ -158,7 +162,21 @@ func (s *Service) RemoveWatchlistItem(ctx context.Context, userID, mediaID strin
 	return repository.RemoveWatchlistItem(ctx, userID, mediaID)
 }
 
-func (s *Service) RemoveUnplayedWatchingItem(ctx context.Context, userID, mediaID string) error {
+func (s *Service) RemoveStatusItem(ctx context.Context, userID, mediaID string, status domain.LibraryStatus) error {
+	if userID == "" || mediaID == "" {
+		return fmt.Errorf("user and media are required")
+	}
+	if status != domain.PausedStatus && status != domain.DroppedStatus {
+		return fmt.Errorf("invalid removable status")
+	}
+	repository, ok := s.repository.(statusRemovalRepository)
+	if !ok {
+		return fmt.Errorf("library removal is not configured")
+	}
+	return repository.RemoveStatusItem(ctx, userID, mediaID, status)
+}
+
+func (s *Service) RemoveWatchingItem(ctx context.Context, userID, mediaID string) error {
 	if userID == "" || mediaID == "" {
 		return fmt.Errorf("user and media are required")
 	}
@@ -166,7 +184,7 @@ func (s *Service) RemoveUnplayedWatchingItem(ctx context.Context, userID, mediaI
 	if !ok {
 		return fmt.Errorf("watching removal is not configured")
 	}
-	return repository.RemoveUnplayedWatchingItem(ctx, userID, mediaID)
+	return repository.RemoveWatchingItem(ctx, userID, mediaID)
 }
 
 func (s *Service) SetNotificationsEnabled(ctx context.Context, userID, mediaID string, enabled bool) error {

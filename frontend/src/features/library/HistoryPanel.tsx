@@ -11,15 +11,21 @@ import type { HistoryEntry, MediaDetailTarget } from "../../types";
 
 export function HistoryPanel({
   onOpenDetail,
+  mediaID,
+  editLatest = false,
 }: {
   onOpenDetail?: (target: MediaDetailTarget) => void;
+  mediaID?: string;
+  editLatest?: boolean;
 }) {
   const userQueryKey = useUserQueryKey();
   const history = useQuery({
-    queryKey: userQueryKey("history"),
+    queryKey: mediaID ? userQueryKey("history", "media", mediaID) : userQueryKey("history"),
     queryFn: () =>
       api.get<HistoryEntry[]>(
-        "/api/v1/plays?limit=100",
+        mediaID
+          ? `/api/v1/plays?limit=500&media_id=${encodeURIComponent(mediaID)}`
+          : "/api/v1/plays?limit=100",
         "Watch history is temporarily unavailable.",
       ),
   });
@@ -36,16 +42,28 @@ export function HistoryPanel({
       </Alert>
     );
 
+  const entries = mediaID
+    ? history.data.filter((entry) => entry.play.media_id === mediaID)
+    : history.data;
   return (
     <div className="activity-list">
-      {history.data.length === 0 ? (
+      {entries.length === 0 ? (
         <EmptyState
-          title="No watches recorded yet"
-          detail="Movies and episodes you watch will appear here."
+          title={mediaID ? "No recent watches found" : "No watches recorded yet"}
+          detail={
+            mediaID
+              ? "No watch for this movie is in your recent history."
+              : "Movies and episodes you watch will appear here."
+          }
         />
       ) : (
-        history.data.map((entry) => (
-          <HistoryCard key={entry.play.id} entry={entry} onOpenDetail={onOpenDetail} />
+        entries.map((entry, index) => (
+          <HistoryCard
+            key={entry.play.id}
+            entry={entry}
+            onOpenDetail={onOpenDetail}
+            initiallyEditing={editLatest && index === 0}
+          />
         ))
       )}
     </div>
@@ -55,13 +73,15 @@ export function HistoryPanel({
 function HistoryCard({
   entry,
   onOpenDetail,
+  initiallyEditing = false,
 }: {
   entry: HistoryEntry;
   onOpenDetail?: (target: MediaDetailTarget) => void;
+  initiallyEditing?: boolean;
 }) {
   const queryClient = useQueryClient();
   const userQueryKey = useUserQueryKey();
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(initiallyEditing);
   const watchedAt = () => {
     const date = new Date(entry.play.watched_at);
     return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
@@ -75,6 +95,10 @@ function HistoryCard({
       queryClient.invalidateQueries({ queryKey: userQueryKey("calendar") }),
       queryClient.invalidateQueries({ queryKey: userQueryKey("feed") }),
       queryClient.invalidateQueries({ queryKey: userQueryKey("library") }),
+      queryClient.invalidateQueries({
+        queryKey: userQueryKey("history", "media", entry.play.media_id),
+      }),
+      queryClient.invalidateQueries({ queryKey: userQueryKey("detail-history") }),
     ]);
   const save = useMutation({
     mutationFn: async () => {
@@ -84,7 +108,10 @@ function HistoryCard({
         "Could not correct this watch.",
       );
     },
-    onSuccess: refreshHistory,
+    onSuccess: async () => {
+      await refreshHistory();
+      setEditing(false);
+    },
   });
   const remove = useMutation({
     mutationFn: async () => {
@@ -107,6 +134,10 @@ function HistoryCard({
         queryClient.invalidateQueries({ queryKey: userQueryKey("history") }),
         queryClient.invalidateQueries({ queryKey: userQueryKey("library") }),
         queryClient.invalidateQueries({ queryKey: userQueryKey("feed") }),
+        queryClient.invalidateQueries({
+          queryKey: userQueryKey("history", "media", entry.play.media_id),
+        }),
+        queryClient.invalidateQueries({ queryKey: userQueryKey("detail-history") }),
       ]),
   });
 

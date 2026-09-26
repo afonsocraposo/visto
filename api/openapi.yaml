@@ -419,16 +419,16 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
   /library/{mediaID}:
     delete:
-      summary: Remove an item from the authenticated user's watchlist or an unplayed Watching entry
+      summary: Remove a library entry from its current list (TV watch history is preserved)
       security: [{ sessionCookie: [] }, { bearerToken: [] }]
       parameters:
         - { name: mediaID, in: path, required: true, schema: { type: string } }
-        - { name: status, in: query, required: false, schema: { type: string, enum: [watchlist, watching], default: watchlist } }
+        - { name: status, in: query, required: false, schema: { type: string, enum: [watchlist, watching, paused, dropped], default: watchlist } }
       responses:
         '204': { description: Item removed from the selected list }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
-        '404': { description: "Title is not in the selected list, or has watch history" }
+        '404': { description: "Title is not in the selected list, or is a watched movie" }
     patch:
       summary: Change the authenticated user's status and rating for a library item
       security: [{ sessionCookie: [] }, { bearerToken: [] }]
@@ -465,6 +465,7 @@ paths:
       security: [{ sessionCookie: [] }, { bearerToken: [] }]
       parameters:
         - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 500, default: 100 } }
+        - { name: media_id, in: query, schema: { type: string, description: Filter watches to one movie ID. } }
       responses:
         '200': { description: Recent plays, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/HistoryEntry' } } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }

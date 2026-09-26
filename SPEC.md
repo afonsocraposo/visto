@@ -165,7 +165,9 @@ Statuses have these meanings:
 library statuses. A movie is considered watched when it has at least one play.
 Recording a movie play moves a watchlisted movie to the watched display state.
 Removing a movie's watches also removes its library entry. A user can remove a
-watchlist item by selecting Watchlist again in the title's list control.
+watchlist movie with its bookmark action. A TV show can be removed from its
+current list by selecting that list again. Removing it from Watching, Paused, or
+Dropped preserves its episode watch history.
 
 ### Watch plays and corrections
 
