@@ -19,6 +19,10 @@ const backupNameLayout = "20060102T150405.000000000Z"
 // Create writes a consistent online backup and then removes expired backups
 // created by Visto in the configured backup directory.
 func Create(ctx context.Context, databasePath, directory string, retention time.Duration, now time.Time) (string, error) {
+	return CreateWithScope(ctx, databasePath, directory, retention, now, "everything")
+}
+
+func CreateWithScope(ctx context.Context, databasePath, directory string, retention time.Duration, now time.Time, scope string) (string, error) {
 	if databasePath == "" || directory == "" {
 		return "", fmt.Errorf("database and backup paths are required")
 	}
@@ -31,7 +35,7 @@ func Create(ctx context.Context, databasePath, directory string, retention time.
 	now = now.UTC()
 	filename := backupNamePrefix + now.Format(backupNameLayout) + ".db"
 	path := filepath.Join(directory, filename)
-	if err := sqlite.Backup(ctx, databasePath, path); err != nil {
+	if err := sqlite.BackupWithScope(ctx, databasePath, path, scope); err != nil {
 		return "", fmt.Errorf("create SQLite backup: %w", err)
 	}
 	if err := prune(directory, now.Add(-retention)); err != nil {

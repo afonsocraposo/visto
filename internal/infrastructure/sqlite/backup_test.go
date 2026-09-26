@@ -85,3 +85,66 @@ func TestBackup_GivenMissingSource_WhenBackupIsRequested_ThenItDoesNotCreateARep
 		t.Fatalf("source path should remain absent, stat error=%v", err)
 	}
 }
+
+func TestBackupWithScope_PreservesUserLinksWithoutTMDBMetadata(t *testing.T) {
+	ctx := context.Background()
+	source := filepath.Join(t.TempDir(), "source.db")
+	store, err := sqlite.Open(ctx, source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	_, err = store.DB.Exec(`
+		INSERT INTO users(id,username,display_name,password_hash,role,created_at,updated_at) VALUES(1,'alice','Alice','hash','admin','now','now');
+		INSERT INTO media(id,media_type,tmdb_id,title,overview,metadata_updated_at,created_at) VALUES
+		('tv:1','tv',1,'Saved title','TMDB description','now','now'),
+		('movie:2','movie',2,'Unrelated title','Other description','now','now');
+		INSERT INTO seasons(id,show_id,season_number,name) VALUES('tv:1:season:1','tv:1',1,'Season');
+		INSERT INTO episodes(id,show_id,season_id,season_number,episode_number,name) VALUES('tv:1:episode:11','tv:1','tv:1:season:1',1,1,'Episode');
+		INSERT INTO user_media(id,user_id,media_id,status,added_at,updated_at) VALUES('saved',1,'tv:1','watching','now','now');
+		INSERT INTO plays(user_id,episode_id,watched_at,created_at) VALUES(1,'tv:1:episode:11','now','now');`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	destination := filepath.Join(t.TempDir(), "backup.db")
+	if err := sqlite.BackupWithScope(ctx, source, destination, "user_data"); err != nil {
+		t.Fatal(err)
+	}
+	restored, err := sqlite.Open(ctx, destination)
+	if err != nil {
+		t.Fatalf("restore backup: %v", err)
+	}
+	defer restored.Close()
+	var title string
+	if err := restored.DB.QueryRow(`SELECT title FROM media WHERE id='tv:1'`).Scan(&title); err != nil {
+		t.Fatal(err)
+	}
+	if title != "tv:1" {
+		t.Fatalf("unexpected retained metadata: %q", title)
+	}
+	for _, query := range []string{
+		`SELECT COUNT(*) FROM media WHERE id='movie:2'`,
+		`SELECT COUNT(*) FROM user_media WHERE media_id='tv:1'`,
+		`SELECT COUNT(*) FROM plays WHERE episode_id='tv:1:episode:11'`,
+		`SELECT COUNT(*) FROM seasons WHERE id='tv:1:season:1'`,
+	} {
+		var count int
+		if err := restored.DB.QueryRow(query).Scan(&count); err != nil {
+			t.Fatal(err)
+		}
+		want := 1
+		if query == `SELECT COUNT(*) FROM media WHERE id='movie:2'` {
+			want = 0
+		}
+		if count != want {
+			t.Fatalf("%s: got %d, want %d", query, count, want)
+		}
+	}
+	var violations int
+	if err := restored.DB.QueryRow(`SELECT COUNT(*) FROM pragma_foreign_key_check`).Scan(&violations); err != nil {
+		t.Fatal(err)
+	}
+	if violations != 0 {
+		t.Fatalf("foreign key violations: %d", violations)
+	}
+}

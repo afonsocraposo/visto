@@ -22,6 +22,7 @@ type Service struct {
 	Store                           *sqlite.Store
 	Cipher                          Cipher
 	DatabasePath, Directory         string
+	Scope                           string
 	DefaultInterval, LocalRetention time.Duration
 	S3                              S3Client
 	mu                              sync.Mutex
@@ -29,8 +30,15 @@ type Service struct {
 
 func (s *Service) Settings(ctx context.Context) (sqlite.BackupSettings, error) {
 	b, err := s.Store.GetBackupSettings(ctx, s.DefaultInterval)
+	b.Scope = s.backupScope()
 	b.EncryptionAvailable = s.Cipher != nil
 	return b, err
+}
+func (s *Service) backupScope() string {
+	if s.Scope == "" {
+		return "everything"
+	}
+	return s.Scope
 }
 func (s *Service) Save(ctx context.Context, b sqlite.BackupSettings, secret string) error {
 	old, err := s.Settings(ctx)
@@ -124,10 +132,10 @@ func (s *Service) run(ctx context.Context, scheduled bool) error {
 	var file string
 	if b.Destination == "local" || b.Destination == "both" {
 		if scheduled {
-			file, err = Create(ctx, s.DatabasePath, s.Directory, s.LocalRetention, now)
+			file, err = CreateWithScope(ctx, s.DatabasePath, s.Directory, s.LocalRetention, now, s.backupScope())
 		} else {
 			file = filepath.Join(s.Directory, name)
-			err = sqlite.Backup(ctx, s.DatabasePath, file)
+			err = sqlite.BackupWithScope(ctx, s.DatabasePath, file, s.backupScope())
 		}
 		if err != nil {
 			return err
@@ -139,7 +147,7 @@ func (s *Service) run(ctx context.Context, scheduled bool) error {
 		}
 		defer os.RemoveAll(dir)
 		file = filepath.Join(dir, name)
-		if err = sqlite.Backup(ctx, s.DatabasePath, file); err != nil {
+		if err = sqlite.BackupWithScope(ctx, s.DatabasePath, file, s.backupScope()); err != nil {
 			return err
 		}
 	}

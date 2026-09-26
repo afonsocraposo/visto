@@ -227,8 +227,8 @@ func (store *Store) ShowsNeedingCatalogRefresh(ctx context.Context, activeTTL, f
 	}
 	activeCutoff := time.Now().UTC().Add(-activeTTL).Format(time.RFC3339Nano)
 	finishedCutoff := time.Now().UTC().Add(-finishedTTL).Format(time.RFC3339Nano)
-	rows, err := store.DB.QueryContext(ctx, `SELECT DISTINCT m.tmdb_id FROM user_media um JOIN media m ON m.id=um.media_id
-		WHERE m.media_type='tv' AND ((m.status IN ('Ended','Canceled','Cancelled') AND (m.catalog_updated_at IS NULL OR m.catalog_updated_at<?)) OR
+	rows, err := store.DB.QueryContext(ctx, `SELECT DISTINCT m.tmdb_id FROM media m
+		WHERE m.media_type='tv' AND (m.metadata_updated_at='' OR EXISTS(SELECT 1 FROM user_media um WHERE um.media_id=m.id)) AND ((m.status IN ('Ended','Canceled','Cancelled') AND (m.catalog_updated_at IS NULL OR m.catalog_updated_at<?)) OR
 		(COALESCE(m.status,'') NOT IN ('Ended','Canceled','Cancelled') AND (m.catalog_updated_at IS NULL OR m.catalog_updated_at<?)))
 		ORDER BY m.catalog_updated_at IS NOT NULL, m.catalog_updated_at LIMIT ?`, finishedCutoff, activeCutoff, limit)
 	if err != nil {

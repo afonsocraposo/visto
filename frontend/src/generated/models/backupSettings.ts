@@ -8,6 +8,8 @@
 import type { BackupSettingsDestination } from "./backupSettingsDestination";
 
 export interface BackupSettings {
+  /** Effective VISTO_BACKUP_SCOPE server setting */
+  scope?: "everything" | "user_data";
   destination?: BackupSettingsDestination;
   interval_seconds?: number;
   bucket?: string;

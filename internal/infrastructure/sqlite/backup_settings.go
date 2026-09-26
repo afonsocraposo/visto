@@ -8,6 +8,7 @@ import (
 )
 
 type BackupSettings struct {
+	Scope               string `json:"scope"`
 	Destination         string `json:"destination"`
 	IntervalSeconds     int64  `json:"interval_seconds"`
 	Bucket              string `json:"bucket"`

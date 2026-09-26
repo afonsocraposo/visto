@@ -132,6 +132,7 @@ defaults.
 | `VISTO_BACKUP_DIR`               | `/data/backups`  | Directory for automatic SQLite backups.                                                                                                                                                                    |
 | `VISTO_BACKUP_INTERVAL`          | `24h`            | Time between automatic backups.                                                                                                                                                                            |
 | `VISTO_BACKUP_RETENTION`         | `720h`           | How long automatic backups are kept (30 days by default).                                                                                                                                                  |
+| `VISTO_BACKUP_SCOPE`             | `everything`     | `everything` keeps the full database; `user_data` excludes TMDB metadata while retaining user records and their media identifiers. Applies to scheduled and Admin manual backups.                         |
 | `VISTO_CATALOG_REFRESH_INTERVAL` | `6h`             | How often the backend checks tracked TV metadata for refresh.                                                                                                                                              |
 | `VISTO_CATALOG_ACTIVE_TTL`       | `24h`            | Minimum age of metadata for active shows before refresh.                                                                                                                                                   |
 | `VISTO_CATALOG_FINISHED_TTL`     | `720h`           | Minimum age of metadata for ended or cancelled shows before refresh (30 days).                                                                                                                             |
@@ -481,6 +482,12 @@ separate licence from the copyright holder.
 ### Admin-configured S3 backups
 
 Open **Library → Admin → Backups** to choose local, S3, or both destinations.
+Set `VISTO_BACKUP_SCOPE=user_data` in Compose to omit TMDB metadata from
+scheduled and Admin manual backups. The default, `everything`, retains the full
+database. User-data backups keep media and episode identifiers so user records
+can be restored; TMDB details must be fetched again after restore. The Admin
+screen shows the active scope. The separate `visto backup` command always makes
+a full database copy.
 For S3, set the bucket, region, access key ID, and secret access key. Set an
 HTTPS endpoint and path-style addressing when your S3-compatible provider needs
 them. Use **Test connection** before relying on remote backups. The screen also

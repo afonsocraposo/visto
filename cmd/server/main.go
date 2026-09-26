@@ -84,6 +84,10 @@ func main() {
 	backupInterval := durationEnvironment("VISTO_BACKUP_INTERVAL", 24*time.Hour)
 	backupRetention := durationEnvironment("VISTO_BACKUP_RETENTION", 30*24*time.Hour)
 	backupDirectory := environment("VISTO_BACKUP_DIR", filepath.Join(filepath.Dir(databasePath), "backups"))
+	backupScope := environment("VISTO_BACKUP_SCOPE", "everything")
+	if backupScope != "everything" && backupScope != "user_data" {
+		log.Fatal("VISTO_BACKUP_SCOPE must be everything or user_data")
+	}
 
 	encryptionKey := os.Getenv("VISTO_SECRET_ENCRYPTION_KEY")
 	var profileConfig profile.PushoverConfig
@@ -97,7 +101,7 @@ func main() {
 		profileConfig.Cipher = cipher
 		profileConfig.Sender = pushover.NewClient(nil)
 	}
-	backupService := &backupjob.Service{Store: store, Cipher: secretCipher, DatabasePath: databasePath, Directory: backupDirectory, DefaultInterval: backupInterval, LocalRetention: backupRetention}
+	backupService := &backupjob.Service{Store: store, Cipher: secretCipher, DatabasePath: databasePath, Directory: backupDirectory, Scope: backupScope, DefaultInterval: backupInterval, LocalRetention: backupRetention}
 	startWorker(func(ctx context.Context) { backupService.Run(ctx, log.Default()) })
 	profiles := profile.NewService(store, profileConfig)
 	var pushConfig *httpserver.WebPushConfig

@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Button, Checkbox, Group, NumberInput, Paper, PasswordInput, Select, Stack, Text, TextInput, Title } from "@mantine/core";
 
 type BackupSettings = {
+  scope: "everything" | "user_data";
   destination: "local" | "s3" | "both";
   interval_seconds: number;
   bucket: string;
@@ -33,7 +34,7 @@ export function BackupPanel() {
   const usesS3=form.destination!=="local";
   return <Paper withBorder p="md"><Stack>
     <Title order={3}>Backups</Title>
-    <Text size="sm" c="dimmed">Automatic backups include the Visto database. Keep the encryption key outside your database backup.</Text>
+    <Text size="sm" c="dimmed">Backup scope: {form.scope === "user_data" ? "User data only" : "Everything"}. Set VISTO_BACKUP_SCOPE in Docker Compose to change it. Keep the encryption key outside your database backup.</Text>
     <Select label="Destination" data={[{value:"local",label:"Local"},{value:"s3",label:"S3"},{value:"both",label:"Local and S3"}]} value={form.destination} onChange={value=>{if(value)update("destination",value as BackupSettings["destination"])}} />
     <NumberInput label="Hours between backups" min={1} max={168} value={form.interval_seconds/3600} onChange={value=>update("interval_seconds",Number(value)*3600)} />
     {usesS3&&<>

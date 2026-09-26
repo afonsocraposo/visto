@@ -16,6 +16,15 @@ import (
 // Backup copies a live SQLite database to a new file using SQLite's online
 // backup API. It does not overwrite an existing destination.
 func Backup(ctx context.Context, sourcePath, destinationPath string) error {
+	return BackupWithScope(ctx, sourcePath, destinationPath, "everything")
+}
+
+// BackupWithScope creates a restorable copy and optionally removes TMDB data
+// that is not needed to preserve user records.
+func BackupWithScope(ctx context.Context, sourcePath, destinationPath, scope string) error {
+	if scope != "everything" && scope != "user_data" {
+		return fmt.Errorf("invalid backup scope %q", scope)
+	}
 	if sourcePath == "" || destinationPath == "" {
 		return fmt.Errorf("source and destination paths are required")
 	}
@@ -102,6 +111,11 @@ func Backup(ctx context.Context, sourcePath, destinationPath string) error {
 	}
 	if err := os.Chmod(temporaryPath, 0o600); err != nil {
 		return fmt.Errorf("secure backup file permissions: %w", err)
+	}
+	if scope == "user_data" {
+		if err := trimMetadata(ctx, temporaryPath); err != nil {
+			return fmt.Errorf("prepare user data backup: %w", err)
+		}
 	}
 	if err := os.Link(temporaryPath, destinationPath); err != nil {
 		return fmt.Errorf("create backup without overwriting existing files: %w", err)

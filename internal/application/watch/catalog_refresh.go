@@ -7,6 +7,7 @@ import (
 	"log"
 	"time"
 
+	"github.com/afonsocosta/visto/internal/application/library"
 	"github.com/afonsocosta/visto/internal/domain"
 )
 
@@ -27,7 +28,16 @@ func (service *Service) RefreshCatalog(ctx context.Context, activeTTL, finishedT
 	for _, tmdbID := range tmdbIDs {
 		var metadata domain.TVShowMetadata
 		var err error
-		if boundedProvider, ok := service.metadataProvider.(domain.ScheduledTVShowMetadataProvider); ok {
+		missing := false
+		if detector, ok := service.repository.(interface {
+			ShowMetadataMissing(context.Context, int64) (bool, error)
+		}); ok {
+			missing, err = detector.ShowMetadataMissing(ctx, tmdbID)
+			if err != nil {
+				return err
+			}
+		}
+		if boundedProvider, ok := service.metadataProvider.(domain.ScheduledTVShowMetadataProvider); ok && !missing {
 			metadata, err = boundedProvider.RefreshShow(ctx, tmdbID)
 		} else {
 			metadata, err = service.metadataProvider.Show(ctx, tmdbID)
@@ -37,6 +47,26 @@ func (service *Service) RefreshCatalog(ctx context.Context, activeTTL, finishedT
 		}
 		if err := repository.ImportShowMetadata(ctx, fmt.Sprintf("tv:%d", tmdbID), metadata); err != nil {
 			return err
+		}
+	}
+	if movieProvider, ok := service.metadataProvider.(domain.MovieMetadataProvider); ok {
+		if movies, ok := service.repository.(interface {
+			MoviesNeedingMetadataRefresh(context.Context, int) ([]int64, error)
+			UpsertMedia(context.Context, library.Media) error
+		}); ok {
+			ids, err := movies.MoviesNeedingMetadataRefresh(ctx, maxShowRefreshesPerRequest)
+			if err != nil {
+				return err
+			}
+			for _, id := range ids {
+				movie, err := movieProvider.Movie(ctx, id)
+				if err != nil {
+					return err
+				}
+				if err := movies.UpsertMedia(ctx, library.Media{ID: fmt.Sprintf("movie:%d", id), Type: domain.MovieMediaType, TMDBID: id, Title: movie.Title, OriginalTitle: movie.OriginalTitle, Overview: movie.Overview, ReleaseDate: movie.ReleaseDate, PosterPath: movie.PosterPath, BackdropPath: movie.BackdropPath, OriginalLanguage: movie.OriginalLanguage, Status: movie.Status}); err != nil {
+					return err
+				}
+			}
 		}
 	}
 	return nil

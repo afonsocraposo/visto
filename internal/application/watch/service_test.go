@@ -14,6 +14,11 @@ type metadataRepository struct {
 	showIDs      []int64
 	imported     []int64
 	refreshLimit int
+	missing      bool
+}
+
+func (r *metadataRepository) ShowMetadataMissing(context.Context, int64) (bool, error) {
+	return r.missing, nil
 }
 
 func (r *metadataRepository) ShowsNeedingCatalogRefresh(_ context.Context, _, _ time.Duration, limit int) ([]int64, error) {
@@ -253,5 +258,17 @@ func TestRefreshCatalog_GivenManyStaleShows_WhenSchedulerRefreshesCatalog_ThenPr
 	}
 	if provider.refreshCalls[0] != 10 || provider.refreshCalls[1] != 11 {
 		t.Fatalf("refresh order=%v, want most recently tracked shows first", provider.refreshCalls)
+	}
+}
+
+func TestRefreshCatalog_GivenRestoredShow_WhenMetadataIsMissing_ThenLoadsAllSeasons(t *testing.T) {
+	repository := &metadataRepository{showIDs: []int64{10}, missing: true}
+	provider := &showMetadataProvider{}
+	service := NewService(repository, provider)
+	if err := service.RefreshCatalog(context.Background(), 24*time.Hour, 30*24*time.Hour); err != nil {
+		t.Fatal(err)
+	}
+	if len(provider.calls) != 1 || provider.calls[0] != 10 || len(provider.refreshCalls) != 0 {
+		t.Fatalf("full calls=%v, bounded calls=%v", provider.calls, provider.refreshCalls)
 	}
 }

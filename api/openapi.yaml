@@ -808,6 +808,7 @@ components:
     BackupSettings:
       type: object
       properties:
+        scope: { type: string, enum: [everything, user_data], readOnly: true, description: Effective VISTO_BACKUP_SCOPE server setting }
         destination: { type: string, enum: [local, s3, both] }
         interval_seconds: { type: integer }
         bucket: { type: string }

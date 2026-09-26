@@ -24,6 +24,30 @@ func (s *Store) UpsertMedia(ctx context.Context, media library.Media) error {
 	return nil
 }
 
+// MoviesNeedingMetadataRefresh finds identity rows restored from a user-data backup.
+func (s *Store) MoviesNeedingMetadataRefresh(ctx context.Context, limit int) ([]int64, error) {
+	rows, err := s.DB.QueryContext(ctx, `SELECT tmdb_id FROM media WHERE media_type='movie' AND metadata_updated_at='' ORDER BY tmdb_id LIMIT ?`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+func (s *Store) ShowMetadataMissing(ctx context.Context, tmdbID int64) (bool, error) {
+	var missing bool
+	err := s.DB.QueryRowContext(ctx, `SELECT metadata_updated_at='' FROM media WHERE media_type='tv' AND tmdb_id=?`, tmdbID).Scan(&missing)
+	return missing, err
+}
+
 func (s *Store) ImportShowMetadata(ctx context.Context, showID string, show domain.TVShowMetadata) error {
 	tx, err := s.DB.BeginTx(ctx, nil)
 	if err != nil {
