@@ -3,6 +3,7 @@ package httpserver
 import "net/http"
 import "os"
 import "path/filepath"
+import "strings"
 import "time"
 import "github.com/afonsocosta/visto/internal/application/auth"
 import exportapp "github.com/afonsocosta/visto/internal/application/export"
@@ -33,7 +34,21 @@ func New(authService *auth.Service, metadataProvider domain.MetadataProvider, we
 			mux.Handle("GET /", singlePageApp(webDir))
 		}
 	}
-	return &Server{handler: csrfProtection(mux, proxies), mux: mux, authService: authService, proxies: proxies}
+	return &Server{handler: limitAPIRequestBody(csrfProtection(mux, proxies)), mux: mux, authService: authService, proxies: proxies}
+}
+
+func limitAPIRequestBody(next http.Handler) http.Handler {
+	const maxBody = 1 << 20
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api/v1/") && !strings.HasPrefix(r.URL.Path, "/api/v1/webhooks/plex/") && r.Method != http.MethodGet && r.Method != http.MethodHead {
+			if r.ContentLength > maxBody {
+				http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
+				return
+			}
+			r.Body = http.MaxBytesReader(w, r.Body, maxBody)
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (server *Server) WithTrustedProxies(proxies security.ProxyResolver) *Server {

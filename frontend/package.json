@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "db:diagram": "node ./scripts/generate-db-diagram.mjs",
     "db:studio": "drizzle-kit studio --config=./drizzle.config.ts --host=127.0.0.1",
-    "generate:api": "orval --config ./orval.config.ts",
+    "generate:api": "orval --config ./orval.config.ts && prettier --write src/generated",
     "preview": "vite preview",
     "format": "prettier --write . && prettier --write public/icon.svg --parser html",
     "format:check": "prettier --check . && prettier --check public/icon.svg --parser html",

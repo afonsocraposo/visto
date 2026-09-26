@@ -14,6 +14,8 @@ export interface ContinueEntry {
   poster_path?: string;
   kind: ContinueEntryKind;
   cursor?: Episode | null;
-  next_episode: Episode;
+  next_episode?: Episode;
+  /** @minimum 0 */
+  remaining_episodes: number;
   missing_prior_episodes?: Episode[];
 }

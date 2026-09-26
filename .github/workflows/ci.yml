@@ -43,6 +43,9 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
         working-directory: frontend
+      - run: npm run generate:api
+        working-directory: frontend
+      - run: test -z "$(git status --porcelain -- frontend/src/generated)"
       - run: npm test
         working-directory: frontend
       - run: npm run build

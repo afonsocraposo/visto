@@ -141,11 +141,12 @@ func temporaryShowDetails(authService *auth.Service, provider domain.MetadataPro
 			return
 		}
 		response := temporaryShowDetailsResponse{
-			Media: library.Media{ID: fmt.Sprintf("tv:%d", show.TMDBID), Type: domain.TVMediaType, TMDBID: show.TMDBID, Title: show.Name, OriginalTitle: show.Name, Overview: show.Overview, ReleaseDate: show.FirstAirDate, PosterPath: show.PosterPath, BackdropPath: show.BackdropPath, OriginalLanguage: show.OriginalLanguage, Status: show.Status},
-			Cast:  show.Cast,
+			Media:   library.Media{ID: fmt.Sprintf("tv:%d", show.TMDBID), Type: domain.TVMediaType, TMDBID: show.TMDBID, Title: show.Name, OriginalTitle: show.Name, Overview: show.Overview, ReleaseDate: show.FirstAirDate, PosterPath: show.PosterPath, BackdropPath: show.BackdropPath, OriginalLanguage: show.OriginalLanguage, Status: show.Status},
+			Seasons: []temporaryShowSeason{},
+			Cast:    append([]domain.TVCastMember{}, show.Cast...),
 		}
 		for _, season := range show.Seasons {
-			response.Seasons = append(response.Seasons, temporaryShowSeason{TMDBID: season.TMDBID, Number: season.Number, Name: season.Name, Overview: season.Overview, PosterPath: season.PosterPath, AirDate: season.AirDate, Episodes: nil})
+			response.Seasons = append(response.Seasons, temporaryShowSeason{TMDBID: season.TMDBID, Number: season.Number, Name: season.Name, Overview: season.Overview, PosterPath: season.PosterPath, AirDate: season.AirDate, Episodes: []watch.ShowEpisode{}})
 		}
 		writeJSON(w, http.StatusOK, response)
 	}
@@ -206,7 +207,7 @@ func temporaryMovieDetails(authService *auth.Service, provider domain.MetadataPr
 		}
 		writeJSON(w, http.StatusOK, temporaryMovieDetailsResponse{
 			Media:   library.Media{ID: fmt.Sprintf("movie:%d", movie.TMDBID), Type: domain.MovieMediaType, TMDBID: movie.TMDBID, Title: movie.Title, OriginalTitle: movie.OriginalTitle, Overview: movie.Overview, ReleaseDate: movie.ReleaseDate, PosterPath: movie.PosterPath, BackdropPath: movie.BackdropPath, OriginalLanguage: movie.OriginalLanguage, Status: movie.Status},
-			Runtime: movie.Runtime, VoteAverage: movie.VoteAverage, Genres: movie.Genres, Cast: movie.Cast,
+			Runtime: movie.Runtime, VoteAverage: movie.VoteAverage, Genres: append([]string{}, movie.Genres...), Cast: append([]domain.TVCastMember{}, movie.Cast...),
 		})
 	}
 }

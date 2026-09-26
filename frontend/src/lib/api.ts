@@ -24,7 +24,11 @@ function reportConnectionUnavailable() {
   }
 }
 
-async function request<T>(path: string, init: RequestInit, fallback: string): Promise<T> {
+export async function request<T>(
+  path: string,
+  init: RequestInit,
+  fallback: string | ((status: number) => string),
+): Promise<T> {
   let response: Response;
   try {
     response = await fetch(path, init);
@@ -35,9 +39,15 @@ async function request<T>(path: string, init: RequestInit, fallback: string): Pr
   if (response.headers.get("X-Visto-Offline") === "true") reportConnectionUnavailable();
   if (!response.ok) {
     const body = (await response.json().catch(() => ({}))) as APIError;
-    throw new APIRequestError(body.error || fallback, response.status);
+    throw new APIRequestError(
+      body.error || (typeof fallback === "string" ? fallback : fallback(response.status)),
+      response.status,
+    );
   }
   if (response.status === 204) return undefined as T;
+  if (response.headers.get("Content-Type")?.startsWith("text/csv")) {
+    return response.text() as Promise<T>;
+  }
   return response.json() as Promise<T>;
 }
 

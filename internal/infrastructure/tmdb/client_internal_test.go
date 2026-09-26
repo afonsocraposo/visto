@@ -2,8 +2,11 @@ package tmdb
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -11,6 +14,45 @@ import (
 
 	"github.com/afonsocosta/visto/internal/domain"
 )
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (fn roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return fn(request)
+}
+
+func TestDetailCaches_GivenMoreThanTheLimit_StayBounded(t *testing.T) {
+	transport := roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		body := `{"id":42,"title":"Example","name":"Example","season_number":1,"episode_number":1}`
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header), Request: request}, nil
+	})
+	client, err := New("test-key", &http.Client{Transport: transport})
+	if err != nil {
+		t.Fatal(err)
+	}
+	expires := time.Now().Add(time.Hour)
+	for id := int64(1); id <= maxShowCacheEntries; id++ {
+		client.movieCache[id+100] = cachedMovie{expiresAt: expires}
+	}
+	for id := 0; id < maxShowCacheEntries*10; id++ {
+		client.episodeCache[fmt.Sprint("old:", id)] = cachedEpisode{expiresAt: expires}
+	}
+	if _, err := client.Movie(context.Background(), 42); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.Episode(context.Background(), 42, 1, 1); err != nil {
+		t.Fatal(err)
+	}
+	if len(client.movieCache) != maxShowCacheEntries || len(client.episodeCache) != maxShowCacheEntries*10 {
+		t.Fatalf("cache sizes: movies=%d episodes=%d", len(client.movieCache), len(client.episodeCache))
+	}
+	if _, ok := client.movieCache[42]; !ok {
+		t.Fatal("new movie was evicted")
+	}
+	if _, ok := client.episodeCache["42:1:1"]; !ok {
+		t.Fatal("new episode was evicted")
+	}
+}
 
 func TestLatestRegularSeasonNumber_GivenSpecialsAndRegularSeasons_ReturnsHighestRegularSeason(t *testing.T) {
 	got, ok := latestRegularSeasonNumber([]domain.TVSeasonMetadata{{Number: 0}, {Number: 1}, {Number: 7}, {Number: 3}})

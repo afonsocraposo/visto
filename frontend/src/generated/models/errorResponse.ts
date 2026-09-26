@@ -5,9 +5,7 @@
  * Self-hosted movie and TV tracking API.
  * OpenAPI spec version: 0.1.0
  */
-import type { ErrorResponse } from "./errorResponse";
 
-/**
- * Invalid request
- */
-export type BadRequestResponse = ErrorResponse;
+export interface ErrorResponse {
+  error: string;
+}

@@ -147,6 +147,7 @@ func main() {
 		Addr:              environment("VISTO_LISTEN_ADDR", ":8080"),
 		Handler:           requestLogger(appHandler),
 		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       30 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
 	go func() {

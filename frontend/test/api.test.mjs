@@ -1,7 +1,21 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-const { APIRequestError, api, retryTransientRequest } = await import("../src/lib/api.ts");
+const { APIRequestError, api, request, retryTransientRequest } = await import("../src/lib/api.ts");
+
+test("CSV responses remain text in the shared request client", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () =>
+    new Response("kind,title\nlibrary,Example\n", { headers: { "Content-Type": "text/csv" } });
+  try {
+    assert.equal(
+      await request("/api/v1/export/csv", {}, "Export failed."),
+      "kind,title\nlibrary,Example\n",
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
 
 test("Given a successful JSON response, When the API client reads it, Then it returns the typed payload", async () => {
   const originalFetch = globalThis.fetch;

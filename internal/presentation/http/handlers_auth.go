@@ -208,8 +208,12 @@ func login(service *auth.Service, limiter *LoginLimiter, proxies *security.Proxy
 		}
 		user, token, expiresAt, err := service.Login(r.Context(), request.Email, request.Password)
 		if err != nil {
-			limiter.failed(bucket)
-			writeError(w, http.StatusUnauthorized, "invalid email or password")
+			if errors.Is(err, auth.ErrInvalidCredentials) {
+				limiter.failed(bucket)
+				writeError(w, http.StatusUnauthorized, "invalid email or password")
+			} else {
+				writeError(w, http.StatusInternalServerError, "sign-in is temporarily unavailable")
+			}
 			return
 		}
 		limiter.reset(bucket)

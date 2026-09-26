@@ -5,8 +5,9 @@
  * Self-hosted movie and TV tracking API.
  * OpenAPI spec version: 0.1.0
  */
+import type { ErrorResponse } from "./errorResponse";
 
 /**
  * Authentication required
  */
-export type UnauthorizedResponse = void;
+export type UnauthorizedResponse = ErrorResponse;
