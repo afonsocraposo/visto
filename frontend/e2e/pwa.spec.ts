@@ -203,6 +203,151 @@ test("Given an unsaved TV show, When the user adds it or chooses Watch later, Th
   await expect.poll(() => savedStatuses).toEqual(["watching", "watchlist"]);
 });
 
+test("Media detail links stay short and load after refresh", async ({ page }) => {
+  await mockSignedInSession(page);
+  const titles = [
+    { tmdb_id: 100, type: "tv", title: "Example Show" },
+    { tmdb_id: 200, type: "movie", title: "Example Movie" },
+  ] as const;
+  const media = titles.map((title) => ({
+    ...title,
+    original_title: title.title,
+    overview: "A description that should not appear in the URL.",
+    release_date: "2024-01-01",
+    poster_path: "",
+    original_language: "en",
+  }));
+  await page.route("**/api/v1/search**", (route) => fulfillJSON(route, media));
+  await page.route("**/api/v1/shows/100", (route) => fulfillJSON(route, { error: "not saved" }, 404));
+  await page.route("**/api/v1/movies/200", (route) => fulfillJSON(route, { error: "not saved" }, 404));
+  await page.route("**/api/v1/discover/shows/100", (route) =>
+    fulfillJSON(route, { media: media[0], seasons: [], cast: [] }),
+  );
+  await page.route("**/api/v1/discover/movies/200", (route) =>
+    fulfillJSON(route, { media: media[1], cast: [] }),
+  );
+  await page.goto("/discover");
+  await page.getByRole("textbox", { name: "Search TMDB" }).fill("Example");
+
+  for (const title of titles) {
+    await page.getByRole("link", { name: `Open details for ${title.title}` }).click();
+    await expect(page).toHaveURL(new RegExp(`/media/${title.type}/${title.tmdb_id}\\?from=%2Fdiscover$`));
+    await expect(page.getByRole("heading", { name: title.title })).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole("heading", { name: title.title })).toBeVisible();
+    await page.getByRole("button", { name: "Back" }).click();
+    await expect(page).toHaveURL(/\/discover$/);
+    await page.getByRole("textbox", { name: "Search TMDB" }).fill("Example");
+  }
+});
+
+test("Given a TV show detail, When the user uses compact watch controls, Then show and season actions stay clear", async ({
+  page,
+}) => {
+  await mockSignedInSession(page);
+  await page.addInitScript(() => localStorage.setItem("visto-theme", "dark"));
+  await page.route("**/api/v1/trending**", (route) => fulfillJSON(route, { tv: [], movies: [] }));
+  const show = {
+    id: "tv:100",
+    tmdb_id: 100,
+    type: "tv",
+    title: "The Example Show",
+    original_title: "The Example Show",
+    overview: "A test show.",
+    release_date: "2024-01-01",
+    poster_path: "",
+    original_language: "en",
+  };
+  const episodes = [1, 2].map((number) => ({
+    episode: {
+      id: `tv:100:episode:${number}`,
+      show_id: "tv:100",
+      season_number: 1,
+      episode_number: number,
+      air_date: "2024-01-01",
+    },
+    name: `Episode ${number}`,
+    watched: false,
+  }));
+  let savedStatus: "watching" | "watchlist" | null = null;
+  let allWatched = false;
+  await page.route("**/api/v1/shows/100", (route) =>
+    savedStatus
+      ? fulfillJSON(route, {
+          media: show,
+          item: {
+            media_id: show.id,
+            status: savedStatus,
+            rating: null,
+            notifications_enabled: true,
+          },
+          completed: false,
+        })
+      : fulfillJSON(route, { error: "not saved" }, 404),
+  );
+  await page.route("**/api/v1/library", async (route) => {
+    if (route.request().method() === "POST") {
+      savedStatus = (route.request().postDataJSON() as { status: "watching" | "watchlist" }).status;
+      await fulfillJSON(route, {}, 201);
+    } else {
+      await fulfillJSON(route, []);
+    }
+  });
+  await page.route("**/api/v1/shows/**/episodes", (route) =>
+    fulfillJSON(
+      route,
+      episodes.map((entry) => ({ ...entry, watched: allWatched })),
+    ),
+  );
+  await page.route("**/api/v1/discover/shows/100", (route) =>
+    fulfillJSON(route, {
+      media: show,
+      seasons: [{ tmdb_id: 1, season_number: 1, name: "Season 1" }],
+      cast: [],
+    }),
+  );
+  await page.route("**/api/v1/discover/shows/100/seasons/1", (route) =>
+    fulfillJSON(route, { tmdb_id: 1, season_number: 1, name: "Season 1", episodes }),
+  );
+  await page.route("**/api/v1/discover/tv/100/related", (route) => fulfillJSON(route, []));
+  await page.goto("/media/tv/100");
+  await expect(
+    page.getByRole("button", { name: "Add The Example Show to Watching" }),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save The Example Show for later" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Mark The Example Show watched" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Mark season 1 watched" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Show actions" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Season actions" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Mark The Example Show watched" }).click();
+  await expect(page.getByRole("dialog", { name: "Mark The Example Show watched" })).toBeVisible();
+  await expect(page.getByRole("switch", { name: "Include season 1" })).toBeChecked();
+  await page.getByRole("button", { name: "Cancel" }).click();
+  await page.getByRole("button", { name: "Mark season 1 watched" }).click();
+  await expect(page.getByRole("dialog", { name: "Mark season watched" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Add The Example Show to Watching" }).click();
+  await expect.poll(() => savedStatus).toBe("watching");
+  await expect(page.getByRole("combobox", { name: "Current list" })).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByRole("button", { name: "Mark The Example Show watched" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Mark season 1 watched" })).toBeVisible();
+  await expect(page.getByRole("checkbox", { name: "Episode 1 watched" })).toBeVisible();
+  allWatched = true;
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Mark The Example Show unwatched" })).toBeVisible();
+  await page.getByRole("button", { name: "Mark The Example Show unwatched" }).click();
+  await expect(page.getByRole("dialog", { name: "Mark The Example Show unwatched" })).toBeVisible();
+  await page.getByRole("button", { name: "Cancel" }).click();
+  await expect(page.getByRole("button", { name: "Mark season 1 unwatched" })).toBeVisible();
+  savedStatus = null;
+  allWatched = false;
+  await page.reload();
+  await page.getByRole("button", { name: "Save The Example Show for later" }).click();
+  await expect.poll(() => savedStatus).toBe("watchlist");
+  await expect(page.getByRole("combobox", { name: "Current list" })).toHaveValue("Watchlist");
+});
+
 test("Given a movie in Watchlist, When it is marked watched from search, Then Undo restores Watchlist", async ({
   page,
 }) => {
@@ -291,7 +436,10 @@ test("Given the Visto server is unreachable, When the user retries after it reco
     if (continueRequests === 1) return route.abort("failed");
     await fulfillJSON(route, [continueEntry]);
   });
-  await page.route("**/health", (route) => fulfillJSON(route, { status: "ok" }));
+  let healthRequests = 0;
+  await page.route("**/health", (route) =>
+    fulfillJSON(route, { status: "ok" }, ++healthRequests === 1 ? 503 : 200),
+  );
   await page.goto("/");
 
   const notice = page.getByText(
@@ -302,6 +450,47 @@ test("Given the Visto server is unreachable, When the user retries after it reco
   await expect(notice).toBeHidden();
   await expect(page.getByText("The Example Show")).toBeVisible();
   expect(continueRequests).toBeGreaterThanOrEqual(2);
+});
+
+test("Given a transient API failure on a direct show link, When the server is healthy, Then no offline notice appears", async ({
+  page,
+}) => {
+  await mockSignedInSession(page);
+  let requests = 0;
+  let healthRequests = 0;
+  await page.route("**/health", (route) => {
+    healthRequests++;
+    return fulfillJSON(route, { status: "ok" });
+  });
+  await page.route("**/api/v1/shows/247718", (route) =>
+    fulfillJSON(route, { error: "not saved" }, 404),
+  );
+  await page.route("**/api/v1/discover/shows/247718", (route) => {
+    if (++requests === 1) return route.abort("failed");
+    return fulfillJSON(route, {
+      media: {
+        id: "tv:247718",
+        tmdb_id: 247718,
+        type: "tv",
+        title: "MobLand",
+        original_title: "MobLand",
+        overview: "A show",
+        release_date: "2025-03-30",
+        poster_path: "",
+        original_language: "en",
+      },
+      seasons: [],
+      cast: [],
+    });
+  });
+  await page.goto("/media/tv/247718?from=%2Fdiscover&title=MobLand&type=tv");
+  await expect(page.getByRole("heading", { name: "MobLand" })).toBeVisible();
+  await expect.poll(() => healthRequests).toBeGreaterThanOrEqual(1);
+  await expect(
+    page.getByText(
+      "You are offline. Saved information may be out of date, and changes need a connection.",
+    ),
+  ).toHaveCount(0);
 });
 
 test("Given an installed service worker, When the app shell loads, Then the PWA manifest advertises standalone installation", async ({

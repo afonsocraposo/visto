@@ -5,6 +5,7 @@ import {
   Alert,
   Badge,
   Button,
+  Checkbox,
   Group,
   Image,
   Loader,
@@ -66,7 +67,7 @@ type PendingWatch = {
   target: ShowEpisodeEntry | null;
   episodes: ShowEpisodeEntry[];
   seasonNumber?: number;
-  action?: "watch" | "rewatch" | "unwatch";
+  action?: "watch" | "unwatch";
 };
 
 export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: Props) {
@@ -77,14 +78,18 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
   const [pendingWatch, setPendingWatch] = useState<PendingWatch | null>(null);
   const [showWatchModal, setShowWatchModal] = useState(false);
   const [movieHistoryMode, setMovieHistoryMode] = useState<"view" | "edit" | null>(null);
-  const [showWatchAction, setShowWatchAction] = useState<"watch" | "rewatch" | "unwatch">("watch");
+  const [showWatchAction, setShowWatchAction] = useState<"watch" | "unwatch">("watch");
   const [selectedShowSeasons, setSelectedShowSeasons] = useState<Record<number, boolean>>({});
   const { library, show: temporary, movie: movieDetails, related } = useMediaDetailQueries(target);
   const seed = target.seed;
   const media = library.data?.media
     ? {
         ...library.data.media,
-        backdrop_path: library.data.media.backdrop_path ?? temporary.data?.media.backdrop_path,
+        backdrop_path:
+          library.data.media.backdrop_path ??
+          (target.mediaType === "movie"
+            ? movieDetails.data?.media.backdrop_path
+            : temporary.data?.media.backdrop_path),
       }
     : target.mediaType === "movie"
       ? (movieDetails.data?.media ?? seed)
@@ -308,18 +313,14 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
     mutationFn: async ({
       episodeIDs,
       selectedSeasons,
-      rewatch = false,
     }: {
       episodeIDs?: string[];
       selectedSeasons?: number[];
-      rewatch?: boolean;
     }) => {
       const all = await ensureTrackedEpisodes();
       const today = new Date().toISOString().slice(0, 10);
       const selectedIDs = selectedSeasons
-        ? rewatch
-          ? selectWatchedEpisodes(all, selectedSeasons)
-          : selectUnwatchedEpisodes(all, selectedSeasons, today)
+        ? selectUnwatchedEpisodes(all, selectedSeasons, today)
         : (episodeIDs ?? []);
       const created: Play[] = [];
       for (const batch of chunk([...new Set(selectedIDs)], 100)) {
@@ -509,7 +510,7 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
     (entry) => !entry.watched && (!entry.episode.air_date || entry.episode.air_date <= today),
   );
   const selectedShowEpisodes = (
-    showWatchAction === "rewatch" || showWatchAction === "unwatch"
+    showWatchAction === "unwatch"
       ? episodeEntries.filter((entry) => entry.watched)
       : releasedShowEpisodes
   ).filter((entry) => selectedShowSeasons[entry.episode.season_number] === true);
@@ -520,7 +521,7 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
     );
     setShowWatchModal(true);
   };
-  const openShowActionModal = (action: "rewatch" | "unwatch") => {
+  const openShowActionModal = (action: "unwatch") => {
     setShowWatchAction(action);
     setSelectedShowSeasons(
       Object.fromEntries(seasonGroups.map((group) => [group.number, group.number > 0])),
@@ -542,7 +543,6 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
       } else {
         markEpisodesWatched.mutate({
           selectedSeasons: seasonNumbers,
-          rewatch: pendingWatch.action === "rewatch",
         });
       }
       return;
@@ -553,7 +553,7 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
         : pendingWatch.episodes;
     markEpisodesWatched.mutate({ episodeIDs: entries.map((entry) => entry.episode.id) });
   };
-  const requestSeasonWatch = (action: "watch" | "rewatch" | "unwatch" = "watch") =>
+  const requestSeasonWatch = (action: "watch" | "unwatch" = "watch") =>
     setPendingWatch({
       target: null,
       episodes:
@@ -572,10 +572,17 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
     else
       markEpisodesWatched.mutate({
         selectedSeasons: seasonNumbers,
-        rewatch: showWatchAction === "rewatch",
       });
   };
   const hasWatchedShowEpisodes = episodeEntries.some((entry) => entry.watched);
+  const showBulkAction =
+    releasedShowEpisodes.length > 0 ? "watch" : hasWatchedShowEpisodes ? "unwatch" : null;
+  const seasonBulkAction =
+    releasedSeasonEpisodes.length > 0
+      ? "watch"
+      : watchedSeasonEpisodes.length > 0
+        ? "unwatch"
+        : null;
   const hasPreviousSeasons =
     pendingWatch?.seasonNumber !== undefined &&
     seasonGroups.some((group) => group.number > 0 && group.number < pendingWatch.seasonNumber!);
@@ -605,9 +612,7 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
             ? "Skipped episodes"
             : pendingWatch?.action === "unwatch"
               ? "Mark season unwatched"
-              : pendingWatch?.action === "rewatch"
-                ? "Rewatch season"
-                : "Mark season watched"
+              : "Mark season watched"
         }
         centered
       >
@@ -620,10 +625,6 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
           <Text mb="md">
             Remove watch history for {pendingWatch?.episodes.length ?? 0} watched episodes in this
             season?
-          </Text>
-        ) : pendingWatch?.action === "rewatch" ? (
-          <Text mb="md">
-            Add a new watch for {pendingWatch?.episodes.length ?? 0} episodes in this season?
           </Text>
         ) : (
           <Text mb="md">
@@ -670,41 +671,35 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
               ? "Mark all as watched"
               : pendingWatch?.action === "unwatch"
                 ? "Mark unwatched"
-                : pendingWatch?.action === "rewatch"
-                  ? "Rewatch episodes"
-                  : hasPreviousSeasons
-                    ? "Only this season"
-                    : "Mark season watched"}
+                : hasPreviousSeasons
+                  ? "Only this season"
+                  : "Mark season watched"}
           </Button>
-          {hasPreviousSeasons &&
-            pendingWatch?.action !== "rewatch" &&
-            pendingWatch?.action !== "unwatch" && (
-              <Button
-                onClick={() => confirmWatch(false, true)}
-                loading={markEpisodesWatched.isPending}
-              >
-                This and previous seasons
-              </Button>
-            )}
+          {hasPreviousSeasons && pendingWatch?.action !== "unwatch" && (
+            <Button
+              onClick={() => confirmWatch(false, true)}
+              loading={markEpisodesWatched.isPending}
+            >
+              This and previous seasons
+            </Button>
+          )}
         </Group>
       </Modal>
       <Modal
         opened={showWatchModal}
         onClose={() => setShowWatchModal(false)}
-        title={`${showWatchAction === "unwatch" ? "Mark" : showWatchAction === "rewatch" ? "Rewatch" : "Mark"} ${media.title} ${showWatchAction === "unwatch" ? "unwatched" : "watched"}`}
+        title={`${"Mark"} ${media.title} ${showWatchAction === "unwatch" ? "unwatched" : "watched"}`}
         centered
       >
         <Text size="sm" c="dimmed" mb="md">
           {showWatchAction === "unwatch"
             ? "Choose which seasons to remove from watch history. Specials are off by default."
-            : showWatchAction === "rewatch"
-              ? "Choose which seasons to add to your watch history again. Specials are off by default."
-              : "Choose the seasons to include. Specials are off by default."}
+            : "Choose the seasons to include. Specials are off by default."}
         </Text>
         <Stack gap="xs">
           {seasonGroups.map((group) => {
             const remaining = group.episodes.filter((entry) =>
-              showWatchAction === "rewatch" || showWatchAction === "unwatch"
+              showWatchAction === "unwatch"
                 ? entry.watched
                 : !entry.watched && (!entry.episode.air_date || entry.episode.air_date <= today),
             ).length;
@@ -761,9 +756,7 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
             {isSaved
               ? showWatchAction === "unwatch"
                 ? `Mark ${selectedShowEpisodes.length} unwatched`
-                : showWatchAction === "rewatch"
-                  ? `Rewatch ${selectedShowEpisodes.length} episodes`
-                  : `Mark ${selectedShowEpisodes.length} episodes watched`
+                : `Mark ${selectedShowEpisodes.length} episodes watched`
               : "Mark selected seasons watched"}
           </Button>
         </Group>
@@ -866,6 +859,12 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
               }
               onViewWatchHistory={() => setMovieHistoryMode("view")}
               onChangeWatchDate={() => setMovieHistoryMode("edit")}
+              showBulkAction={target.mediaType === "tv" ? showBulkAction : null}
+              onShowBulkAction={() => {
+                if (showBulkAction === "watch") openShowWatchModal();
+                else if (showBulkAction === "unwatch") openShowActionModal("unwatch");
+              }}
+              showBulkPending={markEpisodesWatched.isPending || removeEpisodesWatched.isPending}
               pending={
                 markMovieWatched.isPending ||
                 removeMovieWatches.isPending ||
@@ -929,132 +928,43 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
               <Title order={2}>Seasons & episodes</Title>
             </div>
             <Group gap="xs">
-              {seasonGroups.length > 0 &&
-                (releasedShowEpisodes.length > 0 || hasWatchedShowEpisodes) && (
-                  <Group gap={4}>
-                    <Text size="xs" c="dimmed" mr={4}>
-                      Show
-                    </Text>
-                    <Tooltip
-                      label={
-                        releasedShowEpisodes.length > 0
-                          ? "Mark show watched"
-                          : "Mark show unwatched"
-                      }
-                      withArrow
-                    >
-                      <ActionIcon
-                        size="lg"
-                        color="yellow"
-                        variant="filled"
-                        aria-label={
-                          releasedShowEpisodes.length > 0
-                            ? "Mark show watched"
-                            : "Mark show unwatched"
-                        }
-                        onClick={
-                          releasedShowEpisodes.length > 0
-                            ? openShowWatchModal
-                            : () => openShowActionModal("unwatch")
-                        }
-                      >
-                        {releasedShowEpisodes.length > 0 ? (
-                          <IconEye size={18} />
-                        ) : (
-                          <IconCheck size={18} />
-                        )}
-                      </ActionIcon>
-                    </Tooltip>
-                    {hasWatchedShowEpisodes && (
-                      <Menu withinPortal position="bottom-start">
-                        <Menu.Target>
-                          <ActionIcon size="lg" variant="default" aria-label="More show actions">
-                            <IconChevronDown size={18} />
-                          </ActionIcon>
-                        </Menu.Target>
-                        <Menu.Dropdown>
-                          <Menu.Item
-                            leftSection={<IconRefresh size={16} />}
-                            onClick={() => openShowActionModal("rewatch")}
-                          >
-                            Mark show rewatched
-                          </Menu.Item>
-                          {releasedShowEpisodes.length > 0 && (
-                            <Menu.Item onClick={() => openShowActionModal("unwatch")}>
-                              Mark show unwatched
-                            </Menu.Item>
-                          )}
-                        </Menu.Dropdown>
-                      </Menu>
-                    )}
-                  </Group>
+              <Group gap="xs" wrap="nowrap">
+                {seasons.length > 0 && (
+                  <Select
+                    aria-label="Season"
+                    value={selectedSeason}
+                    onChange={setSeason}
+                    data={seasons.map((number) => ({
+                      value: String(number),
+                      label: number === 0 ? "Specials" : `Season ${number}`,
+                    }))}
+                    w={150}
+                  />
                 )}
-              {seasons.length > 0 && (
-                <Select
-                  aria-label="Season"
-                  value={selectedSeason}
-                  onChange={setSeason}
-                  data={seasons.map((number) => ({
-                    value: String(number),
-                    label: number === 0 ? "Specials" : `Season ${number}`,
-                  }))}
-                  w={150}
-                />
-              )}
-              {(releasedSeasonEpisodes.length > 0 || watchedSeasonEpisodes.length > 0) && (
-                <Group gap={4}>
+                {seasonBulkAction && (
                   <Tooltip
                     label={
-                      releasedSeasonEpisodes.length > 0
-                        ? "Mark season watched"
-                        : "Mark season unwatched"
+                      seasonBulkAction === "watch" ? "Mark season watched" : "Mark season unwatched"
                     }
                     withArrow
                   >
                     <ActionIcon
-                      size="lg"
+                      size={44}
+                      variant="subtle"
                       color="yellow"
-                      variant="filled"
-                      aria-label={
-                        releasedSeasonEpisodes.length > 0
-                          ? "Mark season watched"
-                          : "Mark season unwatched"
-                      }
-                      onClick={() =>
-                        requestSeasonWatch(releasedSeasonEpisodes.length > 0 ? "watch" : "unwatch")
-                      }
+                      aria-label={`Mark ${Number(selectedSeason) === 0 ? "specials" : `season ${selectedSeason}`} ${seasonBulkAction === "watch" ? "watched" : "unwatched"}`}
+                      onClick={() => requestSeasonWatch(seasonBulkAction)}
+                      disabled={markEpisodesWatched.isPending || removeEpisodesWatched.isPending}
                     >
-                      {releasedSeasonEpisodes.length > 0 ? (
-                        <IconEye size={18} />
+                      {seasonBulkAction === "watch" ? (
+                        <IconEye size={19} />
                       ) : (
-                        <IconCheck size={18} />
+                        <IconCheck size={19} />
                       )}
                     </ActionIcon>
                   </Tooltip>
-                  {watchedSeasonEpisodes.length > 0 && (
-                    <Menu withinPortal position="bottom-start">
-                      <Menu.Target>
-                        <ActionIcon size="lg" variant="default" aria-label="More season actions">
-                          <IconChevronDown size={18} />
-                        </ActionIcon>
-                      </Menu.Target>
-                      <Menu.Dropdown>
-                        <Menu.Item
-                          leftSection={<IconRefresh size={16} />}
-                          onClick={() => requestSeasonWatch("rewatch")}
-                        >
-                          Mark season rewatched
-                        </Menu.Item>
-                        {releasedSeasonEpisodes.length > 0 && (
-                          <Menu.Item onClick={() => requestSeasonWatch("unwatch")}>
-                            Mark season unwatched
-                          </Menu.Item>
-                        )}
-                      </Menu.Dropdown>
-                    </Menu>
-                  )}
-                </Group>
-              )}
+                )}
+              </Group>
             </Group>
           </Group>
           {((isSaved && episodes.isPending) ||
@@ -1149,33 +1059,41 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
                         )}
                       </div>
                     </Group>
-                    {entry.watched ? (
-                      <Group
-                        gap={4}
-                        wrap="nowrap"
-                        mr={8}
-                        onClick={(event) => event.stopPropagation()}
+                    <Group
+                      className="episode-row-controls"
+                      gap="xs"
+                      wrap="nowrap"
+                      onClick={(event) => event.stopPropagation()}
+                    >
+                      <Tooltip
+                        label={`Mark episode ${entry.episode.episode_number} ${entry.watched ? "unwatched" : "watched"}`}
+                        withArrow
                       >
-                        <Tooltip label="Mark unwatched" withArrow>
-                          <ActionIcon
-                            aria-label={`Mark episode ${entry.episode.episode_number} unwatched`}
-                            size="lg"
-                            color="yellow"
-                            variant="filled"
-                            onClick={() => removeEpisodesWatched.mutate([entry.episode.id])}
-                            disabled={removeEpisodesWatched.isPending}
-                          >
-                            <IconCheck size={18} />
-                          </ActionIcon>
-                        </Tooltip>
+                        <Checkbox
+                          aria-label={`Episode ${entry.episode.episode_number} watched`}
+                          checked={entry.watched}
+                          color="yellow"
+                          size="md"
+                          disabled={
+                            prepareEpisodeWatch.isPending ||
+                            markEpisodeWatched.isPending ||
+                            removeEpisodesWatched.isPending
+                          }
+                          onChange={() => {
+                            if (entry.watched) removeEpisodesWatched.mutate([entry.episode.id]);
+                            else requestEpisodeWatch(entry);
+                          }}
+                        />
+                      </Tooltip>
+                      {entry.watched && (
                         <Menu withinPortal position="bottom-end">
                           <Menu.Target>
                             <ActionIcon
                               aria-label={`More actions for episode ${entry.episode.episode_number}`}
-                              size="lg"
-                              variant="default"
+                              size="sm"
+                              variant="subtle"
                             >
-                              <IconChevronDown size={18} />
+                              <IconChevronDown size={16} />
                             </ActionIcon>
                           </Menu.Target>
                           <Menu.Dropdown>
@@ -1183,32 +1101,12 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
                               leftSection={<IconRefresh size={15} />}
                               onClick={() => markEpisodeWatched.mutate(entry.episode.id)}
                             >
-                              Mark rewatched
+                              Rewatch episode
                             </Menu.Item>
                           </Menu.Dropdown>
                         </Menu>
-                      </Group>
-                    ) : (
-                      <Tooltip
-                        label={`Mark episode ${entry.episode.episode_number} watched`}
-                        withArrow
-                      >
-                        <ActionIcon
-                          className="episode-row-action"
-                          aria-label={`Mark episode ${entry.episode.episode_number} watched`}
-                          size="lg"
-                          variant="default"
-                          disabled={prepareEpisodeWatch.isPending || markEpisodeWatched.isPending}
-                          loading={prepareEpisodeWatch.isPending}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            requestEpisodeWatch(entry);
-                          }}
-                        >
-                          <IconEye size={18} />
-                        </ActionIcon>
-                      </Tooltip>
-                    )}
+                      )}
+                    </Group>
                   </Group>
                 </Paper>
               );

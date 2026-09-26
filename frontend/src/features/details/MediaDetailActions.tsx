@@ -6,10 +6,10 @@ import {
   IconEye,
   IconHistory,
   IconEdit,
+  IconPlus,
   IconRefresh,
 } from "@tabler/icons-react";
 import { RatingStars } from "../../components/RatingStars";
-import { MediaQuickActions } from "../../components/MediaQuickActions";
 import type { SearchMedia, ShowEpisodeEntry } from "../../types";
 
 type ActionMutation<T> = { isPending: boolean; mutate: (value: T) => void };
@@ -100,6 +100,9 @@ type MediaActionsProps = {
   onRemoveCurrentList: () => void;
   onViewWatchHistory: () => void;
   onChangeWatchDate: () => void;
+  showBulkAction?: "watch" | "unwatch" | null;
+  onShowBulkAction: () => void;
+  showBulkPending: boolean;
   pending: boolean;
 };
 
@@ -119,6 +122,9 @@ export function MediaActions({
   onRemoveCurrentList,
   onViewWatchHistory,
   onChangeWatchDate,
+  showBulkAction,
+  onShowBulkAction,
+  showBulkPending,
   pending,
 }: MediaActionsProps) {
   if (media.type === "movie")
@@ -184,15 +190,54 @@ export function MediaActions({
         )}
       </Group>
     );
+  const showWatchAction = showBulkAction && (
+    <Tooltip
+      label={showBulkAction === "watch" ? "Mark show watched" : "Mark show unwatched"}
+      withArrow
+    >
+      <ActionIcon
+        className="show-bulk-action"
+        size={44}
+        color="yellow"
+        variant="light"
+        aria-label={`Mark ${media.title} ${showBulkAction === "watch" ? "watched" : "unwatched"}`}
+        onClick={onShowBulkAction}
+        loading={showBulkPending}
+        disabled={pending || add.isPending}
+      >
+        {showBulkAction === "watch" ? <IconEye size={20} /> : <IconCheck size={20} />}
+      </ActionIcon>
+    </Tooltip>
+  );
   if (!isSaved)
     return (
-      <Group className="detail-actions" mt="lg">
-        <MediaQuickActions
-          media={media}
-          busy={add.isPending || pending}
-          onWatch={() => (media.type === "tv" ? add.mutate("watching") : onWatch())}
-          onWatchlist={() => add.mutate("watchlist")}
-        />
+      <Group className="detail-actions detail-icon-actions" mt="lg" gap="xs">
+        <Tooltip label="Add to Watching" withArrow>
+          <ActionIcon
+            size={44}
+            color="yellow"
+            variant="filled"
+            loading={add.isPending}
+            disabled={pending}
+            aria-label={`Add ${media.title} to Watching`}
+            onClick={() => add.mutate("watching")}
+          >
+            <IconPlus size={20} />
+          </ActionIcon>
+        </Tooltip>
+        <Tooltip label="Watch later" withArrow>
+          <ActionIcon
+            size={44}
+            variant="default"
+            loading={add.isPending}
+            disabled={pending}
+            aria-label={`Save ${media.title} for later`}
+            onClick={() => add.mutate("watchlist")}
+          >
+            <IconBookmark size={20} />
+          </ActionIcon>
+        </Tooltip>
+        {showWatchAction}
       </Group>
     );
   const statusOptions = [
@@ -216,6 +261,7 @@ export function MediaActions({
         disabled={pending || update.isPending}
         w={150}
       />
+      {showWatchAction}
       <RatingStars
         value={rating}
         onChange={(value) => update.mutate({ status: status!, rating: value })}

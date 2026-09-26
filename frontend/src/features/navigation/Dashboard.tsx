@@ -72,17 +72,6 @@ export function Dashboard({
         ...(target.mediaID ? { media: target.mediaID } : {}),
         ...(target.episodeID ? { episode: target.episodeID } : {}),
         ...(target.seasonNumber !== undefined ? { season: target.seasonNumber } : {}),
-        ...(target.seed
-          ? {
-              title: target.seed.title,
-              original_title: target.seed.original_title,
-              overview: target.seed.overview,
-              release_date: target.seed.release_date,
-              poster_path: target.seed.poster_path,
-              original_language: target.seed.original_language,
-              type: target.seed.type,
-            }
-          : {}),
       },
     });
   const openPerson = (tmdbID: number) =>
@@ -95,15 +84,21 @@ export function Dashboard({
     onSuccess: () => clearSignedInCache(queryClient),
   });
 
-  const retryConnection = async () => {
-    setCheckingConnection(true);
+  const verifyConnection = async (refreshQueries = false) => {
     try {
       const response = await fetch("/health", { cache: "no-store" });
       if (!response.ok) throw new Error("Server is not ready.");
       setOnline(true);
-      await queryClient.invalidateQueries({ queryKey: ["user", user.id] });
+      if (refreshQueries) await queryClient.invalidateQueries({ queryKey: ["user", user.id] });
     } catch {
       setOnline(false);
+    }
+  };
+
+  const retryConnection = async () => {
+    setCheckingConnection(true);
+    try {
+      await verifyConnection(true);
     } finally {
       setCheckingConnection(false);
     }
@@ -112,7 +107,7 @@ export function Dashboard({
   useEffect(() => {
     const onlineHandler = () => void retryConnection();
     const offlineHandler = () => setOnline(false);
-    const unavailableHandler = () => setOnline(false);
+    const unavailableHandler = () => void verifyConnection();
     window.addEventListener("online", onlineHandler);
     window.addEventListener("offline", offlineHandler);
     window.addEventListener(connectionUnavailableEvent, unavailableHandler);

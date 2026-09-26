@@ -53,13 +53,6 @@ const mediaSearchSchema = z.object({
   media: z.string().optional(),
   episode: z.string().optional(),
   season: z.coerce.number().int().nonnegative().optional(),
-  title: z.string().optional(),
-  original_title: z.string().optional(),
-  overview: z.string().optional(),
-  release_date: z.string().optional(),
-  poster_path: z.string().optional(),
-  original_language: z.string().optional(),
-  type: z.enum(["movie", "tv"]).optional(),
 });
 const mediaRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -117,18 +110,6 @@ function PersonRoute() {
 function MediaRoute() {
   const params = mediaRoute.useParams();
   const search = mediaRoute.useSearch();
-  const seed = search.title
-    ? {
-        tmdb_id: params.tmdbID,
-        type: search.type || params.mediaType,
-        title: search.title,
-        original_title: search.original_title || search.title,
-        overview: search.overview || "",
-        release_date: search.release_date || "",
-        poster_path: search.poster_path || "",
-        original_language: search.original_language || "",
-      }
-    : undefined;
   return (
     <DashboardRoute
       page={{
@@ -139,7 +120,6 @@ function MediaRoute() {
           mediaID: search.media,
           episodeID: search.episode,
           seasonNumber: search.season,
-          seed,
         },
         returnTo: search.from,
       }}

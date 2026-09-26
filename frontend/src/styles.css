@@ -591,10 +591,17 @@ select {
   align-self: center;
   padding: 14px 16px;
 }
-.episode-row-action {
+.episode-row-controls {
   align-self: center;
   flex: 0 0 auto;
   margin-right: 16px;
+}
+.episode-row-controls .mantine-Checkbox-root {
+  padding: 8px;
+}
+.episode-row-controls .mantine-Checkbox-input:focus-visible {
+  outline: 2px solid #f2b544;
+  outline-offset: 3px;
 }
 .episode-description {
   display: -webkit-box;
@@ -981,13 +988,6 @@ select {
 }
 
 @media (max-width: 680px) {
-  .auth-screen-inner {
-    width: min(100% - 32px, 440px);
-    padding: 44px 0 88px;
-  }
-  .auth-screen::before {
-    background: linear-gradient(180deg, rgb(8 12 17 / 0.5), rgb(8 12 17 / 0.8));
-  }
   .calendar-list {
     gap: 22px;
   }
@@ -1004,6 +1004,13 @@ select {
   }
   .calendar-card-copy {
     padding: 9px 10px 9px 0;
+  }
+  .auth-screen-inner {
+    width: min(100% - 32px, 440px);
+    padding: 44px 0 88px;
+  }
+  .auth-screen::before {
+    background: linear-gradient(180deg, rgb(8 12 17 / 0.5), rgb(8 12 17 / 0.8));
   }
   .auth-feature-caption {
     right: 18px;
@@ -1122,7 +1129,7 @@ select {
   .episode-row-copy {
     padding: 9px 10px;
   }
-  .episode-row-action {
+  .episode-row-controls {
     margin-right: 8px;
   }
   .detail-actions {
@@ -1138,6 +1145,10 @@ select {
   }
   .detail-icon-actions > :not(.rating-stars) {
     width: auto;
+  }
+  .detail-actions > .show-bulk-action {
+    width: 44px;
+    align-self: flex-start;
   }
   .detail-actions > .rating-stars {
     width: max-content !important;
