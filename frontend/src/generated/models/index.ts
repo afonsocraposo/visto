@@ -43,6 +43,8 @@ export * from "./feedPage";
 export * from "./getAuthStatus200";
 export * from "./getCalendarParams";
 export * from "./getFeedParams";
+export * from "./getLibraryParams";
+export * from "./getLibrarySort";
 export * from "./getPeopleTmdbID200";
 export * from "./getPlaysParams";
 export * from "./getPublicTrendingParams";

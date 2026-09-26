@@ -41,6 +41,7 @@ import type {
   GetAuthStatus200,
   GetCalendarParams,
   GetFeedParams,
+  GetLibraryParams,
   GetPeopleTmdbID200,
   GetPlaysParams,
   GetPublicTrendingParams,
@@ -5063,39 +5064,53 @@ export function useGetShowsTmdbID<
   return withQueryKey(query, queryOptions.queryKey);
 }
 
-export const getGetLibraryUrl = () => {
-  return `/library`;
+export const getGetLibraryUrl = (params?: GetLibraryParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : String(value));
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/library?${stringifiedParams}` : `/library`;
 };
 
 /**
  * @summary List the authenticated user's library
  */
 export const getLibrary = async (
+  params?: GetLibraryParams,
   options?: Parameters<typeof customFetch>[1],
 ): Promise<LibraryEntry[]> => {
-  return customFetch<LibraryEntry[]>(getGetLibraryUrl(), {
+  return customFetch<LibraryEntry[]>(getGetLibraryUrl(params), {
     ...options,
     method: "GET",
   });
 };
 
-export const getGetLibraryQueryKey = () => {
-  return [`/library`] as const;
+export const getGetLibraryQueryKey = (params?: GetLibraryParams) => {
+  return [`/library`, ...(params ? [params] : [])] as const;
 };
 
 export const getGetLibraryQueryOptions = <
   TData = Awaited<ReturnType<typeof getLibrary>>,
-  TError = UnauthorizedResponse,
->(options?: {
-  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getLibrary>>, TError, TData>>;
-  request?: SecondParameter<typeof customFetch>;
-}) => {
+  TError = BadRequestResponse | UnauthorizedResponse,
+>(
+  params?: GetLibraryParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getLibrary>>, TError, TData>>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getGetLibraryQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getGetLibraryQueryKey(params);
 
   const queryFn: QueryFunction<Awaited<ReturnType<typeof getLibrary>>> = ({ signal }) =>
-    getLibrary({ signal, ...requestOptions });
+    getLibrary(params, { signal, ...requestOptions });
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof getLibrary>>,
@@ -5105,12 +5120,13 @@ export const getGetLibraryQueryOptions = <
 };
 
 export type GetLibraryQueryResult = NonNullable<Awaited<ReturnType<typeof getLibrary>>>;
-export type GetLibraryQueryError = UnauthorizedResponse;
+export type GetLibraryQueryError = BadRequestResponse | UnauthorizedResponse;
 
 export function useGetLibrary<
   TData = Awaited<ReturnType<typeof getLibrary>>,
-  TError = UnauthorizedResponse,
+  TError = BadRequestResponse | UnauthorizedResponse,
 >(
+  params: undefined | GetLibraryParams,
   options: {
     query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getLibrary>>, TError, TData>> &
       Pick<
@@ -5127,8 +5143,9 @@ export function useGetLibrary<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 export function useGetLibrary<
   TData = Awaited<ReturnType<typeof getLibrary>>,
-  TError = UnauthorizedResponse,
+  TError = BadRequestResponse | UnauthorizedResponse,
 >(
+  params?: GetLibraryParams,
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getLibrary>>, TError, TData>> &
       Pick<
@@ -5145,8 +5162,9 @@ export function useGetLibrary<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 export function useGetLibrary<
   TData = Awaited<ReturnType<typeof getLibrary>>,
-  TError = UnauthorizedResponse,
+  TError = BadRequestResponse | UnauthorizedResponse,
 >(
+  params?: GetLibraryParams,
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getLibrary>>, TError, TData>>;
     request?: SecondParameter<typeof customFetch>;
@@ -5159,15 +5177,16 @@ export function useGetLibrary<
 
 export function useGetLibrary<
   TData = Awaited<ReturnType<typeof getLibrary>>,
-  TError = UnauthorizedResponse,
+  TError = BadRequestResponse | UnauthorizedResponse,
 >(
+  params?: GetLibraryParams,
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getLibrary>>, TError, TData>>;
     request?: SecondParameter<typeof customFetch>;
   },
   queryClient?: QueryClient,
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetLibraryQueryOptions(options);
+  const queryOptions = getGetLibraryQueryOptions(params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;

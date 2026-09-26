@@ -16,7 +16,7 @@ import type { Play } from "../../generated/models/play";
 
 export function useDiscoverQueries(query: string) {
   const userQueryKey = useUserQueryKey();
-  const library = useGetLibrary({
+  const library = useGetLibrary(undefined, {
     query: {
       queryKey: userQueryKey("library"),
       retry: retryTransientRequest,

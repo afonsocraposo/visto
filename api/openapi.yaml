@@ -437,7 +437,7 @@ paths:
       summary: List the authenticated user's library
       security: [{ sessionCookie: [] }, { bearerToken: [] }]
       parameters:
-        - { name: sort, in: query, schema: { type: string, enum: [updated, title, released], default: updated }, description: Sort by last update, title, or release date. }
+        - { name: sort, in: query, schema: { type: string, enum: [updated, title, released], default: updated }, description: 'Sort by last update, title, or release date.' }
       responses:
         '200': { description: Library entries, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/LibraryEntry' } } } } }
         '400': { $ref: '#/components/responses/BadRequest' }
