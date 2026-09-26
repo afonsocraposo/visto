@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.8.0](https://github.com/afonsocraposo/visto/compare/v0.7.0...v0.8.0) (2026-09-26)
+
+
+### Features
+
+* show full timestamps on relative dates ([#19](https://github.com/afonsocraposo/visto/issues/19)) ([2075ba6](https://github.com/afonsocraposo/visto/commit/2075ba6e7c9a2fe29b701ca6d6355c1077b19bc0))
+* sort library media on the backend ([790c7d2](https://github.com/afonsocraposo/visto/commit/790c7d235387c0eb622dd1a57fe15f7e17f66cd1))
+
+
+### Bug Fixes
+
+* keep watching artwork at a consistent height ([150695f](https://github.com/afonsocraposo/visto/commit/150695f3faba527cc4d7c3d61e94b5281a576444))
+
 ## [0.7.0](https://github.com/afonsocraposo/visto/compare/v0.6.0...v0.7.0) (2026-09-26)
 
 
