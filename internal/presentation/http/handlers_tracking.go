@@ -3,9 +3,9 @@ package httpserver
 import "encoding/json"
 import "errors"
 import "net/http"
-import "strconv"
 import "time"
 import "github.com/afonsocosta/visto/internal/application/auth"
+import "github.com/afonsocosta/visto/internal/application/pagination"
 import "github.com/afonsocosta/visto/internal/application/tracking"
 import "github.com/afonsocosta/visto/internal/application/watch"
 
@@ -19,28 +19,17 @@ func playHistory(authService *auth.Service, service *tracking.Service) http.Hand
 			writeError(w, http.StatusServiceUnavailable, "tracking is not configured")
 			return
 		}
-		limit := 0
-		if raw := r.URL.Query().Get("limit"); raw != "" {
-			value, err := strconv.Atoi(raw)
-			if err != nil {
-				writeError(w, http.StatusBadRequest, "invalid limit")
-				return
-			}
-			limit = value
-		}
-		mediaID := r.URL.Query().Get("media_id")
-		var entries []tracking.HistoryEntry
-		var err error
-		if mediaID != "" {
-			entries, err = service.MediaHistory(r.Context(), user.ID, mediaID, limit)
-		} else {
-			entries, err = service.History(r.Context(), user.ID, limit)
-		}
+		request, err := pagination.Parse(r)
 		if err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		writeJSON(w, http.StatusOK, entries)
+		page, err := service.HistoryPage(r.Context(), user.ID, r.URL.Query().Get("media_id"), r.URL.Query().Get("episode_id"), request)
+		if err != nil {
+			writePageError(w, err, "history is temporarily unavailable")
+			return
+		}
+		writeJSON(w, http.StatusOK, page)
 	}
 }
 

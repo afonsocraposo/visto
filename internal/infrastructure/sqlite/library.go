@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/afonsocosta/visto/internal/application/library"
@@ -172,6 +173,10 @@ func (s *Store) ListItems(ctx context.Context, userID string) ([]library.Entry, 
 }
 
 func (s *Store) ListItemsSorted(ctx context.Context, userID, sort string) ([]library.Entry, error) {
+	return s.listItemsSorted(ctx, userID, sort, nil)
+}
+
+func (s *Store) listItemsSorted(ctx context.Context, userID, sort string, selected []string) ([]library.Entry, error) {
 	order := "um.updated_at DESC, m.title COLLATE NOCASE, um.media_id"
 	switch sort {
 	case "title":
@@ -181,6 +186,23 @@ func (s *Store) ListItemsSorted(ctx context.Context, userID, sort string) ([]lib
 	case "updated":
 	default:
 		return nil, fmt.Errorf("invalid library sort")
+	}
+	filter := ""
+	progressFilter := ""
+	args := []any{userID}
+	if selected != nil {
+		placeholders := strings.TrimSuffix(strings.Repeat("?,", len(selected)), ",")
+		filter = " AND um.media_id IN (" + placeholders + ")"
+		progressFilter = " AND s.show_id IN (" + placeholders + ")"
+		for _, id := range selected {
+			args = append(args, id)
+		}
+	}
+	args = append(args, userID)
+	if selected != nil {
+		for _, id := range selected {
+			args = append(args, id)
+		}
 	}
 	rows, err := s.DB.QueryContext(ctx, `SELECT um.user_id,um.media_id,um.status,um.rating,um.added_at,um.updated_at,um.notifications_enabled,m.media_type,m.tmdb_id,m.title,COALESCE(m.original_title,''),COALESCE(m.overview,''),COALESCE(m.release_date,''),COALESCE(m.poster_path,''),COALESCE(m.original_language,''),COALESCE(m.status,''),
 		((m.media_type='movie' AND EXISTS(SELECT 1 FROM plays p WHERE p.user_id=um.user_id AND p.media_id=um.media_id)) OR
@@ -194,9 +216,9 @@ func (s *Store) ListItemsSorted(ctx context.Context, userID, sort string) ([]lib
 			FROM seasons s
 			LEFT JOIN episodes e ON e.season_id=s.id AND e.season_number>0
 			LEFT JOIN (SELECT DISTINCT episode_id FROM plays WHERE user_id=?) p ON p.episode_id=e.id
-			WHERE s.season_number>0 GROUP BY s.show_id
+			WHERE s.season_number>0`+progressFilter+` GROUP BY s.show_id
 		) progress ON progress.show_id=m.id
-		WHERE um.user_id=? ORDER BY `+order, userID, userID)
+		WHERE um.user_id=?`+filter+` ORDER BY `+order, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list library items: %w", err)
 	}

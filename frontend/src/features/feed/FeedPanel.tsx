@@ -1,3 +1,4 @@
+import { InfiniteScrollTrigger } from "../../components/InfiniteScrollTrigger";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { Alert, Button, Group, Loader } from "@mantine/core";
 import { EmptyState } from "../../components/EmptyState";
@@ -68,22 +69,12 @@ export function FeedPanel({
           />
         ))}
       </div>
-      {feed.hasNextPage && (
-        <Group justify="center" mt="md">
-          <Button
-            variant="light"
-            onClick={() => void feed.fetchNextPage()}
-            loading={feed.isFetchingNextPage}
-          >
-            Load more activity
-          </Button>
-        </Group>
-      )}
-      {feed.isFetchNextPageError && (
-        <Alert color="red" mt="md">
-          Could not load more activity. Try again.
-        </Alert>
-      )}
+      <InfiniteScrollTrigger
+        hasNextPage={!!feed.hasNextPage}
+        isFetchingNextPage={feed.isFetchingNextPage}
+        isFetchNextPageError={feed.isFetchNextPageError}
+        fetchNextPage={() => void feed.fetchNextPage()}
+      />
     </>
   );
 }

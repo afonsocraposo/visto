@@ -372,6 +372,16 @@ furthest watched episode. `get_library` lists saved media and supports filters
 by status and media type. REST clients can use
 `POST /api/v1/shows/{showID}/episodes/watch-through` with `season_number` and
 `episode_number` to apply the same watch-through action.
+
+REST list responses for `/api/v1/library`, `/api/v1/plays`,
+`/api/v1/shows/{showID}/episodes`, `/api/v1/seasons/{seasonID}/episodes`, and
+`/api/v1/users` now return `{ "items": [...], "next_cursor": null }` instead
+of a bare array. Clients can pass `limit` (1–100, default 30) and then pass
+`next_cursor` as `cursor` to request the next page. Library lists also accept
+`sort`, `status`, and `media_type`; play history accepts `media_id` or
+`episode_id`. Cursors are tied to the endpoint and filters. Existing REST
+clients must update their response parsing when they upgrade the server.
+
 The destructive `remove_media` MCP action removes a movie or TV show from the
 authenticated user's library along with that user's plays, ratings, and
 activity for the title. It leaves other users' records and shared catalog data

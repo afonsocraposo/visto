@@ -127,7 +127,7 @@ test("Given a fresh install, When the service worker installs, Then it precaches
   await harness.start();
   await harness.install();
 
-  const shell = harness.cacheStore.get("visto-shell-v2");
+  const shell = harness.cacheStore.get("visto-shell-v3");
   assert.ok(await shell.match(`${origin}/`));
   assert.ok(await shell.match(`${origin}/manifest.webmanifest`));
   assert.ok(await shell.match(`${origin}/icon.svg?v=2`));
@@ -142,8 +142,8 @@ test("Given a new app shell, When the service worker activates, Then it removes 
   await harness.activate();
 
   assert.equal(harness.cacheStore.has("visto-shell-v1"), false);
-  assert.equal(harness.cacheStore.has("visto-shell-v2"), true);
-  assert.equal(harness.cacheStore.has("visto-user-v1-alice"), true);
+  assert.equal(harness.cacheStore.has("visto-shell-v3"), true);
+  assert.equal(harness.cacheStore.has("visto-user-v1-alice"), false);
 });
 
 test("Given a browser install prompt, When it reads the web manifest, Then Visto has standalone mode and an app icon", async () => {
@@ -218,7 +218,7 @@ test("Given a signed-in user, When an allowed GET is cached, Then offline reads 
   for (let index = 0; index < 105; index++) {
     await harness.dispatchFetch(`/api/v1/search?q=${index}`);
   }
-  assert.equal((await harness.cacheStore.get("visto-user-v1-alice").keys()).length, 100);
+  assert.equal((await harness.cacheStore.get("visto-user-v2-alice").keys()).length, 100);
 });
 
 test("Given an offline client, When a write or failed GET is requested, Then it is not cached or replayed", async () => {

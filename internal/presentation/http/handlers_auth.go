@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/afonsocosta/visto/internal/application/auth"
+	"github.com/afonsocosta/visto/internal/application/pagination"
 	"github.com/afonsocosta/visto/internal/domain"
 	"github.com/afonsocosta/visto/internal/presentation/security"
 )
@@ -92,9 +93,14 @@ func listUsers(service *auth.Service) http.HandlerFunc {
 			writeError(w, http.StatusForbidden, "administrator access required")
 			return
 		}
-		users, err := service.Users(r.Context())
+		request, err := pagination.Parse(r)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "could not list users")
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		users, err := service.UsersPage(r.Context(), request)
+		if err != nil {
+			writePageError(w, err, "could not list users")
 			return
 		}
 		writeJSON(w, http.StatusOK, users)

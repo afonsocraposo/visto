@@ -1,11 +1,11 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQueries } from "@tanstack/react-query";
 import { Alert, Button, Group, Loader, SegmentedControl, Select, Text, Title } from "@mantine/core";
 import { useState } from "react";
 import { EmptyState } from "../../components/EmptyState";
 import { useUserQueryKey } from "../auth/SessionContext";
 import { api } from "../../lib/api";
 import { LibraryCard } from "./LibraryCard";
-import type { LibraryEntry, LibraryStatus, MediaDetailTarget } from "../../types";
+import type { CursorPage, LibraryEntry, LibraryStatus, MediaDetailTarget } from "../../types";
 import { librarySortOptions, type LibrarySort } from "./librarySort";
 export { HistoryPanel } from "./HistoryPanel";
 export { ProfilePanel } from "./ProfilePanel";
@@ -29,27 +29,29 @@ export function LibraryPanel({
   const [mediaFilter, setMediaFilter] = useState<"all" | "movie" | "tv">("all");
   const [sort, setSort] = useState<LibrarySort>("updated");
   const userQueryKey = useUserQueryKey();
-  const library = useQuery({
-    queryKey: [...userQueryKey("library"), sort],
-    queryFn: () =>
-      api.get<LibraryEntry[]>(
-        `/api/v1/library?sort=${sort}`,
-        "Your library is temporarily unavailable.",
-      ),
+  const libraries = useQueries({
+    queries: sections.map((section) => ({
+      queryKey: [...userQueryKey("library"), sort, section.status, mediaFilter],
+      queryFn: () =>
+        api.get<CursorPage<LibraryEntry>>(
+          `/api/v1/library?sort=${sort}&status=${section.status}&limit=${PREVIEW_LIMIT}${mediaFilter === "all" ? "" : `&media_type=${mediaFilter}`}`,
+          "Your library is temporarily unavailable.",
+        ),
+    })),
   });
-  if (library.isPending)
+  if (libraries.some((library) => library.isPending))
     return (
       <Group justify="center" mt="xl">
         <Loader />
       </Group>
     );
-  if (library.isError)
+  if (libraries.some((library) => library.isError))
     return (
       <Alert color="red" mt="md">
         Your library is temporarily unavailable.
       </Alert>
     );
-  if (!library.data?.length)
+  if (libraries.every((library) => !library.data?.items.length))
     return (
       <EmptyState
         title="Your library is empty"
@@ -86,16 +88,11 @@ export function LibraryPanel({
         />
       </Group>
       <div className="library-sections">
-        {sections.map((section) => {
-          const entries = library.data.filter(
-            (entry) =>
-              (section.status === "completed"
-                ? entry.completed
-                : !entry.completed && entry.item.status === section.status) &&
-              (mediaFilter === "all" || entry.media.type === mediaFilter),
-          );
+        {sections.map((section, index) => {
+          const page = libraries[index].data!;
+          const entries = page.items;
           if (entries.length === 0) return null;
-          const visible = entries.slice(0, PREVIEW_LIMIT);
+          const visible = entries;
           return (
             <section
               className="library-section"
@@ -113,10 +110,10 @@ export function LibraryPanel({
                     {section.label}
                   </Title>
                   <Text size="sm" c="dimmed">
-                    {entries.length} {entries.length === 1 ? "title" : "titles"}
+                    {entries.length} {entries.length === 1 ? "title" : "titles"} shown
                   </Text>
                 </div>
-                {entries.length > PREVIEW_LIMIT && (
+                {page.next_cursor && (
                   <Button variant="subtle" size="sm" onClick={() => onOpenList?.(section.status)}>
                     Show all
                   </Button>

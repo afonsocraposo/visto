@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ActionIcon,
   Alert,
@@ -15,6 +15,9 @@ import {
 import { IconEye, IconEyeCheck } from "@tabler/icons-react";
 import { useUserQueryKey } from "../auth/SessionContext";
 import { api } from "../../lib/api";
+import { fetchAllPages, pageURL } from "../../lib/pagination";
+import { InfiniteScrollTrigger } from "../../components/InfiniteScrollTrigger";
+import type { CursorPage } from "../../types";
 import { findMissingPriorEpisodes } from "./episodeSelection";
 import type { ShowEpisodeEntry } from "../../types";
 
@@ -33,13 +36,31 @@ export function EpisodeBrowser({
   const userQueryKey = useUserQueryKey();
   const [season, setSeason] = useState<string | null>(null);
   const [confirmation, setConfirmation] = useState<PendingSkippedEpisodes | null>(null);
-  const episodes = useQuery({
-    queryKey: userQueryKey("episodes", showID),
+  const [prepareError, setPrepareError] = useState<string | null>(null);
+  const seasonsQuery = useQuery({
+    queryKey: userQueryKey("show-seasons", showID),
     queryFn: () =>
-      api.get<ShowEpisodeEntry[]>(
-        `/api/v1/shows/${encodeURIComponent(showID)}/episodes`,
+      api.get<Array<{ id: string; season_number: number }>>(
+        `/api/v1/shows/${encodeURIComponent(showID)}/seasons`,
+      ),
+  });
+  const seasons = seasonsQuery.data?.map((item) => item.season_number) ?? [];
+  const firstRegularSeason = seasons.find((number) => number > 0);
+  const defaultSeason = firstRegularSeason ?? seasons[0];
+  const selectedSeason = season ?? (defaultSeason === undefined ? null : String(defaultSeason));
+  const selectedSeasonID = seasonsQuery.data?.find(
+    (item) => String(item.season_number) === selectedSeason,
+  )?.id;
+  const episodes = useInfiniteQuery({
+    queryKey: userQueryKey("episodes", showID, selectedSeasonID),
+    enabled: Boolean(selectedSeasonID),
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }) =>
+      api.get<CursorPage<ShowEpisodeEntry>>(
+        pageURL(`/api/v1/seasons/${encodeURIComponent(selectedSeasonID!)}/episodes`, pageParam),
         "Could not load episodes.",
       ),
+    getNextPageParam: (page) => page.next_cursor ?? undefined,
   });
   const recordPlays = useMutation({
     mutationFn: ({ episodeIDs, bulk }: { episodeIDs: string[]; bulk: boolean }) =>
@@ -62,38 +83,42 @@ export function EpisodeBrowser({
     },
   });
 
-  const episodeEntries = episodes.data ?? [];
-  const seasons = [...new Set(episodeEntries.map((entry) => entry.episode.season_number))];
-  const firstRegularSeason = seasons.find((number) => number > 0);
-  const defaultSeason = firstRegularSeason ?? seasons[0];
-  const selectedSeason = season ?? (defaultSeason === undefined ? null : String(defaultSeason));
-  const visibleEpisodes = episodeEntries.filter(
-    (entry) => String(entry.episode.season_number) === selectedSeason,
-  );
+  const visibleEpisodes = episodes.data?.pages.flatMap((page) => page.items) ?? [];
 
-  const selectEpisode = (target: ShowEpisodeEntry) => {
-    const today = new Date().toISOString().slice(0, 10);
-    const missing = findMissingPriorEpisodes(episodeEntries, target, today);
-    if (missing.length > 0) {
-      setConfirmation({ target, missing });
-      return;
+  const selectEpisode = async (target: ShowEpisodeEntry) => {
+    setPrepareError(null);
+    try {
+      const allEpisodes = await fetchAllPages<ShowEpisodeEntry>(
+        `/api/v1/shows/${encodeURIComponent(showID)}/episodes`,
+        "Could not check earlier episodes.",
+      );
+      const today = new Date().toISOString().slice(0, 10);
+      const missing = findMissingPriorEpisodes(allEpisodes, target, today);
+      if (missing.length > 0) {
+        setConfirmation({ target, missing });
+        return;
+      }
+      recordPlays.mutate({ episodeIDs: [target.episode.id], bulk: false });
+    } catch (error) {
+      setPrepareError(error instanceof Error ? error.message : "Could not check earlier episodes.");
     }
-    recordPlays.mutate({ episodeIDs: [target.episode.id], bulk: false });
   };
 
   return (
     <>
       <Modal opened onClose={onClose} title={`Episodes · ${title}`} size="lg" centered>
-        {episodes.isPending && (
+        {(episodes.isPending || seasonsQuery.isPending) && (
           <Group justify="center" py="xl">
             <Loader />
           </Group>
         )}
-        {episodes.isError && <Alert color="red">{episodes.error.message}</Alert>}
-        {episodes.data && seasons.length === 0 && (
+        {(episodes.isError || seasonsQuery.isError) && (
+          <Alert color="red">Could not load episodes.</Alert>
+        )}
+        {seasonsQuery.data && seasons.length === 0 && (
           <Text c="dimmed">Episode details are not available yet.</Text>
         )}
-        {episodes.data && seasons.length > 0 && (
+        {seasonsQuery.data && seasons.length > 0 && (
           <>
             <Select
               label="Season"
@@ -134,7 +159,7 @@ export function EpisodeBrowser({
                       }
                       disabled={entry.watched || recordPlays.isPending}
                       loading={!entry.watched && recordPlays.isPending}
-                      onClick={() => selectEpisode(entry)}
+                      onClick={() => void selectEpisode(entry)}
                     >
                       {entry.watched ? <IconEyeCheck size={18} /> : <IconEye size={18} />}
                     </ActionIcon>
@@ -142,9 +167,20 @@ export function EpisodeBrowser({
                 </Group>
               </Paper>
             ))}
+            <InfiniteScrollTrigger
+              hasNextPage={!!episodes.hasNextPage}
+              isFetchingNextPage={episodes.isFetchingNextPage}
+              isFetchNextPageError={episodes.isFetchNextPageError}
+              fetchNextPage={() => void episodes.fetchNextPage()}
+            />
             {recordPlays.isError && (
               <Alert color="red" mt="md">
                 {recordPlays.error.message}
+              </Alert>
+            )}
+            {prepareError && (
+              <Alert color="red" mt="md">
+                {prepareError}
               </Alert>
             )}
           </>

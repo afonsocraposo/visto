@@ -4,6 +4,7 @@ import "errors"
 import "net/http"
 import "time"
 import "github.com/afonsocosta/visto/internal/application/auth"
+import "github.com/afonsocosta/visto/internal/application/pagination"
 import "github.com/afonsocosta/visto/internal/application/watch"
 
 func continueWatching(authService *auth.Service, service *watch.Service) http.HandlerFunc {
@@ -35,13 +36,18 @@ func showEpisodes(authService *auth.Service, service *watch.Service) http.Handle
 			writeError(w, http.StatusServiceUnavailable, "show data is not configured")
 			return
 		}
-		entries, err := service.Episodes(r.Context(), user.ID, r.PathValue("showID"))
+		request, err := pagination.Parse(r)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		entries, err := service.EpisodesPage(r.Context(), user.ID, r.PathValue("showID"), request)
 		if err != nil {
 			if errors.Is(err, watch.ErrShowNotFound) {
 				writeError(w, http.StatusNotFound, "show not found")
 				return
 			}
-			writeError(w, http.StatusInternalServerError, "show episodes are temporarily unavailable")
+			writePageError(w, err, "show episodes are temporarily unavailable")
 			return
 		}
 		writeJSON(w, http.StatusOK, entries)
@@ -104,13 +110,18 @@ func seasonEpisodes(authService *auth.Service, service *watch.Service) http.Hand
 			writeError(w, http.StatusServiceUnavailable, "season data is not configured")
 			return
 		}
-		entries, err := service.SeasonEpisodes(r.Context(), user.ID, r.PathValue("seasonID"))
+		request, err := pagination.Parse(r)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		entries, err := service.SeasonEpisodesPage(r.Context(), user.ID, r.PathValue("seasonID"), request)
 		if err != nil {
 			if errors.Is(err, watch.ErrShowNotFound) {
 				writeError(w, http.StatusNotFound, "season not found")
 				return
 			}
-			writeError(w, http.StatusInternalServerError, "season episodes are temporarily unavailable")
+			writePageError(w, err, "season episodes are temporarily unavailable")
 			return
 		}
 		writeJSON(w, http.StatusOK, entries)

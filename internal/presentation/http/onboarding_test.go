@@ -54,6 +54,11 @@ func TestOnboardingHTTP_GivenNoAdministrator_WhenSignupIsRequested_ThenSetupMust
 	}
 	if response := adminRequest(http.MethodGet, "/api/v1/users", ""); response.Code != http.StatusOK {
 		t.Fatalf("list users status = %d: %s", response.Code, response.Body.String())
+	} else if !strings.Contains(response.Body.String(), `"items"`) || !strings.Contains(response.Body.String(), `"next_cursor":null`) {
+		t.Fatalf("list users response = %s, want a page", response.Body.String())
+	}
+	if response := adminRequest(http.MethodGet, "/api/v1/users?limit=0", ""); response.Code != http.StatusBadRequest {
+		t.Fatalf("invalid page limit status = %d, want 400", response.Code)
 	}
 	created := adminRequest(http.MethodPost, "/api/v1/users", `{"email":"managed@example.com","name":"Managed","password":"a-long-managed-password"}`)
 	if created.Code != http.StatusCreated {

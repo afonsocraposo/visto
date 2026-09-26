@@ -87,8 +87,12 @@ paths:
     get:
       summary: List instance users as an administrator
       security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 30 } }
+        - { name: cursor, in: query, schema: { type: string } }
       responses:
-        '200': { description: Instance users, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/User' } } } } }
+        '200': { description: Instance users page, content: { application/json: { schema: { $ref: '#/components/schemas/UsersPage' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { description: Administrator access required }
     post:
@@ -491,8 +495,12 @@ paths:
       security: [{ sessionCookie: [] }, { bearerToken: [] }]
       parameters:
         - { name: sort, in: query, schema: { type: string, enum: [updated, title, released], default: updated }, description: 'Sort by last update, title, or release date.' }
+        - { name: status, in: query, schema: { type: string, enum: [watching, watchlist, paused, dropped, completed] } }
+        - { name: media_type, in: query, schema: { type: string, enum: [movie, tv] } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 30 } }
+        - { name: cursor, in: query, schema: { type: string } }
       responses:
-        '200': { description: Library entries, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/LibraryEntry' } } } } }
+        '200': { description: Library page, content: { application/json: { schema: { $ref: '#/components/schemas/LibraryPage' } } } }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
     post:
@@ -501,6 +509,15 @@ paths:
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SaveLibraryRequest' } } } }
       responses:
         '201': { description: Saved library item, content: { application/json: { schema: { $ref: '#/components/schemas/LibraryItem' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /library/lookup:
+    post:
+      summary: Look up library entries by media ID
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [media_ids], properties: { media_ids: { type: array, maxItems: 100, items: { type: string } } } } } } }
+      responses:
+        '200': { description: Matching library entries, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/LibraryEntry' } } } } }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
   /library/{mediaID}:
@@ -550,10 +567,13 @@ paths:
       summary: List the authenticated user's recent play history
       security: [{ sessionCookie: [] }, { bearerToken: [] }]
       parameters:
-        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 500, default: 100 } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 30 } }
+        - { name: cursor, in: query, schema: { type: string } }
         - { name: media_id, in: query, schema: { type: string, description: Filter watches to one movie ID. } }
+        - { name: episode_id, in: query, schema: { type: string, description: Filter watches to one episode ID. } }
       responses:
-        '200': { description: Recent plays, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/HistoryEntry' } } } } }
+        '200': { description: Play history page, content: { application/json: { schema: { $ref: '#/components/schemas/PlaysPage' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
   /episodes/{episodeID}/rating:
     get:
@@ -632,8 +652,11 @@ paths:
       security: [{ sessionCookie: [] }, { bearerToken: [] }]
       parameters:
         - { name: showID, in: path, required: true, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 30 } }
+        - { name: cursor, in: query, schema: { type: string } }
       responses:
-        '200': { description: Episodes with the user's watched state, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ShowEpisode' } } } } }
+        '200': { description: Episodes page with the user's watched state, content: { application/json: { schema: { $ref: '#/components/schemas/EpisodesPage' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { description: Show is not in the authenticated user's library }
   /shows/{showID}/episodes/watch-through:
@@ -675,8 +698,11 @@ paths:
       security: [{ sessionCookie: [] }, { bearerToken: [] }]
       parameters:
         - { name: seasonID, in: path, required: true, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 30 } }
+        - { name: cursor, in: query, schema: { type: string } }
       responses:
-        '200': { description: Episodes with the user's watched state, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/ShowEpisode' } } } } }
+        '200': { description: Episodes page with the user's watched state, content: { application/json: { schema: { $ref: '#/components/schemas/EpisodesPage' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { description: Season is not in the authenticated user's library }
   /continue-watching:
@@ -867,6 +893,30 @@ components:
         episode_number: { type: integer }
         episode_name: { type: string }
         occurred_at: { type: string, format: date-time }
+    UsersPage:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/User' } }
+        next_cursor: { type: [string, 'null'] }
+    LibraryPage:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/LibraryEntry' } }
+        next_cursor: { type: [string, 'null'] }
+    PlaysPage:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/HistoryEntry' } }
+        next_cursor: { type: [string, 'null'] }
+    EpisodesPage:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/ShowEpisode' } }
+        next_cursor: { type: [string, 'null'] }
     FeedPage:
       type: object
       required: [items]

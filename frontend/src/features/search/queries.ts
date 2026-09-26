@@ -1,27 +1,15 @@
-import { useMutation } from "@tanstack/react-query";
-import {
-  postLibrary,
-  postPlays,
-  useGetLibrary,
-  useGetSearch,
-  useGetTrending,
-} from "../../generated/api";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { postLibrary, postPlays, useGetSearch, useGetTrending } from "../../generated/api";
 import { retryTransientRequest } from "../../lib/api";
 import { api } from "../../lib/api";
 import { showActionFeedback } from "../../components/ActionFeedback";
 import { useInvalidateUserCache, userCache } from "../../lib/userCache";
 import { useUserQueryKey } from "../auth/SessionContext";
-import type { SearchMedia } from "../../types";
+import type { SearchMedia, LibraryEntry } from "../../types";
 import type { Play } from "../../generated/models/play";
 
 export function useDiscoverQueries(query: string) {
   const userQueryKey = useUserQueryKey();
-  const library = useGetLibrary(undefined, {
-    query: {
-      queryKey: userQueryKey("library"),
-      retry: retryTransientRequest,
-    },
-  });
   const results = useGetSearch(
     { q: query },
     {
@@ -44,6 +32,25 @@ export function useDiscoverQueries(query: string) {
       },
     },
   );
+  const visible = query
+    ? (results.data ?? [])
+    : [...(trending.data?.tv ?? []).slice(0, 10), ...(trending.data?.movies ?? []).slice(0, 10)];
+  const mediaIDs = visible.map((item) => `${item.type}:${item.tmdb_id}`);
+  const library = useQuery({
+    queryKey: [...userQueryKey("library"), "lookup", mediaIDs.join(",")],
+    enabled: mediaIDs.length > 0,
+    queryFn: async () => {
+      const batches: LibraryEntry[][] = [];
+      for (let start = 0; start < mediaIDs.length; start += 100) {
+        batches.push(
+          await api.post<LibraryEntry[]>("/api/v1/library/lookup", {
+            media_ids: mediaIDs.slice(start, start + 100),
+          }),
+        );
+      }
+      return batches.flat();
+    },
+  });
   return { library, results, trending };
 }
 

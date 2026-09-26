@@ -5,11 +5,21 @@
  * Self-hosted movie and TV tracking API.
  * OpenAPI spec version: 0.1.0
  */
+import type { GetLibraryMediaType } from "./getLibraryMediaType";
 import type { GetLibrarySort } from "./getLibrarySort";
+import type { GetLibraryStatus } from "./getLibraryStatus";
 
 export type GetLibraryParams = {
   /**
    * Sort by last update, title, or release date.
    */
   sort?: GetLibrarySort;
+  status?: GetLibraryStatus;
+  media_type?: GetLibraryMediaType;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  limit?: number;
+  cursor?: string;
 };

@@ -175,6 +175,8 @@ export function SearchPanel({
                   !savedEntry.completed
                 }
                 busy={
+                  library.isPending ||
+                  library.isError ||
                   addToLibrary.isPending ||
                   addMovieAsWatched.isPending ||
                   markWatchlistMovieWatched.isPending

@@ -1,4 +1,4 @@
-const shell = "visto-shell-v2";
+const shell = "visto-shell-v3";
 const userIndex = "visto-user-index-v1";
 const maxCachedAPIEntries = 100;
 const cacheableAPIPaths = new Set([
@@ -26,7 +26,11 @@ self.addEventListener("activate", (event) =>
       .then((cacheNames) =>
         Promise.all(
           cacheNames
-            .filter((cacheName) => cacheName.startsWith("visto-shell-") && cacheName !== shell)
+            .filter(
+              (cacheName) =>
+                (cacheName.startsWith("visto-shell-") && cacheName !== shell) ||
+                cacheName.startsWith("visto-user-v1-"),
+            )
             .map((cacheName) => caches.delete(cacheName)),
         ),
       )
@@ -93,7 +97,7 @@ function offlineResponse(message) {
   });
 }
 function userCacheName(userID) {
-  return `visto-user-v1-${encodeURIComponent(userID)}`;
+  return `visto-user-v2-${encodeURIComponent(userID)}`;
 }
 function isCacheableAPIPath(path) {
   return (

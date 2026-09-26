@@ -7,6 +7,7 @@ import "net/http"
 import "strconv"
 import "github.com/afonsocosta/visto/internal/application/auth"
 import "github.com/afonsocosta/visto/internal/application/library"
+import "github.com/afonsocosta/visto/internal/application/pagination"
 import "github.com/afonsocosta/visto/internal/domain"
 
 func removeWatchlistItem(authService *auth.Service, service *library.Service) http.HandlerFunc {
@@ -151,20 +152,17 @@ func listLibrary(authService *auth.Service, service *library.Service) http.Handl
 			writeError(w, http.StatusServiceUnavailable, "library is not configured")
 			return
 		}
-		sort := r.URL.Query().Get("sort")
-		if sort == "" {
-			sort = "updated"
-		}
-		if sort != "updated" && sort != "title" && sort != "released" {
-			writeError(w, http.StatusBadRequest, "invalid library sort")
-			return
-		}
-		items, err := service.ListSorted(r.Context(), user.ID, sort)
+		request, err := pagination.Parse(r)
 		if err != nil {
-			writeError(w, http.StatusInternalServerError, "library is temporarily unavailable")
+			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		writeJSON(w, http.StatusOK, items)
+		page, err := service.ListPage(r.Context(), user.ID, library.ListOptions{Sort: r.URL.Query().Get("sort"), Status: r.URL.Query().Get("status"), MediaType: r.URL.Query().Get("media_type")}, request)
+		if err != nil {
+			writePageError(w, err, "library is temporarily unavailable")
+			return
+		}
+		writeJSON(w, http.StatusOK, page)
 	}
 }
 
@@ -211,5 +209,31 @@ func mediaDetails(authService *auth.Service, service *library.Service, provider 
 			return
 		}
 		writeJSON(w, http.StatusOK, entry)
+	}
+}
+
+func lookupLibrary(authService *auth.Service, service *library.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := authenticatedUser(w, r, authService)
+		if !ok {
+			return
+		}
+		if service == nil {
+			writeError(w, http.StatusServiceUnavailable, "library is not configured")
+			return
+		}
+		var request struct {
+			MediaIDs []string `json:"media_ids"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			writeError(w, http.StatusBadRequest, "invalid JSON")
+			return
+		}
+		entries, err := service.Lookup(r.Context(), user.ID, request.MediaIDs)
+		if err != nil {
+			writePageError(w, err, "library is temporarily unavailable")
+			return
+		}
+		writeJSON(w, http.StatusOK, entries)
 	}
 }

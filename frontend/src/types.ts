@@ -194,3 +194,5 @@ export type HistoryEntry = {
 };
 
 export type LibraryStatus = "watching" | "completed" | "watchlist" | "paused" | "dropped";
+
+export type CursorPage<T> = { items: T[]; next_cursor: string | null };

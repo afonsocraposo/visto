@@ -1,7 +1,7 @@
 import type { QueryClient } from "@tanstack/react-query";
 
 export async function endCurrentSession(): Promise<void> {
-  if ("serviceWorker" in navigator) {
+  if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
     const registration = await navigator.serviceWorker.ready;
     const subscription = await registration.pushManager?.getSubscription();
     if (subscription) {

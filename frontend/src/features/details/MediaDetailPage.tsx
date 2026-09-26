@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ActionIcon,
   Alert,
@@ -27,6 +27,8 @@ import {
   IconEye,
   IconRefresh,
 } from "@tabler/icons-react";
+import { fetchAllPages } from "../../lib/pagination";
+import { InfiniteScrollTrigger } from "../../components/InfiniteScrollTrigger";
 import { api } from "../../lib/api";
 import { postPlaysBulk } from "../../generated/api";
 import { showActionFeedback } from "../../components/ActionFeedback";
@@ -109,6 +111,36 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
       : (temporary.data?.media ?? seed);
   const savedMediaID = library.data?.item.media_id || undefined;
   const showID = resolveMediaID(target.mediaID, savedMediaID, media);
+  const isSaved = Boolean(savedMediaID);
+  const savedSeasons = useQuery({
+    queryKey: userQueryKey("show-seasons", showID),
+    enabled: target.mediaType === "tv" && isSaved && Boolean(showID),
+    queryFn: () =>
+      api.get<Array<{ id: string; season_number: number; episode_count: number }>>(
+        `/api/v1/shows/${encodeURIComponent(showID!)}/seasons`,
+      ),
+  });
+  const savedProgress = useQuery({
+    queryKey: userQueryKey("show-progress", showID),
+    enabled: target.mediaType === "tv" && isSaved && Boolean(showID),
+    queryFn: () =>
+      api.get<{ is_fully_watched: boolean; watched_episodes: number }>(
+        `/api/v1/shows/${encodeURIComponent(showID!)}/progress`,
+      ),
+  });
+  const availableSeasonNumbers = isSaved
+    ? (savedSeasons.data?.map((item) => item.season_number) ?? [])
+    : (temporary.data?.seasons.map((item) => item.season_number) ?? []);
+  const selectedSeason =
+    season ??
+    (target.seasonNumber !== undefined
+      ? String(target.seasonNumber)
+      : availableSeasonNumbers.length
+        ? String(availableSeasonNumbers.find((number) => number > 0) ?? availableSeasonNumbers[0])
+        : null);
+  const selectedSeasonID = savedSeasons.data?.find(
+    (item) => String(item.season_number) === selectedSeason,
+  )?.id;
   const detailScope = ["media-detail", target.mediaType, target.tmdbID];
   const episodeScopes = [
     ["detail-episodes", showID],
@@ -120,8 +152,37 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
     userCache.calendar,
   ];
   const invalidateEpisodeData = () => invalidate(...episodeScopes);
-  const episodes = useShowEpisodesQuery(showID, target.mediaType === "tv" && Boolean(savedMediaID));
-  const history = useDetailHistoryQuery(Boolean(library.data));
+  const episodes = useShowEpisodesQuery(
+    showID,
+    selectedSeasonID,
+    target.mediaType === "tv" && isSaved,
+  );
+  const loadedSelectedEpisode = episodes.data?.pages.some((page) =>
+    page.items.some((entry) => entry.episode.id === target.episodeID),
+  );
+  useEffect(() => {
+    if (
+      target.episodeID &&
+      isSaved &&
+      episodes.hasNextPage &&
+      !episodes.isFetchingNextPage &&
+      !loadedSelectedEpisode
+    ) {
+      void episodes.fetchNextPage();
+    }
+  }, [
+    target.episodeID,
+    isSaved,
+    episodes.hasNextPage,
+    episodes.isFetchingNextPage,
+    loadedSelectedEpisode,
+    episodes.fetchNextPage,
+  ]);
+  const history = useDetailHistoryQuery(
+    Boolean(library.data),
+    target.episodeID,
+    target.mediaType === "movie" ? showID : undefined,
+  );
   const ensureTrackedEpisodes = async (): Promise<ShowEpisodeEntry[]> => {
     if (!media || !showID) throw new Error("This show is not available.");
     if (!savedMediaID) {
@@ -137,11 +198,11 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
         "Could not move this show to Watching.",
       );
     }
-    const all = await api.get<ShowEpisodeEntry[]>(
+    const all = await fetchAllPages<ShowEpisodeEntry>(
       `/api/v1/shows/${encodeURIComponent(showID)}/episodes`,
       "Could not load episodes after adding this show.",
     );
-    queryClient.setQueryData(userQueryKey("detail-episodes", showID), all);
+    await queryClient.invalidateQueries({ queryKey: userQueryKey("detail-episodes", showID) });
     await invalidate(userCache.library, ["media-detail", target.mediaType, target.tmdbID]);
     return all;
   };
@@ -357,7 +418,16 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
     },
   });
   const removeEpisodesWatched = useMutation({
-    mutationFn: async (episodeIDs: string[]) => {
+    mutationFn: async (selection: string[] | { selectedSeasons: number[] }) => {
+      const episodeIDs = Array.isArray(selection)
+        ? selection
+        : selectWatchedEpisodes(
+            await fetchAllPages<ShowEpisodeEntry>(
+              `/api/v1/shows/${encodeURIComponent(showID!)}/episodes`,
+              "Could not load episodes.",
+            ),
+            selection.selectedSeasons,
+          );
       for (const batch of chunk([...new Set(episodeIDs)], 100)) {
         await api.delete("/api/v1/plays/bulk", "Could not mark these episodes unwatched.", {
           episode_ids: batch,
@@ -388,17 +458,6 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
       );
     },
   });
-  const isSaved = Boolean(savedMediaID);
-  const availableSeasonNumbers = isSaved
-    ? [...new Set((episodes.data ?? []).map((entry) => entry.episode.season_number))]
-    : (temporary.data?.seasons.map((season) => season.season_number) ?? []);
-  const selectedSeason =
-    season ??
-    (target.seasonNumber !== undefined
-      ? String(target.seasonNumber)
-      : availableSeasonNumbers.length
-        ? String(availableSeasonNumbers.find((number) => number > 0) ?? availableSeasonNumbers[0])
-        : null);
   const temporarySeason = Number(selectedSeason);
   const temporaryEpisodes = useTemporarySeasonEpisodesQuery(
     target,
@@ -406,7 +465,7 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
     temporarySeason,
   );
   const candidateEpisodes = isSaved
-    ? (episodes.data ?? [])
+    ? (episodes.data?.pages.flatMap((page) => page.items) ?? [])
     : (temporaryEpisodes.data?.episodes ?? []);
   const candidateEpisode = target.episodeID
     ? candidateEpisodes.find((entry) => entry.episode.id === target.episodeID)
@@ -456,7 +515,9 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
 
   const art = posterURL(media.poster_path, "w500");
   const temporaryEpisodeEntries = temporaryEpisodes.data?.episodes ?? [];
-  const episodeEntries = isSaved ? (episodes.data ?? []) : temporaryEpisodeEntries;
+  const episodeEntries = isSaved
+    ? (episodes.data?.pages.flatMap((page) => page.items) ?? [])
+    : temporaryEpisodeEntries;
   const seasons = availableSeasonNumbers;
   const visibleEpisodes = episodeEntries.filter(
     (entry) => String(entry.episode.season_number) === selectedSeason,
@@ -496,7 +557,7 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
     "linear-gradient(90deg, rgba(9,13,18,.55) 0%, rgba(9,13,18,.2) 60%, rgba(9,13,18,.08) 100%)",
     ...artLayers.map((layer) => `url(${layer})`),
   ].join(", ");
-  const watchedPlay = history.data?.find((item) =>
+  const watchedPlay = history.data?.items.find((item) =>
     selectedEpisode
       ? item.play.episode_id === selectedEpisode.episode.id
       : item.play.media_id === showID,
@@ -510,7 +571,7 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
   const seasonGroups = [
     ...new Set(
       isSaved
-        ? episodeEntries.map((entry) => entry.episode.season_number)
+        ? availableSeasonNumbers
         : (temporary.data?.seasons.map((season) => season.season_number) ?? []),
     ),
   ]
@@ -522,11 +583,6 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
   const releasedShowEpisodes = episodeEntries.filter(
     (entry) => !entry.watched && (!entry.episode.air_date || entry.episode.air_date <= today),
   );
-  const selectedShowEpisodes = (
-    showWatchAction === "unwatch"
-      ? episodeEntries.filter((entry) => entry.watched)
-      : releasedShowEpisodes
-  ).filter((entry) => selectedShowSeasons[entry.episode.season_number] === true);
   const openShowWatchModal = () => {
     setShowWatchAction("watch");
     setSelectedShowSeasons(
@@ -552,7 +608,7 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
           )
         : [pendingWatch.seasonNumber];
       if (pendingWatch.action === "unwatch") {
-        removeEpisodesWatched.mutate(selectWatchedEpisodes(episodeEntries, seasonNumbers));
+        removeEpisodesWatched.mutate({ selectedSeasons: seasonNumbers });
       } else {
         markEpisodesWatched.mutate({
           selectedSeasons: seasonNumbers,
@@ -581,17 +637,26 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
       .filter(([, selected]) => selected)
       .map(([number]) => Number(number));
     if (showWatchAction === "unwatch")
-      removeEpisodesWatched.mutate(selectWatchedEpisodes(episodeEntries, seasonNumbers));
+      removeEpisodesWatched.mutate({ selectedSeasons: seasonNumbers });
     else
       markEpisodesWatched.mutate({
         selectedSeasons: seasonNumbers,
       });
   };
-  const hasWatchedShowEpisodes = episodeEntries.some((entry) => entry.watched);
-  const showBulkAction =
-    releasedShowEpisodes.length > 0 ? "watch" : hasWatchedShowEpisodes ? "unwatch" : null;
+  const hasWatchedShowEpisodes =
+    (library.data?.progress?.watched_episodes ?? 0) > 0 ||
+    episodeEntries.some((entry) => entry.watched);
+  const showBulkAction = isSaved
+    ? savedProgress.data?.is_fully_watched
+      ? "unwatch"
+      : "watch"
+    : releasedShowEpisodes.length > 0
+      ? "watch"
+      : hasWatchedShowEpisodes
+        ? "unwatch"
+        : null;
   const seasonBulkAction =
-    releasedSeasonEpisodes.length > 0
+    releasedSeasonEpisodes.length > 0 || (isSaved && episodes.hasNextPage)
       ? "watch"
       : watchedSeasonEpisodes.length > 0
         ? "unwatch"
@@ -711,11 +776,6 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
         </Text>
         <Stack gap="xs">
           {seasonGroups.map((group) => {
-            const remaining = group.episodes.filter((entry) =>
-              showWatchAction === "unwatch"
-                ? entry.watched
-                : !entry.watched && (!entry.episode.air_date || entry.episode.air_date <= today),
-            ).length;
             return (
               <Paper key={group.number} withBorder p="sm">
                 <Group justify="space-between">
@@ -725,7 +785,7 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
                     </Text>
                     <Text size="xs" c="dimmed">
                       {isSaved
-                        ? `${remaining} ${showWatchAction === "unwatch" ? "watched " : ""}episodes`
+                        ? `${savedSeasons.data?.find((item) => item.season_number === group.number)?.episode_count ?? 0} episodes`
                         : "Episodes load when you confirm"}
                     </Text>
                   </div>
@@ -759,17 +819,14 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
             Cancel
           </Button>
           <Button
-            disabled={
-              !Object.values(selectedShowSeasons).some(Boolean) ||
-              (isSaved && selectedShowEpisodes.length === 0)
-            }
+            disabled={!Object.values(selectedShowSeasons).some(Boolean)}
             loading={markEpisodesWatched.isPending || removeEpisodesWatched.isPending}
             onClick={confirmShowAction}
           >
             {isSaved
               ? showWatchAction === "unwatch"
-                ? `Mark ${selectedShowEpisodes.length} unwatched`
-                : `Mark ${selectedShowEpisodes.length} episodes watched`
+                ? "Mark selected seasons unwatched"
+                : "Mark selected seasons watched"
               : "Mark selected seasons watched"}
           </Button>
         </Group>
@@ -1131,6 +1188,14 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
                 </Paper>
               );
             })}
+            {isSaved && (
+              <InfiniteScrollTrigger
+                hasNextPage={!!episodes.hasNextPage}
+                isFetchingNextPage={episodes.isFetchingNextPage}
+                isFetchNextPageError={episodes.isFetchNextPageError}
+                fetchNextPage={() => void episodes.fetchNextPage()}
+              />
+            )}
           </Stack>
         </section>
       )}

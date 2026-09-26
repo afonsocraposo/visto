@@ -26,11 +26,17 @@ async function fulfillJSON(route: Route, value: unknown, status = 200) {
 }
 
 async function mockSignedInSession(page: Page) {
+  let signedIn = true;
   await page.route("**/api/v1/auth/status", (route) =>
     fulfillJSON(route, { bootstrap_available: false, signup_enabled: true, google_enabled: false }),
   );
-  await page.route("**/api/v1/me", (route) => fulfillJSON(route, user));
-  await page.route("**/api/v1/auth/logout", (route) => route.fulfill({ status: 204, body: "" }));
+  await page.route("**/api/v1/me", (route) =>
+    signedIn ? fulfillJSON(route, user) : fulfillJSON(route, { error: "signed out" }, 401),
+  );
+  await page.route("**/api/v1/auth/logout", (route) => {
+    signedIn = false;
+    return route.fulfill({ status: 204, body: "" });
+  });
   await page.route("**/api/v1/public/trending**", (route) =>
     fulfillJSON(route, { tv: [], movies: [] }),
   );
@@ -41,11 +47,20 @@ async function mockSignedInSession(page: Page) {
   await page.route("**/api/v1/profile/plex-webhook", (route) =>
     fulfillJSON(route, { enabled: false, recent_events: [] }),
   );
-  await page.route(/\/api\/v1\/library(?:\?.*)?$/, (route) => fulfillJSON(route, []));
+  await page.route(/\/api\/v1\/library(?:\?.*)?$/, (route) =>
+    fulfillJSON(route, { items: [], next_cursor: null }),
+  );
+  await page.route("**/api/v1/library/lookup", (route) => fulfillJSON(route, []));
   await page.route("**/api/v1/feed**", (route) =>
     fulfillJSON(route, { items: [], next_cursor: null }),
   );
   await page.route("**/api/v1/search**", (route) => fulfillJSON(route, []));
+  await page.route("**/api/v1/shows/**/seasons", (route) =>
+    fulfillJSON(route, [{ id: "tv:100:season:1", season_number: 1, episode_count: 2 }]),
+  );
+  await page.route("**/api/v1/seasons/**/episodes", (route) =>
+    fulfillJSON(route, { items: [], next_cursor: null }),
+  );
 }
 
 test("Given a signed-in user, When they navigate and manage appearance and account settings, Then the shell stays compact and actions work", async ({
@@ -182,7 +197,7 @@ test("Given an unsaved TV show, When the user adds it or chooses Watch later, Th
       await fulfillJSON(route, {}, 201);
       return;
     }
-    await fulfillJSON(route, []);
+    await fulfillJSON(route, { items: [], next_cursor: null });
   });
   await page.route("**/api/v1/library/**", async (route) => {
     if (route.request().method() === "PATCH") {
@@ -192,6 +207,7 @@ test("Given an unsaved TV show, When the user adds it or chooses Watch later, Th
     }
     await fulfillJSON(route, {});
   });
+  await page.route("**/api/v1/library/lookup", (route) => fulfillJSON(route, []));
   await page.goto("/");
   await page.getByRole("button", { name: "Discover" }).click();
   await page.getByRole("textbox", { name: "Search TMDB" }).fill("Example");
@@ -218,8 +234,12 @@ test("Media detail links stay short and load after refresh", async ({ page }) =>
     original_language: "en",
   }));
   await page.route("**/api/v1/search**", (route) => fulfillJSON(route, media));
-  await page.route("**/api/v1/shows/100", (route) => fulfillJSON(route, { error: "not saved" }, 404));
-  await page.route("**/api/v1/movies/200", (route) => fulfillJSON(route, { error: "not saved" }, 404));
+  await page.route("**/api/v1/shows/100", (route) =>
+    fulfillJSON(route, { error: "not saved" }, 404),
+  );
+  await page.route("**/api/v1/movies/200", (route) =>
+    fulfillJSON(route, { error: "not saved" }, 404),
+  );
   await page.route("**/api/v1/discover/shows/100", (route) =>
     fulfillJSON(route, { media: media[0], seasons: [], cast: [] }),
   );
@@ -231,7 +251,9 @@ test("Media detail links stay short and load after refresh", async ({ page }) =>
 
   for (const title of titles) {
     await page.getByRole("link", { name: `Open details for ${title.title}` }).click();
-    await expect(page).toHaveURL(new RegExp(`/media/${title.type}/${title.tmdb_id}\\?from=%2Fdiscover$`));
+    await expect(page).toHaveURL(
+      new RegExp(`/media/${title.type}/${title.tmdb_id}\\?from=%2Fdiscover$`),
+    );
     await expect(page.getByRole("heading", { name: title.title })).toBeVisible();
     await page.reload();
     await expect(page.getByRole("heading", { name: title.title })).toBeVisible();
@@ -296,18 +318,38 @@ test("TV details show the production status for saved and unsaved shows", async 
   ).toBeVisible();
 
   await page.route("**/api/v1/shows/**/episodes", (route) =>
-    fulfillJSON(route, [
-      {
-        episode: {
-          id: "tv:100:episode:1",
-          season_number: 1,
-          episode_number: 1,
-          air_date: "2024-01-01",
+    fulfillJSON(route, {
+      items: [
+        {
+          episode: {
+            id: "tv:100:episode:1",
+            season_number: 1,
+            episode_number: 1,
+            air_date: "2024-01-01",
+          },
+          name: "Pilot episode",
+          watched: false,
         },
-        name: "Pilot episode",
-        watched: false,
-      },
-    ]),
+      ],
+      next_cursor: null,
+    }),
+  );
+  await page.route("**/api/v1/seasons/**/episodes", (route) =>
+    fulfillJSON(route, {
+      items: [
+        {
+          episode: {
+            id: "tv:100:episode:1",
+            season_number: 1,
+            episode_number: 1,
+            air_date: "2024-01-01",
+          },
+          name: "Pilot episode",
+          watched: false,
+        },
+      ],
+      next_cursor: null,
+    }),
   );
   await page.goto("/media/tv/100?episode=tv%3A100%3Aepisode%3A1");
   await expect(page.getByRole("heading", { name: "Pilot episode" })).toBeVisible();
@@ -352,6 +394,9 @@ test("Given a TV show detail, When the user uses compact watch controls, Then sh
   }));
   let savedStatus: "watching" | "watchlist" | null = null;
   let allWatched = false;
+  await page.route("**/api/v1/shows/**/progress", (route) =>
+    fulfillJSON(route, { is_fully_watched: allWatched, watched_episodes: allWatched ? 2 : 0 }),
+  );
   await page.route("**/api/v1/shows/100", (route) =>
     savedStatus
       ? fulfillJSON(route, {
@@ -371,14 +416,20 @@ test("Given a TV show detail, When the user uses compact watch controls, Then sh
       savedStatus = (route.request().postDataJSON() as { status: "watching" | "watchlist" }).status;
       await fulfillJSON(route, {}, 201);
     } else {
-      await fulfillJSON(route, []);
+      await fulfillJSON(route, { items: [], next_cursor: null });
     }
   });
   await page.route("**/api/v1/shows/**/episodes", (route) =>
-    fulfillJSON(
-      route,
-      episodes.map((entry) => ({ ...entry, watched: allWatched })),
-    ),
+    fulfillJSON(route, {
+      items: episodes.map((entry) => ({ ...entry, watched: allWatched })),
+      next_cursor: null,
+    }),
+  );
+  await page.route("**/api/v1/seasons/**/episodes", (route) =>
+    fulfillJSON(route, {
+      items: episodes.map((entry) => ({ ...entry, watched: allWatched })),
+      next_cursor: null,
+    }),
   );
   await page.route("**/api/v1/discover/shows/100", (route) =>
     fulfillJSON(route, {
@@ -448,6 +499,21 @@ test("Given a movie in Watchlist, When it is marked watched from search, Then Un
   let playDeleted = false;
   await page.route("**/api/v1/search**", (route) => fulfillJSON(route, [movie]));
   await page.route(/\/api\/v1\/library(?:\?.*)?$/, (route) =>
+    fulfillJSON(route, [
+      {
+        item: {
+          media_id: movie.id,
+          status,
+          rating: 4,
+          notifications_enabled: true,
+          updated_at: "2026-09-25T00:00:00Z",
+        },
+        media: movie,
+        completed: status === "watching",
+      },
+    ]),
+  );
+  await page.route("**/api/v1/library/lookup", (route) =>
     fulfillJSON(route, [
       {
         item: {
@@ -597,4 +663,73 @@ test("Given an installed service worker, When the app shell loads, Then the PWA 
   } finally {
     await context.close();
   }
+});
+
+test("Given another feed page, When the sentinel enters view, Then it loads without a click", async ({
+  page,
+}) => {
+  await mockSignedInSession(page);
+  const requested: string[] = [];
+  await page.route(/\/api\/v1\/feed(?:\?.*)?$/, async (route) => {
+    const cursor = new URL(route.request().url()).searchParams.get("cursor");
+    requested.push(cursor ?? "first");
+    await fulfillJSON(route, {
+      items: [
+        {
+          id: cursor ? "event-2" : "event-1",
+          display_name: "Afonso",
+          kind: "watch",
+          title: cursor ? "Second title" : "First title",
+          occurred_at: "2026-09-26T12:00:00Z",
+        },
+      ],
+      next_cursor: cursor ? null : "next-page",
+    });
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Feed" }).click();
+  await page.getByRole("tab", { name: "Community" }).click();
+  await expect(page.getByText("Second title")).toBeVisible();
+  expect(requested).toContain("next-page");
+});
+
+test("Given another library page, When the user scrolls the list, Then more titles appear", async ({
+  page,
+}) => {
+  await mockSignedInSession(page);
+  const entry = (id: number) => ({
+    item: {
+      media_id: `movie:${id}`,
+      status: "watchlist",
+      rating: null,
+      notifications_enabled: true,
+      updated_at: "2026-09-26T12:00:00Z",
+    },
+    media: {
+      id: `movie:${id}`,
+      tmdb_id: id,
+      type: "movie",
+      title: `Library title ${id}`,
+      original_title: `Library title ${id}`,
+      overview: "",
+      release_date: "2026-01-01",
+      poster_path: "",
+      original_language: "en",
+    },
+    completed: false,
+  });
+  await page.route(/\/api\/v1\/library(?:\?.*)?$/, async (route) => {
+    const url = new URL(route.request().url());
+    if (url.searchParams.get("status") !== "watchlist")
+      return fulfillJSON(route, { items: [], next_cursor: null });
+    if (url.searchParams.has("limit"))
+      return fulfillJSON(route, { items: [entry(1)], next_cursor: "overview-more" });
+    if (url.searchParams.has("cursor"))
+      return fulfillJSON(route, { items: [entry(2)], next_cursor: null });
+    return fulfillJSON(route, { items: [entry(1)], next_cursor: "list-more" });
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Profile" }).click();
+  await page.getByRole("button", { name: "Show all" }).click();
+  await expect(page.getByText("Library title 2")).toBeVisible();
 });

@@ -1,6 +1,7 @@
+import { InfiniteScrollTrigger } from "../../components/InfiniteScrollTrigger";
 import { BackupPanel } from "./BackupPanel";
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "@mantine/form";
 import {
   Alert,
@@ -14,18 +15,21 @@ import {
   Title,
 } from "@mantine/core";
 import { useUserQueryKey } from "../auth/SessionContext";
-import type { User } from "../../types";
+import type { CursorPage, User } from "../../types";
+import { pageURL } from "../../lib/pagination";
 
 export function AdminPanel({ currentUser }: { currentUser: User }) {
   const queryClient = useQueryClient();
   const userQueryKey = useUserQueryKey();
-  const users = useQuery({
+  const users = useInfiniteQuery({
     queryKey: userQueryKey("admin-users"),
-    queryFn: async () => {
-      const response = await fetch("/api/v1/users");
+    initialPageParam: undefined as string | undefined,
+    queryFn: async ({ pageParam }) => {
+      const response = await fetch(pageURL("/api/v1/users", pageParam));
       if (!response.ok) throw new Error("Could not load users.");
-      return response.json() as Promise<User[]>;
+      return response.json() as Promise<CursorPage<User>>;
     },
+    getNextPageParam: (page) => page.next_cursor ?? undefined,
   });
   const form = useForm({ initialValues: { email: "", name: "", password: "" } });
   const createUser = useMutation({
@@ -66,9 +70,17 @@ export function AdminPanel({ currentUser }: { currentUser: User }) {
         )}
         {users.data && (
           <Stack mt="md">
-            {users.data.map((account) => (
-              <AdminUserRow key={account.id} account={account} currentUser={currentUser} />
-            ))}
+            {users.data.pages
+              .flatMap((page) => page.items)
+              .map((account) => (
+                <AdminUserRow key={account.id} account={account} currentUser={currentUser} />
+              ))}
+            <InfiniteScrollTrigger
+              hasNextPage={!!users.hasNextPage}
+              isFetchingNextPage={users.isFetchingNextPage}
+              isFetchNextPageError={users.isFetchNextPageError}
+              fetchNextPage={() => void users.fetchNextPage()}
+            />
           </Stack>
         )}
       </Paper>

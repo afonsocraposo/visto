@@ -6,11 +6,12 @@ import {
   useGetDiscoverShowsTmdbIDSeasonsSeasonNumberEpisodesEpisodeNumber,
   useGetEpisodesEpisodeIDRating,
   useGetMoviesTmdbID,
-  useGetPlays,
-  useGetShowsShowIDEpisodes,
   useGetShowsTmdbID,
 } from "../../generated/api";
-import { retryTransientRequest } from "../../lib/api";
+import { api, retryTransientRequest } from "../../lib/api";
+import { pageURL } from "../../lib/pagination";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import type { CursorPage, HistoryEntry, ShowEpisodeEntry } from "../../types";
 import { useUserQueryKey } from "../auth/SessionContext";
 import type { MediaDetailTarget } from "../../types";
 
@@ -62,29 +63,41 @@ export function useMediaDetailQueries(target: MediaDetailTarget) {
   return { library: target.mediaType === "tv" ? showLibrary : movieLibrary, show, movie, related };
 }
 
-export function useShowEpisodesQuery(showID: string | undefined, enabled: boolean) {
+export function useShowEpisodesQuery(
+  showID: string | undefined,
+  seasonID: string | undefined,
+  enabled: boolean,
+) {
   const userQueryKey = useUserQueryKey();
-  return useGetShowsShowIDEpisodes(showID ?? "", {
-    query: {
-      queryKey: userQueryKey("detail-episodes", showID),
-      enabled: enabled && Boolean(showID),
-      ...retryOptions,
-    },
+  return useInfiniteQuery({
+    queryKey: userQueryKey("detail-episodes", showID, seasonID),
+    enabled: enabled && Boolean(showID && seasonID),
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }) =>
+      api.get<CursorPage<ShowEpisodeEntry>>(
+        pageURL(`/api/v1/seasons/${encodeURIComponent(seasonID!)}/episodes`, pageParam),
+        "Could not load episodes.",
+      ),
+    getNextPageParam: (page) => page.next_cursor ?? undefined,
+    ...retryOptions,
   });
 }
 
-export function useDetailHistoryQuery(enabled: boolean) {
+export function useDetailHistoryQuery(enabled: boolean, episodeID?: string, movieID?: string) {
   const userQueryKey = useUserQueryKey();
-  return useGetPlays(
-    { limit: 500 },
-    {
-      query: {
-        queryKey: userQueryKey("detail-history"),
-        enabled,
-        ...retryOptions,
-      },
-    },
-  );
+  const filter = episodeID
+    ? `episode_id=${encodeURIComponent(episodeID)}`
+    : `media_id=${encodeURIComponent(movieID ?? "")}`;
+  return useQuery({
+    queryKey: userQueryKey("detail-history", filter),
+    enabled: enabled && Boolean(episodeID || movieID),
+    queryFn: () =>
+      api.get<CursorPage<HistoryEntry>>(
+        `/api/v1/plays?${filter}&limit=1`,
+        "Could not load watch history.",
+      ),
+    ...retryOptions,
+  });
 }
 
 export function useTemporarySeasonEpisodesQuery(

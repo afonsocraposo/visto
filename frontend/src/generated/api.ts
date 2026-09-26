@@ -37,6 +37,7 @@ import type {
   DeletePlaysBulkBody,
   DeleteProfileWebPushSubscriptionBody,
   EpisodeRating,
+  EpisodesPage,
   ExportData,
   FeedPage,
   GetAuthStatus200,
@@ -47,18 +48,23 @@ import type {
   GetPlaysParams,
   GetPublicTrendingParams,
   GetSearchParams,
+  GetSeasonsSeasonIDEpisodesParams,
+  GetShowsShowIDEpisodesParams,
   GetTrendingParams,
-  HistoryEntry,
+  GetUsersParams,
   IssuedPersonalAPIToken,
   LibraryEntry,
   LibraryItem,
+  LibraryPage,
   LoginRequest,
   MediaSearchResult,
   PatchLibraryMediaIDNotificationsBody,
   PatchUsersUserIDBody,
   PersonalAPIToken,
   Play,
+  PlaysPage,
   PlexWebhookStatus,
+  PostLibraryLookupBody,
   PostPlaysBulkBody,
   PostProfilePlexWebhook201,
   PostProfilePlexWebhookBody,
@@ -68,7 +74,6 @@ import type {
   SaveLibraryRequest,
   Season,
   SetEpisodeRatingRequest,
-  ShowEpisode,
   ShowProgress,
   SignupRequest,
   TemporaryEpisodeDetails,
@@ -79,6 +84,7 @@ import type {
   UnauthorizedResponse,
   UpdateLibraryRequest,
   User,
+  UsersPage,
   WatchThroughRequest,
   WatchThroughResponse,
   WebPushSubscription,
@@ -1173,37 +1179,53 @@ export const usePostAdminBackupsRun = <TError = void, TContext = unknown>(
   return useMutation(getPostAdminBackupsRunMutationOptions(options), queryClient);
 };
 
-export const getGetUsersUrl = () => {
-  return `/users`;
+export const getGetUsersUrl = (params?: GetUsersParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : String(value));
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/users?${stringifiedParams}` : `/users`;
 };
 
 /**
  * @summary List instance users as an administrator
  */
-export const getUsers = async (options?: Parameters<typeof customFetch>[1]): Promise<User[]> => {
-  return customFetch<User[]>(getGetUsersUrl(), {
+export const getUsers = async (
+  params?: GetUsersParams,
+  options?: Parameters<typeof customFetch>[1],
+): Promise<UsersPage> => {
+  return customFetch<UsersPage>(getGetUsersUrl(params), {
     ...options,
     method: "GET",
   });
 };
 
-export const getGetUsersQueryKey = () => {
-  return [`/users`] as const;
+export const getGetUsersQueryKey = (params?: GetUsersParams) => {
+  return [`/users`, ...(params ? [params] : [])] as const;
 };
 
 export const getGetUsersQueryOptions = <
   TData = Awaited<ReturnType<typeof getUsers>>,
-  TError = UnauthorizedResponse | void,
->(options?: {
-  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsers>>, TError, TData>>;
-  request?: SecondParameter<typeof customFetch>;
-}) => {
+  TError = BadRequestResponse | UnauthorizedResponse | void,
+>(
+  params?: GetUsersParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsers>>, TError, TData>>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getGetUsersQueryKey();
+  const queryKey = queryOptions?.queryKey ?? getGetUsersQueryKey(params);
 
   const queryFn: QueryFunction<Awaited<ReturnType<typeof getUsers>>> = ({ signal }) =>
-    getUsers({ signal, ...requestOptions });
+    getUsers(params, { signal, ...requestOptions });
 
   return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
     Awaited<ReturnType<typeof getUsers>>,
@@ -1213,12 +1235,13 @@ export const getGetUsersQueryOptions = <
 };
 
 export type GetUsersQueryResult = NonNullable<Awaited<ReturnType<typeof getUsers>>>;
-export type GetUsersQueryError = UnauthorizedResponse | void;
+export type GetUsersQueryError = BadRequestResponse | UnauthorizedResponse | void;
 
 export function useGetUsers<
   TData = Awaited<ReturnType<typeof getUsers>>,
-  TError = UnauthorizedResponse | void,
+  TError = BadRequestResponse | UnauthorizedResponse | void,
 >(
+  params: undefined | GetUsersParams,
   options: {
     query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsers>>, TError, TData>> &
       Pick<
@@ -1235,8 +1258,9 @@ export function useGetUsers<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 export function useGetUsers<
   TData = Awaited<ReturnType<typeof getUsers>>,
-  TError = UnauthorizedResponse | void,
+  TError = BadRequestResponse | UnauthorizedResponse | void,
 >(
+  params?: GetUsersParams,
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsers>>, TError, TData>> &
       Pick<
@@ -1253,8 +1277,9 @@ export function useGetUsers<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 export function useGetUsers<
   TData = Awaited<ReturnType<typeof getUsers>>,
-  TError = UnauthorizedResponse | void,
+  TError = BadRequestResponse | UnauthorizedResponse | void,
 >(
+  params?: GetUsersParams,
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsers>>, TError, TData>>;
     request?: SecondParameter<typeof customFetch>;
@@ -1267,15 +1292,16 @@ export function useGetUsers<
 
 export function useGetUsers<
   TData = Awaited<ReturnType<typeof getUsers>>,
-  TError = UnauthorizedResponse | void,
+  TError = BadRequestResponse | UnauthorizedResponse | void,
 >(
+  params?: GetUsersParams,
   options?: {
     query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getUsers>>, TError, TData>>;
     request?: SecondParameter<typeof customFetch>;
   },
   queryClient?: QueryClient,
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetUsersQueryOptions(options);
+  const queryOptions = getGetUsersQueryOptions(params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -5731,8 +5757,8 @@ export const getGetLibraryUrl = (params?: GetLibraryParams) => {
 export const getLibrary = async (
   params?: GetLibraryParams,
   options?: Parameters<typeof customFetch>[1],
-): Promise<LibraryEntry[]> => {
-  return customFetch<LibraryEntry[]>(getGetLibraryUrl(params), {
+): Promise<LibraryPage> => {
+  return customFetch<LibraryPage>(getGetLibraryUrl(params), {
     ...options,
     method: "GET",
   });
@@ -5947,6 +5973,115 @@ export const usePostLibrary = <
   TContext
 > => {
   return useMutation(getPostLibraryMutationOptions(options), queryClient);
+};
+
+export const getPostLibraryLookupUrl = () => {
+  return `/library/lookup`;
+};
+
+/**
+ * @summary Look up library entries by media ID
+ */
+export const postLibraryLookup = async (
+  postLibraryLookupBody: PostLibraryLookupBody,
+  options?: Parameters<typeof customFetch>[1],
+): Promise<LibraryEntry[]> => {
+  const getHeaders = (
+    h?: NonNullable<RequestInit["headers"]>,
+  ): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(
+          h as Iterable<Iterable<string>>,
+          (entry) => Array.from(entry) as [string, string],
+        ),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+  return customFetch<LibraryEntry[]>(getPostLibraryLookupUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getHeaders(options?.headers) },
+    body: JSON.stringify(postLibraryLookupBody),
+  });
+};
+
+export const getPostLibraryLookupMutationKey = () => ["postLibraryLookup"] as const;
+
+export const getPostLibraryLookupMutationOptions = <
+  TError = BadRequestResponse | UnauthorizedResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof postLibraryLookup>>,
+    TError,
+    PostLibraryLookupMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof postLibraryLookup>>,
+  TError,
+  PostLibraryLookupMutationVariables,
+  TContext
+> => {
+  const mutationKey = getPostLibraryLookupMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof postLibraryLookup>>,
+    PostLibraryLookupMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return postLibraryLookup(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PostLibraryLookupMutationResult = NonNullable<
+  Awaited<ReturnType<typeof postLibraryLookup>>
+>;
+export type PostLibraryLookupMutationBody = PostLibraryLookupBody;
+export type PostLibraryLookupMutationError = BadRequestResponse | UnauthorizedResponse;
+export type PostLibraryLookupMutationVariables = { data: PostLibraryLookupBody };
+
+/**
+ * @summary Look up library entries by media ID
+ */
+export const usePostLibraryLookup = <
+  TError = BadRequestResponse | UnauthorizedResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof postLibraryLookup>>,
+      TError,
+      PostLibraryLookupMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof postLibraryLookup>>,
+  TError,
+  PostLibraryLookupMutationVariables,
+  TContext
+> => {
+  return useMutation(getPostLibraryLookupMutationOptions(options), queryClient);
 };
 
 export const getDeleteLibraryMediaIDUrl = (
@@ -6408,8 +6543,8 @@ export const getGetPlaysUrl = (params?: GetPlaysParams) => {
 export const getPlays = async (
   params?: GetPlaysParams,
   options?: Parameters<typeof customFetch>[1],
-): Promise<HistoryEntry[]> => {
-  return customFetch<HistoryEntry[]>(getGetPlaysUrl(params), {
+): Promise<PlaysPage> => {
+  return customFetch<PlaysPage>(getGetPlaysUrl(params), {
     ...options,
     method: "GET",
   });
@@ -6421,7 +6556,7 @@ export const getGetPlaysQueryKey = (params?: GetPlaysParams) => {
 
 export const getGetPlaysQueryOptions = <
   TData = Awaited<ReturnType<typeof getPlays>>,
-  TError = UnauthorizedResponse,
+  TError = BadRequestResponse | UnauthorizedResponse,
 >(
   params?: GetPlaysParams,
   options?: {
@@ -6444,11 +6579,11 @@ export const getGetPlaysQueryOptions = <
 };
 
 export type GetPlaysQueryResult = NonNullable<Awaited<ReturnType<typeof getPlays>>>;
-export type GetPlaysQueryError = UnauthorizedResponse;
+export type GetPlaysQueryError = BadRequestResponse | UnauthorizedResponse;
 
 export function useGetPlays<
   TData = Awaited<ReturnType<typeof getPlays>>,
-  TError = UnauthorizedResponse,
+  TError = BadRequestResponse | UnauthorizedResponse,
 >(
   params: undefined | GetPlaysParams,
   options: {
@@ -6467,7 +6602,7 @@ export function useGetPlays<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 export function useGetPlays<
   TData = Awaited<ReturnType<typeof getPlays>>,
-  TError = UnauthorizedResponse,
+  TError = BadRequestResponse | UnauthorizedResponse,
 >(
   params?: GetPlaysParams,
   options?: {
@@ -6486,7 +6621,7 @@ export function useGetPlays<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 export function useGetPlays<
   TData = Awaited<ReturnType<typeof getPlays>>,
-  TError = UnauthorizedResponse,
+  TError = BadRequestResponse | UnauthorizedResponse,
 >(
   params?: GetPlaysParams,
   options?: {
@@ -6501,7 +6636,7 @@ export function useGetPlays<
 
 export function useGetPlays<
   TData = Awaited<ReturnType<typeof getPlays>>,
-  TError = UnauthorizedResponse,
+  TError = BadRequestResponse | UnauthorizedResponse,
 >(
   params?: GetPlaysParams,
   options?: {
@@ -7269,8 +7404,23 @@ export const useDeletePlaysMediaMediaID = <
   return useMutation(getDeletePlaysMediaMediaIDMutationOptions(options), queryClient);
 };
 
-export const getGetShowsShowIDEpisodesUrl = (showID: string) => {
-  return `/shows/${showID}/episodes`;
+export const getGetShowsShowIDEpisodesUrl = (
+  showID: string,
+  params?: GetShowsShowIDEpisodesParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : String(value));
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/shows/${showID}/episodes?${stringifiedParams}`
+    : `/shows/${showID}/episodes`;
 };
 
 /**
@@ -7278,23 +7428,28 @@ export const getGetShowsShowIDEpisodesUrl = (showID: string) => {
  */
 export const getShowsShowIDEpisodes = async (
   showID: string,
+  params?: GetShowsShowIDEpisodesParams,
   options?: Parameters<typeof customFetch>[1],
-): Promise<ShowEpisode[]> => {
-  return customFetch<ShowEpisode[]>(getGetShowsShowIDEpisodesUrl(showID), {
+): Promise<EpisodesPage> => {
+  return customFetch<EpisodesPage>(getGetShowsShowIDEpisodesUrl(showID, params), {
     ...options,
     method: "GET",
   });
 };
 
-export const getGetShowsShowIDEpisodesQueryKey = (showID: string) => {
-  return [`/shows/${showID}/episodes`] as const;
+export const getGetShowsShowIDEpisodesQueryKey = (
+  showID: string,
+  params?: GetShowsShowIDEpisodesParams,
+) => {
+  return [`/shows/${showID}/episodes`, ...(params ? [params] : [])] as const;
 };
 
 export const getGetShowsShowIDEpisodesQueryOptions = <
   TData = Awaited<ReturnType<typeof getShowsShowIDEpisodes>>,
-  TError = UnauthorizedResponse | void,
+  TError = BadRequestResponse | UnauthorizedResponse | void,
 >(
   showID: string,
+  params?: GetShowsShowIDEpisodesParams,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof getShowsShowIDEpisodes>>, TError, TData>
@@ -7304,10 +7459,10 @@ export const getGetShowsShowIDEpisodesQueryOptions = <
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getGetShowsShowIDEpisodesQueryKey(showID);
+  const queryKey = queryOptions?.queryKey ?? getGetShowsShowIDEpisodesQueryKey(showID, params);
 
   const queryFn: QueryFunction<Awaited<ReturnType<typeof getShowsShowIDEpisodes>>> = ({ signal }) =>
-    getShowsShowIDEpisodes(showID, { signal, ...requestOptions });
+    getShowsShowIDEpisodes(showID, params, { signal, ...requestOptions });
 
   return {
     queryKey,
@@ -7322,13 +7477,14 @@ export const getGetShowsShowIDEpisodesQueryOptions = <
 export type GetShowsShowIDEpisodesQueryResult = NonNullable<
   Awaited<ReturnType<typeof getShowsShowIDEpisodes>>
 >;
-export type GetShowsShowIDEpisodesQueryError = UnauthorizedResponse | void;
+export type GetShowsShowIDEpisodesQueryError = BadRequestResponse | UnauthorizedResponse | void;
 
 export function useGetShowsShowIDEpisodes<
   TData = Awaited<ReturnType<typeof getShowsShowIDEpisodes>>,
-  TError = UnauthorizedResponse | void,
+  TError = BadRequestResponse | UnauthorizedResponse | void,
 >(
   showID: string,
+  params: undefined | GetShowsShowIDEpisodesParams,
   options: {
     query: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof getShowsShowIDEpisodes>>, TError, TData>
@@ -7347,9 +7503,10 @@ export function useGetShowsShowIDEpisodes<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 export function useGetShowsShowIDEpisodes<
   TData = Awaited<ReturnType<typeof getShowsShowIDEpisodes>>,
-  TError = UnauthorizedResponse | void,
+  TError = BadRequestResponse | UnauthorizedResponse | void,
 >(
   showID: string,
+  params?: GetShowsShowIDEpisodesParams,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof getShowsShowIDEpisodes>>, TError, TData>
@@ -7368,9 +7525,10 @@ export function useGetShowsShowIDEpisodes<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 export function useGetShowsShowIDEpisodes<
   TData = Awaited<ReturnType<typeof getShowsShowIDEpisodes>>,
-  TError = UnauthorizedResponse | void,
+  TError = BadRequestResponse | UnauthorizedResponse | void,
 >(
   showID: string,
+  params?: GetShowsShowIDEpisodesParams,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof getShowsShowIDEpisodes>>, TError, TData>
@@ -7385,9 +7543,10 @@ export function useGetShowsShowIDEpisodes<
 
 export function useGetShowsShowIDEpisodes<
   TData = Awaited<ReturnType<typeof getShowsShowIDEpisodes>>,
-  TError = UnauthorizedResponse | void,
+  TError = BadRequestResponse | UnauthorizedResponse | void,
 >(
   showID: string,
+  params?: GetShowsShowIDEpisodesParams,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof getShowsShowIDEpisodes>>, TError, TData>
@@ -7396,7 +7555,7 @@ export function useGetShowsShowIDEpisodes<
   },
   queryClient?: QueryClient,
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetShowsShowIDEpisodesQueryOptions(showID, options);
+  const queryOptions = getGetShowsShowIDEpisodesQueryOptions(showID, params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;
@@ -7793,8 +7952,23 @@ export function useGetShowsShowIDProgress<
   return withQueryKey(query, queryOptions.queryKey);
 }
 
-export const getGetSeasonsSeasonIDEpisodesUrl = (seasonID: string) => {
-  return `/seasons/${seasonID}/episodes`;
+export const getGetSeasonsSeasonIDEpisodesUrl = (
+  seasonID: string,
+  params?: GetSeasonsSeasonIDEpisodesParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : String(value));
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/seasons/${seasonID}/episodes?${stringifiedParams}`
+    : `/seasons/${seasonID}/episodes`;
 };
 
 /**
@@ -7802,23 +7976,28 @@ export const getGetSeasonsSeasonIDEpisodesUrl = (seasonID: string) => {
  */
 export const getSeasonsSeasonIDEpisodes = async (
   seasonID: string,
+  params?: GetSeasonsSeasonIDEpisodesParams,
   options?: Parameters<typeof customFetch>[1],
-): Promise<ShowEpisode[]> => {
-  return customFetch<ShowEpisode[]>(getGetSeasonsSeasonIDEpisodesUrl(seasonID), {
+): Promise<EpisodesPage> => {
+  return customFetch<EpisodesPage>(getGetSeasonsSeasonIDEpisodesUrl(seasonID, params), {
     ...options,
     method: "GET",
   });
 };
 
-export const getGetSeasonsSeasonIDEpisodesQueryKey = (seasonID: string) => {
-  return [`/seasons/${seasonID}/episodes`] as const;
+export const getGetSeasonsSeasonIDEpisodesQueryKey = (
+  seasonID: string,
+  params?: GetSeasonsSeasonIDEpisodesParams,
+) => {
+  return [`/seasons/${seasonID}/episodes`, ...(params ? [params] : [])] as const;
 };
 
 export const getGetSeasonsSeasonIDEpisodesQueryOptions = <
   TData = Awaited<ReturnType<typeof getSeasonsSeasonIDEpisodes>>,
-  TError = UnauthorizedResponse | void,
+  TError = BadRequestResponse | UnauthorizedResponse | void,
 >(
   seasonID: string,
+  params?: GetSeasonsSeasonIDEpisodesParams,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof getSeasonsSeasonIDEpisodes>>, TError, TData>
@@ -7828,11 +8007,12 @@ export const getGetSeasonsSeasonIDEpisodesQueryOptions = <
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getGetSeasonsSeasonIDEpisodesQueryKey(seasonID);
+  const queryKey =
+    queryOptions?.queryKey ?? getGetSeasonsSeasonIDEpisodesQueryKey(seasonID, params);
 
   const queryFn: QueryFunction<Awaited<ReturnType<typeof getSeasonsSeasonIDEpisodes>>> = ({
     signal,
-  }) => getSeasonsSeasonIDEpisodes(seasonID, { signal, ...requestOptions });
+  }) => getSeasonsSeasonIDEpisodes(seasonID, params, { signal, ...requestOptions });
 
   return {
     queryKey,
@@ -7847,13 +8027,14 @@ export const getGetSeasonsSeasonIDEpisodesQueryOptions = <
 export type GetSeasonsSeasonIDEpisodesQueryResult = NonNullable<
   Awaited<ReturnType<typeof getSeasonsSeasonIDEpisodes>>
 >;
-export type GetSeasonsSeasonIDEpisodesQueryError = UnauthorizedResponse | void;
+export type GetSeasonsSeasonIDEpisodesQueryError = BadRequestResponse | UnauthorizedResponse | void;
 
 export function useGetSeasonsSeasonIDEpisodes<
   TData = Awaited<ReturnType<typeof getSeasonsSeasonIDEpisodes>>,
-  TError = UnauthorizedResponse | void,
+  TError = BadRequestResponse | UnauthorizedResponse | void,
 >(
   seasonID: string,
+  params: undefined | GetSeasonsSeasonIDEpisodesParams,
   options: {
     query: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof getSeasonsSeasonIDEpisodes>>, TError, TData>
@@ -7872,9 +8053,10 @@ export function useGetSeasonsSeasonIDEpisodes<
 ): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 export function useGetSeasonsSeasonIDEpisodes<
   TData = Awaited<ReturnType<typeof getSeasonsSeasonIDEpisodes>>,
-  TError = UnauthorizedResponse | void,
+  TError = BadRequestResponse | UnauthorizedResponse | void,
 >(
   seasonID: string,
+  params?: GetSeasonsSeasonIDEpisodesParams,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof getSeasonsSeasonIDEpisodes>>, TError, TData>
@@ -7893,9 +8075,10 @@ export function useGetSeasonsSeasonIDEpisodes<
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 export function useGetSeasonsSeasonIDEpisodes<
   TData = Awaited<ReturnType<typeof getSeasonsSeasonIDEpisodes>>,
-  TError = UnauthorizedResponse | void,
+  TError = BadRequestResponse | UnauthorizedResponse | void,
 >(
   seasonID: string,
+  params?: GetSeasonsSeasonIDEpisodesParams,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof getSeasonsSeasonIDEpisodes>>, TError, TData>
@@ -7910,9 +8093,10 @@ export function useGetSeasonsSeasonIDEpisodes<
 
 export function useGetSeasonsSeasonIDEpisodes<
   TData = Awaited<ReturnType<typeof getSeasonsSeasonIDEpisodes>>,
-  TError = UnauthorizedResponse | void,
+  TError = BadRequestResponse | UnauthorizedResponse | void,
 >(
   seasonID: string,
+  params?: GetSeasonsSeasonIDEpisodesParams,
   options?: {
     query?: Partial<
       UseQueryOptions<Awaited<ReturnType<typeof getSeasonsSeasonIDEpisodes>>, TError, TData>
@@ -7921,7 +8105,7 @@ export function useGetSeasonsSeasonIDEpisodes<
   },
   queryClient?: QueryClient,
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
-  const queryOptions = getGetSeasonsSeasonIDEpisodesQueryOptions(seasonID, options);
+  const queryOptions = getGetSeasonsSeasonIDEpisodesQueryOptions(seasonID, params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;

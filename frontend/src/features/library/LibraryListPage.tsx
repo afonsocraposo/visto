@@ -1,10 +1,12 @@
-import { useQuery } from "@tanstack/react-query";
+import { InfiniteScrollTrigger } from "../../components/InfiniteScrollTrigger";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { Alert, Button, Group, Loader, Select, Text, Title } from "@mantine/core";
 import { IconArrowLeft } from "@tabler/icons-react";
 import { useState } from "react";
 import { useUserQueryKey } from "../auth/SessionContext";
 import { api } from "../../lib/api";
-import type { LibraryEntry, LibraryStatus, MediaDetailTarget } from "../../types";
+import type { CursorPage, LibraryEntry, LibraryStatus, MediaDetailTarget } from "../../types";
+import { pageURL } from "../../lib/pagination";
 import { LibraryCard } from "./LibraryCard";
 import { librarySortOptions, type LibrarySort } from "./librarySort";
 
@@ -27,13 +29,15 @@ export function LibraryListPage({
 }) {
   const [sort, setSort] = useState<LibrarySort>("updated");
   const userQueryKey = useUserQueryKey();
-  const library = useQuery({
-    queryKey: [...userQueryKey("library"), sort],
-    queryFn: () =>
-      api.get<LibraryEntry[]>(
-        `/api/v1/library?sort=${sort}`,
+  const library = useInfiniteQuery({
+    queryKey: [...userQueryKey("library"), sort, status],
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }) =>
+      api.get<CursorPage<LibraryEntry>>(
+        pageURL(`/api/v1/library?sort=${sort}&status=${status}`, pageParam),
         "Your library is temporarily unavailable.",
       ),
+    getNextPageParam: (page) => page.next_cursor ?? undefined,
   });
   if (library.isPending)
     return (
@@ -47,9 +51,7 @@ export function LibraryListPage({
         Your library is temporarily unavailable.
       </Alert>
     );
-  const entries = library.data.filter((entry) =>
-    status === "completed" ? entry.completed : !entry.completed && entry.item.status === status,
-  );
+  const entries = library.data.pages.flatMap((page) => page.items);
   return (
     <div className="library-list-page">
       <Button
@@ -64,7 +66,7 @@ export function LibraryListPage({
         <Text className="section-kicker">Your collection</Text>
         <Title order={1}>{labels[status]}</Title>
         <Text c="dimmed" mt={6}>
-          {entries.length} {entries.length === 1 ? "title" : "titles"}.
+          {entries.length} {entries.length === 1 ? "title" : "titles"} loaded.
         </Text>
       </div>
       <Select
@@ -85,6 +87,12 @@ export function LibraryListPage({
           ))}
         </div>
       )}
+      <InfiniteScrollTrigger
+        hasNextPage={!!library.hasNextPage}
+        isFetchingNextPage={library.isFetchingNextPage}
+        isFetchNextPageError={library.isFetchNextPageError}
+        fetchNextPage={() => void library.fetchNextPage()}
+      />
     </div>
   );
 }

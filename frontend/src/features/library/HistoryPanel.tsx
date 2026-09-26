@@ -1,5 +1,6 @@
+import { InfiniteScrollTrigger } from "../../components/InfiniteScrollTrigger";
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "@mantine/form";
 import { ActionIcon, Alert, Button, Group, Loader, Menu, Text, TextInput } from "@mantine/core";
 import { IconClock, IconDots, IconEdit, IconRefresh, IconTrash } from "@tabler/icons-react";
@@ -7,7 +8,8 @@ import { EmptyState } from "../../components/EmptyState";
 import { ActivityRow } from "../feed/ActivityRow";
 import { useUserQueryKey } from "../auth/SessionContext";
 import { api } from "../../lib/api";
-import type { HistoryEntry, MediaDetailTarget } from "../../types";
+import { pageURL } from "../../lib/pagination";
+import type { CursorPage, HistoryEntry, MediaDetailTarget } from "../../types";
 
 export function HistoryPanel({
   onOpenDetail,
@@ -19,15 +21,18 @@ export function HistoryPanel({
   editLatest?: boolean;
 }) {
   const userQueryKey = useUserQueryKey();
-  const history = useQuery({
+  const history = useInfiniteQuery({
     queryKey: mediaID ? userQueryKey("history", "media", mediaID) : userQueryKey("history"),
-    queryFn: () =>
-      api.get<HistoryEntry[]>(
-        mediaID
-          ? `/api/v1/plays?limit=500&media_id=${encodeURIComponent(mediaID)}`
-          : "/api/v1/plays?limit=100",
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }) =>
+      api.get<CursorPage<HistoryEntry>>(
+        pageURL(
+          mediaID ? `/api/v1/plays?media_id=${encodeURIComponent(mediaID)}` : "/api/v1/plays",
+          pageParam,
+        ),
         "Watch history is temporarily unavailable.",
       ),
+    getNextPageParam: (page) => page.next_cursor ?? undefined,
   });
   if (history.isPending)
     return (
@@ -42,9 +47,7 @@ export function HistoryPanel({
       </Alert>
     );
 
-  const entries = mediaID
-    ? history.data.filter((entry) => entry.play.media_id === mediaID)
-    : history.data;
+  const entries = history.data.pages.flatMap((page) => page.items);
   return (
     <div className="activity-list">
       {entries.length === 0 ? (
@@ -66,6 +69,12 @@ export function HistoryPanel({
           />
         ))
       )}
+      <InfiniteScrollTrigger
+        hasNextPage={!!history.hasNextPage}
+        isFetchingNextPage={history.isFetchingNextPage}
+        isFetchNextPageError={history.isFetchNextPageError}
+        fetchNextPage={() => void history.fetchNextPage()}
+      />
     </div>
   );
 }

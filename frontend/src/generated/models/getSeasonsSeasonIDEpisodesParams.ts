@@ -6,19 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type GetPlaysParams = {
+export type GetSeasonsSeasonIDEpisodesParams = {
   /**
    * @minimum 1
    * @maximum 100
    */
   limit?: number;
   cursor?: string;
-  /**
-   * Filter watches to one movie ID.
-   */
-  media_id?: string;
-  /**
-   * Filter watches to one episode ID.
-   */
-  episode_id?: string;
 };

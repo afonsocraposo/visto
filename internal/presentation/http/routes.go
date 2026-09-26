@@ -51,6 +51,7 @@ func registerAPIRoutes(mux *http.ServeMux, authService *auth.Service, metadataPr
 	mux.HandleFunc("GET /api/v1/movies/{tmdbID}", mediaDetails(authService, libraryService, metadataProvider, domain.MovieMediaType))
 	mux.HandleFunc("GET /api/v1/shows/{tmdbID}", mediaDetails(authService, libraryService, metadataProvider, domain.TVMediaType))
 	mux.HandleFunc("GET /api/v1/library", listLibrary(authService, libraryService))
+	mux.HandleFunc("POST /api/v1/library/lookup", lookupLibrary(authService, libraryService))
 	mux.HandleFunc("POST /api/v1/library", saveLibrary(authService, libraryService, metadataProvider))
 	mux.HandleFunc("PATCH /api/v1/library/{mediaID}", updateLibrary(authService, libraryService))
 	mux.HandleFunc("DELETE /api/v1/library/{mediaID}", removeWatchlistItem(authService, libraryService))
