@@ -2,8 +2,8 @@ import type { ReactNode } from "react";
 import { Avatar, Group, Image, Paper, Text } from "@mantine/core";
 import { IconDeviceTv, IconMovie } from "@tabler/icons-react";
 import { RatingStars } from "../../components/RatingStars";
+import { ActivityTime } from "../../components/ActivityTime";
 import { backdropURL, posterURL } from "../../lib/artwork";
-import { formatActivityTime } from "../../lib/time";
 
 type Props = {
   title: string;
@@ -36,7 +36,6 @@ export function ActivityRow({
   children,
   onOpenDetail,
 }: Props) {
-  const date = occurredAt instanceof Date ? occurredAt : new Date(occurredAt);
   const art =
     episodeLabel && mediaType === "tv"
       ? backdropURL(artworkPath, "w780")
@@ -117,7 +116,7 @@ export function ActivityRow({
         )}
         <Group className="activity-row-meta" gap="xs" wrap="wrap">
           <Text size="xs" c="dimmed">
-            {formatActivityTime(date)}
+            <ActivityTime value={occurredAt} />
           </Text>
           {exactTime && (
             <Text className="activity-row-exact-time" size="xs" c="dimmed">

@@ -1,9 +1,21 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Badge, Button, Code, Group, Paper, Stack, Table, Text, TextInput, Title } from "@mantine/core";
+import {
+  Alert,
+  Badge,
+  Button,
+  Code,
+  Group,
+  Paper,
+  Stack,
+  Table,
+  Text,
+  TextInput,
+  Title,
+} from "@mantine/core";
 import { IconCopy, IconRefresh, IconTrash } from "@tabler/icons-react";
 import { useUserQueryKey } from "../auth/SessionContext";
-import { formatActivityTime } from "../../lib/time";
+import { ActivityTime } from "../../components/ActivityTime";
 
 type PlexEvent = {
   id: number;
@@ -91,11 +103,24 @@ export function PlexSyncPanel() {
       {status.data?.enabled && (
         <Text size="sm" mt="md">
           Webhook active
-          {status.data.created_at ? ` since ${formatActivityTime(status.data.created_at)}` : ""}.
-          {status.data.account_id ? ` Plex account ID ${status.data.account_id}.` : " No Plex account selected; all watches are skipped."}
-          {status.data.last_synced_at
-            ? ` Last successful sync ${formatActivityTime(status.data.last_synced_at)}.`
-            : " No watched events synced yet."}
+          {status.data.created_at && (
+            <>
+              {" "}
+              since <ActivityTime value={status.data.created_at} />
+            </>
+          )}
+          .
+          {status.data.account_id
+            ? ` Plex account ID ${status.data.account_id}.`
+            : " No Plex account selected; all watches are skipped."}
+          {status.data.last_synced_at ? (
+            <>
+              {" "}
+              Last successful sync <ActivityTime value={status.data.last_synced_at} />.
+            </>
+          ) : (
+            " No watched events synced yet."
+          )}
         </Text>
       )}
       <TextInput
@@ -197,7 +222,9 @@ export function PlexSyncPanel() {
                     </Badge>
                   </Table.Td>
                   <Table.Td>{event.message || "—"}</Table.Td>
-                  <Table.Td>{formatActivityTime(event.occurred_at)}</Table.Td>
+                  <Table.Td>
+                    <ActivityTime value={event.occurred_at} />
+                  </Table.Td>
                 </Table.Tr>
               ))}
             </Table.Tbody>
