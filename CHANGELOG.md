@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.5.0](https://github.com/afonsocraposo/visto/compare/v0.4.0...v0.5.0) (2026-09-26)
+
+
+### Features
+
+* add bulk TV episode progress actions ([36312d7](https://github.com/afonsocraposo/visto/commit/36312d7f77cb3fc693f8b0c1c6737f104b3978cb))
+* filter Plex scrobbles by account ([f87d98f](https://github.com/afonsocraposo/visto/commit/f87d98fb97e397022036c4a407f02a5178bad087))
+* unify poster grids and open feed media details ([baf724c](https://github.com/afonsocraposo/visto/commit/baf724c3c85edc235a929846038da227c4ac88fc))
+
+
+### Bug Fixes
+
+* align API contracts and generated client ([116d9c5](https://github.com/afonsocraposo/visto/commit/116d9c5e1a70f12d2345347cb57a118cea8c71a5))
+* bound TMDB detail caches ([1894191](https://github.com/afonsocraposo/visto/commit/1894191da7b0e0cd9086aec1de540fc435897079))
+* handle session errors and limit API requests ([d29729b](https://github.com/afonsocraposo/visto/commit/d29729b4a61aba1114739f14b557adf6f4858b6f))
+
 ## [0.4.0](https://github.com/afonsocraposo/visto/compare/v0.3.2...v0.4.0) (2026-09-25)
 
 
