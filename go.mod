@@ -10,7 +10,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.12
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.97.3
 	github.com/cyruzin/golang-tmdb v1.6.9
-	github.com/modelcontextprotocol/go-sdk v1.7.0
+	github.com/modelcontextprotocol/go-sdk v1.8.0
 	golang.org/x/crypto v0.25.0
 	golang.org/x/oauth2 v0.35.0
 	golang.org/x/sync v0.20.0
