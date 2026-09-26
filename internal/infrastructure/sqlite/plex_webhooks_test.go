@@ -23,15 +23,15 @@ func TestPlexWebhook_GivenASecretAndRepeatedScrobbles_WhenPersisted_ThenItDedupl
 	}
 
 	created := time.Now().UTC()
-	if err := store.IssuePlexWebhook(ctx, userID, "hash-only", created); err != nil {
+	if err := store.IssuePlexWebhook(ctx, userID, "hash-only", "123", created); err != nil {
 		t.Fatal(err)
 	}
 	var storedHash string
 	if err := store.DB.QueryRow(`SELECT token_hash FROM plex_webhooks WHERE user_id=?`, userID).Scan(&storedHash); err != nil || storedHash != "hash-only" {
 		t.Fatalf("stored webhook hash=%q error=%v", storedHash, err)
 	}
-	authenticatedUserID, err := store.UserForPlexWebhook(ctx, "hash-only", created.Add(time.Minute))
-	if err != nil || authenticatedUserID != userID {
+	authenticatedUserID, accountID, err := store.UserForPlexWebhook(ctx, "hash-only", created.Add(time.Minute))
+	if err != nil || authenticatedUserID != userID || accountID != "123" {
 		t.Fatalf("authenticated user=%q error=%v", authenticatedUserID, err)
 	}
 
@@ -84,7 +84,7 @@ func TestPlexWebhook_GivenASecretAndRepeatedScrobbles_WhenPersisted_ThenItDedupl
 	if err := store.RevokePlexWebhook(ctx, userID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.UserForPlexWebhook(ctx, "hash-only", created.Add(time.Hour)); err == nil {
+	if _, _, err := store.UserForPlexWebhook(ctx, "hash-only", created.Add(time.Hour)); err == nil {
 		t.Fatal("revoked webhook token still authenticated")
 	}
 }

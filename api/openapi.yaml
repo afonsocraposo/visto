@@ -195,6 +195,7 @@ paths:
     post:
       summary: Create or rotate this user's Plex webhook URL; the secret is returned once
       security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { account_id: { type: string, pattern: '^[0-9]*$', description: Numeric Plex account ID. An empty value skips all events until the webhook is rotated with an ID. } } } } } }
       responses:
         '201': { description: Created webhook URL, content: { application/json: { schema: { type: object, required: [webhook_url], properties: { webhook_url: { type: string, format: uri } } } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
@@ -697,6 +698,7 @@ components:
       required: [enabled, recent_events]
       properties:
         enabled: { type: boolean }
+        account_id: { type: string, description: Numeric Plex account ID allowed to sync }
         created_at: { type: string, format: date-time }
         last_used_at: { type: string, format: date-time }
         last_synced_at: { type: string, format: date-time }

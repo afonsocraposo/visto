@@ -20,19 +20,19 @@ type plexWebhookRepository struct {
 	logged     []plexsync.Event
 }
 
-func (*plexWebhookRepository) IssuePlexWebhook(context.Context, string, string, time.Time) error {
+func (*plexWebhookRepository) IssuePlexWebhook(context.Context, string, string, string, time.Time) error {
 	return nil
 }
 func (*plexWebhookRepository) RevokePlexWebhook(context.Context, string) error { return nil }
 func (*plexWebhookRepository) GetPlexWebhookStatus(context.Context, string) (plexsync.Status, error) {
 	return plexsync.Status{}, nil
 }
-func (repository *plexWebhookRepository) UserForPlexWebhook(_ context.Context, hash string, _ time.Time) (string, error) {
+func (repository *plexWebhookRepository) UserForPlexWebhook(_ context.Context, hash string, _ time.Time) (string, string, error) {
 	secretHash := sha256.Sum256([]byte("a-secret-that-is-long-enough-to-pass-validation"))
 	if !repository.validToken || hash != hex.EncodeToString(secretHash[:]) {
-		return "", plexsync.ErrWebhookNotFound
+		return "", "", plexsync.ErrWebhookNotFound
 	}
-	return "alice", nil
+	return "alice", "123", nil
 }
 func (repository *plexWebhookRepository) LogPlexEvent(_ context.Context, _, _ string, event plexsync.Event) error {
 	repository.logged = append(repository.logged, event)
@@ -49,7 +49,7 @@ func TestPlexWebhook_GivenExternalMultipartRequests_WhenValidated_ThenOnlySecret
 	handler := httpserver.New(nil, nil, "", nil, nil, nil, nil, nil, nil).WithPlexSync(service).Handler()
 
 	t.Run("valid Plex multipart callback", func(t *testing.T) {
-		body, contentType := plexMultipart(t, `{"event":"media.scrobble","Metadata":{"type":"movie","title":"Example"}}`)
+		body, contentType := plexMultipart(t, `{"event":"media.scrobble","Account":{"id":123},"Metadata":{"type":"movie","title":"Example"}}`)
 		request := httptest.NewRequest(http.MethodPost, "/api/v1/webhooks/plex/"+secret, body)
 		request.Header.Set("Content-Type", contentType)
 		request.Header.Set("Origin", "https://attacker.example")
@@ -67,7 +67,7 @@ func TestPlexWebhook_GivenExternalMultipartRequests_WhenValidated_ThenOnlySecret
 	t.Run("Plex multipart callback with thumbnail", func(t *testing.T) {
 		var body bytes.Buffer
 		writer := multipart.NewWriter(&body)
-		if err := writer.WriteField("payload", `{"event":"media.scrobble","Metadata":{"type":"movie","title":"Example"}}`); err != nil {
+		if err := writer.WriteField("payload", `{"event":"media.scrobble","Account":{"id":123},"Metadata":{"type":"movie","title":"Example"}}`); err != nil {
 			t.Fatal(err)
 		}
 		thumbnail, err := writer.CreateFormFile("thumb", "thumb.jpg")
@@ -96,7 +96,7 @@ func TestPlexWebhook_GivenExternalMultipartRequests_WhenValidated_ThenOnlySecret
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := payload.Write([]byte(`{"event":"media.scrobble","Metadata":{"type":"movie","title":"Example"}}`)); err != nil {
+		if _, err := payload.Write([]byte(`{"event":"media.scrobble","Account":{"id":123},"Metadata":{"type":"movie","title":"Example"}}`)); err != nil {
 			t.Fatal(err)
 		}
 		if err := writer.Close(); err != nil {

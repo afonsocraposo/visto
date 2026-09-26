@@ -9,6 +9,8 @@ import type { PlexWebhookEvent } from "./plexWebhookEvent";
 
 export interface PlexWebhookStatus {
   enabled: boolean;
+  /** Numeric Plex account ID allowed to sync */
+  account_id?: string;
   created_at?: string;
   last_used_at?: string;
   last_synced_at?: string;

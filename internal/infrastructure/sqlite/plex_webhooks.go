@@ -10,10 +10,10 @@ import (
 	"github.com/afonsocosta/visto/internal/application/plexsync"
 )
 
-func (store *Store) IssuePlexWebhook(ctx context.Context, userID, tokenHash string, now time.Time) error {
-	_, err := store.DB.ExecContext(ctx, `INSERT INTO plex_webhooks(user_id,token_hash,created_at,last_used_at) VALUES(?,?,?,NULL)
-		ON CONFLICT(user_id) DO UPDATE SET token_hash=excluded.token_hash,created_at=excluded.created_at,last_used_at=NULL`,
-		userID, tokenHash, now.UTC().Format(time.RFC3339Nano))
+func (store *Store) IssuePlexWebhook(ctx context.Context, userID, tokenHash, accountID string, now time.Time) error {
+	_, err := store.DB.ExecContext(ctx, `INSERT INTO plex_webhooks(user_id,token_hash,account_id,created_at,last_used_at) VALUES(?,?,?,?,NULL)
+		ON CONFLICT(user_id) DO UPDATE SET token_hash=excluded.token_hash,account_id=excluded.account_id,created_at=excluded.created_at,last_used_at=NULL`,
+		userID, tokenHash, accountID, now.UTC().Format(time.RFC3339Nano))
 	if err != nil {
 		return fmt.Errorf("save Plex webhook token: %w", err)
 	}
@@ -31,7 +31,7 @@ func (store *Store) RevokePlexWebhook(ctx context.Context, userID string) error 
 func (store *Store) GetPlexWebhookStatus(ctx context.Context, userID string) (plexsync.Status, error) {
 	status := plexsync.Status{RecentEvents: []plexsync.Event{}}
 	var createdAt, lastUsedAt, lastSyncedAt sql.NullString
-	err := store.DB.QueryRowContext(ctx, `SELECT created_at,last_used_at FROM plex_webhooks WHERE user_id=?`, userID).Scan(&createdAt, &lastUsedAt)
+	err := store.DB.QueryRowContext(ctx, `SELECT created_at,last_used_at,account_id FROM plex_webhooks WHERE user_id=?`, userID).Scan(&createdAt, &lastUsedAt, &status.AccountID)
 	if err != nil && err != sql.ErrNoRows {
 		return status, fmt.Errorf("get Plex webhook status: %w", err)
 	}
@@ -68,13 +68,13 @@ func (store *Store) GetPlexWebhookStatus(ctx context.Context, userID string) (pl
 	return status, nil
 }
 
-func (store *Store) UserForPlexWebhook(ctx context.Context, tokenHash string, now time.Time) (string, error) {
-	var userID string
-	err := store.DB.QueryRowContext(ctx, `UPDATE plex_webhooks SET last_used_at=? WHERE token_hash=? RETURNING user_id`, now.UTC().Format(time.RFC3339Nano), tokenHash).Scan(&userID)
+func (store *Store) UserForPlexWebhook(ctx context.Context, tokenHash string, now time.Time) (string, string, error) {
+	var userID, accountID string
+	err := store.DB.QueryRowContext(ctx, `UPDATE plex_webhooks SET last_used_at=? WHERE token_hash=? RETURNING user_id,account_id`, now.UTC().Format(time.RFC3339Nano), tokenHash).Scan(&userID, &accountID)
 	if err != nil {
-		return "", fmt.Errorf("authenticate Plex webhook: %w", err)
+		return "", "", fmt.Errorf("authenticate Plex webhook: %w", err)
 	}
-	return userID, nil
+	return userID, accountID, nil
 }
 
 func (store *Store) LogPlexEvent(ctx context.Context, userID, fingerprint string, event plexsync.Event) error {

@@ -313,13 +313,21 @@ Visto, copy it when it is shown, then add it in Plex Web under your account's
 webhook settings. Visto shows the URL secret only once; rotate it in Profile if
 you lose it. Revoking or rotating the URL immediately invalidates the old URL.
 
+To limit sync to your own Plex viewer, enter its numeric account ID before
+creating the webhook URL. If you do not know the ID, leave the field empty,
+create the URL, and watch something using your Plex profile. Visto skips the
+event and shows the account ID under Recent sync activity. Enter that ID,
+rotate the URL, and replace the URL in Plex. An unset account ID skips every
+event. Existing webhook URLs also skip events until rotated with an account ID.
+
 Plex must be able to reach Visto over HTTPS. Set `VISTO_PUBLIC_URL` to the
 public origin (for example, `https://visto.example.com`) and forward
 `/api/v1/webhooks/plex/` to Visto. Each URL is unique to one Visto user. The
 server stores only a hash of its secret. Keep the URL private because it grants
 Plex permission to record watches for that account.
 
-Visto processes Plex `media.scrobble` events for movies and TV episodes. It
+Visto processes Plex `media.scrobble` events for the configured Plex account
+only, for movies and TV episodes. It
 uses TMDB IDs from Plex when available, then falls back to exact title and
 year matching. Ambiguous titles and episodes without an exact season/episode
 match are skipped and shown in Recent sync activity. Successful events add the

@@ -1,6 +1,7 @@
 package httpserver
 
 import (
+	"encoding/json"
 	"errors"
 	"io"
 	"mime"
@@ -32,8 +33,19 @@ func issuePlexWebhook(authService *auth.Service, service *plexsync.Service) http
 		if !ok {
 			return
 		}
-		webhookURL, err := service.Issue(r.Context(), user.ID)
+		var request struct {
+			AccountID string `json:"account_id"`
+		}
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1024)).Decode(&request); err != nil {
+			writeError(w, http.StatusBadRequest, "Invalid Plex webhook settings")
+			return
+		}
+		webhookURL, err := service.Issue(r.Context(), user.ID, request.AccountID)
 		if err != nil {
+			if strings.Contains(err.Error(), "Plex account ID") {
+				writeError(w, http.StatusBadRequest, err.Error())
+				return
+			}
 			if strings.Contains(err.Error(), "VISTO_PUBLIC_URL") {
 				writeError(w, http.StatusServiceUnavailable, err.Error())
 				return

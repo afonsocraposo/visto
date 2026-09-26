@@ -120,6 +120,12 @@ only when it is issued or rotated; Visto stores only its hash. Creating a URL
 requires `VISTO_PUBLIC_URL` and a publicly reachable HTTPS endpoint. Plex Pass
 is required on the Plex account.
 
+Each webhook has an optional numeric Plex account ID. When unset, Visto skips
+all incoming events and reports the observed account ID in recent activity so
+the user can select their own viewer. When set, Visto accepts only events whose
+`Account.id` matches before it resolves or saves media. Existing webhooks
+without an account ID skip all events until the user rotates them with an ID.
+
 Visto accepts Plex `media.scrobble` events for movies and TV episodes. It uses
 TMDB IDs from Plex when available. Otherwise, a match must have the same media
 type and exact normalized title, the same year when Plex supplies one, and a

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Badge, Button, Code, Group, Paper, Stack, Table, Text, Title } from "@mantine/core";
+import { Alert, Badge, Button, Code, Group, Paper, Stack, Table, Text, TextInput, Title } from "@mantine/core";
 import { IconCopy, IconRefresh, IconTrash } from "@tabler/icons-react";
 import { useUserQueryKey } from "../auth/SessionContext";
 import { formatActivityTime } from "../../lib/time";
@@ -16,6 +16,7 @@ type PlexEvent = {
 
 type PlexStatus = {
   enabled: boolean;
+  account_id?: string;
   created_at?: string;
   last_used_at?: string;
   last_synced_at?: string;
@@ -27,6 +28,7 @@ export function PlexSyncPanel() {
   const userQueryKey = useUserQueryKey();
   const [issuedURL, setIssuedURL] = useState("");
   const [copyError, setCopyError] = useState("");
+  const [accountID, setAccountID] = useState("");
   const key = userQueryKey("plex-webhook");
   const status = useQuery({
     queryKey: key,
@@ -38,7 +40,11 @@ export function PlexSyncPanel() {
   });
   const issue = useMutation({
     mutationFn: async () => {
-      const response = await fetch("/api/v1/profile/plex-webhook", { method: "POST" });
+      const response = await fetch("/api/v1/profile/plex-webhook", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ account_id: accountID.trim() || status.data?.account_id || "" }),
+      });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(result.error || "Could not create a Plex webhook URL.");
       return result.webhook_url as string;
@@ -86,11 +92,21 @@ export function PlexSyncPanel() {
         <Text size="sm" mt="md">
           Webhook active
           {status.data.created_at ? ` since ${formatActivityTime(status.data.created_at)}` : ""}.
+          {status.data.account_id ? ` Plex account ID ${status.data.account_id}.` : " No Plex account selected; all watches are skipped."}
           {status.data.last_synced_at
             ? ` Last successful sync ${formatActivityTime(status.data.last_synced_at)}.`
             : " No watched events synced yet."}
         </Text>
       )}
+      <TextInput
+        mt="md"
+        label="Plex account ID"
+        description="Enter your numeric Plex account ID. To find it, create a URL with this field empty, watch something in Plex, then check Recent sync activity for the skipped account ID. Enter that ID and rotate the URL."
+        placeholder={status.data?.account_id || "Plex account ID"}
+        value={accountID}
+        onChange={(event) => setAccountID(event.currentTarget.value)}
+        inputMode="numeric"
+      />
       {issuedURL && (
         <Stack gap="xs" mt="md">
           <Alert color="yellow" title="Copy this URL into Plex now">

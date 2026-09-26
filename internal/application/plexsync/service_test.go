@@ -13,12 +13,13 @@ import (
 type fakeRepository struct {
 	issuedHash string
 	userID     string
+	accountID  string
 	logged     []Event
 	recorded   []Event
 	record     bool
 }
 
-func (repository *fakeRepository) IssuePlexWebhook(_ context.Context, _, hash string, _ time.Time) error {
+func (repository *fakeRepository) IssuePlexWebhook(_ context.Context, _, hash, _ string, _ time.Time) error {
 	repository.issuedHash = hash
 	return nil
 }
@@ -26,11 +27,11 @@ func (*fakeRepository) RevokePlexWebhook(context.Context, string) error { return
 func (*fakeRepository) GetPlexWebhookStatus(context.Context, string) (Status, error) {
 	return Status{}, nil
 }
-func (repository *fakeRepository) UserForPlexWebhook(context.Context, string, time.Time) (string, error) {
+func (repository *fakeRepository) UserForPlexWebhook(context.Context, string, time.Time) (string, string, error) {
 	if repository.userID == "" {
-		return "", ErrWebhookNotFound
+		return "", "", ErrWebhookNotFound
 	}
-	return repository.userID, nil
+	return repository.userID, repository.accountID, nil
 }
 func (repository *fakeRepository) LogPlexEvent(_ context.Context, _, _ string, event Event) error {
 	repository.logged = append(repository.logged, event)
@@ -89,7 +90,7 @@ func (catalog *fakeLibrary) ImportShowSeason(_ context.Context, _ string, show d
 
 func newTestService(t *testing.T, metadata *fakeMetadataProvider) (*Service, *fakeRepository, *fakeLibrary) {
 	t.Helper()
-	repository := &fakeRepository{userID: "user-1", record: true}
+	repository := &fakeRepository{userID: "user-1", accountID: "123", record: true}
 	catalog := &fakeLibrary{}
 	service := NewService(repository, metadata, catalog, "https://visto.example.com")
 	service.now = func() time.Time { return time.Date(2026, 9, 25, 12, 0, 0, 0, time.UTC) }
@@ -99,7 +100,7 @@ func newTestService(t *testing.T, metadata *fakeMetadataProvider) (*Service, *fa
 func TestHandle_GivenTMDBMovieGUID_WhenPlexScrobblesMovie_ThenItAddsAndRecordsTheMovie(t *testing.T) {
 	metadata := &fakeMetadataProvider{movie: domain.MovieMetadata{TMDBID: 10, Title: "Example Movie", OriginalTitle: "Example Movie"}}
 	service, repository, catalog := newTestService(t, metadata)
-	payload := `{"event":"media.scrobble","Server":{"uuid":"server"},"Player":{"uuid":"player"},"Metadata":{"type":"movie","title":"Example Movie","year":2020,"guid":"tmdb://10","lastViewedAt":1790337600}}`
+	payload := `{"event":"media.scrobble","Account":{"id":123},"Server":{"uuid":"server"},"Player":{"uuid":"player"},"Metadata":{"type":"movie","title":"Example Movie","year":2020,"guid":"tmdb://10","lastViewedAt":1790337600}}`
 	if err := service.Handle(context.Background(), "secret", payload); err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +122,7 @@ func TestHandle_GivenEpisodeWithoutTMDBGUID_WhenAnExactTVMatchExists_ThenItImpor
 		season:        domain.TVSeasonMetadata{Number: 2, Episodes: []domain.TVEpisodeMetadata{{TMDBID: 4205, SeasonNumber: 2, EpisodeNumber: 5, Name: "Five"}}},
 	}
 	service, repository, catalog := newTestService(t, metadata)
-	payload := `{"event":"media.scrobble","Metadata":{"type":"episode","title":"Five","grandparentTitle":"Example Show","grandparentYear":2020,"grandparentGuid":"plex://show/abc","parentIndex":2,"index":5}}`
+	payload := `{"event":"media.scrobble","Account":{"id":123},"Metadata":{"type":"episode","title":"Five","grandparentTitle":"Example Show","grandparentYear":2020,"grandparentGuid":"plex://show/abc","parentIndex":2,"index":5}}`
 	if err := service.Handle(context.Background(), "secret", payload); err != nil {
 		t.Fatal(err)
 	}
@@ -142,7 +143,7 @@ func TestHandle_GivenAmbiguousSearchResults_WhenPlexTitleHasNoTMDBGUID_ThenItSki
 		{TMDBID: 11, Type: domain.MovieMediaType, Title: "Example Movie", ReleaseDate: "2020-01-01"},
 	}}
 	service, repository, _ := newTestService(t, metadata)
-	payload := `{"event":"media.scrobble","Metadata":{"type":"movie","title":"Example Movie","year":2020,"guid":"plex://movie/abc"}}`
+	payload := `{"event":"media.scrobble","Account":{"id":123},"Metadata":{"type":"movie","title":"Example Movie","year":2020,"guid":"plex://movie/abc"}}`
 	if err := service.Handle(context.Background(), "secret", payload); err != nil {
 		t.Fatal(err)
 	}
@@ -153,7 +154,7 @@ func TestHandle_GivenAmbiguousSearchResults_WhenPlexTitleHasNoTMDBGUID_ThenItSki
 
 func TestHandle_GivenPlaybackProgressEvent_WhenReceived_ThenItIsSafelySkipped(t *testing.T) {
 	service, repository, _ := newTestService(t, &fakeMetadataProvider{})
-	if err := service.Handle(context.Background(), "secret", `{"event":"media.play","Metadata":{"type":"movie","title":"Example"}}`); err != nil {
+	if err := service.Handle(context.Background(), "secret", `{"event":"media.play","Account":{"id":123},"Metadata":{"type":"movie","title":"Example"}}`); err != nil {
 		t.Fatal(err)
 	}
 	if len(repository.logged) != 1 || repository.logged[0].Status != "skipped" || len(repository.recorded) != 0 {
@@ -161,9 +162,38 @@ func TestHandle_GivenPlaybackProgressEvent_WhenReceived_ThenItIsSafelySkipped(t 
 	}
 }
 
+func TestHandle_GivenAnotherPlexAccount_WhenScrobbleArrives_ThenItDoesNotChangeTheLibrary(t *testing.T) {
+	service, repository, catalog := newTestService(t, &fakeMetadataProvider{movie: domain.MovieMetadata{TMDBID: 10, Title: "Example Movie"}})
+	for _, account := range []string{`"Account":{"id":456},`, ""} {
+		payload := `{"event":"media.scrobble",` + account + `"Metadata":{"type":"movie","title":"Example Movie","guid":"tmdb://10"}}`
+		if err := service.Handle(context.Background(), "secret", payload); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(catalog.saved) != 0 || len(repository.recorded) != 0 || len(repository.logged) != 2 {
+		t.Fatalf("saved=%d recorded=%d logged=%d; expected two skipped events", len(catalog.saved), len(repository.recorded), len(repository.logged))
+	}
+	for _, event := range repository.logged {
+		if event.Status != "skipped" {
+			t.Fatalf("event status = %q, want skipped", event.Status)
+		}
+	}
+}
+
+func TestHandle_GivenUnconfiguredPlexAccount_WhenScrobbleArrives_ThenItShowsTheAccountIDWithoutRecording(t *testing.T) {
+	service, repository, catalog := newTestService(t, &fakeMetadataProvider{movie: domain.MovieMetadata{TMDBID: 10, Title: "Example Movie"}})
+	repository.accountID = ""
+	if err := service.Handle(context.Background(), "secret", `{"event":"media.scrobble","Account":{"id":123},"Metadata":{"type":"movie","title":"Example Movie","guid":"tmdb://10"}}`); err != nil {
+		t.Fatal(err)
+	}
+	if len(catalog.saved) != 0 || len(repository.recorded) != 0 || len(repository.logged) != 1 || repository.logged[0].Message != "Skipped Plex account ID 123" {
+		t.Fatalf("saved=%d recorded=%d logged=%#v; expected discovery event only", len(catalog.saved), len(repository.recorded), repository.logged)
+	}
+}
+
 func TestIssue_GivenPublicOrigin_WhenIssuingWebhook_ThenItStoresOnlyAHashAndReturnsASecretURL(t *testing.T) {
 	service, repository, _ := newTestService(t, &fakeMetadataProvider{})
-	issued, err := service.Issue(context.Background(), "user-1")
+	issued, err := service.Issue(context.Background(), "user-1", "123")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +210,7 @@ func TestIssue_GivenMissingOrUnsafePublicURL_WhenCreatingWebhook_ThenItDoesNotIs
 		t.Run(publicURL, func(t *testing.T) {
 			repository := &fakeRepository{}
 			service := NewService(repository, nil, nil, publicURL)
-			if _, err := service.Issue(context.Background(), "user-1"); err == nil {
+			if _, err := service.Issue(context.Background(), "user-1", "123"); err == nil {
 				t.Fatal("expected an invalid public URL error")
 			}
 			if repository.issuedHash != "" {

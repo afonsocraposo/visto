@@ -19,8 +19,8 @@ func TestMigrator_GivenFreshDatabase_WhenAppliedTwice_ThenCurrentSchemaExistsAnd
 	if err != nil {
 		t.Fatalf("new migrator: %v", err)
 	}
-	if len(migrator.Migrations) != 1 || migrator.Migrations[0].Version != 1 {
-		t.Fatalf("loaded migrations = %#v, want one baseline migration at version 1", migrator.Migrations)
+	if len(migrator.Migrations) != 2 || migrator.Migrations[0].Version != 1 || migrator.Migrations[1].Version != 2 {
+		t.Fatalf("loaded migrations = %#v, want baseline and Plex account migrations", migrator.Migrations)
 	}
 	migrator.Now = func() time.Time { return time.Date(2026, 9, 24, 0, 0, 0, 0, time.UTC) }
 
@@ -35,12 +35,12 @@ func TestMigrator_GivenFreshDatabase_WhenAppliedTwice_ThenCurrentSchemaExistsAnd
 	if err := db.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&count); err != nil {
 		t.Fatalf("count migrations: %v", err)
 	}
-	if count != 1 {
-		t.Fatalf("migration count = %d, want 1", count)
+	if count != 2 {
+		t.Fatalf("migration count = %d, want 2", count)
 	}
 	var version int
 	var name string
-	if err := db.QueryRow(`SELECT version, name FROM schema_migrations`).Scan(&version, &name); err != nil {
+	if err := db.QueryRow(`SELECT version, name FROM schema_migrations WHERE version=1`).Scan(&version, &name); err != nil {
 		t.Fatalf("read baseline migration: %v", err)
 	}
 	if version != 1 || name != "initial_schema" {

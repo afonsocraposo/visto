@@ -62,6 +62,7 @@ export * from "./plexWebhookEventStatus";
 export * from "./plexWebhookStatus";
 export * from "./postPlaysBulkBody";
 export * from "./postProfilePlexWebhook201";
+export * from "./postProfilePlexWebhookBody";
 export * from "./postWebhooksPlexSecretBody";
 export * from "./pushoverSettingsRequest";
 export * from "./saveLibraryRequest";

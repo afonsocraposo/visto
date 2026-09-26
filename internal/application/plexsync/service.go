@@ -43,6 +43,7 @@ type Event struct {
 
 type Status struct {
 	Enabled      bool      `json:"enabled"`
+	AccountID    string    `json:"account_id,omitempty"`
 	CreatedAt    time.Time `json:"created_at,omitempty"`
 	LastUsedAt   time.Time `json:"last_used_at,omitempty"`
 	LastSyncedAt time.Time `json:"last_synced_at,omitempty"`
@@ -50,10 +51,10 @@ type Status struct {
 }
 
 type Repository interface {
-	IssuePlexWebhook(context.Context, string, string, time.Time) error
+	IssuePlexWebhook(context.Context, string, string, string, time.Time) error
 	RevokePlexWebhook(context.Context, string) error
 	GetPlexWebhookStatus(context.Context, string) (Status, error)
-	UserForPlexWebhook(context.Context, string, time.Time) (string, error)
+	UserForPlexWebhook(context.Context, string, time.Time) (string, string, error)
 	LogPlexEvent(context.Context, string, string, Event) error
 	RecordPlexPlay(context.Context, string, string, Event, *string, *string, time.Time, time.Duration) (bool, error)
 }
@@ -93,7 +94,11 @@ func (service *Service) Status(ctx context.Context, userID string) (Status, erro
 	return status, nil
 }
 
-func (service *Service) Issue(ctx context.Context, userID string) (string, error) {
+func (service *Service) Issue(ctx context.Context, userID, accountID string) (string, error) {
+	accountID = strings.TrimSpace(accountID)
+	if accountID != "" && !validPlexAccountID(accountID) {
+		return "", errors.New("Plex account ID must contain at most 20 digits")
+	}
 	if service.publicURL == "" {
 		return "", errors.New("VISTO_PUBLIC_URL must be configured to create a Plex webhook URL")
 	}
@@ -107,7 +112,7 @@ func (service *Service) Issue(ctx context.Context, userID string) (string, error
 	}
 	secret := base64.RawURLEncoding.EncodeToString(secretBytesValue)
 	hash := sha256.Sum256([]byte(secret))
-	if err := service.repository.IssuePlexWebhook(ctx, userID, hex.EncodeToString(hash[:]), service.now().UTC()); err != nil {
+	if err := service.repository.IssuePlexWebhook(ctx, userID, hex.EncodeToString(hash[:]), accountID, service.now().UTC()); err != nil {
 		return "", err
 	}
 	return service.publicURL + "/api/v1/webhooks/plex/" + secret, nil
@@ -122,7 +127,7 @@ func (service *Service) Handle(ctx context.Context, secret, rawPayload string) e
 		return errors.New("invalid Plex webhook payload size")
 	}
 	hash := sha256.Sum256([]byte(secret))
-	userID, err := service.repository.UserForPlexWebhook(ctx, hex.EncodeToString(hash[:]), service.now().UTC())
+	userID, accountID, err := service.repository.UserForPlexWebhook(ctx, hex.EncodeToString(hash[:]), service.now().UTC())
 	if err != nil {
 		return ErrWebhookNotFound
 	}
@@ -133,6 +138,13 @@ func (service *Service) Handle(ctx context.Context, secret, rawPayload string) e
 	metadata := payload.Metadata
 	event := Event{Status: "skipped", Title: firstNonEmpty(metadata.Title, metadata.GrandparentTitle), MediaType: metadata.Type, OccurredAt: plexTime(metadata.LastViewedAt, service.now().UTC())}
 	fingerprint := service.fingerprint(payload, rawPayload)
+	if accountID == "" || payload.Account.ID == "" || payload.Account.ID.String() != accountID {
+		event.Message = "Plex account does not match this webhook"
+		if validPlexAccountID(payload.Account.ID.String()) {
+			event.Message = "Skipped Plex account ID " + payload.Account.ID.String()
+		}
+		return service.log(ctx, userID, fingerprint, event)
+	}
 	if payload.Event != "media.scrobble" {
 		event.Message = "Only Plex watched events are synchronized"
 		return service.log(ctx, userID, fingerprint, event)
@@ -190,10 +202,26 @@ func (service *Service) Handle(ctx context.Context, secret, rawPayload string) e
 
 type plexPayload struct {
 	Event    string       `json:"event"`
-	Account  any          `json:"Account"`
+	Account  plexAccount  `json:"Account"`
 	Server   plexIdentity `json:"Server"`
 	Player   plexIdentity `json:"Player"`
 	Metadata plexMetadata `json:"Metadata"`
+}
+
+type plexAccount struct {
+	ID json.Number `json:"id"`
+}
+
+func validPlexAccountID(value string) bool {
+	if value == "" || len(value) > 20 {
+		return false
+	}
+	for _, character := range value {
+		if character < '0' || character > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 type plexIdentity struct {
