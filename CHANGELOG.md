@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.9.0](https://github.com/afonsocraposo/visto/compare/v0.8.0...v0.9.0) (2026-09-26)
+
+
+### Features
+
+* add MCP tool to remove media and history ([3646755](https://github.com/afonsocraposo/visto/commit/36467557a4196179d58362c30c558bd07b81b238))
+* show TV series production status on detail page ([b471e90](https://github.com/afonsocraposo/visto/commit/b471e90c02ece7bfee8296e4e954b33b2a67a844))
+
+
+### Bug Fixes
+
+* mock sorted library requests in browser tests ([5fd91a9](https://github.com/afonsocraposo/visto/commit/5fd91a9d9d0a5e54898cf235771f4da9776c8d5e))
+* restore API generation for library sorting ([8012724](https://github.com/afonsocraposo/visto/commit/80127242f9e9c17c4af212f9f9d150664b60c3a7))
+
 ## [0.8.0](https://github.com/afonsocraposo/visto/compare/v0.7.0...v0.8.0) (2026-09-26)
 
 
