@@ -131,3 +131,30 @@ func clearPushoverCredentials(authService *auth.Service, service *profile.Servic
 		w.WriteHeader(http.StatusNoContent)
 	}
 }
+
+func testPushover(authService *auth.Service, service *profile.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := authenticatedUser(w, r, authService)
+		if !ok {
+			return
+		}
+		if service == nil {
+			writeError(w, 503, "profile is not configured")
+			return
+		}
+		err := service.TestPushover(r.Context(), user.ID)
+		if errors.Is(err, profile.ErrPushoverUnavailable) {
+			writeError(w, 503, "Pushover is not configured")
+			return
+		}
+		if errors.Is(err, profile.ErrPushoverNotConfigured) {
+			writeError(w, 400, err.Error())
+			return
+		}
+		if err != nil {
+			writeError(w, 502, "Pushover did not accept the test notification")
+			return
+		}
+		w.WriteHeader(204)
+	}
+}

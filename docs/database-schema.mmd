@@ -14,6 +14,22 @@ erDiagram
     text created_at
   }
 
+  backup_settings {
+    integer id PK
+    text destination
+    integer interval_seconds
+    text s3_bucket
+    text s3_region
+    text s3_endpoint
+    text s3_access_key_id
+    text s3_secret_ciphertext
+    integer s3_path_style
+    text s3_prefix
+    integer s3_max_keep
+    text last_success_at
+    text last_error
+  }
+
   episode_ratings {
     integer user_id PK, FK
     text episode_id PK, FK
@@ -146,6 +162,7 @@ erDiagram
     text token_hash
     text created_at
     text last_used_at
+    text account_id
   }
 
   schema_migrations {
@@ -211,10 +228,29 @@ erDiagram
     text google_subject
   }
 
+  web_push_deliveries {
+    integer user_id PK, FK
+    text episode_id PK, FK
+    text subscription_id PK, FK
+    text state
+    text attempted_at
+    text sent_at
+    integer attempt_count
+    text next_attempt_at
+  }
+
+  web_push_subscriptions {
+    text id PK
+    integer user_id FK
+    text encrypted_subscription
+    text created_at
+  }
+
   episodes ||--o{ activity_events : episode_id
   episodes ||--o{ episode_ratings : episode_id
   episodes ||--o{ notification_deliveries : episode_id
   episodes ||--o{ plays : episode_id
+  episodes ||--o{ web_push_deliveries : episode_id
   media ||--o{ activity_events : media_id
   media ||--o{ episodes : show_id
   media ||--o{ plays : media_id
@@ -236,5 +272,8 @@ erDiagram
   users ||--o{ plex_webhook_events : user_id
   users ||--o{ sessions : user_id
   users ||--o{ user_media : user_id
+  users ||--o{ web_push_deliveries : user_id
+  users ||--o{ web_push_subscriptions : user_id
   users ||--o| plex_webhooks : user_id
   users ||--o| user_settings : user_id
+  web_push_subscriptions ||--o{ web_push_deliveries : subscription_id

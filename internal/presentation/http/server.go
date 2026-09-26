@@ -25,11 +25,16 @@ type Server struct {
 	proxies     *security.ProxyResolver
 }
 
-func New(authService *auth.Service, metadataProvider domain.MetadataProvider, webDir string, libraryService *library.Service, trackingService *tracking.Service, profileService *profile.Service, feedService *feed.Service, exportService *exportapp.Service, watchService *watch.Service) *Server {
+func New(authService *auth.Service, metadataProvider domain.MetadataProvider, webDir string, libraryService *library.Service, trackingService *tracking.Service, profileService *profile.Service, feedService *feed.Service, exportService *exportapp.Service, watchService *watch.Service, webPush ...*WebPushConfig) *Server {
 	mux := http.NewServeMux()
 	proxies := &security.ProxyResolver{}
 	loginLimiter := newLoginLimiter()
 	registerAPIRoutes(mux, authService, metadataProvider, libraryService, trackingService, profileService, feedService, exportService, watchService, loginLimiter, proxies)
+	var pushConfig *WebPushConfig
+	if len(webPush) > 0 {
+		pushConfig = webPush[0]
+	}
+	pushRoutes(mux, authService, pushConfig)
 	if webDir != "" {
 		if _, err := os.Stat(webDir); err == nil {
 			mux.Handle("GET /", singlePageApp(webDir))

@@ -58,6 +58,15 @@ func (store *Store) GetPushoverSettings(ctx context.Context, userID string) (ena
 	return enabled, hasAppToken, hasUserKey, nil
 }
 
+func (store *Store) GetPushoverCredentials(ctx context.Context, userID string) (string, string, error) {
+	var app, user sql.NullString
+	err := store.DB.QueryRowContext(ctx, `SELECT pushover_app_token_encrypted,pushover_user_key_encrypted FROM user_settings WHERE user_id=?`, userID).Scan(&app, &user)
+	if err != nil {
+		return "", "", fmt.Errorf("get Pushover credentials: %w", err)
+	}
+	return app.String, user.String, nil
+}
+
 func (store *Store) SetPushoverSettings(ctx context.Context, userID string, encryptedAppToken, encryptedUserKey *string, enabled bool) error {
 	tx, err := store.DB.BeginTx(ctx, nil)
 	if err != nil {

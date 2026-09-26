@@ -47,14 +47,26 @@ type Service struct {
 	sender     Sender
 	decryptor  Decryptor
 	now        func() time.Time
+	web        *WebService
 }
 
-func NewService(repository Repository, sender Sender, decryptor Decryptor) *Service {
-	return &Service{repository: repository, sender: sender, decryptor: decryptor, now: time.Now}
+func NewService(repository Repository, sender Sender, decryptor Decryptor, web ...*WebService) *Service {
+	s := &Service{repository: repository, sender: sender, decryptor: decryptor, now: time.Now}
+	if len(web) > 0 {
+		s.web = web[0]
+	}
+	return s
 }
 
 func (service *Service) Dispatch(ctx context.Context) error {
 	now := service.now().UTC()
+	var webError error
+	if service.web != nil {
+		webError = service.web.Dispatch(ctx)
+	}
+	if service.repository == nil {
+		return webError
+	}
 	candidates, err := service.repository.NotificationCandidates(ctx, now, 50)
 	if err != nil {
 		return fmt.Errorf("load new-episode notifications: %w", err)
@@ -96,13 +108,16 @@ func (service *Service) Dispatch(ctx context.Context) error {
 			firstError = fmt.Errorf("record sent notification for %s: %w", candidate.EpisodeID, err)
 		}
 	}
-	return firstError
+	if firstError != nil {
+		return firstError
+	}
+	return webError
 }
 
 func (service *Service) Run(ctx context.Context, interval time.Duration, logger *log.Logger) {
 	if interval <= 0 {
 		if logger != nil {
-			logger.Printf("Pushover notification interval must be positive")
+			logger.Printf("notification interval must be positive")
 		}
 		return
 	}
@@ -110,7 +125,7 @@ func (service *Service) Run(ctx context.Context, interval time.Duration, logger 
 		logger = log.Default()
 	}
 	if err := service.Dispatch(ctx); err != nil {
-		logger.Printf("Pushover notification dispatch failed: %v", err)
+		logger.Printf("notification dispatch failed: %v", err)
 	}
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -120,7 +135,7 @@ func (service *Service) Run(ctx context.Context, interval time.Duration, logger 
 			return
 		case <-ticker.C:
 			if err := service.Dispatch(ctx); err != nil {
-				logger.Printf("Pushover notification dispatch failed: %v", err)
+				logger.Printf("notification dispatch failed: %v", err)
 			}
 		}
 	}

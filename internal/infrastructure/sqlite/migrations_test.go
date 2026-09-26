@@ -19,8 +19,8 @@ func TestMigrator_GivenFreshDatabase_WhenAppliedTwice_ThenCurrentSchemaExistsAnd
 	if err != nil {
 		t.Fatalf("new migrator: %v", err)
 	}
-	if len(migrator.Migrations) != 3 || migrator.Migrations[0].Version != 1 || migrator.Migrations[1].Version != 2 || migrator.Migrations[2].Version != 3 {
-		t.Fatalf("loaded migrations = %#v, want baseline, Plex account, and backup migrations", migrator.Migrations)
+	if len(migrator.Migrations) != 4 || migrator.Migrations[0].Version != 1 || migrator.Migrations[1].Version != 2 || migrator.Migrations[2].Version != 3 || migrator.Migrations[3].Version != 4 {
+		t.Fatalf("loaded migrations = %#v, want baseline, Plex account, backup, and Web Push migrations", migrator.Migrations)
 	}
 	migrator.Now = func() time.Time { return time.Date(2026, 9, 24, 0, 0, 0, 0, time.UTC) }
 
@@ -35,8 +35,8 @@ func TestMigrator_GivenFreshDatabase_WhenAppliedTwice_ThenCurrentSchemaExistsAnd
 	if err := db.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&count); err != nil {
 		t.Fatalf("count migrations: %v", err)
 	}
-	if count != 3 {
-		t.Fatalf("migration count = %d, want 3", count)
+	if count != 4 {
+		t.Fatalf("migration count = %d, want 4", count)
 	}
 	var version int
 	var name string
@@ -165,4 +165,32 @@ func openTestDatabase(t *testing.T) *sql.DB {
 	}
 	t.Cleanup(func() { _ = db.Close() })
 	return db
+}
+
+func TestWebPushMigrationPreservesPushoverDelivery(t *testing.T) {
+	db := openTestDatabase(t)
+	migrator, err := sqlite.NewMigrator()
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := *migrator
+	old.Migrations = migrator.Migrations[:3]
+	if err := old.Apply(context.Background(), db); err != nil {
+		t.Fatal(err)
+	}
+	_, err = db.Exec(`INSERT INTO users(id,username,display_name,password_hash,role,created_at,updated_at) VALUES(1,'alex','Alex','hash','user','2026-09-01','2026-09-01');
+ INSERT INTO media(id,media_type,tmdb_id,title,metadata_updated_at,created_at) VALUES('tv:1','tv',1,'Show','2026-09-01','2026-09-01');
+ INSERT INTO seasons(id,show_id,season_number) VALUES('season','tv:1',1);
+ INSERT INTO episodes(id,show_id,season_id,season_number,episode_number) VALUES('episode','tv:1','season',1,1);
+ INSERT INTO notification_deliveries(user_id,episode_id,state,attempted_at,attempt_count,sent_at) VALUES(1,'episode','sent','2026-09-01',1,'2026-09-01');`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := migrator.Apply(context.Background(), db); err != nil {
+		t.Fatal(err)
+	}
+	var state string
+	if err := db.QueryRow(`SELECT state FROM notification_deliveries WHERE user_id=1 AND episode_id='episode'`).Scan(&state); err != nil || state != "sent" {
+		t.Fatalf("state=%s err=%v", state, err)
+	}
 }

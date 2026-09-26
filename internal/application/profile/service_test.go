@@ -24,6 +24,9 @@ func (repository *profileRepositoryFake) SetSettings(_ context.Context, _ string
 func (repository *profileRepositoryFake) GetPushoverSettings(context.Context, string) (bool, bool, bool, error) {
 	return repository.enabled, repository.appToken != "", repository.userKey != "", nil
 }
+func (repository *profileRepositoryFake) GetPushoverCredentials(context.Context, string) (string, string, error) {
+	return repository.appToken, repository.userKey, nil
+}
 func (repository *profileRepositoryFake) SetPushoverSettings(_ context.Context, _ string, appToken, userKey *string, enabled bool) error {
 	if appToken != nil {
 		repository.appToken = *appToken
@@ -44,6 +47,9 @@ func (repository *profileRepositoryFake) ClearPushoverCredentials(context.Contex
 type profileCipherFake struct{}
 
 func (profileCipherFake) Encrypt(value string) (string, error) { return "encrypted:" + value, nil }
+func (profileCipherFake) Decrypt(value string) (string, error) {
+	return strings.TrimPrefix(value, "encrypted:"), nil
+}
 
 func TestUpdatePushoverEncryptsEachUsersCredentialsAndRequiresBothBeforeEnable(t *testing.T) {
 	repository := &profileRepositoryFake{}
@@ -69,5 +75,39 @@ func TestUpdatePushoverRejectsUnavailableAndMalformedKeys(t *testing.T) {
 	service := NewService(repository, PushoverConfig{Cipher: profileCipherFake{}})
 	if err := service.UpdatePushover(context.Background(), "user-1", false, "short", ""); !errors.Is(err, ErrInvalidPushoverSettings) {
 		t.Fatalf("expected malformed key error, got %v", err)
+	}
+}
+
+type profileSenderFake struct {
+	calls                   int
+	token, key, title, body string
+	err                     error
+}
+
+func (s *profileSenderFake) Send(_ context.Context, token, key, title, body string) error {
+	s.calls++
+	s.token, s.key, s.title, s.body = token, key, title, body
+	return s.err
+}
+func TestPushoverTestUsesSavedCredentialsWithoutEnablingScheduledAlerts(t *testing.T) {
+	repo := &profileRepositoryFake{}
+	sender := &profileSenderFake{}
+	service := NewService(repo, PushoverConfig{Cipher: profileCipherFake{}, Sender: sender})
+	if err := service.TestPushover(context.Background(), "user-1"); !errors.Is(err, ErrPushoverNotConfigured) {
+		t.Fatalf("missing credentials: %v", err)
+	}
+	secret := strings.Repeat("x", 32)
+	if err := service.UpdatePushover(context.Background(), "user-1", false, secret, secret); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.TestPushover(context.Background(), "user-1"); err != nil {
+		t.Fatal(err)
+	}
+	if sender.calls != 1 || sender.token != secret || sender.key != secret || sender.title != "Visto test notification" || repo.enabled {
+		t.Fatalf("send=%+v enabled=%t", sender, repo.enabled)
+	}
+	sender.err = errors.New("provider rejected")
+	if err := service.TestPushover(context.Background(), "user-1"); err == nil {
+		t.Fatal("expected provider error")
 	}
 }

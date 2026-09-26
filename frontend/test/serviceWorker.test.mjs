@@ -50,8 +50,10 @@ function createHarness() {
       return [...cacheStore.keys()];
     },
   };
+  const shown = [];
   const self = {
     location: { origin },
+    registration: { showNotification: async (title, options) => shown.push({ title, options }) },
     clients: { claim: async () => {} },
     addEventListener: (type, handler) => listeners.set(type, handler),
   };
@@ -69,6 +71,17 @@ function createHarness() {
 
   return {
     cacheStore,
+    shown,
+    async dispatchPush(payload) {
+      let pending;
+      listeners.get("push")({
+        data: { json: () => payload },
+        waitUntil(promise) {
+          pending = promise;
+        },
+      });
+      await pending;
+    },
     async start() {
       vm.runInContext(await loaded, context);
     },
@@ -244,4 +257,17 @@ test("Given cached account content, When logout succeeds, Then its account cache
   assert.equal(response.status, 503);
   assert.equal(response.headers.get("X-Visto-Offline"), "true");
   assert.match(await response.text(), /no cached account data/);
+});
+
+test("Web Push shows only the active user's notification", async () => {
+  const harness = createHarness();
+  await harness.start();
+  await (
+    await harness.openCache("visto-user-index-v1")
+  ).put(new Request(`${origin}/__visto_active_user__`), new Response("alice"));
+  await harness.dispatchPush({ title: "Test", body: "Ready", url: "/profile", user_id: "bob" });
+  assert.equal(harness.shown.length, 0);
+  await harness.dispatchPush({ title: "Test", body: "Ready", url: "/profile", user_id: "alice" });
+  assert.equal(harness.shown.length, 1);
+  assert.equal(harness.shown[0].title, "Test");
 });

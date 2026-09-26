@@ -29,21 +29,28 @@ type Repository interface {
 
 type SecretCipher interface {
 	Encrypt(string) (string, error)
+	Decrypt(string) (string, error)
+}
+type PushoverSender interface {
+	Send(context.Context, string, string, string, string) error
 }
 
 type pushoverSettingsRepository interface {
 	GetPushoverSettings(context.Context, string) (enabled, hasAppToken, hasUserKey bool, err error)
+	GetPushoverCredentials(context.Context, string) (string, string, error)
 	SetPushoverSettings(context.Context, string, *string, *string, bool) error
 	ClearPushoverCredentials(context.Context, string) error
 }
 
 type PushoverConfig struct {
 	Cipher SecretCipher
+	Sender PushoverSender
 }
 
 var (
 	ErrPushoverUnavailable     = errors.New("secure storage for per-user Pushover credentials is unavailable")
 	ErrInvalidPushoverSettings = errors.New("invalid Pushover settings")
+	ErrPushoverNotConfigured   = errors.New("save a Pushover application token and user key first")
 )
 
 type Service struct {
@@ -126,6 +133,32 @@ func (service *Service) UpdatePushover(ctx context.Context, userID string, enabl
 		}
 	}
 	return repository.SetPushoverSettings(ctx, userID, encryptedAppToken, encryptedUserKey, enabled)
+}
+
+func (service *Service) TestPushover(ctx context.Context, userID string) error {
+	if userID == "" {
+		return fmt.Errorf("user is required")
+	}
+	repository, ok := service.repository.(pushoverSettingsRepository)
+	if !ok || service.pushover.Cipher == nil || service.pushover.Sender == nil {
+		return ErrPushoverUnavailable
+	}
+	appEncrypted, userEncrypted, err := repository.GetPushoverCredentials(ctx, userID)
+	if err != nil {
+		return err
+	}
+	if appEncrypted == "" || userEncrypted == "" {
+		return ErrPushoverNotConfigured
+	}
+	appToken, err := service.pushover.Cipher.Decrypt(appEncrypted)
+	if err != nil {
+		return err
+	}
+	userKey, err := service.pushover.Cipher.Decrypt(userEncrypted)
+	if err != nil {
+		return err
+	}
+	return service.pushover.Sender.Send(ctx, appToken, userKey, "Visto test notification", "Pushover notifications are working.")
 }
 
 func validatePushoverSecret(name, value string) error {

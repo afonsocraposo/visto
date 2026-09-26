@@ -18,6 +18,7 @@ import type { Theme } from "../../types";
 import { PersonalTokensPanel } from "./PersonalTokensPanel";
 import { ConnectedAppsPanel } from "./ConnectedAppsPanel";
 import { PlexSyncPanel } from "./PlexSyncPanel";
+import { WebPushSettings } from "./WebPushSettings";
 
 export function ProfilePanel({
   theme,
@@ -132,6 +133,15 @@ export function ProfilePanel({
     },
     onSuccess: async () =>
       queryClient.invalidateQueries({ queryKey: userQueryKey("profile-settings") }),
+  });
+  const testPushover = useMutation({
+    mutationFn: async () => {
+      const response = await fetch("/api/v1/profile/pushover-test", { method: "POST" });
+      if (!response.ok) {
+        const result = await response.json().catch(() => ({}));
+        throw new Error(result.error || "Could not send Pushover test notification.");
+      }
+    },
   });
   const settingsUnavailable = settings.isPending || settings.isError;
 
@@ -265,6 +275,15 @@ export function ProfilePanel({
                   {settings.data.pushover_enabled ? "Turn alerts off" : "Turn alerts on"}
                 </Button>
               ) : null}
+              {settings.data.has_pushover_app_token && settings.data.has_pushover_user_key && (
+                <Button
+                  variant="default"
+                  loading={testPushover.isPending}
+                  onClick={() => testPushover.mutate()}
+                >
+                  Send test notification
+                </Button>
+              )}
               {(settings.data.has_pushover_app_token || settings.data.has_pushover_user_key) && (
                 <Button
                   color="red"
@@ -276,6 +295,16 @@ export function ProfilePanel({
                 </Button>
               )}
             </Group>
+            {testPushover.isSuccess && (
+              <Text size="sm" mt="sm">
+                Test sent. Check Pushover on your device.
+              </Text>
+            )}
+            {testPushover.isError && (
+              <Alert color="red" mt="sm">
+                {testPushover.error.message}
+              </Alert>
+            )}
           </>
         ) : (
           <Text size="sm" c="dimmed" mt="xs">
@@ -283,6 +312,8 @@ export function ProfilePanel({
             Pushover can be used. Ask the administrator to configure VISTO_SECRET_ENCRYPTION_KEY.
           </Text>
         )}
+
+        <WebPushSettings />
 
         <Title order={3} mt="xl">
           Export your data

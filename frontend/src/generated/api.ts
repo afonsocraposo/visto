@@ -35,6 +35,7 @@ import type {
   CreatePlayRequest,
   DeleteLibraryMediaIDParams,
   DeletePlaysBulkBody,
+  DeleteProfileWebPushSubscriptionBody,
   EpisodeRating,
   ExportData,
   FeedPage,
@@ -61,6 +62,7 @@ import type {
   PostPlaysBulkBody,
   PostProfilePlexWebhook201,
   PostProfilePlexWebhookBody,
+  PostProfileWebPushStatusBody,
   PostWebhooksPlexSecretBody,
   PushoverSettingsRequest,
   SaveLibraryRequest,
@@ -79,6 +81,7 @@ import type {
   User,
   WatchThroughRequest,
   WatchThroughResponse,
+  WebPushSubscription,
 } from "./models";
 
 import { customFetch } from "../lib/orvalMutator";
@@ -2607,6 +2610,90 @@ export const usePatchProfilePushoverSettings = <
   return useMutation(getPatchProfilePushoverSettingsMutationOptions(options), queryClient);
 };
 
+export const getPostProfilePushoverTestUrl = () => {
+  return `/profile/pushover-test`;
+};
+
+/**
+ * @summary Send a test notification using the authenticated user's saved Pushover credentials
+ */
+export const postProfilePushoverTest = async (
+  options?: Parameters<typeof customFetch>[1],
+): Promise<void> => {
+  return customFetch<void>(getPostProfilePushoverTestUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getPostProfilePushoverTestMutationKey = () => ["postProfilePushoverTest"] as const;
+
+export const getPostProfilePushoverTestMutationOptions = <
+  TError = BadRequestResponse | UnauthorizedResponse | void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof postProfilePushoverTest>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof postProfilePushoverTest>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = getPostProfilePushoverTestMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof postProfilePushoverTest>>,
+    void
+  > = () => {
+    return postProfilePushoverTest(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PostProfilePushoverTestMutationResult = NonNullable<
+  Awaited<ReturnType<typeof postProfilePushoverTest>>
+>;
+
+export type PostProfilePushoverTestMutationError = BadRequestResponse | UnauthorizedResponse | void;
+
+/**
+ * @summary Send a test notification using the authenticated user's saved Pushover credentials
+ */
+export const usePostProfilePushoverTest = <
+  TError = BadRequestResponse | UnauthorizedResponse | void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof postProfilePushoverTest>>,
+      TError,
+      void,
+      TContext
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof postProfilePushoverTest>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getPostProfilePushoverTestMutationOptions(options), queryClient);
+};
+
 export const getDeleteProfilePushoverCredentialsUrl = () => {
   return `/profile/pushover-credentials`;
 };
@@ -2690,6 +2777,566 @@ export const useDeleteProfilePushoverCredentials = <
   TContext
 > => {
   return useMutation(getDeleteProfilePushoverCredentialsMutationOptions(options), queryClient);
+};
+
+export const getGetProfileWebPushKeyUrl = () => {
+  return `/profile/web-push-key`;
+};
+
+/**
+ * @summary Get the public VAPID key for this instance
+ */
+export const getProfileWebPushKey = async (
+  options?: Parameters<typeof customFetch>[1],
+): Promise<void> => {
+  return customFetch<void>(getGetProfileWebPushKeyUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetProfileWebPushKeyQueryKey = () => {
+  return [`/profile/web-push-key`] as const;
+};
+
+export const getGetProfileWebPushKeyQueryOptions = <
+  TData = Awaited<ReturnType<typeof getProfileWebPushKey>>,
+  TError = UnauthorizedResponse | void,
+>(options?: {
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getProfileWebPushKey>>, TError, TData>>;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetProfileWebPushKeyQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getProfileWebPushKey>>> = ({ signal }) =>
+    getProfileWebPushKey({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getProfileWebPushKey>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetProfileWebPushKeyQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getProfileWebPushKey>>
+>;
+export type GetProfileWebPushKeyQueryError = UnauthorizedResponse | void;
+
+export function useGetProfileWebPushKey<
+  TData = Awaited<ReturnType<typeof getProfileWebPushKey>>,
+  TError = UnauthorizedResponse | void,
+>(
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getProfileWebPushKey>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getProfileWebPushKey>>,
+          TError,
+          Awaited<ReturnType<typeof getProfileWebPushKey>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetProfileWebPushKey<
+  TData = Awaited<ReturnType<typeof getProfileWebPushKey>>,
+  TError = UnauthorizedResponse | void,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getProfileWebPushKey>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getProfileWebPushKey>>,
+          TError,
+          Awaited<ReturnType<typeof getProfileWebPushKey>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetProfileWebPushKey<
+  TData = Awaited<ReturnType<typeof getProfileWebPushKey>>,
+  TError = UnauthorizedResponse | void,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getProfileWebPushKey>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Get the public VAPID key for this instance
+ */
+
+export function useGetProfileWebPushKey<
+  TData = Awaited<ReturnType<typeof getProfileWebPushKey>>,
+  TError = UnauthorizedResponse | void,
+>(
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getProfileWebPushKey>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetProfileWebPushKeyQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export const getPostProfileWebPushSubscriptionUrl = () => {
+  return `/profile/web-push-subscription`;
+};
+
+/**
+ * @summary Subscribe this device to episode notifications
+ */
+export const postProfileWebPushSubscription = async (
+  webPushSubscription: WebPushSubscription,
+  options?: Parameters<typeof customFetch>[1],
+): Promise<void> => {
+  const getHeaders = (
+    h?: NonNullable<RequestInit["headers"]>,
+  ): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(
+          h as Iterable<Iterable<string>>,
+          (entry) => Array.from(entry) as [string, string],
+        ),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+  return customFetch<void>(getPostProfileWebPushSubscriptionUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getHeaders(options?.headers) },
+    body: JSON.stringify(webPushSubscription),
+  });
+};
+
+export const getPostProfileWebPushSubscriptionMutationKey = () =>
+  ["postProfileWebPushSubscription"] as const;
+
+export const getPostProfileWebPushSubscriptionMutationOptions = <
+  TError = BadRequestResponse | UnauthorizedResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof postProfileWebPushSubscription>>,
+    TError,
+    PostProfileWebPushSubscriptionMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof postProfileWebPushSubscription>>,
+  TError,
+  PostProfileWebPushSubscriptionMutationVariables,
+  TContext
+> => {
+  const mutationKey = getPostProfileWebPushSubscriptionMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof postProfileWebPushSubscription>>,
+    PostProfileWebPushSubscriptionMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return postProfileWebPushSubscription(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PostProfileWebPushSubscriptionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof postProfileWebPushSubscription>>
+>;
+export type PostProfileWebPushSubscriptionMutationBody = WebPushSubscription;
+export type PostProfileWebPushSubscriptionMutationError = BadRequestResponse | UnauthorizedResponse;
+export type PostProfileWebPushSubscriptionMutationVariables = { data: WebPushSubscription };
+
+/**
+ * @summary Subscribe this device to episode notifications
+ */
+export const usePostProfileWebPushSubscription = <
+  TError = BadRequestResponse | UnauthorizedResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof postProfileWebPushSubscription>>,
+      TError,
+      PostProfileWebPushSubscriptionMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof postProfileWebPushSubscription>>,
+  TError,
+  PostProfileWebPushSubscriptionMutationVariables,
+  TContext
+> => {
+  return useMutation(getPostProfileWebPushSubscriptionMutationOptions(options), queryClient);
+};
+
+export const getDeleteProfileWebPushSubscriptionUrl = () => {
+  return `/profile/web-push-subscription`;
+};
+
+/**
+ * @summary Remove this device's push subscription
+ */
+export const deleteProfileWebPushSubscription = async (
+  deleteProfileWebPushSubscriptionBody: DeleteProfileWebPushSubscriptionBody,
+  options?: Parameters<typeof customFetch>[1],
+): Promise<void> => {
+  const getHeaders = (
+    h?: NonNullable<RequestInit["headers"]>,
+  ): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(
+          h as Iterable<Iterable<string>>,
+          (entry) => Array.from(entry) as [string, string],
+        ),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+  return customFetch<void>(getDeleteProfileWebPushSubscriptionUrl(), {
+    ...options,
+    method: "DELETE",
+    headers: { "Content-Type": "application/json", ...getHeaders(options?.headers) },
+    body: JSON.stringify(deleteProfileWebPushSubscriptionBody),
+  });
+};
+
+export const getDeleteProfileWebPushSubscriptionMutationKey = () =>
+  ["deleteProfileWebPushSubscription"] as const;
+
+export const getDeleteProfileWebPushSubscriptionMutationOptions = <
+  TError = UnauthorizedResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteProfileWebPushSubscription>>,
+    TError,
+    DeleteProfileWebPushSubscriptionMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteProfileWebPushSubscription>>,
+  TError,
+  DeleteProfileWebPushSubscriptionMutationVariables,
+  TContext
+> => {
+  const mutationKey = getDeleteProfileWebPushSubscriptionMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteProfileWebPushSubscription>>,
+    DeleteProfileWebPushSubscriptionMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return deleteProfileWebPushSubscription(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteProfileWebPushSubscriptionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteProfileWebPushSubscription>>
+>;
+export type DeleteProfileWebPushSubscriptionMutationBody = DeleteProfileWebPushSubscriptionBody;
+export type DeleteProfileWebPushSubscriptionMutationError = UnauthorizedResponse;
+export type DeleteProfileWebPushSubscriptionMutationVariables = {
+  data: DeleteProfileWebPushSubscriptionBody;
+};
+
+/**
+ * @summary Remove this device's push subscription
+ */
+export const useDeleteProfileWebPushSubscription = <
+  TError = UnauthorizedResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof deleteProfileWebPushSubscription>>,
+      TError,
+      DeleteProfileWebPushSubscriptionMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof deleteProfileWebPushSubscription>>,
+  TError,
+  DeleteProfileWebPushSubscriptionMutationVariables,
+  TContext
+> => {
+  return useMutation(getDeleteProfileWebPushSubscriptionMutationOptions(options), queryClient);
+};
+
+export const getPostProfileWebPushStatusUrl = () => {
+  return `/profile/web-push-status`;
+};
+
+/**
+ * @summary Check whether this device is subscribed for the authenticated user
+ */
+export const postProfileWebPushStatus = async (
+  postProfileWebPushStatusBody: PostProfileWebPushStatusBody,
+  options?: Parameters<typeof customFetch>[1],
+): Promise<void> => {
+  const getHeaders = (
+    h?: NonNullable<RequestInit["headers"]>,
+  ): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(
+          h as Iterable<Iterable<string>>,
+          (entry) => Array.from(entry) as [string, string],
+        ),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+  return customFetch<void>(getPostProfileWebPushStatusUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getHeaders(options?.headers) },
+    body: JSON.stringify(postProfileWebPushStatusBody),
+  });
+};
+
+export const getPostProfileWebPushStatusMutationKey = () => ["postProfileWebPushStatus"] as const;
+
+export const getPostProfileWebPushStatusMutationOptions = <
+  TError = UnauthorizedResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof postProfileWebPushStatus>>,
+    TError,
+    PostProfileWebPushStatusMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof postProfileWebPushStatus>>,
+  TError,
+  PostProfileWebPushStatusMutationVariables,
+  TContext
+> => {
+  const mutationKey = getPostProfileWebPushStatusMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof postProfileWebPushStatus>>,
+    PostProfileWebPushStatusMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return postProfileWebPushStatus(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PostProfileWebPushStatusMutationResult = NonNullable<
+  Awaited<ReturnType<typeof postProfileWebPushStatus>>
+>;
+export type PostProfileWebPushStatusMutationBody = PostProfileWebPushStatusBody;
+export type PostProfileWebPushStatusMutationError = UnauthorizedResponse;
+export type PostProfileWebPushStatusMutationVariables = { data: PostProfileWebPushStatusBody };
+
+/**
+ * @summary Check whether this device is subscribed for the authenticated user
+ */
+export const usePostProfileWebPushStatus = <TError = UnauthorizedResponse, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof postProfileWebPushStatus>>,
+      TError,
+      PostProfileWebPushStatusMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof postProfileWebPushStatus>>,
+  TError,
+  PostProfileWebPushStatusMutationVariables,
+  TContext
+> => {
+  return useMutation(getPostProfileWebPushStatusMutationOptions(options), queryClient);
+};
+
+export const getPostProfileWebPushTestUrl = () => {
+  return `/profile/web-push-test`;
+};
+
+/**
+ * @summary Send a test notification to this subscribed device
+ */
+export const postProfileWebPushTest = async (
+  webPushSubscription: WebPushSubscription,
+  options?: Parameters<typeof customFetch>[1],
+): Promise<void> => {
+  const getHeaders = (
+    h?: NonNullable<RequestInit["headers"]>,
+  ): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(
+          h as Iterable<Iterable<string>>,
+          (entry) => Array.from(entry) as [string, string],
+        ),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+  return customFetch<void>(getPostProfileWebPushTestUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...getHeaders(options?.headers) },
+    body: JSON.stringify(webPushSubscription),
+  });
+};
+
+export const getPostProfileWebPushTestMutationKey = () => ["postProfileWebPushTest"] as const;
+
+export const getPostProfileWebPushTestMutationOptions = <
+  TError = BadRequestResponse | UnauthorizedResponse | void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof postProfileWebPushTest>>,
+    TError,
+    PostProfileWebPushTestMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof postProfileWebPushTest>>,
+  TError,
+  PostProfileWebPushTestMutationVariables,
+  TContext
+> => {
+  const mutationKey = getPostProfileWebPushTestMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof postProfileWebPushTest>>,
+    PostProfileWebPushTestMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return postProfileWebPushTest(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PostProfileWebPushTestMutationResult = NonNullable<
+  Awaited<ReturnType<typeof postProfileWebPushTest>>
+>;
+export type PostProfileWebPushTestMutationBody = WebPushSubscription;
+export type PostProfileWebPushTestMutationError = BadRequestResponse | UnauthorizedResponse | void;
+export type PostProfileWebPushTestMutationVariables = { data: WebPushSubscription };
+
+/**
+ * @summary Send a test notification to this subscribed device
+ */
+export const usePostProfileWebPushTest = <
+  TError = BadRequestResponse | UnauthorizedResponse | void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof postProfileWebPushTest>>,
+      TError,
+      PostProfileWebPushTestMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof postProfileWebPushTest>>,
+  TError,
+  PostProfileWebPushTestMutationVariables,
+  TContext
+> => {
+  return useMutation(getPostProfileWebPushTestMutationOptions(options), queryClient);
 };
 
 export const getGetProfilePlexWebhookUrl = () => {

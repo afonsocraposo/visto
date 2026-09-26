@@ -136,3 +136,33 @@ async function storeActiveUser(response) {
     if (user.id) await storeActiveUserID(user.id);
   } catch {}
 }
+
+self.addEventListener("push", (event) =>
+  event.waitUntil(
+    (async () => {
+      if (!event.data) return;
+      const payload = event.data.json();
+      if (payload.user_id !== (await activeUserID())) return;
+      await self.registration.showNotification(payload.title, {
+        body: payload.body,
+        icon: "/icon.svg?v=2",
+        data: { url: payload.url },
+      });
+    })(),
+  ),
+);
+self.addEventListener("notificationclick", (event) =>
+  event.waitUntil(
+    (async () => {
+      event.notification.close();
+      const url = new URL(event.notification.data?.url || "/", self.location.origin);
+      if (url.origin !== self.location.origin) return;
+      const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      const existing = windows.find((client) => new URL(client.url).origin === url.origin);
+      if (existing) {
+        await existing.navigate(url.href);
+        await existing.focus();
+      } else await self.clients.openWindow(url.href);
+    })(),
+  ),
+);

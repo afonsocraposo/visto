@@ -207,6 +207,16 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '503': { description: Secure storage for per-user Pushover credentials is not configured on this instance }
+  /profile/pushover-test:
+    post:
+      summary: Send a test notification using the authenticated user's saved Pushover credentials
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      responses:
+        '204': { description: Pushover accepted the test notification }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '502': { description: Pushover rejected the test notification }
+        '503': { description: Pushover is not configured }
   /profile/pushover-credentials:
     delete:
       summary: Remove the authenticated user's encrypted Pushover credentials and disable notifications
@@ -215,6 +225,49 @@ paths:
         '204': { description: Pushover credentials removed }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '503': { description: Secure storage for per-user Pushover credentials is not configured on this instance }
+  /profile/web-push-key:
+    get:
+      summary: Get the public VAPID key for this instance
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      responses:
+        '200': { description: Public VAPID key }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '503': { description: Web Push is not configured }
+  /profile/web-push-subscription:
+    post:
+      summary: Subscribe this device to episode notifications
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/WebPushSubscription' } } } }
+      responses:
+        '204': { description: Device subscribed }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    delete:
+      summary: Remove this device's push subscription
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [endpoint], properties: { endpoint: { type: string } } } } } }
+      responses:
+        '204': { description: Device subscription removed }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /profile/web-push-status:
+    post:
+      summary: Check whether this device is subscribed for the authenticated user
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [endpoint], properties: { endpoint: { type: string } } } } } }
+      responses:
+        '200': { description: Device subscription status }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /profile/web-push-test:
+    post:
+      summary: Send a test notification to this subscribed device
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/WebPushSubscription' } } } }
+      responses:
+        '204': { description: Push provider accepted the test }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: Device is not subscribed }
+        '410': { description: Subscription expired }
   /profile/plex-webhook:
     get:
       summary: Get this user's Plex webhook status and recent sync events
@@ -758,6 +811,17 @@ components:
         has_pushover_app_token: { type: boolean, description: Indicates that an encrypted per-user application token exists. The token is never returned. }
         has_pushover_user_key: { type: boolean, description: Indicates that an encrypted per-user user key exists. The key is never returned. }
         pushover_available: { type: boolean, description: Indicates that the instance can encrypt and store per-user Pushover credentials. }
+    WebPushSubscription:
+      type: object
+      required: [endpoint, keys]
+      properties:
+        endpoint: { type: string, format: uri }
+        keys:
+          type: object
+          required: [auth, p256dh]
+          properties:
+            auth: { type: string }
+            p256dh: { type: string }
     PushoverSettingsRequest:
       type: object
       required: [enabled]

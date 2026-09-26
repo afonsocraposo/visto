@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -29,6 +31,7 @@ import (
 	"github.com/afonsocosta/visto/internal/infrastructure/pushover"
 	"github.com/afonsocosta/visto/internal/infrastructure/sqlite"
 	"github.com/afonsocosta/visto/internal/infrastructure/tmdb"
+	"github.com/afonsocosta/visto/internal/infrastructure/webpush"
 	httpserver "github.com/afonsocosta/visto/internal/presentation/http"
 	mcpserver "github.com/afonsocosta/visto/internal/presentation/mcp"
 	"github.com/afonsocosta/visto/internal/presentation/security"
@@ -92,17 +95,42 @@ func main() {
 		}
 		secretCipher = cipher
 		profileConfig.Cipher = cipher
+		profileConfig.Sender = pushover.NewClient(nil)
 	}
 	backupService := &backupjob.Service{Store: store, Cipher: secretCipher, DatabasePath: databasePath, Directory: backupDirectory, DefaultInterval: backupInterval, LocalRetention: backupRetention}
 	startWorker(func(ctx context.Context) { backupService.Run(ctx, log.Default()) })
 	profiles := profile.NewService(store, profileConfig)
-	if secretCipher != nil {
-		pushoverClient := pushover.NewClient(nil)
+	var pushConfig *httpserver.WebPushConfig
+	var webService *notifications.WebService
+	publicKey, privateKey := os.Getenv("VISTO_WEB_PUSH_PUBLIC_KEY"), os.Getenv("VISTO_WEB_PUSH_PRIVATE_KEY")
+	if publicKey != "" || privateKey != "" {
+		if publicKey == "" || privateKey == "" || secretCipher == nil {
+			log.Fatal("Web Push requires both VAPID keys and VISTO_SECRET_ENCRYPTION_KEY")
+		}
+		subject := os.Getenv("VISTO_WEB_PUSH_SUBJECT")
+		publicBytes, publicErr := base64.RawURLEncoding.DecodeString(publicKey)
+		privateBytes, privateErr := base64.RawURLEncoding.DecodeString(privateKey)
+		subjectURL, subjectErr := url.Parse(subject)
+		if publicErr != nil || privateErr != nil || len(publicBytes) != 65 || len(privateBytes) != 32 || subjectErr != nil || (subjectURL.Scheme == "mailto" && subjectURL.Opaque == "") || (subjectURL.Scheme == "https" && subjectURL.Host == "") || (subjectURL.Scheme != "mailto" && subjectURL.Scheme != "https") {
+			log.Fatal("invalid Web Push VAPID keys or subject")
+		}
+		pushClient := &webpush.Client{PublicKey: publicKey, PrivateKey: privateKey, Subject: subject}
+		pushConfig = &httpserver.WebPushConfig{Store: store, Cipher: secretCipher, Client: pushClient}
+		webService = &notifications.WebService{Repository: store, Sender: pushClient, Decryptor: secretCipher}
+	}
+	if secretCipher != nil || webService != nil {
+		var pushoverClient notifications.Sender
+		var notificationStore notifications.Repository
+		if secretCipher != nil {
+			pushoverClient = pushover.NewClient(nil)
+			notificationStore = store
+		}
 		dispatchInterval := durationEnvironment("VISTO_PUSHOVER_INTERVAL", 15*time.Minute)
 		startWorker(func(ctx context.Context) {
-			notifications.NewService(store, pushoverClient, secretCipher).Run(ctx, dispatchInterval, log.Default())
+			notifications.NewService(notificationStore, pushoverClient, secretCipher, webService).Run(ctx, dispatchInterval, log.Default())
 		})
 	}
+
 	appHandler := http.NewServeMux()
 	googleOAuth := httpserver.GoogleOAuthConfig{ClientID: os.Getenv("VISTO_GOOGLE_CLIENT_ID"), ClientSecret: os.Getenv("VISTO_GOOGLE_CLIENT_SECRET"), RedirectURL: os.Getenv("VISTO_GOOGLE_REDIRECT_URL")}
 	authService := auth.NewService(store, auth.Config{AllowSignups: boolEnvironment("VISTO_ALLOW_SIGNUPS", true), GoogleEnabled: googleOAuth.Enabled()})
@@ -135,7 +163,7 @@ func main() {
 	appHandler.Handle("/mcp", mcpHandler)
 	appHandler.Handle("/oauth/", mcpHandler)
 	appHandler.Handle("/.well-known/", mcpHandler)
-	appServer := httpserver.New(authService, metadataProvider, os.Getenv("VISTO_WEB_DIR"), library.NewService(store), tracking.NewService(store), profiles, feed.NewService(store), exportapp.NewService(store), watchService).
+	appServer := httpserver.New(authService, metadataProvider, os.Getenv("VISTO_WEB_DIR"), library.NewService(store), tracking.NewService(store), profiles, feed.NewService(store), exportapp.NewService(store), watchService, pushConfig).
 		WithTrustedProxies(trustedProxies).WithOAuth(oauthService).WithGoogleOAuth(googleOAuth).WithBackups(backupService)
 	var plexMetadataProvider plexsync.MetadataProvider
 	if metadataProvider != nil {

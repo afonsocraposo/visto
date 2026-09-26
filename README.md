@@ -137,7 +137,7 @@ defaults.
 | `VISTO_CATALOG_FINISHED_TTL`     | `720h`           | Minimum age of metadata for ended or cancelled shows before refresh (30 days).                                                                                                                             |
 | `VISTO_ACTIVITY_CLEANUP_INTERVAL` | `24h`          | How often the backend removes old activity feed events.                                                                                                                                                    |
 | `VISTO_ACTIVITY_RETENTION`       | `8760h`          | How long activity feed events are kept (365 days). This does not remove watch history.                                                                                                                     |
-| `VISTO_SECRET_ENCRYPTION_KEY`    | empty            | Optional base64-encoded 32-byte key for encrypting users’ Pushover credentials. Generate it with `openssl rand -base64 32` and keep it safe; losing it makes saved credentials unreadable.                 |
+| `VISTO_SECRET_ENCRYPTION_KEY`    | empty            | Optional base64-encoded 32-byte key for encrypting users’ Pushover credentials and Web Push subscriptions. Generate it with `openssl rand -base64 32` and keep it safe; losing it makes saved credentials unreadable.                 |
 | `VISTO_PUSHOVER_INTERVAL`        | `15m`            | How often the backend checks for new-episode alerts. Each user configures their own Pushover app token and user key in Profile.                                                                            |
 | `VISTO_OAUTH_CLEANUP_INTERVAL`   | `24h`            | How often expired OAuth data is cleaned up.                                                                                                                                                                |
 
@@ -292,6 +292,8 @@ retention period or cleanup interval.
 
 Pushover alerts are optional and configured per user. Each user adds their own
 Pushover application token and user key under Profile settings, then opts in.
+The **Send test notification** button checks saved credentials without turning on
+scheduled alerts.
 Visto encrypts both credentials before it stores them. To enable secure storage,
 set a base64-encoded 32-byte `VISTO_SECRET_ENCRYPTION_KEY` in the server
 environment. Generate it with `openssl rand -base64 32` and keep a secure copy:
@@ -486,3 +488,16 @@ initial admin setting on upgrade.
 To restore an S3 backup, download the `.db` object from your bucket, stop Visto,
 and follow the SQLite restore steps above. Keep a copy of the current database
 until the restored instance is verified.
+
+## Web Push alerts
+
+Web Push is optional and works alongside Pushover. Set the persistent
+`VISTO_SECRET_ENCRYPTION_KEY`, `VISTO_WEB_PUSH_PUBLIC_KEY`,
+`VISTO_WEB_PUSH_PRIVATE_KEY`, and `VISTO_WEB_PUSH_SUBJECT` (a `mailto:` address
+or your public HTTPS origin) on the server. Generate the VAPID key pair with
+`go run ./cmd/vapid`. Keep the private key secret and stable; changing it
+invalidates existing device subscriptions. Serve Visto over HTTPS and set
+`VISTO_PUBLIC_URL` to its public origin. Each user enables notifications on
+each device in Profile and can use **Send test notification** there. On iPhone
+and iPad, install Visto to the Home Screen before enabling notifications.
+The existing `VISTO_PUSHOVER_INTERVAL` controls checks for both channels.
