@@ -52,7 +52,11 @@ func (service *Service) Calendar(ctx context.Context, userID string, from, to ti
 			if !episode.IsRegular() || episode.AirDate == nil || played[show.ID][episode.ID] || episode.AirDate.UTC().Format("2006-01-02") < fromDate || episode.AirDate.UTC().Format("2006-01-02") > toDate {
 				continue
 			}
-			entries = append(entries, CalendarEntry{ShowID: show.ID, Title: show.Title, Episode: episode})
+			details := show.EpisodeDetails[episode.ID]
+			entries = append(entries, CalendarEntry{
+				ShowID: show.ID, Title: show.Title, PosterPath: show.PosterPath,
+				Episode: episode, EpisodeName: details.Name, EpisodeStillPath: details.StillPath,
+			})
 		}
 	}
 	return entries, nil

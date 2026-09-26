@@ -1053,4 +1053,7 @@ components:
       properties:
         show_id: { type: string }
         title: { type: string }
+        poster_path: { type: string }
         episode: { $ref: '#/components/schemas/Episode' }
+        episode_name: { type: string }
+        episode_still_path: { type: string }

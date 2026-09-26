@@ -14,7 +14,7 @@ import {
   Title,
   Tooltip,
 } from "@mantine/core";
-import { IconCheck, IconEye } from "@tabler/icons-react";
+import { IconCheck, IconChevronLeft, IconChevronRight, IconEye } from "@tabler/icons-react";
 import { EmptyState } from "../../components/EmptyState";
 import { useUserQueryKey } from "../auth/SessionContext";
 import { api } from "../../lib/api";
@@ -292,7 +292,11 @@ export function WatchNow({ onOpenDetail }: { onOpenDetail?: (target: MediaDetail
   );
 }
 
-export function WatchCalendar() {
+export function WatchCalendar({
+  onOpenDetail,
+}: {
+  onOpenDetail?: (target: MediaDetailTarget) => void;
+}) {
   const userQueryKey = useUserQueryKey();
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
   const settings = useQuery({
@@ -329,20 +333,29 @@ export function WatchCalendar() {
       </Alert>
     );
   const controls = (
-    <Group justify="space-between" mt="md">
-      <Button
-        variant="default"
-        disabled={month <= currentMonth}
-        onClick={() => setSelectedMonth(shiftCalendarMonth(month, -1))}
-      >
-        Previous month
-      </Button>
-      <Title order={2} size="h3">
+    <Group className="calendar-header" justify="space-between" align="center" mt="md">
+      <Title order={1} className="calendar-month">
         {formatCalendarMonth(month)}
       </Title>
-      <Button variant="default" onClick={() => setSelectedMonth(shiftCalendarMonth(month, 1))}>
-        Next month
-      </Button>
+      <Group gap="xs" wrap="nowrap">
+        <ActionIcon
+          variant="default"
+          size="lg"
+          aria-label="Previous month"
+          disabled={month <= currentMonth}
+          onClick={() => setSelectedMonth(shiftCalendarMonth(month, -1))}
+        >
+          <IconChevronLeft size={18} />
+        </ActionIcon>
+        <ActionIcon
+          variant="default"
+          size="lg"
+          aria-label="Next month"
+          onClick={() => setSelectedMonth(shiftCalendarMonth(month, 1))}
+        >
+          <IconChevronRight size={18} />
+        </ActionIcon>
+      </Group>
     </Group>
   );
   if (calendar.isPending)
@@ -372,19 +385,75 @@ export function WatchCalendar() {
   return (
     <>
       {controls}
-      {groups.map((group) => (
-        <section key={group.date} aria-label={`Episodes airing ${formatCalendarDate(group.date)}`}>
-          <Text component="h2" fw={700} size="lg" mt="lg">
-            {formatCalendarDate(group.date)}
-          </Text>
-          {group.entries.map((item) => (
-            <Paper key={item.episode.id} className="calendar-card" withBorder p="md" mt="sm">
-              <Text fw={700}>{item.title}</Text>
-              <Text>{`S${String(item.episode.season_number).padStart(2, "0")}E${String(item.episode.episode_number).padStart(2, "0")}`}</Text>
-            </Paper>
-          ))}
-        </section>
-      ))}
+      <div className="calendar-list">
+        {groups.map((group) => (
+          <section
+            className="calendar-day"
+            key={group.date}
+            aria-label={`Episodes airing ${formatCalendarDate(group.date)}`}
+          >
+            <Text component="h2" className="calendar-date" fw={700}>
+              {formatCalendarDate(group.date)}
+            </Text>
+            <div className="calendar-day-entries">
+              {group.entries.map((item) => {
+                const art =
+                  backdropURL(item.episode_still_path, "w780") ??
+                  posterURL(item.poster_path, "w500");
+                return (
+                  <Paper
+                    key={item.episode.id}
+                    className="calendar-card"
+                    withBorder
+                    p={0}
+                    role={onOpenDetail ? "button" : undefined}
+                    tabIndex={onOpenDetail ? 0 : undefined}
+                    aria-label={
+                      onOpenDetail
+                        ? `Open ${item.title}, season ${item.episode.season_number}, episode ${item.episode.episode_number}`
+                        : undefined
+                    }
+                    onClick={() =>
+                      onOpenDetail?.({
+                        mediaType: "tv",
+                        tmdbID: Number(item.show_id.split(":")[1]),
+                        mediaID: item.show_id,
+                        episodeID: item.episode.id,
+                        episode: item.episode,
+                      })
+                    }
+                    onKeyDown={(event) => {
+                      if (onOpenDetail && (event.key === "Enter" || event.key === " ")) {
+                        event.preventDefault();
+                        event.currentTarget.click();
+                      }
+                    }}
+                  >
+                    <div className="calendar-card-art">
+                      {art ? (
+                        <Image src={art} alt="" />
+                      ) : (
+                        <div className="artwork-fallback">{item.title.slice(0, 1)}</div>
+                      )}
+                    </div>
+                    <div className="calendar-card-copy">
+                      <Text className="calendar-card-show" lineClamp={1}>
+                        {item.title}
+                      </Text>
+                      <Text className="calendar-card-episode" fw={700}>
+                        {item.episode_name || `Episode ${item.episode.episode_number}`}
+                      </Text>
+                      <Text className="calendar-card-number">
+                        {`S${String(item.episode.season_number).padStart(2, "0")} · E${String(item.episode.episode_number).padStart(2, "0")}`}
+                      </Text>
+                    </div>
+                  </Paper>
+                );
+              })}
+            </div>
+          </section>
+        ))}
+      </div>
     </>
   );
 }

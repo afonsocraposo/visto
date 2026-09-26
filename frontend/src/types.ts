@@ -86,7 +86,14 @@ export type ContinueEntry = {
   missing_prior_episodes?: Episode[];
 };
 
-export type CalendarEntry = { show_id: string; title: string; episode: Episode };
+export type CalendarEntry = {
+  show_id: string;
+  title: string;
+  poster_path?: string;
+  episode: Episode;
+  episode_name?: string;
+  episode_still_path?: string;
+};
 export type ShowEpisodeEntry = {
   episode: Episode;
   name: string;

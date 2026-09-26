@@ -221,8 +221,86 @@ select {
   font-size: 2.5rem;
   font-weight: 800;
 }
+.calendar-header {
+  margin-bottom: 22px;
+}
+.calendar-month {
+  font-size: clamp(1.5rem, 3vw, 1.75rem);
+  letter-spacing: -0.04em;
+}
+.calendar-list {
+  display: grid;
+  gap: 26px;
+}
+.calendar-date {
+  margin-bottom: 10px;
+  font-size: 1.05rem;
+}
+.calendar-day-entries {
+  display: grid;
+  gap: 10px;
+}
 .calendar-card {
-  border-left: 3px solid #48b7ae;
+  display: flex;
+  align-items: stretch;
+  gap: 16px;
+  min-height: 106px;
+  overflow: hidden;
+  background: var(--mantine-color-body);
+  cursor: pointer;
+  transition:
+    border-color 150ms ease,
+    box-shadow 150ms ease;
+}
+.calendar-card:hover,
+.calendar-card:focus-visible {
+  border-color: var(--mantine-color-yellow-6);
+  box-shadow: 0 6px 22px rgb(23 34 48 / 0.08);
+}
+.calendar-card:focus-visible {
+  outline: 2px solid #f2b544;
+  outline-offset: 2px;
+}
+.calendar-card-art {
+  width: 164px;
+  flex: 0 0 164px;
+  overflow: hidden;
+  background: #1b2430;
+}
+.calendar-card-art .mantine-Image-root,
+.calendar-card-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.calendar-card-art .artwork-fallback {
+  min-height: 106px;
+}
+.calendar-card-copy {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  padding: 12px 16px 12px 0;
+}
+.calendar-card-show,
+.calendar-card-number {
+  color: var(--mantine-color-dimmed);
+  font-size: 0.82rem;
+}
+.calendar-card-episode {
+  font-size: 1rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.calendar-card-number {
+  font-weight: 650;
+}
+@media (prefers-reduced-motion: reduce) {
+  .calendar-card {
+    transition: none;
+  }
 }
 .poster-grid {
   display: grid;
@@ -909,6 +987,23 @@ select {
   }
   .auth-screen::before {
     background: linear-gradient(180deg, rgb(8 12 17 / 0.5), rgb(8 12 17 / 0.8));
+  }
+  .calendar-list {
+    gap: 22px;
+  }
+  .calendar-card {
+    min-height: 96px;
+    gap: 12px;
+  }
+  .calendar-card-art {
+    width: 104px;
+    flex-basis: 104px;
+  }
+  .calendar-card-art .artwork-fallback {
+    min-height: 96px;
+  }
+  .calendar-card-copy {
+    padding: 9px 10px 9px 0;
   }
   .auth-feature-caption {
     right: 18px;

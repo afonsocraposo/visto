@@ -207,7 +207,11 @@ export function Dashboard({
                   </Tabs.Tab>
                 </Tabs.List>
               </Tabs>
-              {view === "now" ? <WatchNow onOpenDetail={openDetail} /> : <WatchCalendar />}
+              {view === "now" ? (
+                <WatchNow onOpenDetail={openDetail} />
+              ) : (
+                <WatchCalendar onOpenDetail={openDetail} />
+              )}
             </>
           )
         )}

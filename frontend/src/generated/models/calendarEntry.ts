@@ -10,5 +10,8 @@ import type { Episode } from "./episode";
 export interface CalendarEntry {
   show_id: string;
   title: string;
+  poster_path?: string;
   episode: Episode;
+  episode_name?: string;
+  episode_still_path?: string;
 }

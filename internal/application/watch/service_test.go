@@ -186,7 +186,7 @@ func TestCalendar_GivenFutureEpisodeWatchedBeforeAirDate_WhenListingUpcoming_The
 	to := from.AddDate(0, 0, 30)
 	watched := from.AddDate(0, 0, 3)
 	pending := from.AddDate(0, 0, 5)
-	show := Show{ID: "tv:1", Title: "The Example", Episodes: []domain.Episode{{ID: "leak", SeasonNumber: 2, EpisodeNumber: 1, AirDate: &watched}, {ID: "upcoming", SeasonNumber: 2, EpisodeNumber: 2, AirDate: &pending}}, Plays: []domain.EpisodePlay{{ID: "play", EpisodeID: "leak"}}}
+	show := Show{ID: "tv:1", Title: "The Example", PosterPath: "/poster.jpg", Episodes: []domain.Episode{{ID: "leak", SeasonNumber: 2, EpisodeNumber: 1, AirDate: &watched}, {ID: "upcoming", SeasonNumber: 2, EpisodeNumber: 2, AirDate: &pending}}, EpisodeDetails: map[string]EpisodeDisplay{"upcoming": {Name: "The Return", StillPath: "/still.jpg"}}, Plays: []domain.EpisodePlay{{ID: "play", EpisodeID: "leak"}}}
 	service := NewService(repository{shows: []Show{show}, timezone: "UTC"})
 	service.now = func() time.Time { return from }
 	entries, err := service.Calendar(context.Background(), "user", from, to)
@@ -195,6 +195,9 @@ func TestCalendar_GivenFutureEpisodeWatchedBeforeAirDate_WhenListingUpcoming_The
 	}
 	if len(entries) != 1 || entries[0].Episode.ID != "upcoming" {
 		t.Fatalf("entries=%+v", entries)
+	}
+	if entries[0].PosterPath != "/poster.jpg" || entries[0].EpisodeName != "The Return" || entries[0].EpisodeStillPath != "/still.jpg" {
+		t.Fatalf("calendar artwork and name = %+v", entries[0])
 	}
 }
 

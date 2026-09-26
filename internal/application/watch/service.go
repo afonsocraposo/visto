@@ -42,9 +42,12 @@ type ContinueEntry struct {
 }
 
 type CalendarEntry struct {
-	ShowID  string         `json:"show_id"`
-	Title   string         `json:"title"`
-	Episode domain.Episode `json:"episode"`
+	ShowID           string         `json:"show_id"`
+	Title            string         `json:"title"`
+	PosterPath       string         `json:"poster_path"`
+	Episode          domain.Episode `json:"episode"`
+	EpisodeName      string         `json:"episode_name,omitempty"`
+	EpisodeStillPath string         `json:"episode_still_path,omitempty"`
 }
 
 type ShowEpisode struct {
