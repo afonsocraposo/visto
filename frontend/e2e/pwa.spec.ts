@@ -41,7 +41,7 @@ async function mockSignedInSession(page: Page) {
   await page.route("**/api/v1/profile/plex-webhook", (route) =>
     fulfillJSON(route, { enabled: false, recent_events: [] }),
   );
-  await page.route("**/api/v1/library", (route) => fulfillJSON(route, []));
+  await page.route(/\/api\/v1\/library(?:\?.*)?$/, (route) => fulfillJSON(route, []));
   await page.route("**/api/v1/feed**", (route) =>
     fulfillJSON(route, { items: [], next_cursor: null }),
   );
@@ -176,7 +176,7 @@ test("Given an unsaved TV show, When the user adds it or chooses Watch later, Th
   };
   await page.route("**/api/v1/search**", (route) => fulfillJSON(route, [show]));
   const savedStatuses: string[] = [];
-  await page.route("**/api/v1/library", async (route) => {
+  await page.route(/\/api\/v1\/library(?:\?.*)?$/, async (route) => {
     if (route.request().method() === "POST") {
       savedStatuses.push(route.request().postDataJSON().status);
       await fulfillJSON(route, {}, 201);
@@ -366,7 +366,7 @@ test("Given a TV show detail, When the user uses compact watch controls, Then sh
         })
       : fulfillJSON(route, { error: "not saved" }, 404),
   );
-  await page.route("**/api/v1/library", async (route) => {
+  await page.route(/\/api\/v1\/library(?:\?.*)?$/, async (route) => {
     if (route.request().method() === "POST") {
       savedStatus = (route.request().postDataJSON() as { status: "watching" | "watchlist" }).status;
       await fulfillJSON(route, {}, 201);
@@ -447,7 +447,7 @@ test("Given a movie in Watchlist, When it is marked watched from search, Then Un
   let status = "watchlist";
   let playDeleted = false;
   await page.route("**/api/v1/search**", (route) => fulfillJSON(route, [movie]));
-  await page.route("**/api/v1/library", (route) =>
+  await page.route(/\/api\/v1\/library(?:\?.*)?$/, (route) =>
     fulfillJSON(route, [
       {
         item: {
