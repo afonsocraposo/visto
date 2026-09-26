@@ -710,6 +710,7 @@ components:
         kind: { type: string, enum: [watch, rewatch, rating, bulk_watch] }
         title: { type: string }
         media_type: { type: string, enum: [movie, tv] }
+        tmdb_id: { type: integer, description: TMDB ID of the movie or show. }
         artwork_path: { type: string, description: Episode still when available, otherwise the media poster path. }
         rating: { type: integer, minimum: 1, maximum: 5 }
         count: { type: integer }
@@ -896,6 +897,7 @@ components:
       properties:
         play: { $ref: '#/components/schemas/Play' }
         title: { type: string }
+        tmdb_id: { type: integer, description: TMDB ID of the movie or show. }
         episode_label: { type: string }
     Episode:
       type: object

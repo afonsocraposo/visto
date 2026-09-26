@@ -18,6 +18,7 @@ type Props = {
   exactTime?: ReactNode;
   actions?: ReactNode;
   children?: ReactNode;
+  onOpenDetail?: () => void;
 };
 
 export function ActivityRow({
@@ -33,6 +34,7 @@ export function ActivityRow({
   exactTime,
   actions,
   children,
+  onOpenDetail,
 }: Props) {
   const date = occurredAt instanceof Date ? occurredAt : new Date(occurredAt);
   const art =
@@ -41,7 +43,25 @@ export function ActivityRow({
       : posterURL(artworkPath, "w342");
 
   return (
-    <Paper className="activity-row" component="article" withBorder>
+    <Paper
+      className={`activity-row${onOpenDetail ? " activity-row-clickable" : ""}`}
+      component="article"
+      withBorder
+      role={onOpenDetail ? "link" : undefined}
+      tabIndex={onOpenDetail ? 0 : undefined}
+      aria-label={onOpenDetail ? `Open details for ${title}` : undefined}
+      onClick={(event) => {
+        if (!(event.target as HTMLElement).closest("button, input, form, [role='menuitem']")) {
+          onOpenDetail?.();
+        }
+      }}
+      onKeyDown={(event) => {
+        if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) {
+          event.preventDefault();
+          onOpenDetail?.();
+        }
+      }}
+    >
       <div className="activity-row-art" aria-hidden="true">
         {art ? (
           <Image src={art} alt="" loading="lazy" />

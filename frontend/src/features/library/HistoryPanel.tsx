@@ -7,9 +7,13 @@ import { EmptyState } from "../../components/EmptyState";
 import { ActivityRow } from "../feed/ActivityRow";
 import { useUserQueryKey } from "../auth/SessionContext";
 import { api } from "../../lib/api";
-import type { HistoryEntry } from "../../types";
+import type { HistoryEntry, MediaDetailTarget } from "../../types";
 
-export function HistoryPanel() {
+export function HistoryPanel({
+  onOpenDetail,
+}: {
+  onOpenDetail?: (target: MediaDetailTarget) => void;
+}) {
   const userQueryKey = useUserQueryKey();
   const history = useQuery({
     queryKey: userQueryKey("history"),
@@ -40,13 +44,21 @@ export function HistoryPanel() {
           detail="Movies and episodes you watch will appear here."
         />
       ) : (
-        history.data.map((entry) => <HistoryCard key={entry.play.id} entry={entry} />)
+        history.data.map((entry) => (
+          <HistoryCard key={entry.play.id} entry={entry} onOpenDetail={onOpenDetail} />
+        ))
       )}
     </div>
   );
 }
 
-function HistoryCard({ entry }: { entry: HistoryEntry }) {
+function HistoryCard({
+  entry,
+  onOpenDetail,
+}: {
+  entry: HistoryEntry;
+  onOpenDetail?: (target: MediaDetailTarget) => void;
+}) {
   const queryClient = useQueryClient();
   const userQueryKey = useUserQueryKey();
   const [editing, setEditing] = useState(false);
@@ -158,6 +170,16 @@ function HistoryCard({ entry }: { entry: HistoryEntry }) {
         </>
       }
       actions={actions}
+      onOpenDetail={
+        entry.tmdb_id
+          ? () =>
+              onOpenDetail?.({
+                mediaType,
+                tmdbID: entry.tmdb_id!,
+                mediaID: entry.play.media_id ?? undefined,
+              })
+          : undefined
+      }
     >
       {editing && (
         <form className="activity-edit" onSubmit={form.onSubmit(() => save.mutate())}>

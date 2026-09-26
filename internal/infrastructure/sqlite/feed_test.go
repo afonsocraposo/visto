@@ -90,6 +90,9 @@ func TestFeed_GivenPrivateAndOptedInActivity_WhenListed_ThenPrivateEventsStayHid
 	kinds := map[string]int{}
 	seenRatings := map[int]bool{}
 	for _, item := range page.Items {
+		if item.MediaType == "movie" && item.TMDBID != 10 || item.MediaType == "tv" && item.TMDBID != 42 {
+			t.Fatalf("feed item has incorrect media target: %+v", item)
+		}
 		if item.DisplayName == "private-user" {
 			t.Fatalf("private activity leaked into the feed: %+v", item)
 		}

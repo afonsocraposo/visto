@@ -224,13 +224,10 @@ select {
 .calendar-card {
   border-left: 3px solid #48b7ae;
 }
-.library-grid {
+.poster-grid {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 12px;
-}
-.library-grid-full {
-  grid-template-columns: repeat(6, minmax(0, 1fr));
 }
 .library-sections {
   display: grid;
@@ -356,11 +353,6 @@ select {
 }
 .trending-section h2 {
   letter-spacing: -0.035em;
-}
-.trending-grid {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 12px;
 }
 .media-detail {
   align-items: stretch;
@@ -674,15 +666,7 @@ select {
 .person-filmography-heading h2 {
   letter-spacing: -0.04em;
 }
-.person-credit-grid {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 12px;
-}
 .related-media-grid {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 12px;
   margin-top: 14px;
 }
 .media-poster-card-subtitle {
@@ -750,6 +734,13 @@ select {
 }
 .activity-row:hover {
   border-color: var(--mantine-color-gray-5);
+}
+.activity-row-clickable {
+  cursor: pointer;
+}
+.activity-row-clickable:focus-visible {
+  outline: 2px solid #48b7ae;
+  outline-offset: 2px;
 }
 .activity-row-art {
   display: grid;
@@ -990,20 +981,9 @@ select {
   .search-result-card > .mantine-Group-root {
     flex-wrap: wrap;
   }
-  .trending-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 10px;
-  }
-  .trending-card:nth-child(n + 5) {
-    display: none;
-  }
-  .library-grid,
-  .library-grid-full {
+  .poster-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 10px;
-  }
-  .library-grid {
-    grid-template-columns: 1fr;
   }
   .detail-hero {
     min-height: 560px;
@@ -1031,14 +1011,6 @@ select {
   }
   .person-facts {
     justify-content: center;
-  }
-  .person-credit-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 10px;
-  }
-  .related-media-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 10px;
   }
   .detail-overview {
     font-size: 0.95rem;
@@ -1097,8 +1069,7 @@ select {
 }
 
 @media (min-width: 681px) and (max-width: 920px) {
-  .library-grid,
-  .library-grid-full {
+  .poster-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }

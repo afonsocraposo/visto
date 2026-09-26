@@ -26,6 +26,7 @@ type Play struct {
 type HistoryEntry struct {
 	Play         Play   `json:"play"`
 	Title        string `json:"title"`
+	TMDBID       int    `json:"tmdb_id,omitempty"`
 	EpisodeLabel string `json:"episode_label,omitempty"`
 	EpisodeName  string `json:"episode_name,omitempty"`
 	ArtworkPath  string `json:"artwork_path,omitempty"`

@@ -65,7 +65,7 @@ export function SearchPanel({
                       This week
                     </Text>
                   </Group>
-                  <div className="trending-grid">
+                  <div className="poster-grid">
                     {section.items.slice(0, 10).map((item) => (
                       <MediaPosterCard
                         key={`${item.type}-${item.tmdb_id}`}

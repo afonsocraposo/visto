@@ -16,7 +16,7 @@ func (store *Store) List(ctx context.Context, cursor string, limit int) (feed.Pa
 		return feed.Page{}, err
 	}
 	arguments = append(arguments, limit+1)
-	rows, err := store.DB.QueryContext(ctx, `SELECT ae.id,u.display_name,ae.kind,COALESCE(media.title,show.title),COALESCE(media.media_type,show.media_type,''),COALESCE(episode.still_path,media.poster_path,show.poster_path,''),ae.rating,COALESCE(json_extract(ae.detail_json,'$.count'),0),episode.season_number,episode.episode_number,episode.name,ae.occurred_at
+	rows, err := store.DB.QueryContext(ctx, `SELECT ae.id,u.display_name,ae.kind,COALESCE(media.title,show.title),COALESCE(media.media_type,show.media_type,''),COALESCE(media.tmdb_id,show.tmdb_id,0),COALESCE(episode.still_path,media.poster_path,show.poster_path,''),ae.rating,COALESCE(json_extract(ae.detail_json,'$.count'),0),episode.season_number,episode.episode_number,episode.name,ae.occurred_at
 		FROM activity_events ae
 		JOIN users u ON u.id=ae.user_id
 		JOIN user_settings settings ON settings.user_id=u.id AND settings.activity_visibility='instance'
@@ -34,7 +34,7 @@ func (store *Store) List(ctx context.Context, cursor string, limit int) (feed.Pa
 		var rating, season, episode sql.NullInt64
 		var mediaType, artworkPath, episodeName sql.NullString
 		var occurredAt string
-		if err := rows.Scan(&item.ID, &item.DisplayName, &item.Kind, &item.Title, &mediaType, &artworkPath, &rating, &item.Count, &season, &episode, &episodeName, &occurredAt); err != nil {
+		if err := rows.Scan(&item.ID, &item.DisplayName, &item.Kind, &item.Title, &mediaType, &item.TMDBID, &artworkPath, &rating, &item.Count, &season, &episode, &episodeName, &occurredAt); err != nil {
 			return feed.Page{}, fmt.Errorf("scan feed item: %w", err)
 		}
 		if mediaType.Valid {

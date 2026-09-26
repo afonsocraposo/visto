@@ -2,10 +2,11 @@ import { useState } from "react";
 import { Tabs, Text, Title } from "@mantine/core";
 import { HistoryPanel } from "../library/HistoryPanel";
 import { FeedPanel } from "./FeedPanel";
+import type { MediaDetailTarget } from "../../types";
 
 type FeedSection = "history" | "community";
 
-export function FeedArea() {
+export function FeedArea({ onOpenDetail }: { onOpenDetail?: (target: MediaDetailTarget) => void }) {
   const [section, setSection] = useState<FeedSection>("history");
 
   return (
@@ -28,10 +29,10 @@ export function FeedArea() {
           <Tabs.Tab value="community">Community</Tabs.Tab>
         </Tabs.List>
         <Tabs.Panel value="history" pt="md">
-          <HistoryPanel />
+          <HistoryPanel onOpenDetail={onOpenDetail} />
         </Tabs.Panel>
         <Tabs.Panel value="community" pt="md">
-          <FeedPanel />
+          <FeedPanel onOpenDetail={onOpenDetail} />
         </Tabs.Panel>
       </Tabs>
     </section>

@@ -8,7 +8,6 @@ import {
   Image,
   Loader,
   Paper,
-  SimpleGrid,
   Stack,
   Text,
   Title,
@@ -136,11 +135,7 @@ export function PersonDetailPage({ personID, onBack, onOpenDetail }: Props) {
           </Text>
         </Group>
         {credits.length ? (
-          <SimpleGrid
-            className="library-grid library-grid-full person-credit-grid"
-            cols={{ base: 2, xs: 3, sm: 4, md: 5, lg: 6 }}
-            spacing="md"
-          >
+          <div className="poster-grid">
             {credits.map((credit) => {
               const media: SearchMedia = {
                 tmdb_id: credit.tmdb_id,
@@ -163,7 +158,7 @@ export function PersonDetailPage({ personID, onBack, onOpenDetail }: Props) {
                 />
               );
             })}
-          </SimpleGrid>
+          </div>
         ) : (
           <Text c="dimmed" mt="md">
             No movies or TV shows are listed for this person.

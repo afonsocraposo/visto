@@ -12,6 +12,7 @@ type Item struct {
 	Kind          string    `json:"kind"`
 	Title         string    `json:"title"`
 	MediaType     string    `json:"media_type,omitempty"`
+	TMDBID        int       `json:"tmdb_id,omitempty"`
 	ArtworkPath   string    `json:"artwork_path,omitempty"`
 	Rating        *int      `json:"rating,omitempty"`
 	Count         int       `json:"count,omitempty"`

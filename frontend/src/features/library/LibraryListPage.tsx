@@ -66,7 +66,7 @@ export function LibraryListPage({
       {entries.length === 0 ? (
         <Text c="dimmed">This list is empty.</Text>
       ) : (
-        <div className="library-grid library-grid-full">
+        <div className="poster-grid">
           {entries.map((entry) => (
             <LibraryCard key={entry.item.media_id} entry={entry} onOpenDetail={onOpenDetail} />
           ))}

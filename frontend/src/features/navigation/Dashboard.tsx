@@ -218,7 +218,7 @@ export function Dashboard({
         )}
         {!detail && !personID && tab === "feed" && (
           <Deferred>
-            <FeedArea />
+            <FeedArea onOpenDetail={openDetail} />
           </Deferred>
         )}
         {!detail && !personID && !listStatus && tab === "library" && (

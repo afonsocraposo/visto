@@ -110,7 +110,7 @@ export function LibraryPanel({
                   </Button>
                 )}
               </Group>
-              <div className="library-grid">
+              <div className="poster-grid">
                 {visible.map((entry) => (
                   <LibraryCard
                     key={entry.item.media_id}

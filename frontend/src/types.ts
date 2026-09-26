@@ -57,6 +57,7 @@ export type FeedItem = {
   kind: "watch" | "rewatch" | "rating" | "bulk_watch";
   title: string;
   media_type?: "movie" | "tv";
+  tmdb_id?: number;
   artwork_path?: string;
   rating?: number;
   count?: number;
@@ -178,6 +179,7 @@ export type HistoryEntry = {
     watched_at: string;
   };
   title: string;
+  tmdb_id?: number;
   episode_label?: string;
   episode_name?: string;
   artwork_path?: string;

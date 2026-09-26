@@ -1110,7 +1110,7 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
               </Alert>
             )}
             {related.data?.length ? (
-              <div className="related-media-grid">
+              <div className="poster-grid related-media-grid">
                 {related.data.map((item) => (
                   <MediaPosterCard
                     key={`${item.type}:${item.tmdb_id}`}

@@ -3,10 +3,14 @@ import { Alert, Button, Group, Loader } from "@mantine/core";
 import { EmptyState } from "../../components/EmptyState";
 import { useUserQueryKey } from "../auth/SessionContext";
 import { api } from "../../lib/api";
-import type { FeedItem } from "../../types";
+import type { FeedItem, MediaDetailTarget } from "../../types";
 import { ActivityRow } from "./ActivityRow";
 
-export function FeedPanel() {
+export function FeedPanel({
+  onOpenDetail,
+}: {
+  onOpenDetail?: (target: MediaDetailTarget) => void;
+}) {
   const userQueryKey = useUserQueryKey();
   const feed = useInfiniteQuery({
     queryKey: userQueryKey("feed"),
@@ -56,6 +60,11 @@ export function FeedPanel() {
             episodeName={item.episode_name}
             rating={item.kind === "rating" ? item.rating : undefined}
             occurredAt={item.occurred_at}
+            onOpenDetail={
+              item.media_type && item.tmdb_id
+                ? () => onOpenDetail?.({ mediaType: item.media_type!, tmdbID: item.tmdb_id! })
+                : undefined
+            }
           />
         ))}
       </div>
