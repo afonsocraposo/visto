@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/afonsocraposo/visto/compare/v0.5.0...v0.6.0) (2026-09-26)
+
+
+### Features
+
+* simplify watch controls and add movie history actions ([c0ff91a](https://github.com/afonsocraposo/visto/commit/c0ff91a36fe2602f529b89a699fe51021920c41c))
+
 ## [0.5.0](https://github.com/afonsocraposo/visto/compare/v0.4.0...v0.5.0) (2026-09-26)
 
 
