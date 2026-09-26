@@ -5,8 +5,8 @@ import { formatActivityTime } from "../src/lib/time.ts";
 const now = new Date("2026-09-24T14:00:00Z");
 
 test("formats recent activity as relative time", () => {
-  assert.equal(formatActivityTime("2026-09-24T13:30:00Z", now), "30m ago");
-  assert.equal(formatActivityTime("2026-09-23T14:00:00Z", now), "Yesterday");
+  assert.equal(formatActivityTime("2026-09-24T13:30:00Z", now), "30 minutes ago");
+  assert.equal(formatActivityTime("2026-09-23T14:00:00Z", now), "1 day ago");
 });
 
 test("uses a calendar date after seven days", () => {

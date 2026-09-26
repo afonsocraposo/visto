@@ -1,16 +1,15 @@
+import TimeAgo from "javascript-time-ago";
+import en from "javascript-time-ago/locale/en";
+
+TimeAgo.addDefaultLocale(en);
+const timeAgo = new TimeAgo("en-US");
 const sevenDays = 7 * 24 * 60 * 60 * 1000;
 
 export function formatActivityTime(value: string | Date, now = new Date()) {
   const date = value instanceof Date ? value : new Date(value);
   const elapsed = now.getTime() - date.getTime();
   if (elapsed >= 0 && elapsed < sevenDays) {
-    const minutes = Math.floor(elapsed / 60_000);
-    if (minutes < 1) return "Just now";
-    if (minutes < 60) return `${minutes}m ago`;
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours}h ago`;
-    const days = Math.floor(hours / 24);
-    return days === 1 ? "Yesterday" : `${days}d ago`;
+    return timeAgo.format(date, "round-minute", { now: now.getTime() });
   }
   return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
