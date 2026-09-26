@@ -1,8 +1,6 @@
 module github.com/afonsocosta/visto
 
-go 1.25.0
-
-toolchain go1.25.13
+go 1.26.0
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.30.3
@@ -13,7 +11,7 @@ require (
 	github.com/modelcontextprotocol/go-sdk v1.7.0
 	golang.org/x/crypto v0.25.0
 	golang.org/x/oauth2 v0.35.0
-	golang.org/x/sync v0.20.0
+	golang.org/x/sync v0.23.0
 	modernc.org/sqlite v1.34.5
 )
 
