@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.7.0](https://github.com/afonsocraposo/visto/compare/v0.6.0...v0.7.0) (2026-09-26)
+
+
+### Features
+
+* add admin-configured S3 backups ([d72edb1](https://github.com/afonsocraposo/visto/commit/d72edb174fb96e67cf882c85393ba67025c80548))
+* align watching calendar with app design ([a3bf55e](https://github.com/afonsocraposo/visto/commit/a3bf55e1331fd3985a3c6681c371017003dc3cb4))
+* improve relative activity timestamps ([175bf1c](https://github.com/afonsocraposo/visto/commit/175bf1c6c79cd97c662a94b4710d9d9723323d37))
+* simplify media details and shorten URLs ([1cdc4f6](https://github.com/afonsocraposo/visto/commit/1cdc4f68b40e9b598f8d6f7f0256b70668e9d1ca))
+
+
+### Bug Fixes
+
+* restore main CI checks ([7eb64ad](https://github.com/afonsocraposo/visto/commit/7eb64adb9e261652a75cb83601c90e8da1a0c7ed))
+
 ## [0.6.0](https://github.com/afonsocraposo/visto/compare/v0.5.0...v0.6.0) (2026-09-26)
 
 
