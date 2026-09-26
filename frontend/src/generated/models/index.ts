@@ -8,6 +8,9 @@
 
 export * from "./activitySettings";
 export * from "./activitySettingsActivityVisibility";
+export * from "./backupSettings";
+export * from "./backupSettingsDestination";
+export * from "./backupSettingsRequest";
 export * from "./badRequestResponse";
 export * from "./bootstrapRequest";
 export * from "./calendarEntry";

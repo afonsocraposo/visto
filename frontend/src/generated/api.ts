@@ -23,6 +23,8 @@ import type {
 
 import type {
   ActivitySettings,
+  BackupSettings,
+  BackupSettingsRequest,
   BadRequestResponse,
   BootstrapRequest,
   CalendarEntry,
@@ -802,6 +804,369 @@ export const usePostAuthLogout = <TError = void, TContext = unknown>(
   queryClient?: QueryClient,
 ): UseMutationResult<Awaited<ReturnType<typeof postAuthLogout>>, TError, void, TContext> => {
   return useMutation(getPostAuthLogoutMutationOptions(options), queryClient);
+};
+
+export const getGetAdminBackupsUrl = () => {
+  return `/admin/backups`;
+};
+
+/**
+ * @summary Get instance backup settings and status as an administrator
+ */
+export const getAdminBackups = async (
+  options?: Parameters<typeof customFetch>[1],
+): Promise<BackupSettings> => {
+  return customFetch<BackupSettings>(getGetAdminBackupsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetAdminBackupsQueryKey = () => {
+  return [`/admin/backups`] as const;
+};
+
+export const getGetAdminBackupsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAdminBackups>>,
+  TError = void,
+>(options?: {
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminBackups>>, TError, TData>>;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetAdminBackupsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminBackups>>> = ({ signal }) =>
+    getAdminBackups({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAdminBackups>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetAdminBackupsQueryResult = NonNullable<Awaited<ReturnType<typeof getAdminBackups>>>;
+export type GetAdminBackupsQueryError = void;
+
+export function useGetAdminBackups<
+  TData = Awaited<ReturnType<typeof getAdminBackups>>,
+  TError = void,
+>(
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminBackups>>, TError, TData>> &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getAdminBackups>>,
+          TError,
+          Awaited<ReturnType<typeof getAdminBackups>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetAdminBackups<
+  TData = Awaited<ReturnType<typeof getAdminBackups>>,
+  TError = void,
+>(
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminBackups>>, TError, TData>> &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getAdminBackups>>,
+          TError,
+          Awaited<ReturnType<typeof getAdminBackups>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetAdminBackups<
+  TData = Awaited<ReturnType<typeof getAdminBackups>>,
+  TError = void,
+>(
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminBackups>>, TError, TData>>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Get instance backup settings and status as an administrator
+ */
+
+export function useGetAdminBackups<
+  TData = Awaited<ReturnType<typeof getAdminBackups>>,
+  TError = void,
+>(
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminBackups>>, TError, TData>>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetAdminBackupsQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export const getPutAdminBackupsUrl = () => {
+  return `/admin/backups`;
+};
+
+/**
+ * @summary Save instance backup settings as an administrator
+ */
+export const putAdminBackups = async (
+  backupSettingsRequest: BackupSettingsRequest,
+  options?: Parameters<typeof customFetch>[1],
+): Promise<BackupSettings> => {
+  const getHeaders = (
+    h?: NonNullable<RequestInit["headers"]>,
+  ): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(
+          h as Iterable<Iterable<string>>,
+          (entry) => Array.from(entry) as [string, string],
+        ),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+  return customFetch<BackupSettings>(getPutAdminBackupsUrl(), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...getHeaders(options?.headers) },
+    body: JSON.stringify(backupSettingsRequest),
+  });
+};
+
+export const getPutAdminBackupsMutationKey = () => ["putAdminBackups"] as const;
+
+export const getPutAdminBackupsMutationOptions = <
+  TError = BadRequestResponse | void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof putAdminBackups>>,
+    TError,
+    PutAdminBackupsMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof putAdminBackups>>,
+  TError,
+  PutAdminBackupsMutationVariables,
+  TContext
+> => {
+  const mutationKey = getPutAdminBackupsMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof putAdminBackups>>,
+    PutAdminBackupsMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return putAdminBackups(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PutAdminBackupsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof putAdminBackups>>
+>;
+export type PutAdminBackupsMutationBody = BackupSettingsRequest;
+export type PutAdminBackupsMutationError = BadRequestResponse | void;
+export type PutAdminBackupsMutationVariables = { data: BackupSettingsRequest };
+
+/**
+ * @summary Save instance backup settings as an administrator
+ */
+export const usePutAdminBackups = <TError = BadRequestResponse | void, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof putAdminBackups>>,
+      TError,
+      PutAdminBackupsMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof putAdminBackups>>,
+  TError,
+  PutAdminBackupsMutationVariables,
+  TContext
+> => {
+  return useMutation(getPutAdminBackupsMutationOptions(options), queryClient);
+};
+
+export const getPostAdminBackupsTestUrl = () => {
+  return `/admin/backups/test`;
+};
+
+/**
+ * @summary Test saved S3 credentials as an administrator
+ */
+export const postAdminBackupsTest = async (
+  options?: Parameters<typeof customFetch>[1],
+): Promise<void> => {
+  return customFetch<void>(getPostAdminBackupsTestUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getPostAdminBackupsTestMutationKey = () => ["postAdminBackupsTest"] as const;
+
+export const getPostAdminBackupsTestMutationOptions = <
+  TError = BadRequestResponse | void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof postAdminBackupsTest>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof postAdminBackupsTest>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = getPostAdminBackupsTestMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof postAdminBackupsTest>>,
+    void
+  > = () => {
+    return postAdminBackupsTest(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PostAdminBackupsTestMutationResult = NonNullable<
+  Awaited<ReturnType<typeof postAdminBackupsTest>>
+>;
+
+export type PostAdminBackupsTestMutationError = BadRequestResponse | void;
+
+/**
+ * @summary Test saved S3 credentials as an administrator
+ */
+export const usePostAdminBackupsTest = <TError = BadRequestResponse | void, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof postAdminBackupsTest>>,
+      TError,
+      void,
+      TContext
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<Awaited<ReturnType<typeof postAdminBackupsTest>>, TError, void, TContext> => {
+  return useMutation(getPostAdminBackupsTestMutationOptions(options), queryClient);
+};
+
+export const getPostAdminBackupsRunUrl = () => {
+  return `/admin/backups/run`;
+};
+
+/**
+ * @summary Start a manual backup using saved settings as an administrator
+ */
+export const postAdminBackupsRun = async (
+  options?: Parameters<typeof customFetch>[1],
+): Promise<void> => {
+  return customFetch<void>(getPostAdminBackupsRunUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getPostAdminBackupsRunMutationKey = () => ["postAdminBackupsRun"] as const;
+
+export const getPostAdminBackupsRunMutationOptions = <TError = void, TContext = unknown>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof postAdminBackupsRun>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<Awaited<ReturnType<typeof postAdminBackupsRun>>, TError, void, TContext> => {
+  const mutationKey = getPostAdminBackupsRunMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof postAdminBackupsRun>>,
+    void
+  > = () => {
+    return postAdminBackupsRun(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PostAdminBackupsRunMutationResult = NonNullable<
+  Awaited<ReturnType<typeof postAdminBackupsRun>>
+>;
+
+export type PostAdminBackupsRunMutationError = void;
+
+/**
+ * @summary Start a manual backup using saved settings as an administrator
+ */
+export const usePostAdminBackupsRun = <TError = void, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof postAdminBackupsRun>>,
+      TError,
+      void,
+      TContext
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<Awaited<ReturnType<typeof postAdminBackupsRun>>, TError, void, TContext> => {
+  return useMutation(getPostAdminBackupsRunMutationOptions(options), queryClient);
 };
 
 export const getGetUsersUrl = () => {
