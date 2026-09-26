@@ -35,6 +35,7 @@ export type SearchMedia = {
   poster_path: string;
   original_language: string;
   backdrop_path?: string;
+  status?: string;
 };
 export type TrendingResponse = { tv: SearchMedia[]; movies: SearchMedia[] };
 

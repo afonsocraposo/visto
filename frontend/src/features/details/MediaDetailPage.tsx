@@ -70,6 +70,19 @@ type PendingWatch = {
   action?: "watch" | "unwatch";
 };
 
+function showStatusLabel(status: string | undefined): string | null {
+  const labels: Record<string, string> = {
+    "Returning Series": "Ongoing",
+    Ended: "Ended",
+    Canceled: "Canceled",
+    Cancelled: "Canceled",
+    Planned: "Planned",
+    "In Production": "In Production",
+    Pilot: "Pilot",
+  };
+  return status ? (labels[status] ?? status) : null;
+}
+
 export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: Props) {
   const userQueryKey = useUserQueryKey();
   const queryClient = useQueryClient();
@@ -771,9 +784,16 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
       </Button>
       <section className="detail-hero" style={{ backgroundImage: heroBackground }}>
         <div className="detail-hero-content">
-          <Badge className="watch-kind" variant="filled">
-            {media.type === "tv" ? "TV show" : "Movie"}
-          </Badge>
+          <Group gap="xs">
+            <Badge className="watch-kind" variant="filled">
+              {media.type === "tv" ? "TV show" : "Movie"}
+            </Badge>
+            {media.type === "tv" && showStatusLabel(media.status) && (
+              <Badge variant="light" color="gray">
+                {showStatusLabel(media.status)}
+              </Badge>
+            )}
+          </Group>
           <Title order={1}>{selectedEpisode ? selectedEpisode.name : media.title}</Title>
           {selectedEpisode ? (
             <Button

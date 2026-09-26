@@ -241,6 +241,87 @@ test("Media detail links stay short and load after refresh", async ({ page }) =>
   }
 });
 
+test("TV details show the production status for saved and unsaved shows", async ({ page }) => {
+  await mockSignedInSession(page);
+  const statuses = [
+    ["Returning Series", "Ongoing"],
+    ["Ended", "Ended"],
+    ["Canceled", "Canceled"],
+    ["Cancelled", "Canceled"],
+    ["Planned", "Planned"],
+    ["In Production", "In Production"],
+    ["Pilot", "Pilot"],
+    ["Unknown Status", "Unknown Status"],
+    ["", null],
+  ] as const;
+  const media = (status: string, type: "tv" | "movie" = "tv") => ({
+    id: `${type}:100`,
+    tmdb_id: 100,
+    type,
+    title: "Example Show",
+    original_title: "Example Show",
+    overview: "A test show.",
+    release_date: "2024-01-01",
+    poster_path: "",
+    original_language: "en",
+    status,
+  });
+
+  for (const [status, label] of statuses) {
+    await page.route("**/api/v1/shows/100", (route) =>
+      fulfillJSON(route, { error: "not saved" }, 404),
+    );
+    await page.route("**/api/v1/discover/shows/100", (route) =>
+      fulfillJSON(route, { media: media(status), seasons: [], cast: [] }),
+    );
+    await page.goto("/media/tv/100");
+    await expect(page.getByRole("heading", { name: "Example Show" })).toBeVisible();
+    if (label)
+      await expect(
+        page.locator(".detail-hero .mantine-Badge-root", { hasText: label }),
+      ).toBeVisible();
+    else await expect(page.locator(".detail-hero .mantine-Badge-root")).toHaveCount(1);
+  }
+
+  await page.route("**/api/v1/shows/100", (route) =>
+    fulfillJSON(route, {
+      media: media("Returning Series"),
+      item: { media_id: "tv:100", status: "watching", rating: null, notifications_enabled: false },
+      completed: false,
+    }),
+  );
+  await page.goto("/media/tv/100");
+  await expect(
+    page.locator(".detail-hero .mantine-Badge-root", { hasText: "Ongoing" }),
+  ).toBeVisible();
+
+  await page.route("**/api/v1/shows/**/episodes", (route) =>
+    fulfillJSON(route, [
+      {
+        episode: {
+          id: "tv:100:episode:1",
+          season_number: 1,
+          episode_number: 1,
+          air_date: "2024-01-01",
+        },
+        name: "Pilot episode",
+        watched: false,
+      },
+    ]),
+  );
+  await page.goto("/media/tv/100?episode=tv%3A100%3Aepisode%3A1");
+  await expect(page.getByRole("heading", { name: "Pilot episode" })).toBeVisible();
+  await expect(
+    page.locator(".detail-hero .mantine-Badge-root", { hasText: "Ongoing" }),
+  ).toBeVisible();
+
+  await page.route("**/api/v1/movies/100", (route) =>
+    fulfillJSON(route, { media: media("Ended", "movie"), item: {}, completed: false }),
+  );
+  await page.goto("/media/movie/100");
+  await expect(page.locator(".detail-hero .mantine-Badge-root")).toHaveCount(1);
+});
+
 test("Given a TV show detail, When the user uses compact watch controls, Then show and season actions stay clear", async ({
   page,
 }) => {
