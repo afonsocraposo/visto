@@ -27,6 +27,20 @@ func (client *Client) Movie(ctx context.Context, tmdbID int64) (domain.MovieMeta
 		}
 		client.mu.Lock()
 		client.movieCache[tmdbID] = cachedMovie{movie: cloneMovie(movie), expiresAt: time.Now().Add(showCacheTTL)}
+		now := time.Now()
+		for id, cached := range client.movieCache {
+			if !now.Before(cached.expiresAt) {
+				delete(client.movieCache, id)
+			}
+		}
+		for id := range client.movieCache {
+			if len(client.movieCache) <= maxShowCacheEntries {
+				break
+			}
+			if id != tmdbID {
+				delete(client.movieCache, id)
+			}
+		}
 		client.mu.Unlock()
 		return movie, nil
 	})
@@ -94,6 +108,20 @@ func (client *Client) Episode(ctx context.Context, showID int64, seasonNumber in
 		}
 		client.mu.Lock()
 		client.episodeCache[cacheKey] = cachedEpisode{episode: cloneEpisode(episode), expiresAt: time.Now().Add(showCacheTTL)}
+		now := time.Now()
+		for key, cached := range client.episodeCache {
+			if !now.Before(cached.expiresAt) {
+				delete(client.episodeCache, key)
+			}
+		}
+		for key := range client.episodeCache {
+			if len(client.episodeCache) <= maxShowCacheEntries*10 {
+				break
+			}
+			if key != cacheKey {
+				delete(client.episodeCache, key)
+			}
+		}
 		client.mu.Unlock()
 		return episode, nil
 	})
