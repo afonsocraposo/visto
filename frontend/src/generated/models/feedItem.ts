@@ -14,6 +14,8 @@ export interface FeedItem {
   kind: FeedItemKind;
   title: string;
   media_type?: FeedItemMediaType;
+  /** TMDB ID of the movie or show. */
+  tmdb_id?: number;
   /** Episode still when available */
   artwork_path?: string;
   /**

@@ -6,12 +6,12 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { LibraryItem } from "./libraryItem";
-import type { MediaSearchResult } from "./mediaSearchResult";
+import type { MediaSnapshot } from "./mediaSnapshot";
 import type { ShowLibraryProgress } from "./showLibraryProgress";
 
 export interface LibraryEntry {
   item: LibraryItem;
-  media: MediaSearchResult;
+  media: MediaSnapshot;
   /** Derived movie display state; true when this user has at least one movie play. Never stored as a library status. */
   completed: boolean;
   progress?: ShowLibraryProgress;

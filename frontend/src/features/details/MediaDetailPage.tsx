@@ -20,6 +20,7 @@ import {
 } from "@mantine/core";
 import { IconArrowLeft, IconClock, IconEye, IconEyeCheck, IconRefresh } from "@tabler/icons-react";
 import { api } from "../../lib/api";
+import { postPlaysBulk } from "../../generated/api";
 import { showActionFeedback } from "../../components/ActionFeedback";
 import type { Play } from "../../generated/models/play";
 import { useInvalidateUserCache, userCache } from "../../lib/userCache";
@@ -295,11 +296,7 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
       const created: Play[] = [];
       for (const batch of chunk([...new Set(selectedIDs)], 100)) {
         created.push(
-          ...(await api.post<Play[]>(
-            "/api/v1/plays/bulk",
-            { episode_ids: batch },
-            "Could not record these watches.",
-          )),
+          ...(await postPlaysBulk({ episode_ids: batch })),
         );
       }
       return created;

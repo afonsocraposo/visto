@@ -10,6 +10,7 @@ import type { LibraryItemStatus } from "./libraryItemStatus";
 export interface LibraryItem {
   user_id: string;
   media_id: string;
+  /** Empty only in an unsaved movie or show detail response. */
   status: LibraryItemStatus;
   /**
    * @minimum 1

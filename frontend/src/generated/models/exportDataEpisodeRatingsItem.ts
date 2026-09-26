@@ -5,14 +5,14 @@
  * Self-hosted movie and TV tracking API.
  * OpenAPI spec version: 0.1.0
  */
-import type { UpdateLibraryRequestStatus } from "./updateLibraryRequestStatus";
 
-export interface UpdateLibraryRequest {
-  status: UpdateLibraryRequestStatus;
+export type ExportDataEpisodeRatingsItem = {
+  episode_id: string;
   /**
    * @minimum 1
    * @maximum 5
    * @nullable
    */
-  rating?: number | null;
-}
+  rating: number | null;
+  updated_at: string;
+};

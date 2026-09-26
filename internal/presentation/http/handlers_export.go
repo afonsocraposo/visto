@@ -3,6 +3,7 @@ package httpserver
 import "encoding/csv"
 import "net/http"
 import "strconv"
+import "strings"
 import "time"
 import "github.com/afonsocosta/visto/internal/application/auth"
 import exportapp "github.com/afonsocosta/visto/internal/application/export"
@@ -51,7 +52,7 @@ func csvExport(authService *auth.Service, service *exportapp.Service) http.Handl
 			if item.Rating != nil {
 				rating = strconv.Itoa(*item.Rating)
 			}
-			_ = writer.Write([]string{"library", "", item.MediaID, "", item.Title, item.Type, item.Status, rating, ""})
+			_ = writer.Write([]string{"library", "", item.MediaID, "", spreadsheetCell(item.Title), item.Type, item.Status, rating, ""})
 		}
 		for _, play := range data.Plays {
 			mediaID, episodeID := "", ""
@@ -72,4 +73,12 @@ func csvExport(authService *auth.Service, service *exportapp.Service) http.Handl
 		}
 		writer.Flush()
 	}
+}
+
+func spreadsheetCell(value string) string {
+	trimmed := strings.TrimLeft(value, " \t\r\n")
+	if len(trimmed) > 0 && strings.ContainsAny(trimmed[:1], "=+-@") {
+		return "'" + value
+	}
+	return value
 }

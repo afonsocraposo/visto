@@ -13,6 +13,7 @@ export interface MediaSearchResult {
   title: string;
   original_title: string;
   overview: string;
+  /** Release or first air date when known; otherwise an empty string. */
   release_date: string;
   poster_path: string;
   original_language: string;

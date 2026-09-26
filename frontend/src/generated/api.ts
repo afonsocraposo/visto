@@ -34,6 +34,7 @@ import type {
   DeleteLibraryMediaIDParams,
   DeletePlaysBulkBody,
   EpisodeRating,
+  ExportData,
   FeedPage,
   GetAuthStatus200,
   GetCalendarParams,
@@ -2868,8 +2869,10 @@ export const getGetExportJsonUrl = () => {
 /**
  * @summary Download the authenticated user's library and plays as JSON
  */
-export const getExportJson = async (options?: Parameters<typeof customFetch>[1]): Promise<void> => {
-  return customFetch<void>(getGetExportJsonUrl(), {
+export const getExportJson = async (
+  options?: Parameters<typeof customFetch>[1],
+): Promise<ExportData> => {
+  return customFetch<ExportData>(getGetExportJsonUrl(), {
     ...options,
     method: "GET",
   });
@@ -2979,8 +2982,10 @@ export const getGetExportCsvUrl = () => {
 /**
  * @summary Download the authenticated user's library and plays as CSV
  */
-export const getExportCsv = async (options?: Parameters<typeof customFetch>[1]): Promise<void> => {
-  return customFetch<void>(getGetExportCsvUrl(), {
+export const getExportCsv = async (
+  options?: Parameters<typeof customFetch>[1],
+): Promise<string> => {
+  return customFetch<string>(getGetExportCsvUrl(), {
     ...options,
     method: "GET",
   });
@@ -4450,7 +4455,7 @@ export const getGetMoviesTmdbIDUrl = (tmdbID: number) => {
 };
 
 /**
- * @summary Get a movie in the authenticated user's library
+ * @summary Get a movie with the authenticated user's library state, if saved
  */
 export const getMoviesTmdbID = async (
   tmdbID: number,
@@ -4546,7 +4551,7 @@ export function useGetMoviesTmdbID<
   queryClient?: QueryClient,
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
- * @summary Get a movie in the authenticated user's library
+ * @summary Get a movie with the authenticated user's library state, if saved
  */
 
 export function useGetMoviesTmdbID<
@@ -4574,7 +4579,7 @@ export const getGetShowsTmdbIDUrl = (tmdbID: number) => {
 };
 
 /**
- * @summary Get a TV show in the authenticated user's library
+ * @summary Get a TV show with the authenticated user's library state, if saved
  */
 export const getShowsTmdbID = async (
   tmdbID: number,
@@ -4670,7 +4675,7 @@ export function useGetShowsTmdbID<
   queryClient?: QueryClient,
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 /**
- * @summary Get a TV show in the authenticated user's library
+ * @summary Get a TV show with the authenticated user's library state, if saved
  */
 
 export function useGetShowsTmdbID<
@@ -5939,7 +5944,7 @@ export const getPostPlaysBulkUrl = () => {
 export const postPlaysBulk = async (
   postPlaysBulkBody: PostPlaysBulkBody,
   options?: Parameters<typeof customFetch>[1],
-): Promise<void> => {
+): Promise<Play[]> => {
   const getHeaders = (
     h?: NonNullable<RequestInit["headers"]>,
   ): Record<string, string | readonly string[]> => {
@@ -5959,7 +5964,7 @@ export const postPlaysBulk = async (
     }
     return headers;
   };
-  return customFetch<void>(getPostPlaysBulkUrl(), {
+  return customFetch<Play[]>(getPostPlaysBulkUrl(), {
     ...options,
     method: "POST",
     headers: { "Content-Type": "application/json", ...getHeaders(options?.headers) },
@@ -6413,7 +6418,7 @@ export const getPostShowsShowIDEpisodesWatchThroughMutationKey = () =>
   ["postShowsShowIDEpisodesWatchThrough"] as const;
 
 export const getPostShowsShowIDEpisodesWatchThroughMutationOptions = <
-  TError = BadRequestResponse | UnauthorizedResponse,
+  TError = BadRequestResponse | UnauthorizedResponse | void,
   TContext = unknown,
 >(options?: {
   mutation?: UseMutationOptions<
@@ -6453,7 +6458,7 @@ export type PostShowsShowIDEpisodesWatchThroughMutationResult = NonNullable<
 >;
 export type PostShowsShowIDEpisodesWatchThroughMutationBody = WatchThroughRequest;
 export type PostShowsShowIDEpisodesWatchThroughMutationError =
-  BadRequestResponse | UnauthorizedResponse;
+  BadRequestResponse | UnauthorizedResponse | void;
 export type PostShowsShowIDEpisodesWatchThroughMutationVariables = {
   showID: string;
   data: WatchThroughRequest;
@@ -6463,7 +6468,7 @@ export type PostShowsShowIDEpisodesWatchThroughMutationVariables = {
  * @summary Mark missing released episodes through an episode watched
  */
 export const usePostShowsShowIDEpisodesWatchThrough = <
-  TError = BadRequestResponse | UnauthorizedResponse,
+  TError = BadRequestResponse | UnauthorizedResponse | void,
   TContext = unknown,
 >(
   options?: {

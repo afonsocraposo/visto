@@ -6,13 +6,10 @@
  * OpenAPI spec version: 0.1.0
  */
 
-/**
- * Empty only in an unsaved movie or show detail response.
- */
-export type LibraryItemStatus = (typeof LibraryItemStatus)[keyof typeof LibraryItemStatus];
+export type ExportDataLibraryItemStatus =
+  (typeof ExportDataLibraryItemStatus)[keyof typeof ExportDataLibraryItemStatus];
 
-export const LibraryItemStatus = {
-  "": "",
+export const ExportDataLibraryItemStatus = {
   watchlist: "watchlist",
   watching: "watching",
   paused: "paused",

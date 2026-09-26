@@ -10,5 +10,7 @@ import type { Play } from "./play";
 export interface HistoryEntry {
   play: Play;
   title: string;
+  /** TMDB ID of the movie or show. */
+  tmdb_id?: number;
   episode_label?: string;
 }

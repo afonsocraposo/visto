@@ -1,6 +1,7 @@
 package httpserver
 
 import (
+	"bufio"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -22,7 +23,26 @@ func TestOpenAPI_GivenRegisteredRESTRoutes_WhenChecked_ThenEachPublicRouteIsDocu
 	if err != nil {
 		t.Fatalf("read OpenAPI document: %v", err)
 	}
-	routePattern := regexp.MustCompile(`mux\.HandleFunc\("(?:GET|POST|PUT|PATCH|DELETE) (/api/v1/[^\"]+)"`)
+	documented := map[string]bool{}
+	path := ""
+	for scanner := bufio.NewScanner(strings.NewReader(string(spec))); scanner.Scan(); {
+		line := scanner.Text()
+		if strings.HasPrefix(line, "  /") && strings.HasSuffix(line, ":") {
+			path = strings.TrimSuffix(strings.TrimSpace(line), ":")
+			continue
+		}
+		if strings.HasPrefix(line, "components:") {
+			path = ""
+		}
+		if path != "" && strings.HasPrefix(line, "    ") && !strings.HasPrefix(line, "     ") {
+			method := strings.ToUpper(strings.TrimSuffix(strings.TrimSpace(line), ":"))
+			if method == "GET" || method == "POST" || method == "PUT" || method == "PATCH" || method == "DELETE" {
+				documented[method+" "+path] = true
+			}
+		}
+	}
+	routePattern := regexp.MustCompile(`mux\.HandleFunc\("(GET|POST|PUT|PATCH|DELETE) (/api/v1/[^\"]+)"`)
+	registered := map[string]bool{}
 	for _, file := range files {
 		if strings.HasSuffix(file, "_test.go") {
 			continue
@@ -32,10 +52,16 @@ func TestOpenAPI_GivenRegisteredRESTRoutes_WhenChecked_ThenEachPublicRouteIsDocu
 			t.Fatalf("read HTTP source %s: %v", file, err)
 		}
 		for _, match := range routePattern.FindAllStringSubmatch(string(source), -1) {
-			path := strings.TrimPrefix(match[1], "/api/v1")
-			if !strings.Contains(string(spec), "\n  "+path+":") {
-				t.Errorf("OpenAPI does not document registered route %s", match[1])
+			operation := match[1] + " " + strings.TrimPrefix(match[2], "/api/v1")
+			registered[operation] = true
+			if !documented[operation] {
+				t.Errorf("OpenAPI does not document registered operation %s", operation)
 			}
+		}
+	}
+	for operation := range documented {
+		if !registered[operation] {
+			t.Errorf("OpenAPI documents unregistered operation %s", operation)
 		}
 	}
 }
