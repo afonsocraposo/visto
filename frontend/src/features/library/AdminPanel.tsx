@@ -1,3 +1,4 @@
+import { BackupPanel } from "./BackupPanel";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "@mantine/form";
@@ -52,6 +53,7 @@ export function AdminPanel({ currentUser }: { currentUser: User }) {
 
   return (
     <Stack>
+      <BackupPanel />
       <Paper withBorder p="md">
         <Title order={2}>Manage users</Title>
         <Text size="sm" c="dimmed" mt="xs">

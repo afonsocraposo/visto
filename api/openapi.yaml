@@ -53,6 +53,36 @@ paths:
       responses:
         '204': { description: Session ended and cookie cleared }
         '500': { description: Session could not be revoked }
+  /admin/backups:
+    get:
+      summary: Get instance backup settings and status as an administrator
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      responses:
+        '200': { description: Backup settings without the secret access key, content: { application/json: { schema: { $ref: '#/components/schemas/BackupSettings' } } } }
+        '403': { description: Administrator access required }
+    put:
+      summary: Save instance backup settings as an administrator
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/BackupSettingsRequest' } } } }
+      responses:
+        '200': { description: Saved backup settings without the secret access key, content: { application/json: { schema: { $ref: '#/components/schemas/BackupSettings' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { description: Administrator access required }
+  /admin/backups/test:
+    post:
+      summary: Test saved S3 credentials as an administrator
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      responses:
+        '200': { description: S3 connection works }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { description: Administrator access required }
+  /admin/backups/run:
+    post:
+      summary: Start a manual backup using saved settings as an administrator
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      responses:
+        '202': { description: Backup started }
+        '403': { description: Administrator access required }
   /users:
     get:
       summary: List instance users as an administrator
@@ -693,6 +723,28 @@ components:
         name: { type: string }
         role: { type: string, enum: [admin, user] }
         created_at: { type: string, format: date-time }
+    BackupSettings:
+      type: object
+      properties:
+        destination: { type: string, enum: [local, s3, both] }
+        interval_seconds: { type: integer }
+        bucket: { type: string }
+        region: { type: string }
+        endpoint: { type: string }
+        access_key_id: { type: string }
+        path_style: { type: boolean }
+        prefix: { type: string }
+        max_keep: { type: integer }
+        has_secret: { type: boolean }
+        encryption_available: { type: boolean }
+        last_success_at: { type: string }
+        last_error: { type: string }
+    BackupSettingsRequest:
+      allOf:
+        - { $ref: '#/components/schemas/BackupSettings' }
+        - type: object
+          properties:
+            secret_key: { type: string, writeOnly: true, description: Optional replacement secret access key }
     ActivitySettings:
       type: object
       required: [activity_visibility, timezone, pushover_enabled, has_pushover_app_token, has_pushover_user_key, pushover_available]

@@ -461,3 +461,24 @@ behaviour. See [SPEC.md](SPEC.md) for the v0.1 product and engineering scope.
 Visto is source-available under the [PolyForm Noncommercial License 1.0.0](LICENSE).
 Personal and family self-hosting is permitted. Commercial use requires a
 separate licence from the copyright holder.
+
+### Admin-configured S3 backups
+
+Open **Library → Admin → Backups** to choose local, S3, or both destinations.
+For S3, set the bucket, region, access key ID, and secret access key. Set an
+HTTPS endpoint and path-style addressing when your S3-compatible provider needs
+them. Use **Test connection** before relying on remote backups. The screen also
+sets the automatic interval and the number of scheduled S3 backups to retain.
+Visto deletes only older scheduled backups with its own filename pattern under
+the configured prefix. Manual backups are not removed by this cleanup.
+
+Set `VISTO_SECRET_ENCRYPTION_KEY` before saving S3 credentials. It must be a
+base64-encoded 32-byte key. Keep this key outside the database and retain it
+for as long as S3 backups are configured. Visto encrypts the secret access key
+in SQLite and never returns it to the browser. Existing local backups continue
+to work without this key. The existing `VISTO_BACKUP_INTERVAL` value becomes the
+initial admin setting on upgrade.
+
+To restore an S3 backup, download the `.db` object from your bucket, stop Visto,
+and follow the SQLite restore steps above. Keep a copy of the current database
+until the restored instance is verified.

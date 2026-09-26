@@ -81,9 +81,7 @@ func main() {
 	backupInterval := durationEnvironment("VISTO_BACKUP_INTERVAL", 24*time.Hour)
 	backupRetention := durationEnvironment("VISTO_BACKUP_RETENTION", 30*24*time.Hour)
 	backupDirectory := environment("VISTO_BACKUP_DIR", filepath.Join(filepath.Dir(databasePath), "backups"))
-	startWorker(func(ctx context.Context) {
-		backupjob.Run(ctx, databasePath, backupDirectory, backupInterval, backupRetention, log.Default())
-	})
+
 	encryptionKey := os.Getenv("VISTO_SECRET_ENCRYPTION_KEY")
 	var profileConfig profile.PushoverConfig
 	var secretCipher *pushover.AESGCMCipher
@@ -95,6 +93,8 @@ func main() {
 		secretCipher = cipher
 		profileConfig.Cipher = cipher
 	}
+	backupService := &backupjob.Service{Store: store, Cipher: secretCipher, DatabasePath: databasePath, Directory: backupDirectory, DefaultInterval: backupInterval, LocalRetention: backupRetention}
+	startWorker(func(ctx context.Context) { backupService.Run(ctx, log.Default()) })
 	profiles := profile.NewService(store, profileConfig)
 	if secretCipher != nil {
 		pushoverClient := pushover.NewClient(nil)
@@ -136,7 +136,7 @@ func main() {
 	appHandler.Handle("/oauth/", mcpHandler)
 	appHandler.Handle("/.well-known/", mcpHandler)
 	appServer := httpserver.New(authService, metadataProvider, os.Getenv("VISTO_WEB_DIR"), library.NewService(store), tracking.NewService(store), profiles, feed.NewService(store), exportapp.NewService(store), watchService).
-		WithTrustedProxies(trustedProxies).WithOAuth(oauthService).WithGoogleOAuth(googleOAuth)
+		WithTrustedProxies(trustedProxies).WithOAuth(oauthService).WithGoogleOAuth(googleOAuth).WithBackups(backupService)
 	var plexMetadataProvider plexsync.MetadataProvider
 	if metadataProvider != nil {
 		plexMetadataProvider = metadataProvider

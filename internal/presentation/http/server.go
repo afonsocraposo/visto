@@ -6,6 +6,7 @@ import "path/filepath"
 import "strings"
 import "time"
 import "github.com/afonsocosta/visto/internal/application/auth"
+import "github.com/afonsocosta/visto/internal/infrastructure/backup"
 import exportapp "github.com/afonsocosta/visto/internal/application/export"
 import "github.com/afonsocosta/visto/internal/application/feed"
 import "github.com/afonsocosta/visto/internal/application/library"
@@ -85,6 +86,14 @@ func (server *Server) WithPlexSync(service *plexsync.Service) *Server {
 	server.mux.HandleFunc("POST /api/v1/profile/plex-webhook", issuePlexWebhook(server.authService, service))
 	server.mux.HandleFunc("DELETE /api/v1/profile/plex-webhook", revokePlexWebhook(server.authService, service))
 	server.mux.HandleFunc("POST /api/v1/webhooks/plex/{secret}", plexWebhook(service))
+	return server
+}
+
+func (server *Server) WithBackups(service *backup.Service) *Server {
+	server.mux.HandleFunc("GET /api/v1/admin/backups", adminBackup(server.authService, service, "get"))
+	server.mux.HandleFunc("PUT /api/v1/admin/backups", adminBackup(server.authService, service, "save"))
+	server.mux.HandleFunc("POST /api/v1/admin/backups/test", adminBackup(server.authService, service, "test"))
+	server.mux.HandleFunc("POST /api/v1/admin/backups/run", adminBackup(server.authService, service, "run"))
 	return server
 }
 
