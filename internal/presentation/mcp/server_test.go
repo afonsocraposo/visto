@@ -52,6 +52,9 @@ func (*testTracking) MarkSelectedEpisodes(context.Context, string, string, []str
 }
 
 func (*testTracking) RemoveEpisodes(context.Context, string, []string) error { return nil }
+func (*testTracking) RemoveMediaAndHistory(_ context.Context, _ string, mediaID string) (tracking.RemovedMedia, error) {
+	return tracking.RemovedMedia{MediaID: mediaID}, nil
+}
 
 type testWatch struct{ episodes []watch.ShowEpisode }
 
@@ -92,8 +95,8 @@ func TestMCPHandler_GivenValidPersonalToken_WhenToolsListIsRequested_ThenReturns
 	if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("decode MCP response: %v", err)
 	}
-	if len(payload.Result.Tools) != 16 {
-		t.Fatalf("tool count = %d, want 16", len(payload.Result.Tools))
+	if len(payload.Result.Tools) != 17 {
+		t.Fatalf("tool count = %d, want 17", len(payload.Result.Tools))
 	}
 	for _, tool := range payload.Result.Tools {
 		if len(tool.SecuritySchemes) != 1 {
@@ -101,6 +104,11 @@ func TestMCPHandler_GivenValidPersonalToken_WhenToolsListIsRequested_ThenReturns
 		}
 		if required, present := tool.InputSchema["required"]; present && required == nil {
 			t.Errorf("%s has null required in its input schema", tool.Name)
+		}
+		if tool.Name == "remove_media" {
+			if tool.Annotations["destructiveHint"] != true || requiredScope(tool.Name) != "write" {
+				t.Errorf("remove_media is missing destructive annotation or write scope")
+			}
 		}
 	}
 }

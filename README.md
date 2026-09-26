@@ -370,6 +370,10 @@ furthest watched episode. `get_library` lists saved media and supports filters
 by status and media type. REST clients can use
 `POST /api/v1/shows/{showID}/episodes/watch-through` with `season_number` and
 `episode_number` to apply the same watch-through action.
+The destructive `remove_media` MCP action removes a movie or TV show from the
+authenticated user's library along with that user's plays, ratings, and
+activity for the title. It leaves other users' records and shared catalog data
+intact.
 
 ## Development
 

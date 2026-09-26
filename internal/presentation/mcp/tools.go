@@ -50,6 +50,7 @@ func toolDefinitions() []toolDefinition {
 		{Name: "mark_selected_episodes_watched", Description: "Mark selected released regular episodes of one tracked show watched. Skips episodes already watched.", InputSchema: objectSchema(map[string]any{"show_id": map[string]string{"type": "string"}, "episode_ids": map[string]any{"type": "array", "minItems": 1, "maxItems": 1000, "uniqueItems": true, "items": map[string]string{"type": "string"}}, "watched_at": map[string]string{"type": "string", "format": "date-time"}}, "show_id", "episode_ids"), Annotations: writeAction, SecuritySchemes: writeSecurity},
 		{Name: "mark_selected_episodes_unwatched", Description: "Mark selected episodes of one tracked show unwatched by removing their plays. Use get_show_episodes to find episode IDs.", InputSchema: objectSchema(map[string]any{"show_id": map[string]string{"type": "string"}, "episode_ids": map[string]any{"type": "array", "minItems": 1, "maxItems": 100, "uniqueItems": true, "items": map[string]string{"type": "string"}}}, "show_id", "episode_ids"), Annotations: deleteAction, SecuritySchemes: writeSecurity},
 		{Name: "rate_media", Description: "Set a 1–5 star rating, or pass null to clear it, for a tracked movie, TV show, or episode.", InputSchema: objectSchema(map[string]any{"media_id": map[string]string{"type": "string"}, "episode_id": map[string]string{"type": "string"}, "rating": map[string]any{"type": []string{"integer", "null"}, "minimum": 1, "maximum": 5}}, "rating"), Annotations: writeAction, SecuritySchemes: writeSecurity},
+		{Name: "remove_media", Description: "Permanently remove a movie or TV show from the user's library, including its watch history, ratings, and activity. Use a Visto media ID such as movie:123 or tv:123. This cannot be undone.", InputSchema: objectSchema(map[string]any{"media_id": map[string]string{"type": "string"}}, "media_id"), Annotations: deleteAction, SecuritySchemes: writeSecurity},
 	}
 }
 
@@ -341,6 +342,11 @@ func (server *Server) callTool(ctx context.Context, userID, name string, args ma
 			}
 		}
 		return nil, fmt.Errorf("media is not in the user's library")
+	case "remove_media":
+		if server.tracking == nil {
+			return nil, fmt.Errorf("media removal is not configured")
+		}
+		return server.tracking.RemoveMediaAndHistory(ctx, userID, stringArg(args, "media_id"))
 	default:
 		return nil, fmt.Errorf("unknown Visto tool %q", name)
 	}

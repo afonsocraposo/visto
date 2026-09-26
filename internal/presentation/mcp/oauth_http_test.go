@@ -113,6 +113,11 @@ func TestChatGPTOAuthFlow_GivenReadOnlyConsent_WhenConnecting_ThenReadsOwnHistor
 	if writeResponse.Code != http.StatusOK || !strings.Contains(writeResponse.Body.String(), "insufficient_scope") {
 		t.Fatalf("write tool should require write scope: %d %s", writeResponse.Code, writeResponse.Body.String())
 	}
+	removeBody := `{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"remove_media","arguments":{"media_id":"movie:123"},"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientInfo":{"name":"ChatGPT","version":"test"},"io.modelcontextprotocol/clientCapabilities":{}}}}`
+	removeResponse := mcpRequest(server, tokens.AccessToken, "tools/call", "remove_media", removeBody)
+	if removeResponse.Code != http.StatusOK || !strings.Contains(removeResponse.Body.String(), "insufficient_scope") {
+		t.Fatalf("remove_media should require write scope: %d %s", removeResponse.Code, removeResponse.Body.String())
+	}
 }
 
 func mcpRequest(handler http.Handler, token, method, name, body string) *httptest.ResponseRecorder {

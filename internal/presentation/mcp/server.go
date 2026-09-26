@@ -39,6 +39,7 @@ type libraryUseCases interface {
 }
 
 type trackingUseCases interface {
+	RemoveMediaAndHistory(context.Context, string, string) (tracking.RemovedMedia, error)
 	Record(context.Context, string, *string, *string, time.Time, string) (tracking.Play, error)
 	MarkEpisodesThrough(context.Context, string, string, int, int, time.Time, string) (int, error)
 	MarkSeasonWatched(context.Context, string, string, int, time.Time, string) (int, error)
@@ -277,7 +278,7 @@ func requiredScope(tool string) string {
 	switch tool {
 	case "search_media", "get_library", "get_currently_watching", "get_show_progress", "get_show_episodes", "get_upcoming_episodes", "get_watch_history":
 		return oauth.ReadScope
-	case "add_to_watchlist", "set_show_status", "mark_movie_watched", "mark_episode_watched", "mark_episodes_through", "mark_season_watched", "mark_selected_episodes_watched", "mark_selected_episodes_unwatched", "rate_media":
+	case "add_to_watchlist", "set_show_status", "mark_movie_watched", "mark_episode_watched", "mark_episodes_through", "mark_season_watched", "mark_selected_episodes_watched", "mark_selected_episodes_unwatched", "rate_media", "remove_media":
 		return oauth.WriteScope
 	default:
 		return ""

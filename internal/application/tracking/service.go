@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -38,6 +39,12 @@ type EpisodeRating struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+type RemovedMedia struct {
+	MediaID        string `json:"media_id"`
+	DeletedPlays   int    `json:"deleted_plays"`
+	DeletedRatings int    `json:"deleted_ratings"`
+}
+
 type Repository interface {
 	CreatePlay(context.Context, Play) (Play, error)
 	CreateBulkPlays(context.Context, []Play) ([]Play, error)
@@ -59,6 +66,10 @@ type episodePlayDeletionRepository interface {
 
 type mediaPlayDeletionRepository interface {
 	DeleteMediaPlays(context.Context, string, string) error
+}
+
+type mediaRemovalRepository interface {
+	RemoveMediaAndHistory(context.Context, string, string) (RemovedMedia, error)
 }
 
 type episodeRatingRepository interface {
@@ -273,6 +284,25 @@ func (service *Service) RemoveMediaPlays(ctx context.Context, userID, mediaID st
 		return fmt.Errorf("media watch removal is not configured")
 	}
 	return repository.DeleteMediaPlays(ctx, userID, mediaID)
+}
+
+func (service *Service) RemoveMediaAndHistory(ctx context.Context, userID, mediaID string) (RemovedMedia, error) {
+	if userID == "" {
+		return RemovedMedia{}, fmt.Errorf("user is required")
+	}
+	parts := strings.Split(mediaID, ":")
+	if len(parts) != 2 || (parts[0] != "movie" && parts[0] != "tv") {
+		return RemovedMedia{}, fmt.Errorf("media_id must be a Visto ID such as movie:123 or tv:123")
+	}
+	id, err := strconv.ParseInt(parts[1], 10, 64)
+	if err != nil || id <= 0 || strconv.FormatInt(id, 10) != parts[1] {
+		return RemovedMedia{}, fmt.Errorf("media_id must be a Visto ID such as movie:123 or tv:123")
+	}
+	repository, ok := service.repository.(mediaRemovalRepository)
+	if !ok {
+		return RemovedMedia{}, fmt.Errorf("media removal is not configured")
+	}
+	return repository.RemoveMediaAndHistory(ctx, userID, mediaID)
 }
 
 func (service *Service) History(ctx context.Context, userID string, limit int) ([]HistoryEntry, error) {
