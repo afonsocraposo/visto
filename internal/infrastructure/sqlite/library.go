@@ -168,6 +168,20 @@ func (s *Store) RemoveWatchingItem(ctx context.Context, userID, mediaID string) 
 }
 
 func (s *Store) ListItems(ctx context.Context, userID string) ([]library.Entry, error) {
+	return s.ListItemsSorted(ctx, userID, "updated")
+}
+
+func (s *Store) ListItemsSorted(ctx context.Context, userID, sort string) ([]library.Entry, error) {
+	order := "um.updated_at DESC, m.title COLLATE NOCASE, um.media_id"
+	switch sort {
+	case "title":
+		order = "m.title COLLATE NOCASE, um.media_id"
+	case "released":
+		order = "COALESCE(NULLIF(m.release_date,''),'0000-00-00') DESC, m.title COLLATE NOCASE, um.media_id"
+	case "updated":
+	default:
+		return nil, fmt.Errorf("invalid library sort")
+	}
 	rows, err := s.DB.QueryContext(ctx, `SELECT um.user_id,um.media_id,um.status,um.rating,um.added_at,um.updated_at,um.notifications_enabled,m.media_type,m.tmdb_id,m.title,COALESCE(m.original_title,''),COALESCE(m.overview,''),COALESCE(m.release_date,''),COALESCE(m.poster_path,''),COALESCE(m.original_language,''),COALESCE(m.status,''),
 		((m.media_type='movie' AND EXISTS(SELECT 1 FROM plays p WHERE p.user_id=um.user_id AND p.media_id=um.media_id)) OR
 		 (m.media_type='tv' AND (COALESCE(m.status,'') IN ('Ended','Canceled','Cancelled') OR COALESCE(m.status,'')='') AND EXISTS(SELECT 1 FROM episodes e WHERE e.show_id=m.id AND e.season_number>0) AND
@@ -182,7 +196,7 @@ func (s *Store) ListItems(ctx context.Context, userID string) ([]library.Entry, 
 			LEFT JOIN (SELECT DISTINCT episode_id FROM plays WHERE user_id=?) p ON p.episode_id=e.id
 			WHERE s.season_number>0 GROUP BY s.show_id
 		) progress ON progress.show_id=m.id
-		WHERE um.user_id=? ORDER BY um.updated_at DESC`, userID, userID)
+		WHERE um.user_id=? ORDER BY `+order, userID, userID)
 	if err != nil {
 		return nil, fmt.Errorf("list library items: %w", err)
 	}

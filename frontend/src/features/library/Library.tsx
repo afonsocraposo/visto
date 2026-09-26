@@ -1,11 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Button, Group, Loader, SegmentedControl, Text, Title } from "@mantine/core";
+import { Alert, Button, Group, Loader, SegmentedControl, Select, Text, Title } from "@mantine/core";
 import { useState } from "react";
 import { EmptyState } from "../../components/EmptyState";
 import { useUserQueryKey } from "../auth/SessionContext";
 import { api } from "../../lib/api";
 import { LibraryCard } from "./LibraryCard";
 import type { LibraryEntry, LibraryStatus, MediaDetailTarget } from "../../types";
+import { librarySortOptions, type LibrarySort } from "./librarySort";
 export { HistoryPanel } from "./HistoryPanel";
 export { ProfilePanel } from "./ProfilePanel";
 
@@ -26,11 +27,15 @@ export function LibraryPanel({
   onOpenList?: (status: LibraryStatus) => void;
 }) {
   const [mediaFilter, setMediaFilter] = useState<"all" | "movie" | "tv">("all");
+  const [sort, setSort] = useState<LibrarySort>("updated");
   const userQueryKey = useUserQueryKey();
   const library = useQuery({
-    queryKey: userQueryKey("library"),
+    queryKey: [...userQueryKey("library"), sort],
     queryFn: () =>
-      api.get<LibraryEntry[]>("/api/v1/library", "Your library is temporarily unavailable."),
+      api.get<LibraryEntry[]>(
+        `/api/v1/library?sort=${sort}`,
+        "Your library is temporarily unavailable.",
+      ),
   });
   if (library.isPending)
     return (
@@ -60,28 +65,35 @@ export function LibraryPanel({
           A quick view of everything you are tracking.
         </Text>
       </div>
-      <SegmentedControl
-        aria-label="Filter library by media type"
-        value={mediaFilter}
-        onChange={(value) => setMediaFilter(value as "all" | "movie" | "tv")}
-        data={[
-          { value: "all", label: "All" },
-          { value: "movie", label: "Movies" },
-          { value: "tv", label: "TV shows" },
-        ]}
-        mb="xl"
-      />
+      <Group mb="xl" align="end" justify="space-between">
+        <SegmentedControl
+          aria-label="Filter library by media type"
+          value={mediaFilter}
+          onChange={(value) => setMediaFilter(value as "all" | "movie" | "tv")}
+          data={[
+            { value: "all", label: "All" },
+            { value: "movie", label: "Movies" },
+            { value: "tv", label: "TV shows" },
+          ]}
+        />
+        <Select
+          label="Sort by"
+          aria-label="Sort library media"
+          data={librarySortOptions}
+          value={sort}
+          onChange={(value) => value && setSort(value as LibrarySort)}
+          allowDeselect={false}
+        />
+      </Group>
       <div className="library-sections">
         {sections.map((section) => {
-          const entries = library.data
-            .filter(
-              (entry) =>
-                (section.status === "completed"
-                  ? entry.completed
-                  : !entry.completed && entry.item.status === section.status) &&
-                (mediaFilter === "all" || entry.media.type === mediaFilter),
-            )
-            .sort((a, b) => Date.parse(b.item.updated_at) - Date.parse(a.item.updated_at));
+          const entries = library.data.filter(
+            (entry) =>
+              (section.status === "completed"
+                ? entry.completed
+                : !entry.completed && entry.item.status === section.status) &&
+              (mediaFilter === "all" || entry.media.type === mediaFilter),
+          );
           if (entries.length === 0) return null;
           const visible = entries.slice(0, PREVIEW_LIMIT);
           return (

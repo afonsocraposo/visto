@@ -151,7 +151,15 @@ func listLibrary(authService *auth.Service, service *library.Service) http.Handl
 			writeError(w, http.StatusServiceUnavailable, "library is not configured")
 			return
 		}
-		items, err := service.List(r.Context(), user.ID)
+		sort := r.URL.Query().Get("sort")
+		if sort == "" {
+			sort = "updated"
+		}
+		if sort != "updated" && sort != "title" && sort != "released" {
+			writeError(w, http.StatusBadRequest, "invalid library sort")
+			return
+		}
+		items, err := service.ListSorted(r.Context(), user.ID, sort)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, "library is temporarily unavailable")
 			return

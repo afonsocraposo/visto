@@ -61,6 +61,10 @@ type listRepository interface {
 	ListItems(context.Context, string) ([]Entry, error)
 }
 
+type sortedListRepository interface {
+	ListItemsSorted(context.Context, string, string) ([]Entry, error)
+}
+
 type getRepository interface {
 	GetMediaByTMDBID(context.Context, string, domain.MediaType, int64) (Entry, error)
 }
@@ -149,6 +153,20 @@ func (s *Service) List(ctx context.Context, userID string) ([]Entry, error) {
 		return nil, fmt.Errorf("library storage is not configured")
 	}
 	return repository.ListItems(ctx, userID)
+}
+
+func (s *Service) ListSorted(ctx context.Context, userID, sort string) ([]Entry, error) {
+	if userID == "" {
+		return nil, fmt.Errorf("user is required")
+	}
+	if sort != "updated" && sort != "title" && sort != "released" {
+		return nil, fmt.Errorf("invalid library sort")
+	}
+	repository, ok := s.repository.(sortedListRepository)
+	if !ok {
+		return nil, fmt.Errorf("library storage is not configured")
+	}
+	return repository.ListItemsSorted(ctx, userID, sort)
 }
 
 func (s *Service) RemoveWatchlistItem(ctx context.Context, userID, mediaID string) error {
