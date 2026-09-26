@@ -213,6 +213,9 @@ func (service *Service) Login(ctx context.Context, email, password string) (doma
 
 func (service *Service) AuthenticateCredentials(ctx context.Context, email, password string) (domain.User, error) {
 	user, hash, err := service.repository.FindUserByEmail(ctx, strings.ToLower(strings.TrimSpace(email)))
+	if err != nil && !errors.Is(err, ErrInvalidCredentials) {
+		return domain.User{}, fmt.Errorf("find user by email: %w", err)
+	}
 	if err != nil || !verifyPassword(hash, password) {
 		return domain.User{}, ErrInvalidCredentials
 	}

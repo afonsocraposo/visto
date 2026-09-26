@@ -1,13 +1,17 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { createTheme, Group, Loader, MantineProvider } from "@mantine/core";
-import { AuthGate } from "../features/auth/AuthGate";
+import { Alert, Button, createTheme, Group, Loader, MantineProvider, Stack } from "@mantine/core";
 import { oauthReturnLocation } from "../features/auth/oauthReturn";
 import { SessionProvider } from "../features/auth/SessionContext";
+import { loadSession } from "../features/auth/session";
 import { forcedColorScheme } from "./theme";
 import { router } from "./router";
 import { RouterProvider } from "@tanstack/react-router";
-import type { Theme, User } from "../types";
+import type { Theme } from "../types";
+
+const AuthGate = lazy(async () => ({
+  default: (await import("../features/auth/AuthGate")).AuthGate,
+}));
 
 const themeDefinition = createTheme({
   primaryColor: "amber",
@@ -42,10 +46,7 @@ export function App() {
   });
   const session = useQuery({
     queryKey: ["session"],
-    queryFn: async (): Promise<User | null> => {
-      const response = await fetch("/api/v1/me");
-      return response.ok ? response.json() : null;
-    },
+    queryFn: loadSession,
   });
   const [theme, setTheme] = useState<Theme>(
     () => (localStorage.getItem("visto-theme") as Theme) || "system",
@@ -70,12 +71,21 @@ export function App() {
         <Group justify="center" mt="xl">
           <Loader />
         </Group>
-      ) : !setup.isError && !setup.data?.bootstrap_available && session.data ? (
+      ) : setup.isError || (session.isError && !session.data) ? (
+        <Stack align="center" mt="xl">
+          <Alert color="red">Could not connect to Visto. Try again.</Alert>
+          <Button onClick={() => void Promise.all([setup.refetch(), session.refetch()])}>
+            Retry
+          </Button>
+        </Stack>
+      ) : !setup.data?.bootstrap_available && session.data ? (
         <SessionProvider user={session.data}>
           <RouterProvider router={router} context={{ user: session.data, theme, setTheme }} />
         </SessionProvider>
       ) : (
-        <AuthGate />
+        <Suspense fallback={<Loader />}>
+          <AuthGate />
+        </Suspense>
       )}
     </MantineProvider>
   );

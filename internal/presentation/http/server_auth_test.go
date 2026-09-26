@@ -1,7 +1,9 @@
 package httpserver_test
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -11,6 +13,34 @@ import (
 	"github.com/afonsocosta/visto/internal/domain"
 	httpserver "github.com/afonsocosta/visto/internal/presentation/http"
 )
+
+type failingLoginRepository struct{ *accountHTTPRepository }
+
+func (*failingLoginRepository) FindUserByEmail(context.Context, string) (domain.User, string, error) {
+	return domain.User{}, "", errors.New("database unavailable")
+}
+
+func TestLogin_GivenRepositoryFailure_DoesNotCountInvalidCredentials(t *testing.T) {
+	handler := httpserver.New(auth.NewService(&failingLoginRepository{&accountHTTPRepository{}}), nil, "", nil, nil, nil, nil, nil, nil).Handler()
+	for range 6 {
+		request := httptest.NewRequest(http.MethodPost, "http://visto.local/api/v1/auth/login", strings.NewReader(`{"email":"family@example.com","password":"password"}`))
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		if response.Code != http.StatusInternalServerError {
+			t.Fatalf("status = %d, want 500: %s", response.Code, response.Body.String())
+		}
+	}
+}
+
+func TestLogin_GivenOversizedJSON_RejectsBeforeDecoding(t *testing.T) {
+	handler := httpserver.New(nil, nil, "", nil, nil, nil, nil, nil, nil).Handler()
+	request := httptest.NewRequest(http.MethodPost, "http://visto.local/api/v1/auth/login", strings.NewReader(strings.Repeat("x", (1<<20)+1)))
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("status = %d, want 413", response.Code)
+	}
+}
 
 func TestCreateUser_GivenAdministratorSession_WhenCreatingAnAccount_ThenItCreatesARegularUser(t *testing.T) {
 	repository := &accountHTTPRepository{actor: domain.User{ID: "admin-1", Role: domain.AdminRole}}
