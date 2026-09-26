@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Alert,
+  Anchor,
   Badge,
   Button,
   Code,
@@ -84,6 +85,17 @@ export function PlexSyncPanel() {
       <Text size="sm" c="dimmed" mt="xs">
         Sync new watched movies and episodes from your Plex account. Plex Pass and a public HTTPS
         address for this Visto instance are required.
+      </Text>
+      <Text size="sm" c="dimmed" mt="xs">
+        After you create a webhook URL, add it in your{" "}
+        <Anchor
+          href="https://app.plex.tv/desktop/#!/settings/webhooks"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Plex webhook settings
+        </Anchor>
+        .
       </Text>
       {status.isError && (
         <Alert color="red" mt="md">
