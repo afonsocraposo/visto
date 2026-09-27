@@ -3,6 +3,7 @@ import { z } from "zod";
 import { Dashboard, type DashboardPage } from "../features/navigation/Dashboard";
 import { LogoutPage } from "../features/auth/LogoutPage";
 import type { Theme, User } from "../types";
+import type { LibraryMediaFilter } from "../features/library/mediaFilter";
 
 export type RouterContext = { user: User; theme: Theme; setTheme: (theme: Theme) => void };
 
@@ -48,6 +49,8 @@ const profileLibraryListRoute = createRoute({
     parse: (params) => ({ status: statusSchema.parse(params.status) }),
     stringify: (params) => ({ status: params.status }),
   },
+  validateSearch: (search) =>
+    z.object({ media_type: z.enum(["movie", "tv"]).optional().catch(undefined) }).parse(search),
 });
 const mediaSearchSchema = z.object({
   from: z.string().max(2048).optional(),
@@ -95,9 +98,14 @@ function DashboardRoute({ page }: { page: DashboardPage }) {
   return <Dashboard {...rootRoute.useRouteContext()} page={page} />;
 }
 function LibraryListRoute() {
+  const mediaFilter: LibraryMediaFilter = profileLibraryListRoute.useSearch().media_type ?? "all";
   return (
     <DashboardRoute
-      page={{ kind: "library-list", status: profileLibraryListRoute.useParams().status }}
+      page={{
+        kind: "library-list",
+        status: profileLibraryListRoute.useParams().status,
+        mediaFilter,
+      }}
     />
   );
 }

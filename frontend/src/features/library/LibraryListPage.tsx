@@ -1,6 +1,6 @@
 import { InfiniteScrollTrigger } from "../../components/InfiniteScrollTrigger";
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { Alert, Button, Group, Loader, Select, Text, Title } from "@mantine/core";
+import { Alert, Button, Group, Loader, SegmentedControl, Select, Text, Title } from "@mantine/core";
 import { IconArrowLeft } from "@tabler/icons-react";
 import { useState } from "react";
 import { useUserQueryKey } from "../auth/SessionContext";
@@ -9,6 +9,7 @@ import type { CursorPage, LibraryEntry, LibraryStatus, MediaDetailTarget } from 
 import { pageURL } from "../../lib/pagination";
 import { LibraryCard } from "./LibraryCard";
 import { librarySortOptions, type LibrarySort } from "./librarySort";
+import { libraryMediaFilterOptions, type LibraryMediaFilter } from "./mediaFilter";
 
 const labels: Record<LibraryStatus, string> = {
   watching: "Watching",
@@ -20,21 +21,28 @@ const labels: Record<LibraryStatus, string> = {
 
 export function LibraryListPage({
   status,
+  mediaFilter,
+  onMediaFilterChange,
   onBack,
   onOpenDetail,
 }: {
   status: LibraryStatus;
+  mediaFilter: LibraryMediaFilter;
+  onMediaFilterChange: (mediaFilter: LibraryMediaFilter) => void;
   onBack: () => void;
   onOpenDetail?: (target: MediaDetailTarget) => void;
 }) {
   const [sort, setSort] = useState<LibrarySort>("updated");
   const userQueryKey = useUserQueryKey();
   const library = useInfiniteQuery({
-    queryKey: [...userQueryKey("library"), sort, status],
+    queryKey: [...userQueryKey("library"), sort, status, mediaFilter],
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam }) =>
       api.get<CursorPage<LibraryEntry>>(
-        pageURL(`/api/v1/library?sort=${sort}&status=${status}`, pageParam),
+        pageURL(
+          `/api/v1/library?sort=${sort}&status=${status}${mediaFilter === "all" ? "" : `&media_type=${mediaFilter}`}`,
+          pageParam,
+        ),
         "Your library is temporarily unavailable.",
       ),
     getNextPageParam: (page) => page.next_cursor ?? undefined,
@@ -69,15 +77,22 @@ export function LibraryListPage({
           {entries.length} {entries.length === 1 ? "title" : "titles"} loaded.
         </Text>
       </div>
-      <Select
-        label="Sort by"
-        aria-label="Sort library media"
-        data={librarySortOptions}
-        value={sort}
-        onChange={(value) => value && setSort(value as LibrarySort)}
-        allowDeselect={false}
-        mb="xl"
-      />
+      <Group mb="xl" align="end" justify="space-between">
+        <SegmentedControl
+          aria-label="Filter library by media type"
+          value={mediaFilter}
+          onChange={(value) => onMediaFilterChange(value as LibraryMediaFilter)}
+          data={libraryMediaFilterOptions}
+        />
+        <Select
+          label="Sort by"
+          aria-label="Sort library media"
+          data={librarySortOptions}
+          value={sort}
+          onChange={(value) => value && setSort(value as LibrarySort)}
+          allowDeselect={false}
+        />
+      </Group>
       {entries.length === 0 ? (
         <Text c="dimmed">This list is empty.</Text>
       ) : (

@@ -11,6 +11,7 @@ import {
 } from "@tabler/icons-react";
 import { WatchNow, WatchCalendar } from "../watch/Watch";
 import type { LibraryStatus, MediaDetailTarget, Tab, Theme, User } from "../../types";
+import type { LibraryMediaFilter } from "../library/mediaFilter";
 import { connectionUnavailableEvent } from "../../lib/api";
 import { ActionFeedback } from "../../components/ActionFeedback";
 import { clearSignedInCache, endCurrentSession } from "../auth/logout";
@@ -34,7 +35,7 @@ const PersonDetailPage = lazy(async () => ({
 
 export type DashboardPage =
   | { kind: "watch" | "discover" | "feed" | "profile" }
-  | { kind: "library-list"; status: LibraryStatus }
+  | { kind: "library-list"; status: LibraryStatus; mediaFilter: LibraryMediaFilter }
   | { kind: "media"; target: MediaDetailTarget; returnTo?: string }
   | { kind: "person"; personID: number; returnTo?: string };
 
@@ -183,6 +184,15 @@ export function Dashboard({
           <Deferred>
             <LibraryListPage
               status={listStatus}
+              mediaFilter={page.kind === "library-list" ? page.mediaFilter : "all"}
+              onMediaFilterChange={(mediaFilter) =>
+                void navigate({
+                  to: "/profile/library/$status",
+                  params: { status: listStatus },
+                  search: { media_type: mediaFilter === "all" ? undefined : mediaFilter },
+                  replace: true,
+                })
+              }
               onBack={() => void navigate({ to: "/profile" })}
               onOpenDetail={openDetail}
             />
@@ -230,7 +240,13 @@ export function Dashboard({
               signingOut={logout.isPending}
               signOutError={logout.isError ? logout.error.message : undefined}
               onOpenDetail={openDetail}
-              onOpenList={(status) => void navigate({ to: `/profile/library/${status}` })}
+              onOpenList={(status, mediaFilter) =>
+                void navigate({
+                  to: "/profile/library/$status",
+                  params: { status },
+                  search: { media_type: mediaFilter === "all" ? undefined : mediaFilter },
+                })
+              }
             />
           </Deferred>
         )}

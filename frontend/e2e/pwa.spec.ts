@@ -766,3 +766,68 @@ test("Given another library page, When the user scrolls the list, Then more titl
   await page.getByRole("button", { name: "Show all" }).click();
   await expect(page.getByText("Library title 2")).toBeVisible();
 });
+
+test("Expanded library pages filter media before pagination and keep the selection in the URL", async ({
+  page,
+}) => {
+  await mockSignedInSession(page);
+  const requested: string[] = [];
+  const entry = (type: "movie" | "tv", id: number) => ({
+    item: {
+      media_id: `${type}:${id}`,
+      status: "completed",
+      rating: null,
+      notifications_enabled: true,
+      updated_at: "2026-09-26T12:00:00Z",
+    },
+    media: {
+      id: `${type}:${id}`,
+      tmdb_id: id,
+      type,
+      title: `${type} title ${id}`,
+      original_title: `${type} title ${id}`,
+      overview: "",
+      release_date: "2026-01-01",
+      poster_path: "",
+      original_language: "en",
+    },
+    completed: true,
+  });
+  await page.route(/\/api\/v1\/library(?:\?.*)?$/, (route) => {
+    const url = new URL(route.request().url());
+    requested.push(url.search);
+    const type = url.searchParams.get("media_type");
+    const status = url.searchParams.get("status");
+    if (status !== "completed" && status !== "watchlist")
+      return fulfillJSON(route, { items: [], next_cursor: null });
+    if (url.searchParams.has("cursor"))
+      return fulfillJSON(route, { items: [entry("movie", 2)], next_cursor: null });
+    if (type === "tv")
+      return fulfillJSON(route, {
+        items: [entry("tv", 3)],
+        next_cursor: url.searchParams.has("limit") ? "next-page" : null,
+      });
+    return fulfillJSON(route, { items: [entry("movie", 1)], next_cursor: "next-page" });
+  });
+
+  await page.goto("/profile/library/completed");
+  await expect(page.getByText("movie title 2")).toBeVisible();
+  await page.getByText("TV shows", { exact: true }).click();
+  await expect(page).toHaveURL(/\/profile\/library\/completed\?media_type=tv$/);
+  await expect(page.getByText("tv title 3")).toBeVisible();
+  await expect(page.getByText("movie title 1")).toHaveCount(0);
+  await page.getByText("Movies", { exact: true }).click();
+  await expect(page.getByText("movie title 2")).toBeVisible();
+  await page.getByRole("combobox", { name: "Sort library media" }).click();
+  await page.getByRole("option", { name: "Title" }).click();
+  expect(
+    requested.some((query) => query.includes("media_type=movie") && query.includes("sort=title")),
+  ).toBe(true);
+
+  await page.goto("/profile/library/watchlist?media_type=tv");
+  await expect(page.getByText("tv title 3")).toBeVisible();
+  await page.goto("/profile");
+  await page.getByText("TV shows", { exact: true }).click();
+  await page.getByRole("button", { name: "Show all" }).first().click();
+  await expect(page).toHaveURL(/\/profile\/library\/completed\?media_type=tv$/);
+});

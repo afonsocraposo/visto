@@ -4,6 +4,7 @@ import { LibraryPanel } from "./Library";
 import { ProfilePanel } from "./ProfilePanel";
 import { AdminPanel } from "./AdminPanel";
 import type { LibraryStatus, MediaDetailTarget, Theme, User } from "../../types";
+import type { LibraryMediaFilter } from "./mediaFilter";
 
 type LibrarySection = "library" | "settings" | "admin";
 
@@ -24,7 +25,7 @@ export function LibraryArea({
   signingOut: boolean;
   signOutError?: string;
   onOpenDetail?: (target: MediaDetailTarget) => void;
-  onOpenList?: (status: LibraryStatus) => void;
+  onOpenList?: (status: LibraryStatus, mediaFilter: LibraryMediaFilter) => void;
 }) {
   const [section, setSection] = useState<LibrarySection>("library");
 

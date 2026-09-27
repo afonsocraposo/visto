@@ -7,6 +7,7 @@ import { api } from "../../lib/api";
 import { LibraryCard } from "./LibraryCard";
 import type { CursorPage, LibraryEntry, LibraryStatus, MediaDetailTarget } from "../../types";
 import { librarySortOptions, type LibrarySort } from "./librarySort";
+import { libraryMediaFilterOptions, type LibraryMediaFilter } from "./mediaFilter";
 export { HistoryPanel } from "./HistoryPanel";
 export { ProfilePanel } from "./ProfilePanel";
 
@@ -24,9 +25,9 @@ export function LibraryPanel({
   onOpenList,
 }: {
   onOpenDetail?: (target: MediaDetailTarget) => void;
-  onOpenList?: (status: LibraryStatus) => void;
+  onOpenList?: (status: LibraryStatus, mediaFilter: LibraryMediaFilter) => void;
 }) {
-  const [mediaFilter, setMediaFilter] = useState<"all" | "movie" | "tv">("all");
+  const [mediaFilter, setMediaFilter] = useState<LibraryMediaFilter>("all");
   const [sort, setSort] = useState<LibrarySort>("updated");
   const userQueryKey = useUserQueryKey();
   const libraries = useQueries({
@@ -71,12 +72,8 @@ export function LibraryPanel({
         <SegmentedControl
           aria-label="Filter library by media type"
           value={mediaFilter}
-          onChange={(value) => setMediaFilter(value as "all" | "movie" | "tv")}
-          data={[
-            { value: "all", label: "All" },
-            { value: "movie", label: "Movies" },
-            { value: "tv", label: "TV shows" },
-          ]}
+          onChange={(value) => setMediaFilter(value as LibraryMediaFilter)}
+          data={libraryMediaFilterOptions}
         />
         <Select
           label="Sort by"
@@ -114,7 +111,11 @@ export function LibraryPanel({
                   </Text>
                 </div>
                 {page.next_cursor && (
-                  <Button variant="subtle" size="sm" onClick={() => onOpenList?.(section.status)}>
+                  <Button
+                    variant="subtle"
+                    size="sm"
+                    onClick={() => onOpenList?.(section.status, mediaFilter)}
+                  >
                     Show all
                   </Button>
                 )}
