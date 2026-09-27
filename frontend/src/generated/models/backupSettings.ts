@@ -6,10 +6,11 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { BackupSettingsDestination } from "./backupSettingsDestination";
+import type { BackupSettingsScope } from "./backupSettingsScope";
 
 export interface BackupSettings {
   /** Effective VISTO_BACKUP_SCOPE server setting */
-  scope?: "everything" | "user_data";
+  readonly scope?: BackupSettingsScope;
   destination?: BackupSettingsDestination;
   interval_seconds?: number;
   bucket?: string;
