@@ -3,10 +3,13 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const frontendDir = dirname(fileURLToPath(import.meta.url));
-const root = execFileSync("git", ["rev-parse", "--show-toplevel"], {
+const repository = spawnSync("git", ["rev-parse", "--show-toplevel"], {
   cwd: frontendDir,
   encoding: "utf8",
-}).trim();
+});
+if (repository.status !== 0) process.exit(0);
+
+const root = repository.stdout.trim();
 const hooksDir = resolve(root, ".githooks");
 const existing = spawnSync("git", ["config", "--local", "--get", "core.hooksPath"], {
   cwd: root,

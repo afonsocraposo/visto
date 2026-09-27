@@ -2,6 +2,7 @@ FROM --platform=$BUILDPLATFORM node:22-alpine AS web
 WORKDIR /build
 RUN apk add --no-cache python3 make g++
 COPY frontend/package.json frontend/package-lock.json ./
+COPY frontend/scripts/install-git-hooks.mjs ./scripts/install-git-hooks.mjs
 RUN npm ci
 COPY version.txt ./version.txt
 COPY frontend/ ./
