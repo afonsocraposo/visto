@@ -6126,7 +6126,7 @@ export const getDeleteLibraryMediaIDUrl = (
 };
 
 /**
- * @summary Remove a library entry from its current list (TV watch history is preserved)
+ * @summary Remove a non-completed library entry from its current list (TV watch history is preserved)
  */
 export const deleteLibraryMediaID = async (
   mediaID: string,
@@ -6188,7 +6188,7 @@ export type DeleteLibraryMediaIDMutationVariables = {
 };
 
 /**
- * @summary Remove a library entry from its current list (TV watch history is preserved)
+ * @summary Remove a non-completed library entry from its current list (TV watch history is preserved)
  */
 export const useDeleteLibraryMediaID = <
   TError = BadRequestResponse | UnauthorizedResponse | void,
