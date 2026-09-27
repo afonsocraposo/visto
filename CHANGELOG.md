@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.10.0](https://github.com/afonsocraposo/visto/compare/v0.9.0...v0.10.0) (2026-09-27)
+
+
+### Features
+
+* add configurable user data backup scope ([49212bf](https://github.com/afonsocraposo/visto/commit/49212bf64c929a703a7255ff025ba5356c256ddd))
+* add cursor pagination and infinite scrolling ([b206172](https://github.com/afonsocraposo/visto/commit/b206172191514b846301ab3b6a358dc4b6452036))
+* add Web Push and notification tests ([12a54d7](https://github.com/afonsocraposo/visto/commit/12a54d731c354fe30c21e440776f3fa5320510b7))
+* redesign calendar with paginated episodes ([129f479](https://github.com/afonsocraposo/visto/commit/129f47942d9f8c5e4a25c441909ebc8111850428))
+
+
+### Bug Fixes
+
+* sync generated API types for backup scope ([bba8af7](https://github.com/afonsocraposo/visto/commit/bba8af779cc0c5ac03f0efe80635b43dc6cab3d7))
+
 ## [0.9.0](https://github.com/afonsocraposo/visto/compare/v0.8.0...v0.9.0) (2026-09-26)
 
 
