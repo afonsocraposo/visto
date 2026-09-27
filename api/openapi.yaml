@@ -322,6 +322,58 @@ paths:
       responses:
         '200': { description: Activity page, content: { application/json: { schema: { $ref: '#/components/schemas/FeedPage' } } } }
         '401': { $ref: '#/components/responses/Unauthorized' }
+  /community/users:
+    get:
+      summary: List instance users by display name for authenticated users
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      parameters:
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 30 } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200': { description: Directory page, content: { application/json: { schema: { $ref: '#/components/schemas/CommunityUsersPage' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /community/users/{userID}:
+    get:
+      summary: Get a user's display name and sharing status
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      parameters:
+        - { name: userID, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Community profile, content: { application/json: { schema: { $ref: '#/components/schemas/CommunityProfile' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: User not found }
+  /community/users/{userID}/library:
+    get:
+      summary: List a user's library when shared with the instance
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      parameters:
+        - { name: userID, in: path, required: true, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 30 } }
+        - { name: cursor, in: query, schema: { type: string } }
+        - { name: sort, in: query, schema: { type: string, enum: [updated, title, released] } }
+        - { name: status, in: query, schema: { type: string, enum: [watching, watchlist, paused, completed, dropped] } }
+        - { name: media_type, in: query, schema: { type: string, enum: [movie, tv] } }
+      responses:
+        '200': { description: Shared library page, content: { application/json: { schema: { $ref: '#/components/schemas/CommunityLibraryPage' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: Library is private }
+        '404': { description: User not found }
+  /community/users/{userID}/activity:
+    get:
+      summary: List a user's recent activity when shared with the instance
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      parameters:
+        - { name: userID, in: path, required: true, schema: { type: string } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 30 } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200': { description: Shared activity page, content: { application/json: { schema: { $ref: '#/components/schemas/FeedPage' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { description: Activity is private }
+        '404': { description: User not found }
   /export/json:
     get:
       summary: Download the authenticated user's library and plays as JSON
@@ -921,9 +973,10 @@ components:
         recent_events: { type: array, maxItems: 20, items: { $ref: '#/components/schemas/PlexWebhookEvent' } }
     FeedItem:
       type: object
-      required: [id, display_name, kind, title, occurred_at]
+      required: [id, user_id, display_name, kind, title, occurred_at]
       properties:
         id: { type: string }
+        user_id: { type: string }
         display_name: { type: string }
         kind: { type: string, enum: [watch, rewatch, rating, bulk_watch] }
         title: { type: string }
@@ -936,6 +989,40 @@ components:
         episode_number: { type: integer }
         episode_name: { type: string }
         occurred_at: { type: string, format: date-time }
+    CommunityUser:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string }
+        name: { type: string }
+    CommunityProfile:
+      type: object
+      required: [id, name, sharing]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        sharing: { type: boolean, description: Whether activity and library are visible to this instance. }
+    CommunityUsersPage:
+      type: object
+      required: [items, next_cursor]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/CommunityUser' } }
+        next_cursor: { type: [string, 'null'] }
+    CommunityLibraryItem:
+      type: object
+      required: [media, status, rating]
+      properties:
+        media: { $ref: '#/components/schemas/MediaSnapshot' }
+        status: { type: string, enum: [watching, watchlist, paused, completed, dropped] }
+        rating: { type: [integer, 'null'], minimum: 1, maximum: 5 }
+        progress: { $ref: '#/components/schemas/ShowLibraryProgress' }
+    CommunityLibraryPage:
+      type: object
+      required: [items, next_cursor, total_count]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/CommunityLibraryItem' } }
+        next_cursor: { type: [string, 'null'] }
+        total_count: { type: integer, minimum: 0 }
     UsersPage:
       type: object
       required: [items, next_cursor]

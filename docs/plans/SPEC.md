@@ -270,8 +270,12 @@ Rui rated Spirited Away · ★★★★★
 Bulk actions are aggregated into one feed item, for example: "Margarida marked
 4 episodes of Severance watched." The feed has cursor pagination. Editing or
 deleting a play, or changing visibility to private, removes its eligible feed
-activity. There are no comments, reactions, follows, profiles, or activity
-from private accounts.
+activity. There are no comments, reactions, follows, or activity from private
+accounts. Authenticated users can open other users' profiles. Each instance
+account appears in the directory by display name. The existing activity
+visibility setting also controls whether its library and profile activity can
+be viewed by other users. Private profiles show no library or activity,
+including to administrators.
 
 ## 8. Metadata
 

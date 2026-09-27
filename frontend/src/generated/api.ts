@@ -28,6 +28,9 @@ import type {
   BadRequestResponse,
   BootstrapRequest,
   CalendarPage,
+  CommunityLibraryPage,
+  CommunityProfile,
+  CommunityUsersPage,
   ConnectedApp,
   ContinueEntry,
   CorrectPlayRequest,
@@ -43,6 +46,9 @@ import type {
   GetAuthStatus200,
   GetCalendarDatesParams,
   GetCalendarParams,
+  GetCommunityUsersParams,
+  GetCommunityUsersUserIDActivityParams,
+  GetCommunityUsersUserIDLibraryParams,
   GetFeedParams,
   GetLibraryParams,
   GetPeopleTmdbID200,
@@ -3916,6 +3922,608 @@ export function useGetFeed<
   queryClient?: QueryClient,
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getGetFeedQueryOptions(params, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export const getGetCommunityUsersUrl = (params?: GetCommunityUsersParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : String(value));
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/community/users?${stringifiedParams}`
+    : `/community/users`;
+};
+
+/**
+ * @summary List instance users by display name for authenticated users
+ */
+export const getCommunityUsers = async (
+  params?: GetCommunityUsersParams,
+  options?: Parameters<typeof customFetch>[1],
+): Promise<CommunityUsersPage> => {
+  return customFetch<CommunityUsersPage>(getGetCommunityUsersUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetCommunityUsersQueryKey = (params?: GetCommunityUsersParams) => {
+  return [`/community/users`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetCommunityUsersQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCommunityUsers>>,
+  TError = BadRequestResponse | UnauthorizedResponse,
+>(
+  params?: GetCommunityUsersParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getCommunityUsers>>, TError, TData>>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetCommunityUsersQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getCommunityUsers>>> = ({ signal }) =>
+    getCommunityUsers(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCommunityUsers>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetCommunityUsersQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCommunityUsers>>
+>;
+export type GetCommunityUsersQueryError = BadRequestResponse | UnauthorizedResponse;
+
+export function useGetCommunityUsers<
+  TData = Awaited<ReturnType<typeof getCommunityUsers>>,
+  TError = BadRequestResponse | UnauthorizedResponse,
+>(
+  params: undefined | GetCommunityUsersParams,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getCommunityUsers>>, TError, TData>> &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCommunityUsers>>,
+          TError,
+          Awaited<ReturnType<typeof getCommunityUsers>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetCommunityUsers<
+  TData = Awaited<ReturnType<typeof getCommunityUsers>>,
+  TError = BadRequestResponse | UnauthorizedResponse,
+>(
+  params?: GetCommunityUsersParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getCommunityUsers>>, TError, TData>> &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCommunityUsers>>,
+          TError,
+          Awaited<ReturnType<typeof getCommunityUsers>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetCommunityUsers<
+  TData = Awaited<ReturnType<typeof getCommunityUsers>>,
+  TError = BadRequestResponse | UnauthorizedResponse,
+>(
+  params?: GetCommunityUsersParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getCommunityUsers>>, TError, TData>>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List instance users by display name for authenticated users
+ */
+
+export function useGetCommunityUsers<
+  TData = Awaited<ReturnType<typeof getCommunityUsers>>,
+  TError = BadRequestResponse | UnauthorizedResponse,
+>(
+  params?: GetCommunityUsersParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getCommunityUsers>>, TError, TData>>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetCommunityUsersQueryOptions(params, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export const getGetCommunityUsersUserIDUrl = (userID: string) => {
+  return `/community/users/${userID}`;
+};
+
+/**
+ * @summary Get a user's display name and sharing status
+ */
+export const getCommunityUsersUserID = async (
+  userID: string,
+  options?: Parameters<typeof customFetch>[1],
+): Promise<CommunityProfile> => {
+  return customFetch<CommunityProfile>(getGetCommunityUsersUserIDUrl(userID), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetCommunityUsersUserIDQueryKey = (userID: string) => {
+  return [`/community/users/${userID}`] as const;
+};
+
+export const getGetCommunityUsersUserIDQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCommunityUsersUserID>>,
+  TError = UnauthorizedResponse | void,
+>(
+  userID: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getCommunityUsersUserID>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetCommunityUsersUserIDQueryKey(userID);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getCommunityUsersUserID>>> = ({
+    signal,
+  }) => getCommunityUsersUserID(userID, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: userID !== null && userID !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof getCommunityUsersUserID>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+};
+
+export type GetCommunityUsersUserIDQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCommunityUsersUserID>>
+>;
+export type GetCommunityUsersUserIDQueryError = UnauthorizedResponse | void;
+
+export function useGetCommunityUsersUserID<
+  TData = Awaited<ReturnType<typeof getCommunityUsersUserID>>,
+  TError = UnauthorizedResponse | void,
+>(
+  userID: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getCommunityUsersUserID>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCommunityUsersUserID>>,
+          TError,
+          Awaited<ReturnType<typeof getCommunityUsersUserID>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetCommunityUsersUserID<
+  TData = Awaited<ReturnType<typeof getCommunityUsersUserID>>,
+  TError = UnauthorizedResponse | void,
+>(
+  userID: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getCommunityUsersUserID>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCommunityUsersUserID>>,
+          TError,
+          Awaited<ReturnType<typeof getCommunityUsersUserID>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetCommunityUsersUserID<
+  TData = Awaited<ReturnType<typeof getCommunityUsersUserID>>,
+  TError = UnauthorizedResponse | void,
+>(
+  userID: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getCommunityUsersUserID>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Get a user's display name and sharing status
+ */
+
+export function useGetCommunityUsersUserID<
+  TData = Awaited<ReturnType<typeof getCommunityUsersUserID>>,
+  TError = UnauthorizedResponse | void,
+>(
+  userID: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getCommunityUsersUserID>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetCommunityUsersUserIDQueryOptions(userID, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export const getGetCommunityUsersUserIDLibraryUrl = (
+  userID: string,
+  params?: GetCommunityUsersUserIDLibraryParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : String(value));
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/community/users/${userID}/library?${stringifiedParams}`
+    : `/community/users/${userID}/library`;
+};
+
+/**
+ * @summary List a user's library when shared with the instance
+ */
+export const getCommunityUsersUserIDLibrary = async (
+  userID: string,
+  params?: GetCommunityUsersUserIDLibraryParams,
+  options?: Parameters<typeof customFetch>[1],
+): Promise<CommunityLibraryPage> => {
+  return customFetch<CommunityLibraryPage>(getGetCommunityUsersUserIDLibraryUrl(userID, params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetCommunityUsersUserIDLibraryQueryKey = (
+  userID: string,
+  params?: GetCommunityUsersUserIDLibraryParams,
+) => {
+  return [`/community/users/${userID}/library`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetCommunityUsersUserIDLibraryQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCommunityUsersUserIDLibrary>>,
+  TError = BadRequestResponse | UnauthorizedResponse | void,
+>(
+  userID: string,
+  params?: GetCommunityUsersUserIDLibraryParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getCommunityUsersUserIDLibrary>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetCommunityUsersUserIDLibraryQueryKey(userID, params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getCommunityUsersUserIDLibrary>>> = ({
+    signal,
+  }) => getCommunityUsersUserIDLibrary(userID, params, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: userID !== null && userID !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCommunityUsersUserIDLibrary>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetCommunityUsersUserIDLibraryQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCommunityUsersUserIDLibrary>>
+>;
+export type GetCommunityUsersUserIDLibraryQueryError =
+  BadRequestResponse | UnauthorizedResponse | void;
+
+export function useGetCommunityUsersUserIDLibrary<
+  TData = Awaited<ReturnType<typeof getCommunityUsersUserIDLibrary>>,
+  TError = BadRequestResponse | UnauthorizedResponse | void,
+>(
+  userID: string,
+  params: undefined | GetCommunityUsersUserIDLibraryParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getCommunityUsersUserIDLibrary>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCommunityUsersUserIDLibrary>>,
+          TError,
+          Awaited<ReturnType<typeof getCommunityUsersUserIDLibrary>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetCommunityUsersUserIDLibrary<
+  TData = Awaited<ReturnType<typeof getCommunityUsersUserIDLibrary>>,
+  TError = BadRequestResponse | UnauthorizedResponse | void,
+>(
+  userID: string,
+  params?: GetCommunityUsersUserIDLibraryParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getCommunityUsersUserIDLibrary>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCommunityUsersUserIDLibrary>>,
+          TError,
+          Awaited<ReturnType<typeof getCommunityUsersUserIDLibrary>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetCommunityUsersUserIDLibrary<
+  TData = Awaited<ReturnType<typeof getCommunityUsersUserIDLibrary>>,
+  TError = BadRequestResponse | UnauthorizedResponse | void,
+>(
+  userID: string,
+  params?: GetCommunityUsersUserIDLibraryParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getCommunityUsersUserIDLibrary>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List a user's library when shared with the instance
+ */
+
+export function useGetCommunityUsersUserIDLibrary<
+  TData = Awaited<ReturnType<typeof getCommunityUsersUserIDLibrary>>,
+  TError = BadRequestResponse | UnauthorizedResponse | void,
+>(
+  userID: string,
+  params?: GetCommunityUsersUserIDLibraryParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getCommunityUsersUserIDLibrary>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetCommunityUsersUserIDLibraryQueryOptions(userID, params, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export const getGetCommunityUsersUserIDActivityUrl = (
+  userID: string,
+  params?: GetCommunityUsersUserIDActivityParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : String(value));
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/community/users/${userID}/activity?${stringifiedParams}`
+    : `/community/users/${userID}/activity`;
+};
+
+/**
+ * @summary List a user's recent activity when shared with the instance
+ */
+export const getCommunityUsersUserIDActivity = async (
+  userID: string,
+  params?: GetCommunityUsersUserIDActivityParams,
+  options?: Parameters<typeof customFetch>[1],
+): Promise<FeedPage> => {
+  return customFetch<FeedPage>(getGetCommunityUsersUserIDActivityUrl(userID, params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetCommunityUsersUserIDActivityQueryKey = (
+  userID: string,
+  params?: GetCommunityUsersUserIDActivityParams,
+) => {
+  return [`/community/users/${userID}/activity`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetCommunityUsersUserIDActivityQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCommunityUsersUserIDActivity>>,
+  TError = BadRequestResponse | UnauthorizedResponse | void,
+>(
+  userID: string,
+  params?: GetCommunityUsersUserIDActivityParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getCommunityUsersUserIDActivity>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetCommunityUsersUserIDActivityQueryKey(userID, params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getCommunityUsersUserIDActivity>>> = ({
+    signal,
+  }) => getCommunityUsersUserIDActivity(userID, params, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: userID !== null && userID !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCommunityUsersUserIDActivity>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetCommunityUsersUserIDActivityQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getCommunityUsersUserIDActivity>>
+>;
+export type GetCommunityUsersUserIDActivityQueryError =
+  BadRequestResponse | UnauthorizedResponse | void;
+
+export function useGetCommunityUsersUserIDActivity<
+  TData = Awaited<ReturnType<typeof getCommunityUsersUserIDActivity>>,
+  TError = BadRequestResponse | UnauthorizedResponse | void,
+>(
+  userID: string,
+  params: undefined | GetCommunityUsersUserIDActivityParams,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getCommunityUsersUserIDActivity>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCommunityUsersUserIDActivity>>,
+          TError,
+          Awaited<ReturnType<typeof getCommunityUsersUserIDActivity>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetCommunityUsersUserIDActivity<
+  TData = Awaited<ReturnType<typeof getCommunityUsersUserIDActivity>>,
+  TError = BadRequestResponse | UnauthorizedResponse | void,
+>(
+  userID: string,
+  params?: GetCommunityUsersUserIDActivityParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getCommunityUsersUserIDActivity>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCommunityUsersUserIDActivity>>,
+          TError,
+          Awaited<ReturnType<typeof getCommunityUsersUserIDActivity>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetCommunityUsersUserIDActivity<
+  TData = Awaited<ReturnType<typeof getCommunityUsersUserIDActivity>>,
+  TError = BadRequestResponse | UnauthorizedResponse | void,
+>(
+  userID: string,
+  params?: GetCommunityUsersUserIDActivityParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getCommunityUsersUserIDActivity>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List a user's recent activity when shared with the instance
+ */
+
+export function useGetCommunityUsersUserIDActivity<
+  TData = Awaited<ReturnType<typeof getCommunityUsersUserIDActivity>>,
+  TError = BadRequestResponse | UnauthorizedResponse | void,
+>(
+  userID: string,
+  params?: GetCommunityUsersUserIDActivityParams,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getCommunityUsersUserIDActivity>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetCommunityUsersUserIDActivityQueryOptions(userID, params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;

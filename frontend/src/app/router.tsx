@@ -35,6 +35,12 @@ const profileRoute = createRoute({
   path: "/profile",
   component: () => <DashboardRoute page={{ kind: "profile" }} />,
 });
+const userProfileRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/users/$userID",
+  component: UserProfileRoute,
+  validateSearch: (search) => z.object({ from: z.string().max(2048).optional() }).parse(search),
+});
 const logoutRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/logout",
@@ -88,6 +94,7 @@ const routeTree = rootRoute.addChildren([
   discoverRoute,
   feedRoute,
   profileRoute,
+  userProfileRoute,
   logoutRoute,
   profileLibraryListRoute,
   mediaRoute,
@@ -117,6 +124,13 @@ function PersonRoute() {
   const search = personRoute.useSearch();
   return (
     <DashboardRoute page={{ kind: "person", personID: params.tmdbID, returnTo: search.from }} />
+  );
+}
+function UserProfileRoute() {
+  const params = userProfileRoute.useParams();
+  const search = userProfileRoute.useSearch();
+  return (
+    <DashboardRoute page={{ kind: "user-profile", userID: params.userID, returnTo: search.from }} />
   );
 }
 function MediaRoute() {

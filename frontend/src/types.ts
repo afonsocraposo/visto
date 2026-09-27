@@ -53,6 +53,7 @@ export type LibraryEntry = {
 
 export type FeedItem = {
   id: string;
+  user_id: string;
   display_name: string;
   kind: "watch" | "rewatch" | "rating" | "bulk_watch";
   title: string;
@@ -65,6 +66,15 @@ export type FeedItem = {
   episode_number?: number;
   episode_name?: string;
   occurred_at: string;
+};
+
+export type CommunityUser = { id: string; name: string };
+export type CommunityProfile = CommunityUser & { sharing: boolean };
+export type CommunityLibraryItem = {
+  media: SearchMedia & { id: string };
+  status: LibraryStatus;
+  rating: number | null;
+  progress?: { watched_episodes: number; total_episodes: number };
 };
 
 export type Episode = {

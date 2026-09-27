@@ -10,6 +10,7 @@ type Props = {
   mediaType?: "movie" | "tv";
   artworkPath?: string;
   actor?: string;
+  onOpenActor?: () => void;
   action: string;
   episodeLabel?: string;
   episodeName?: string;
@@ -26,6 +27,7 @@ export function ActivityRow({
   mediaType,
   artworkPath,
   actor,
+  onOpenActor,
   action,
   episodeLabel,
   episodeName,
@@ -79,15 +81,31 @@ export function ActivityRow({
           wrap="nowrap"
         >
           <Group gap="xs" wrap="nowrap" className="activity-row-byline">
-            {actor && (
-              <Avatar className="activity-avatar" size={30} aria-hidden="true">
-                {actor.trim().slice(0, 1).toLocaleUpperCase()}
-              </Avatar>
+            {onOpenActor ? (
+              <button
+                type="button"
+                className="activity-actor-button"
+                onClick={onOpenActor}
+                aria-label={`Open ${actor || "your"} profile`}
+              >
+                <Avatar className="activity-avatar" size={30} aria-hidden="true">
+                  {(actor || "You").trim().slice(0, 1).toLocaleUpperCase()}
+                </Avatar>
+                <span>{actor || "You"}</span>
+              </button>
+            ) : (
+              <>
+                {actor && (
+                  <Avatar className="activity-avatar" size={30} aria-hidden="true">
+                    {actor.trim().slice(0, 1).toLocaleUpperCase()}
+                  </Avatar>
+                )}
+                <Text component="span" size="sm" fw={700}>
+                  {actor || "You"}
+                </Text>
+              </>
             )}
-            <Text size="sm" c="dimmed" lineClamp={1}>
-              <Text component="span" fw={700} c="var(--mantine-color-text)">
-                {actor || "You"}
-              </Text>{" "}
+            <Text component="span" size="sm" c="dimmed">
               {action}
             </Text>
           </Group>

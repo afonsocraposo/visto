@@ -8,6 +8,7 @@ import (
 
 type Item struct {
 	ID            string    `json:"id"`
+	UserID        string    `json:"user_id"`
 	DisplayName   string    `json:"display_name"`
 	Kind          string    `json:"kind"`
 	Title         string    `json:"title"`
@@ -30,6 +31,9 @@ type Page struct {
 type Repository interface {
 	List(context.Context, string, int) (Page, error)
 }
+type userRepository interface {
+	ListUser(context.Context, string, string, int) (Page, error)
+}
 type Service struct{ repository Repository }
 
 func NewService(repository Repository) *Service { return &Service{repository: repository} }
@@ -41,4 +45,21 @@ func (service *Service) List(ctx context.Context, cursor string, limit int) (Pag
 		return Page{}, fmt.Errorf("limit must not exceed 100")
 	}
 	return service.repository.List(ctx, cursor, limit)
+}
+
+func (service *Service) ListUser(ctx context.Context, userID, cursor string, limit int) (Page, error) {
+	if userID == "" {
+		return Page{}, fmt.Errorf("user is required")
+	}
+	if limit <= 0 {
+		limit = 30
+	}
+	if limit > 100 {
+		return Page{}, fmt.Errorf("limit must not exceed 100")
+	}
+	repo, ok := service.repository.(userRepository)
+	if !ok {
+		return Page{}, fmt.Errorf("user feed is not configured")
+	}
+	return repo.ListUser(ctx, userID, cursor, limit)
 }

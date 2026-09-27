@@ -1,5 +1,7 @@
 import { useState } from "react";
-import { Tabs, Text, Title } from "@mantine/core";
+import { Button, Group, Tabs, Text, Title } from "@mantine/core";
+import { IconUsers } from "@tabler/icons-react";
+import { UserDirectory } from "./UserDirectory";
 import { HistoryPanel } from "../library/HistoryPanel";
 import { FeedPanel } from "./FeedPanel";
 import type { MediaDetailTarget } from "../../types";
@@ -9,25 +11,45 @@ type FeedSection = "history" | "community";
 
 export function FeedArea({
   onOpenDetail,
+  onOpenUser,
   userID,
 }: {
   onOpenDetail?: (target: MediaDetailTarget) => void;
+  onOpenUser?: (userID: string) => void;
   userID: string;
 }) {
   const tabStorageKey = `visto:tab:${userID}:feed`;
   const [section, setSection] = useState<FeedSection>(() =>
     readStoredChoice("session", tabStorageKey, ["history", "community"] as const, "history"),
   );
+  const [directoryOpen, setDirectoryOpen] = useState(false);
 
   return (
     <section className="activity-page" aria-label="Activity">
-      <div className="page-heading">
-        <Text className="section-kicker">Your watchroom</Text>
-        <Title order={1}>Activity</Title>
-        <Text c="dimmed" mt={6}>
-          Your watch history and what others have shared.
-        </Text>
-      </div>
+      <Group className="page-heading" justify="space-between" align="start" wrap="nowrap">
+        <div>
+          <Text className="section-kicker">Your watchroom</Text>
+          <Title order={1}>Activity</Title>
+          <Text c="dimmed" mt={6}>
+            Your watch history and what others have shared.
+          </Text>
+        </div>
+        <Button
+          variant="light"
+          leftSection={<IconUsers size={18} />}
+          onClick={() => setDirectoryOpen(true)}
+        >
+          Users
+        </Button>
+      </Group>
+      <UserDirectory
+        opened={directoryOpen}
+        onClose={() => setDirectoryOpen(false)}
+        onOpenUser={(id) => {
+          setDirectoryOpen(false);
+          onOpenUser?.(id);
+        }}
+      />
       <Tabs
         className="section-tabs"
         value={section}
@@ -46,7 +68,7 @@ export function FeedArea({
           <HistoryPanel onOpenDetail={onOpenDetail} />
         </Tabs.Panel>
         <Tabs.Panel value="community" pt="md">
-          <FeedPanel onOpenDetail={onOpenDetail} />
+          <FeedPanel onOpenDetail={onOpenDetail} onOpenUser={onOpenUser} />
         </Tabs.Panel>
       </Tabs>
     </section>

@@ -181,7 +181,7 @@ export function ProfilePanel({
       <Paper withBorder p="md" mt="lg">
         <Title order={2}>Profile</Title>
         <Text size="sm" c="dimmed" mt="xs">
-          Choose who can see your activity and which time zone the calendar uses.
+          Choose who can see your activity and library, and set the calendar time zone.
         </Text>
         {settings.isError && (
           <Alert color="red" mt="md">
@@ -190,7 +190,8 @@ export function ProfilePanel({
         )}
         <Select
           mt="md"
-          label="Activity feed"
+          label="Activity and library sharing"
+          description="Visible to this instance lets other signed-in users see your library and recent activity."
           disabled={settingsUnavailable}
           {...form.getInputProps("visibility")}
           data={[

@@ -31,6 +31,15 @@ func (store *Store) ListUsers(ctx context.Context) ([]domain.User, error) {
 	return users, nil
 }
 
+func (store *Store) FindUserByID(ctx context.Context, userID string) (domain.User, error) {
+	row := store.DB.QueryRowContext(ctx, `SELECT id,email,display_name,'',role,created_at FROM users WHERE id=?`, userID)
+	user, _, err := scanUser(row)
+	if errors.Is(err, auth.ErrInvalidCredentials) {
+		return domain.User{}, auth.ErrUserNotFound
+	}
+	return user, err
+}
+
 func (store *Store) UpdateUser(ctx context.Context, userID, displayName, passwordHash, keepSessionHash string) error {
 	tx, err := store.DB.BeginTx(ctx, nil)
 	if err != nil {

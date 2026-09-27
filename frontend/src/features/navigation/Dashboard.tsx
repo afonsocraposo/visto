@@ -33,12 +33,16 @@ const MediaDetailPage = lazy(async () => ({
 const PersonDetailPage = lazy(async () => ({
   default: (await import("../people/PersonDetailPage")).PersonDetailPage,
 }));
+const UserProfilePage = lazy(async () => ({
+  default: (await import("../feed/UserProfilePage")).UserProfilePage,
+}));
 
 export type DashboardPage =
   | { kind: "watch" | "discover" | "feed" | "profile" }
   | { kind: "library-list"; status: LibraryStatus; mediaFilter: LibraryMediaFilter }
   | { kind: "media"; target: MediaDetailTarget; returnTo?: string }
-  | { kind: "person"; personID: number; returnTo?: string };
+  | { kind: "person"; personID: number; returnTo?: string }
+  | { kind: "user-profile"; userID: string; returnTo?: string };
 
 export function Dashboard({
   user,
@@ -56,16 +60,22 @@ export function Dashboard({
   const currentHref = useRouterState({ select: (state) => state.location.href });
   const detail = page.kind === "media" ? page.target : null;
   const personID = page.kind === "person" ? page.personID : undefined;
+  const profileUserID = page.kind === "user-profile" ? page.userID : undefined;
   const listStatus = page.kind === "library-list" ? page.status : undefined;
-  const returnTo = page.kind === "media" || page.kind === "person" ? page.returnTo : undefined;
+  const returnTo =
+    page.kind === "media" || page.kind === "person" || page.kind === "user-profile"
+      ? page.returnTo
+      : undefined;
   const tab: Tab =
     page.kind === "discover"
       ? "search"
       : page.kind === "feed"
         ? "feed"
-        : page.kind === "profile" || page.kind === "library-list"
-          ? "library"
-          : "watch";
+        : page.kind === "user-profile"
+          ? "feed"
+          : page.kind === "profile" || page.kind === "library-list"
+            ? "library"
+            : "watch";
   const openDetail = (target: MediaDetailTarget) =>
     void navigate({
       to: `/media/${target.mediaType}/${target.tmdbID}`,
@@ -78,6 +88,12 @@ export function Dashboard({
     });
   const openPerson = (tmdbID: number) =>
     void navigate({ to: `/people/${tmdbID}`, search: { from: currentHref } });
+  const openUser = (userID: string) =>
+    void navigate(
+      userID === user.id
+        ? { to: "/profile" }
+        : { to: "/users/$userID", params: { userID }, search: { from: currentHref } },
+    );
   const watchTabStorageKey = `visto:tab:${user.id}:watching`;
   const [view, setView] = useState(() =>
     readStoredChoice("session", watchTabStorageKey, ["now", "calendar"] as const, "now"),
@@ -160,7 +176,15 @@ export function Dashboard({
             </Group>
           </Alert>
         )}
-        {personID ? (
+        {profileUserID ? (
+          <Deferred>
+            <UserProfilePage
+              userID={profileUserID}
+              onBack={() => void navigate({ to: safeReturnPath(returnTo, "/feed") })}
+              onOpenDetail={openDetail}
+            />
+          </Deferred>
+        ) : personID ? (
           <Deferred>
             <PersonDetailPage
               personID={personID}
@@ -228,17 +252,17 @@ export function Dashboard({
             </>
           )
         )}
-        {!detail && !personID && tab === "search" && (
+        {!profileUserID && !detail && !personID && tab === "search" && (
           <Deferred>
             <SearchPanel onOpenDetail={openDetail} />
           </Deferred>
         )}
-        {!detail && !personID && tab === "feed" && (
+        {!profileUserID && !detail && !personID && tab === "feed" && (
           <Deferred>
-            <FeedArea userID={user.id} onOpenDetail={openDetail} />
+            <FeedArea userID={user.id} onOpenDetail={openDetail} onOpenUser={openUser} />
           </Deferred>
         )}
-        {!detail && !personID && !listStatus && tab === "library" && (
+        {!profileUserID && !detail && !personID && !listStatus && tab === "library" && (
           <Deferred>
             <LibraryArea
               user={user}

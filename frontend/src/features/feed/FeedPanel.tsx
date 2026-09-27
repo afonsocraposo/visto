@@ -9,8 +9,10 @@ import { ActivityRow } from "./ActivityRow";
 
 export function FeedPanel({
   onOpenDetail,
+  onOpenUser,
 }: {
   onOpenDetail?: (target: MediaDetailTarget) => void;
+  onOpenUser?: (userID: string) => void;
 }) {
   const userQueryKey = useUserQueryKey();
   const feed = useInfiniteQuery({
@@ -56,6 +58,7 @@ export function FeedPanel({
             mediaType={item.media_type}
             artworkPath={item.artwork_path}
             actor={item.display_name}
+            onOpenActor={() => onOpenUser?.(item.user_id)}
             action={activityAction(item)}
             episodeLabel={episodeLabel(item)}
             episodeName={item.episode_name}
@@ -79,7 +82,7 @@ export function FeedPanel({
   );
 }
 
-function activityAction(item: FeedItem) {
+export function activityAction(item: FeedItem) {
   if (item.kind === "rewatch") return "rewatched";
   if (item.kind === "rating") return "rated";
   if (item.kind === "bulk_watch") {
@@ -89,7 +92,7 @@ function activityAction(item: FeedItem) {
   return "watched";
 }
 
-function episodeLabel(item: FeedItem) {
+export function episodeLabel(item: FeedItem) {
   if (item.season_number == null || item.episode_number == null) return undefined;
   return `S${String(item.season_number).padStart(2, "0")}E${String(item.episode_number).padStart(2, "0")}`;
 }

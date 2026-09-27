@@ -898,6 +898,28 @@ select {
 .activity-row-byline > p {
   min-width: 0;
 }
+.activity-actor-button {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--mantine-color-text);
+  font: inherit;
+  font-size: var(--mantine-font-size-sm);
+  font-weight: 700;
+  cursor: pointer;
+}
+.activity-actor-button:hover span {
+  text-decoration: underline;
+}
+.activity-actor-button:focus-visible {
+  outline: 2px solid #48b7ae;
+  outline-offset: 3px;
+  border-radius: 4px;
+}
 .activity-avatar {
   flex: 0 0 auto;
   background: color-mix(in srgb, #f2b544 22%, var(--mantine-color-body));

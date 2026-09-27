@@ -10,6 +10,7 @@ import type { FeedItemMediaType } from "./feedItemMediaType";
 
 export interface FeedItem {
   id: string;
+  user_id: string;
   display_name: string;
   kind: FeedItemKind;
   title: string;
