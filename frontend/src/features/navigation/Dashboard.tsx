@@ -198,7 +198,7 @@ export function Dashboard({
                 <Tabs.List>
                   <Tabs.Tab value="now">To watch</Tabs.Tab>
                   <Tabs.Tab value="calendar" leftSection={<IconCalendar size={16} />}>
-                    Calendar
+                    Upcoming
                   </Tabs.Tab>
                 </Tabs.List>
               </Tabs>
