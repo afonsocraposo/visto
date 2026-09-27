@@ -3,13 +3,14 @@ import { useInfiniteQuery } from "@tanstack/react-query";
 import { Alert, Button, Group, Loader, SegmentedControl, Select, Text, Title } from "@mantine/core";
 import { IconArrowLeft } from "@tabler/icons-react";
 import { useState } from "react";
-import { useUserQueryKey } from "../auth/SessionContext";
+import { useSessionUserID, useUserQueryKey } from "../auth/SessionContext";
 import { api } from "../../lib/api";
 import type { CursorPage, LibraryEntry, LibraryStatus, MediaDetailTarget } from "../../types";
 import { pageURL } from "../../lib/pagination";
 import { LibraryCard } from "./LibraryCard";
 import { librarySortOptions, type LibrarySort } from "./librarySort";
 import { libraryMediaFilterOptions, type LibraryMediaFilter } from "./mediaFilter";
+import { readLibrarySort, saveLibraryFilter, saveLibrarySort } from "./libraryPreferences";
 
 const labels: Record<LibraryStatus, string> = {
   watching: "Watching",
@@ -32,7 +33,8 @@ export function LibraryListPage({
   onBack: () => void;
   onOpenDetail?: (target: MediaDetailTarget) => void;
 }) {
-  const [sort, setSort] = useState<LibrarySort>("updated");
+  const userID = useSessionUserID();
+  const [sort, setSort] = useState<LibrarySort>(() => readLibrarySort(userID));
   const userQueryKey = useUserQueryKey();
   const library = useInfiniteQuery({
     queryKey: [...userQueryKey("library"), "page", sort, status, mediaFilter],
@@ -74,14 +76,19 @@ export function LibraryListPage({
         <Text className="section-kicker">Your collection</Text>
         <Title order={1}>{labels[status]}</Title>
         <Text c="dimmed" mt={6}>
-          {entries.length} {entries.length === 1 ? "title" : "titles"} loaded.
+          {library.data.pages[0].total_count ?? entries.length}{" "}
+          {(library.data.pages[0].total_count ?? entries.length) === 1 ? "title" : "titles"}
         </Text>
       </div>
       <Group mb="xl" align="end" justify="space-between">
         <SegmentedControl
           aria-label="Filter library by media type"
           value={mediaFilter}
-          onChange={(value) => onMediaFilterChange(value as LibraryMediaFilter)}
+          onChange={(value) => {
+            const next = value as LibraryMediaFilter;
+            saveLibraryFilter(userID, next);
+            onMediaFilterChange(next);
+          }}
           data={libraryMediaFilterOptions}
         />
         <Select
@@ -89,7 +96,12 @@ export function LibraryListPage({
           aria-label="Sort library media"
           data={librarySortOptions}
           value={sort}
-          onChange={(value) => value && setSort(value as LibrarySort)}
+          onChange={(value) => {
+            if (!value) return;
+            const next = value as LibrarySort;
+            setSort(next);
+            saveLibrarySort(userID, next);
+          }}
           allowDeselect={false}
         />
       </Group>

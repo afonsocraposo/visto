@@ -11,4 +11,9 @@ export interface LibraryPage {
   items: LibraryEntry[];
   /** @nullable */
   next_cursor: string | null;
+  /**
+   * Total number of titles matching the requested status and media type filters.
+   * @minimum 0
+   */
+  total_count: number;
 }

@@ -127,10 +127,13 @@ test("Given a fresh install, When the service worker installs, Then it precaches
   await harness.start();
   await harness.install();
 
-  const shell = harness.cacheStore.get("visto-shell-v3");
+  const shell = harness.cacheStore.get("visto-shell-v4");
   assert.ok(await shell.match(`${origin}/`));
   assert.ok(await shell.match(`${origin}/manifest.webmanifest`));
-  assert.ok(await shell.match(`${origin}/icon.svg?v=2`));
+  assert.ok(await shell.match(`${origin}/icon.svg?v=3`));
+  assert.ok(await shell.match(`${origin}/icon-192.png?v=3`));
+  assert.ok(await shell.match(`${origin}/maskable-icon-512.png?v=3`));
+  assert.ok(await shell.match(`${origin}/apple-touch-icon.png?v=3`));
 });
 
 test("Given a new app shell, When the service worker activates, Then it removes only the old shell cache", async () => {
@@ -142,7 +145,7 @@ test("Given a new app shell, When the service worker activates, Then it removes 
   await harness.activate();
 
   assert.equal(harness.cacheStore.has("visto-shell-v1"), false);
-  assert.equal(harness.cacheStore.has("visto-shell-v3"), true);
+  assert.equal(harness.cacheStore.has("visto-shell-v4"), true);
   assert.equal(harness.cacheStore.has("visto-user-v1-alice"), false);
 });
 
@@ -156,7 +159,7 @@ test("Given a browser install prompt, When it reads the web manifest, Then Visto
     "utf8",
   );
   const icon = await readFile(new URL("../public/icon.svg", import.meta.url), "utf8");
-  const iconURL = "/icon.svg?v=2";
+  const iconURL = "/icon-192.png?v=3";
 
   assert.equal(manifest.start_url, "/");
   assert.equal(manifest.display, "standalone");
@@ -164,14 +167,17 @@ test("Given a browser install prompt, When it reads the web manifest, Then Visto
     manifest.icons.some(
       (manifestIcon) =>
         manifestIcon.src === iconURL &&
-        manifestIcon.type === "image/svg+xml" &&
-        manifestIcon.sizes === "any",
+        manifestIcon.type === "image/png" &&
+        manifestIcon.sizes === "192x192" &&
+        manifestIcon.purpose === "any",
     ),
   );
+  assert.ok(manifest.icons.some((manifestIcon) => manifestIcon.purpose === "maskable"));
   assert.match(html, /<link\s+rel="manifest"\s+href="\/manifest\.webmanifest"/);
-  assert.match(html, /<link\s+rel="icon"\s+href="\/icon\.svg\?v=2"/);
-  assert.match(authGate, /src="\/icon\.svg\?v=2"/);
-  assert.match(icon, /fill="#f2b544"/);
+  assert.match(html, /<link\s+rel="apple-touch-icon"\s+href="\/apple-touch-icon\.png\?v=3"/);
+  assert.match(html, /<link\s+rel="icon"\s+href="\/icon\.svg\?v=3"/);
+  assert.match(authGate, /src="\/icon\.svg\?v=3"/);
+  assert.match(icon, /<rect width="128" height="128" fill="#f2b544"/);
   assert.match(icon, /fill="#10141a"/);
 });
 

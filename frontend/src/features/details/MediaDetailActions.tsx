@@ -299,13 +299,15 @@ export function MediaActions({
         disabled={pending}
         size="md"
       />
-      <Switch
-        aria-label="New episode notifications for this show"
-        label="Episode alerts"
-        checked={notificationsEnabled}
-        disabled={updateNotifications.isPending}
-        onChange={(event) => updateNotifications.mutate(event.currentTarget.checked)}
-      />
+      {media.type === "tv" && status === "watching" && (
+        <Switch
+          aria-label="New episode notifications for this show"
+          label="Episode alerts"
+          checked={notificationsEnabled}
+          disabled={updateNotifications.isPending}
+          onChange={(event) => updateNotifications.mutate(event.currentTarget.checked)}
+        />
+      )}
     </Group>
   );
 }

@@ -15,6 +15,7 @@ import type { LibraryMediaFilter } from "../library/mediaFilter";
 import { connectionUnavailableEvent } from "../../lib/api";
 import { ActionFeedback } from "../../components/ActionFeedback";
 import { clearSignedInCache, endCurrentSession } from "../auth/logout";
+import { readStoredChoice, writeStoredChoice } from "../../lib/browserStorage";
 
 const SearchPanel = lazy(async () => ({
   default: (await import("../search/SearchPanel")).SearchPanel,
@@ -77,7 +78,10 @@ export function Dashboard({
     });
   const openPerson = (tmdbID: number) =>
     void navigate({ to: `/people/${tmdbID}`, search: { from: currentHref } });
-  const [view, setView] = useState("now");
+  const watchTabStorageKey = `visto:tab:${user.id}:watching`;
+  const [view, setView] = useState(() =>
+    readStoredChoice("session", watchTabStorageKey, ["now", "calendar"] as const, "now"),
+  );
   const [online, setOnline] = useState(() => navigator.onLine);
   const [checkingConnection, setCheckingConnection] = useState(false);
   const logout = useMutation({
@@ -203,7 +207,11 @@ export function Dashboard({
               <Tabs
                 className="section-tabs"
                 value={view}
-                onChange={(value) => setView(value || "now")}
+                onChange={(value) => {
+                  const next = value === "calendar" ? "calendar" : "now";
+                  setView(next);
+                  writeStoredChoice("session", watchTabStorageKey, next);
+                }}
               >
                 <Tabs.List>
                   <Tabs.Tab value="now">To watch</Tabs.Tab>
@@ -227,7 +235,7 @@ export function Dashboard({
         )}
         {!detail && !personID && tab === "feed" && (
           <Deferred>
-            <FeedArea onOpenDetail={openDetail} />
+            <FeedArea userID={user.id} onOpenDetail={openDetail} />
           </Deferred>
         )}
         {!detail && !personID && !listStatus && tab === "library" && (

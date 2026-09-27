@@ -2,20 +2,26 @@ import { useQueries } from "@tanstack/react-query";
 import { Alert, Button, Group, Loader, SegmentedControl, Select, Text, Title } from "@mantine/core";
 import { useState } from "react";
 import { EmptyState } from "../../components/EmptyState";
-import { useUserQueryKey } from "../auth/SessionContext";
+import { useSessionUserID, useUserQueryKey } from "../auth/SessionContext";
 import { api } from "../../lib/api";
 import { LibraryCard } from "./LibraryCard";
 import type { CursorPage, LibraryEntry, LibraryStatus, MediaDetailTarget } from "../../types";
 import { librarySortOptions, type LibrarySort } from "./librarySort";
 import { libraryMediaFilterOptions, type LibraryMediaFilter } from "./mediaFilter";
+import {
+  readLibraryFilter,
+  readLibrarySort,
+  saveLibraryFilter,
+  saveLibrarySort,
+} from "./libraryPreferences";
 export { HistoryPanel } from "./HistoryPanel";
 export { ProfilePanel } from "./ProfilePanel";
 
 const sections: Array<{ status: LibraryStatus; label: string }> = [
   { status: "watching", label: "Watching" },
-  { status: "completed", label: "Completed" },
   { status: "watchlist", label: "Watchlist" },
   { status: "paused", label: "Paused" },
+  { status: "completed", label: "Completed" },
   { status: "dropped", label: "Dropped" },
 ];
 const PREVIEW_LIMIT = 6;
@@ -27,8 +33,11 @@ export function LibraryPanel({
   onOpenDetail?: (target: MediaDetailTarget) => void;
   onOpenList?: (status: LibraryStatus, mediaFilter: LibraryMediaFilter) => void;
 }) {
-  const [mediaFilter, setMediaFilter] = useState<LibraryMediaFilter>("all");
-  const [sort, setSort] = useState<LibrarySort>("updated");
+  const userID = useSessionUserID();
+  const [mediaFilter, setMediaFilter] = useState<LibraryMediaFilter>(() =>
+    readLibraryFilter(userID),
+  );
+  const [sort, setSort] = useState<LibrarySort>(() => readLibrarySort(userID));
   const userQueryKey = useUserQueryKey();
   const libraries = useQueries({
     queries: sections.map((section) => ({
@@ -72,7 +81,11 @@ export function LibraryPanel({
         <SegmentedControl
           aria-label="Filter library by media type"
           value={mediaFilter}
-          onChange={(value) => setMediaFilter(value as LibraryMediaFilter)}
+          onChange={(value) => {
+            const next = value as LibraryMediaFilter;
+            setMediaFilter(next);
+            saveLibraryFilter(userID, next);
+          }}
           data={libraryMediaFilterOptions}
         />
         <Select
@@ -80,7 +93,12 @@ export function LibraryPanel({
           aria-label="Sort library media"
           data={librarySortOptions}
           value={sort}
-          onChange={(value) => value && setSort(value as LibrarySort)}
+          onChange={(value) => {
+            if (!value) return;
+            const next = value as LibrarySort;
+            setSort(next);
+            saveLibrarySort(userID, next);
+          }}
           allowDeselect={false}
         />
       </Group>
@@ -89,7 +107,7 @@ export function LibraryPanel({
           const page = libraries[index].data!;
           const entries = page.items;
           if (entries.length === 0) return null;
-          const visible = entries;
+          const totalCount = page.total_count ?? entries.length;
           return (
             <section
               className="library-section"
@@ -107,7 +125,7 @@ export function LibraryPanel({
                     {section.label}
                   </Title>
                   <Text size="sm" c="dimmed">
-                    {entries.length} {entries.length === 1 ? "title" : "titles"} shown
+                    {totalCount} {totalCount === 1 ? "title" : "titles"}
                   </Text>
                 </div>
                 {page.next_cursor && (
@@ -121,7 +139,7 @@ export function LibraryPanel({
                 )}
               </Group>
               <div className="poster-grid">
-                {visible.map((entry) => (
+                {entries.map((entry) => (
                   <LibraryCard
                     key={entry.item.media_id}
                     entry={entry}

@@ -13,3 +13,9 @@ export function useUserQueryKey() {
   if (!user) throw new Error("User-scoped queries require an authenticated session.");
   return (...key: QueryKey): QueryKey => ["user", user.id, ...key];
 }
+
+export function useSessionUserID(): string {
+  const user = useContext(SessionContext);
+  if (!user) throw new Error("User-scoped views require an authenticated session.");
+  return user.id;
+}

@@ -48,6 +48,20 @@ func TestWebPushCandidatesStaySeparateFromPushoverAndOlderEpisodes(t *testing.T)
 	if len(web) != 1 || web[0].EpisodeID != "new" {
 		t.Fatalf("web candidates=%+v", web)
 	}
+	if _, err := store.DB.Exec(`UPDATE user_media SET status='dropped' WHERE user_id=? AND media_id='tv:42'`, user); err != nil {
+		t.Fatal(err)
+	}
+	web, err = store.WebPushCandidates(ctx, now, 10)
+	if err != nil || len(web) != 0 {
+		t.Fatalf("non-Watching show produced web push candidates=%+v err=%v", web, err)
+	}
+	if _, err := store.DB.Exec(`UPDATE user_media SET status='watching' WHERE user_id=? AND media_id='tv:42'`, user); err != nil {
+		t.Fatal(err)
+	}
+	web, err = store.WebPushCandidates(ctx, now, 10)
+	if err != nil || len(web) != 1 {
+		t.Fatalf("Watching show candidates after restore=%+v err=%v", web, err)
+	}
 	if ok, err := store.ClaimWebPush(ctx, user, "new", device, now); err != nil || !ok {
 		t.Fatalf("claim=%t err=%v", ok, err)
 	}

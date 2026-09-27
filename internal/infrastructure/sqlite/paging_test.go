@@ -29,12 +29,21 @@ func TestPagesTraverseLibraryPlaysAndUsers(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	if _, err := store.DB.Exec(`INSERT INTO media(id,media_type,tmdb_id,title,metadata_updated_at,created_at) VALUES('tv:42','tv',42,'Example Show',?,?)`, testTimestamp, testTimestamp); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.DB.Exec(`INSERT INTO user_media(id,user_id,media_id,status,added_at,updated_at) VALUES(?, ?, 'tv:42', 'watching', ?, ?)`, userID+"tv:42", userID, testTimestamp, testTimestamp); err != nil {
+		t.Fatal(err)
+	}
 	req := pagination.Request{Limit: 1}
 	ids := []string{}
 	for {
 		page, err := store.ListItemsPage(ctx, userID, library.ListOptions{Sort: "updated", Status: "watchlist"}, req)
 		if err != nil {
 			t.Fatal(err)
+		}
+		if page.TotalCount == nil || *page.TotalCount != 3 {
+			t.Fatalf("watchlist total_count = %v, want 3", page.TotalCount)
 		}
 		for _, item := range page.Items {
 			ids = append(ids, item.Item.MediaID)
@@ -43,6 +52,14 @@ func TestPagesTraverseLibraryPlaysAndUsers(t *testing.T) {
 			break
 		}
 		req.Cursor = *page.NextCursor
+	}
+	tvPage, err := store.ListItemsPage(ctx, userID, library.ListOptions{Sort: "updated", Status: "watching", MediaType: "tv"}, pagination.Request{Limit: 1})
+	if err != nil || tvPage.TotalCount == nil || *tvPage.TotalCount != 1 || len(tvPage.Items) != 1 {
+		t.Fatalf("filtered TV count page: %+v, %v", tvPage, err)
+	}
+	emptyPage, err := store.ListItemsPage(ctx, userID, library.ListOptions{Sort: "updated", Status: "watching", MediaType: "movie"}, pagination.Request{Limit: 1})
+	if err != nil || emptyPage.TotalCount == nil || *emptyPage.TotalCount != 0 || len(emptyPage.Items) != 0 {
+		t.Fatalf("empty filtered library count page: %+v, %v", emptyPage, err)
 	}
 	if len(ids) != 3 || ids[0] != "movie:1" || ids[1] != "movie:2" || ids[2] != "movie:3" {
 		t.Fatalf("library pages: %v", ids)

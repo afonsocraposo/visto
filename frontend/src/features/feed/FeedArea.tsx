@@ -3,11 +3,21 @@ import { Tabs, Text, Title } from "@mantine/core";
 import { HistoryPanel } from "../library/HistoryPanel";
 import { FeedPanel } from "./FeedPanel";
 import type { MediaDetailTarget } from "../../types";
+import { readStoredChoice, writeStoredChoice } from "../../lib/browserStorage";
 
 type FeedSection = "history" | "community";
 
-export function FeedArea({ onOpenDetail }: { onOpenDetail?: (target: MediaDetailTarget) => void }) {
-  const [section, setSection] = useState<FeedSection>("history");
+export function FeedArea({
+  onOpenDetail,
+  userID,
+}: {
+  onOpenDetail?: (target: MediaDetailTarget) => void;
+  userID: string;
+}) {
+  const tabStorageKey = `visto:tab:${userID}:feed`;
+  const [section, setSection] = useState<FeedSection>(() =>
+    readStoredChoice("session", tabStorageKey, ["history", "community"] as const, "history"),
+  );
 
   return (
     <section className="activity-page" aria-label="Activity">
@@ -22,7 +32,11 @@ export function FeedArea({ onOpenDetail }: { onOpenDetail?: (target: MediaDetail
         className="section-tabs"
         value={section}
         keepMounted={false}
-        onChange={(value) => setSection((value || "history") as FeedSection)}
+        onChange={(value) => {
+          const next = value === "community" ? "community" : "history";
+          setSection(next);
+          writeStoredChoice("session", tabStorageKey, next);
+        }}
       >
         <Tabs.List>
           <Tabs.Tab value="history">History</Tabs.Tab>

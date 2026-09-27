@@ -35,6 +35,12 @@ func (s *Store) ListItemsPage(ctx context.Context, userID string, options librar
 	if keys == nil {
 		predicate = "1=1"
 	}
+	var totalCount int
+	if err := s.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM user_media um JOIN media m ON m.id=um.media_id
+		WHERE um.user_id=? AND (?='' OR m.media_type=?) AND (?='' OR um.status=?)`,
+		userID, options.MediaType, options.MediaType, options.Status, options.Status).Scan(&totalCount); err != nil {
+		return pagination.Page[library.Entry]{}, fmt.Errorf("count library items: %w", err)
+	}
 	query := `WITH candidates AS (
  SELECT um.media_id,um.updated_at,m.title,COALESCE(NULLIF(m.release_date,''),'0000-00-00') AS released,m.media_type,um.status
  FROM user_media um JOIN media m ON m.id=um.media_id WHERE um.user_id=?),
@@ -77,7 +83,7 @@ func (s *Store) ListItemsPage(ctx context.Context, userID string, options librar
 	for i, p := range found {
 		ids[i] = p.id
 	}
-	page := pagination.Page[library.Entry]{Items: []library.Entry{}}
+	page := pagination.Page[library.Entry]{Items: []library.Entry{}, TotalCount: &totalCount}
 	if len(ids) == 0 {
 		return page, nil
 	}

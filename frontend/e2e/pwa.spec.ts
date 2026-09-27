@@ -71,15 +71,25 @@ test("Given a signed-in user, When they navigate and manage appearance and accou
 
   await expect(page.locator(".visto-header")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Watching", exact: true })).toBeVisible();
+  await page.getByRole("tab", { name: "Upcoming" }).click();
+  await expect
+    .poll(() => page.evaluate(() => sessionStorage.getItem("visto:tab:user-1:watching")))
+    .toBe("calendar");
   await page.getByRole("button", { name: "Feed" }).click();
   await page.getByRole("tab", { name: "Community" }).click();
   await expect(page.getByText("No shared activity yet")).toBeVisible();
+  await expect
+    .poll(() => page.evaluate(() => sessionStorage.getItem("visto:tab:user-1:feed")))
+    .toBe("community");
   await page.getByRole("button", { name: "Discover" }).click();
   await expect(page.getByRole("textbox", { name: "Search TMDB" })).toBeVisible();
   await page.getByRole("button", { name: "Profile" }).click();
   await expect(page.getByText("Your library is empty")).toBeVisible();
   await page.getByRole("tab", { name: "Settings" }).click();
   await expect(page.getByText("Choose who can see your activity")).toBeVisible();
+  await expect
+    .poll(() => page.evaluate(() => sessionStorage.getItem("visto:tab:user-1:profile")))
+    .toBe("settings");
 
   await page.getByRole("combobox", { name: "Color theme" }).click();
   await page.getByRole("option", { name: "Dark" }).click();
@@ -88,6 +98,26 @@ test("Given a signed-in user, When they navigate and manage appearance and accou
   await page.getByRole("combobox", { name: "Color theme" }).click();
   await page.getByRole("option", { name: "Light" }).click();
   await expect(page.locator("html")).toHaveAttribute("data-mantine-color-scheme", "light");
+  await page.getByRole("button", { name: "Watching", exact: true }).click();
+  await expect(page.getByRole("tab", { name: "Upcoming" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await page.getByRole("button", { name: "Profile", exact: true }).click();
+  await expect(page.getByRole("tab", { name: "Settings" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await page.getByRole("button", { name: "Feed", exact: true }).click();
+  await expect(page.getByRole("tab", { name: "Community" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await page.getByRole("button", { name: "Profile", exact: true }).click();
+  await expect(page.getByRole("tab", { name: "Settings" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
 
   await page.setViewportSize({ width: 390, height: 844 });
   for (const label of ["Watching", "Discover", "Feed", "Profile"]) {
@@ -503,6 +533,9 @@ test("Given a TV show detail, When the user uses compact watch controls, Then sh
   await page.getByRole("button", { name: "Add The Example Show to Watching" }).click();
   await expect.poll(() => savedStatus).toBe("watching");
   await expect(page.getByRole("combobox", { name: "Current list" })).toBeVisible();
+  await expect(
+    page.getByRole("switch", { name: "New episode notifications for this show" }),
+  ).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByRole("button", { name: "Mark The Example Show watched" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Mark season 1 watched" })).toBeVisible();
@@ -520,6 +553,9 @@ test("Given a TV show detail, When the user uses compact watch controls, Then sh
   await page.getByRole("button", { name: "Save The Example Show for later" }).click();
   await expect.poll(() => savedStatus).toBe("watchlist");
   await expect(page.getByRole("combobox", { name: "Current list" })).toHaveValue("Watchlist");
+  await expect(
+    page.getByRole("switch", { name: "New episode notifications for this show" }),
+  ).toHaveCount(0);
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("combobox", { name: "Current list" }).click();
   await page.getByRole("option", { name: "Completed" }).click();
@@ -706,10 +742,26 @@ test("Given an installed service worker, When the app shell loads, Then the PWA 
     expect(manifestResponse.ok()).toBeTruthy();
     const manifest = await manifestResponse.json();
     expect(manifest.display).toBe("standalone");
-    expect(
-      manifest.icons.some((icon: { src: string }) => icon.src === "/icon.svg?v=2"),
-    ).toBeTruthy();
-    expect((await page.request.get("/icon.svg?v=2")).ok()).toBeTruthy();
+    expect(manifest.icons).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ src: "/icon-192.png?v=3", purpose: "any" }),
+        expect.objectContaining({ src: "/icon-512.png?v=3", purpose: "any" }),
+        expect.objectContaining({ src: "/maskable-icon-512.png?v=3", purpose: "maskable" }),
+      ]),
+    );
+    for (const asset of [
+      "/icon.svg?v=3",
+      "/icon-192.png?v=3",
+      "/icon-512.png?v=3",
+      "/maskable-icon-512.png?v=3",
+      "/apple-touch-icon.png?v=3",
+    ]) {
+      expect((await page.request.get(asset)).ok(), `${asset} is served`).toBeTruthy();
+    }
+    await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveAttribute(
+      "href",
+      "/apple-touch-icon.png?v=3",
+    );
   } finally {
     await context.close();
   }
@@ -829,12 +881,18 @@ test("Expanded library pages filter media before pagination and keep the selecti
   await expect(page.getByText("movie title 2")).toBeVisible();
   await page.getByText("TV shows", { exact: true }).click();
   await expect(page).toHaveURL(/\/profile\/library\/completed\?media_type=tv$/);
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem("visto:library:user-1:filter")))
+    .toBe("tv");
   await expect(page.getByText("tv title 3")).toBeVisible();
   await expect(page.getByText("movie title 1")).toHaveCount(0);
   await page.getByText("Movies", { exact: true }).click();
   await expect(page.getByText("movie title 2")).toBeVisible();
   await page.getByRole("combobox", { name: "Sort library media" }).click();
   await page.getByRole("option", { name: "Title" }).click();
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem("visto:library:user-1:sort")))
+    .toBe("title");
   expect(
     requested.some((query) => query.includes("media_type=movie") && query.includes("sort=title")),
   ).toBe(true);
@@ -843,6 +901,70 @@ test("Expanded library pages filter media before pagination and keep the selecti
   await expect(page.getByText("tv title 3")).toBeVisible();
   await page.goto("/profile");
   await page.getByText("TV shows", { exact: true }).click();
-  await page.getByRole("button", { name: "Show all" }).first().click();
+  await page
+    .locator(".library-section")
+    .filter({ has: page.getByRole("heading", { name: "Completed" }) })
+    .getByRole("button", { name: "Show all" })
+    .click();
   await expect(page).toHaveURL(/\/profile\/library\/completed\?media_type=tv$/);
+});
+
+test("Library previews show full filtered counts in the requested order and restore saved choices", async ({
+  page,
+}) => {
+  await mockSignedInSession(page);
+  const statuses = ["watching", "watchlist", "paused", "completed", "dropped"] as const;
+  const entry = (status: (typeof statuses)[number], type: "movie" | "tv", id: number) => ({
+    item: {
+      media_id: `${type}:${id}`,
+      status,
+      rating: null,
+      notifications_enabled: true,
+      updated_at: "2026-09-26T12:00:00Z",
+    },
+    media: {
+      id: `${type}:${id}`,
+      tmdb_id: id,
+      type,
+      title: `${status} ${type} ${id}`,
+      original_title: `${status} ${type} ${id}`,
+      overview: "",
+      release_date: "2026-01-01",
+      poster_path: "",
+      original_language: "en",
+    },
+  });
+  await page.route(/\/api\/v1\/library(?:\?.*)?$/, (route) => {
+    const url = new URL(route.request().url());
+    const status = url.searchParams.get("status") as (typeof statuses)[number] | null;
+    const isTV = url.searchParams.get("media_type") === "tv";
+    if (!status) return fulfillJSON(route, { items: [], next_cursor: null, total_count: 0 });
+    return fulfillJSON(route, {
+      items: [entry(status, isTV ? "tv" : "movie", statuses.indexOf(status) + 1)],
+      next_cursor: "more",
+      total_count: isTV ? 3 : 12,
+    });
+  });
+
+  await page.goto("/profile");
+  let sections = page.locator(".library-section");
+  await expect(sections).toHaveCount(5);
+  await expect(sections.locator("h2")).toHaveText([
+    "Watching",
+    "Watchlist",
+    "Paused",
+    "Completed",
+    "Dropped",
+  ]);
+  await expect(sections.first().getByText("12 titles")).toBeVisible();
+  await page.getByText("TV shows", { exact: true }).click();
+  await expect(sections.first().getByText("3 titles")).toBeVisible();
+  await page.getByRole("combobox", { name: "Sort library media" }).click();
+  await page.getByRole("option", { name: "Title" }).click();
+
+  await page.getByRole("button", { name: "Watching", exact: true }).click();
+  await page.getByRole("button", { name: "Profile", exact: true }).click();
+  sections = page.locator(".library-section");
+  await expect(sections.first().getByText("3 titles")).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "Sort library media" })).toHaveValue("Title");
 });

@@ -4,6 +4,7 @@ import { Dashboard, type DashboardPage } from "../features/navigation/Dashboard"
 import { LogoutPage } from "../features/auth/LogoutPage";
 import type { Theme, User } from "../types";
 import type { LibraryMediaFilter } from "../features/library/mediaFilter";
+import { readLibraryFilter } from "../features/library/libraryPreferences";
 
 export type RouterContext = { user: User; theme: Theme; setTheme: (theme: Theme) => void };
 
@@ -98,7 +99,9 @@ function DashboardRoute({ page }: { page: DashboardPage }) {
   return <Dashboard {...rootRoute.useRouteContext()} page={page} />;
 }
 function LibraryListRoute() {
-  const mediaFilter: LibraryMediaFilter = profileLibraryListRoute.useSearch().media_type ?? "all";
+  const { user } = rootRoute.useRouteContext();
+  const mediaFilter: LibraryMediaFilter =
+    profileLibraryListRoute.useSearch().media_type ?? readLibraryFilter(user.id);
   return (
     <DashboardRoute
       page={{

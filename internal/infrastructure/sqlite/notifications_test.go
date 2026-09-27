@@ -45,6 +45,20 @@ func TestNotificationCandidates_GivenOptedInWatchingShow_WhenEpisodeHasAired_The
 	if len(candidates) != 1 || candidates[0].EpisodeID != "episode-new" || candidates[0].ShowTitle != "Example Show" || candidates[0].EncryptedAppToken != "app-ciphertext" || candidates[0].EncryptedUserKey != "user-ciphertext" {
 		t.Fatalf("notification candidates=%+v", candidates)
 	}
+	if _, err := store.DB.Exec(`UPDATE user_media SET status='dropped' WHERE user_id=? AND media_id='tv:42'`, userID); err != nil {
+		t.Fatal(err)
+	}
+	candidates, err = store.NotificationCandidates(ctx, now, 10)
+	if err != nil || len(candidates) != 0 {
+		t.Fatalf("non-Watching show produced notification candidates=%+v err=%v", candidates, err)
+	}
+	if _, err := store.DB.Exec(`UPDATE user_media SET status='watching' WHERE user_id=? AND media_id='tv:42'`, userID); err != nil {
+		t.Fatal(err)
+	}
+	candidates, err = store.NotificationCandidates(ctx, now, 10)
+	if err != nil || len(candidates) != 1 {
+		t.Fatalf("Watching show candidates after restore=%+v err=%v", candidates, err)
+	}
 	claimedAt := now
 	claimed, err := store.ClaimNotification(ctx, userID, "episode-new", claimedAt)
 	if err != nil || !claimed {

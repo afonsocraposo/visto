@@ -915,10 +915,11 @@ components:
         next_cursor: { type: [string, 'null'] }
     LibraryPage:
       type: object
-      required: [items, next_cursor]
+      required: [items, next_cursor, total_count]
       properties:
         items: { type: array, items: { $ref: '#/components/schemas/LibraryEntry' } }
         next_cursor: { type: [string, 'null'] }
+        total_count: { type: integer, minimum: 0, description: Total number of titles matching the requested status and media type filters. }
     PlaysPage:
       type: object
       required: [items, next_cursor]

@@ -5,6 +5,7 @@ import { ProfilePanel } from "./ProfilePanel";
 import { AdminPanel } from "./AdminPanel";
 import type { LibraryStatus, MediaDetailTarget, Theme, User } from "../../types";
 import type { LibraryMediaFilter } from "./mediaFilter";
+import { readStoredChoice, writeStoredChoice } from "../../lib/browserStorage";
 
 type LibrarySection = "library" | "settings" | "admin";
 
@@ -27,14 +28,25 @@ export function LibraryArea({
   onOpenDetail?: (target: MediaDetailTarget) => void;
   onOpenList?: (status: LibraryStatus, mediaFilter: LibraryMediaFilter) => void;
 }) {
-  const [section, setSection] = useState<LibrarySection>("library");
+  const tabStorageKey = `visto:tab:${user.id}:profile`;
+  const availableSections: readonly LibrarySection[] =
+    user.role === "admin" ? ["library", "settings", "admin"] : ["library", "settings"];
+  const [section, setSection] = useState<LibrarySection>(() =>
+    readStoredChoice("session", tabStorageKey, availableSections, "library"),
+  );
 
   return (
     <Tabs
       className="section-tabs"
       value={section}
       keepMounted={false}
-      onChange={(value) => setSection((value || "library") as LibrarySection)}
+      onChange={(value) => {
+        const next = availableSections.includes(value as LibrarySection)
+          ? (value as LibrarySection)
+          : "library";
+        setSection(next);
+        writeStoredChoice("session", tabStorageKey, next);
+      }}
     >
       <Tabs.List>
         <Tabs.Tab value="library">Library</Tabs.Tab>

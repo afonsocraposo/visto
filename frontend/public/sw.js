@@ -1,4 +1,4 @@
-const shell = "visto-shell-v3";
+const shell = "visto-shell-v4";
 const userIndex = "visto-user-index-v1";
 const maxCachedAPIEntries = 100;
 const cacheableAPIPaths = new Set([
@@ -16,7 +16,17 @@ self.addEventListener("install", (event) =>
   event.waitUntil(
     caches
       .open(shell)
-      .then((cache) => cache.addAll(["/", "/manifest.webmanifest", "/icon.svg?v=2"])),
+      .then((cache) =>
+        cache.addAll([
+          "/",
+          "/manifest.webmanifest",
+          "/icon.svg?v=3",
+          "/icon-192.png?v=3",
+          "/icon-512.png?v=3",
+          "/maskable-icon-512.png?v=3",
+          "/apple-touch-icon.png?v=3",
+        ]),
+      ),
   ),
 );
 self.addEventListener("activate", (event) =>
@@ -149,7 +159,7 @@ self.addEventListener("push", (event) =>
       if (payload.user_id !== (await activeUserID())) return;
       await self.registration.showNotification(payload.title, {
         body: payload.body,
-        icon: "/icon.svg?v=2",
+        icon: "/icon-192.png?v=3",
         data: { url: payload.url },
       });
     })(),

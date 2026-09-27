@@ -19,6 +19,7 @@ type Request struct {
 type Page[T any] struct {
 	Items      []T     `json:"items"`
 	NextCursor *string `json:"next_cursor"`
+	TotalCount *int    `json:"total_count,omitempty"`
 }
 type Position struct {
 	Version int      `json:"v"`
