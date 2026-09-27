@@ -25,6 +25,7 @@ import (
 	"github.com/afonsocosta/visto/internal/application/oauth"
 	"github.com/afonsocosta/visto/internal/application/plexsync"
 	"github.com/afonsocosta/visto/internal/application/profile"
+	"github.com/afonsocosta/visto/internal/application/seasonalerts"
 	"github.com/afonsocosta/visto/internal/application/tracking"
 	"github.com/afonsocosta/visto/internal/application/watch"
 	backupjob "github.com/afonsocosta/visto/internal/infrastructure/backup"
@@ -122,18 +123,21 @@ func main() {
 		pushConfig = &httpserver.WebPushConfig{Store: store, Cipher: secretCipher, Client: pushClient}
 		webService = &notifications.WebService{Repository: store, Sender: pushClient, Decryptor: secretCipher}
 	}
-	if secretCipher != nil || webService != nil {
-		var pushoverClient notifications.Sender
-		var notificationStore notifications.Repository
-		if secretCipher != nil {
-			pushoverClient = pushover.NewClient(nil)
-			notificationStore = store
-		}
-		dispatchInterval := durationEnvironment("VISTO_PUSHOVER_INTERVAL", 15*time.Minute)
-		startWorker(func(ctx context.Context) {
-			notifications.NewService(notificationStore, pushoverClient, secretCipher, webService).Run(ctx, dispatchInterval, log.Default())
-		})
+	var pushoverClient notifications.Sender
+	var notificationStore notifications.Repository
+	if secretCipher != nil {
+		pushoverClient = pushover.NewClient(nil)
+		notificationStore = store
 	}
+	dispatchInterval := durationEnvironment("VISTO_PUSHOVER_INTERVAL", 15*time.Minute)
+	startWorker(func(ctx context.Context) {
+		seasonNotifications := &notifications.SeasonService{Repository: store, Pushover: pushoverClient, Decryptor: secretCipher}
+		if webService != nil {
+			seasonNotifications.Web = webService.Sender
+		}
+		notifications.NewService(notificationStore, pushoverClient, secretCipher, webService).
+			WithSeasonAlerts(seasonNotifications).Run(ctx, dispatchInterval, log.Default())
+	})
 
 	appHandler := http.NewServeMux()
 	googleOAuth := httpserver.GoogleOAuthConfig{ClientID: os.Getenv("VISTO_GOOGLE_CLIENT_ID"), ClientSecret: os.Getenv("VISTO_GOOGLE_CLIENT_SECRET"), RedirectURL: os.Getenv("VISTO_GOOGLE_REDIRECT_URL")}
@@ -168,7 +172,8 @@ func main() {
 	appHandler.Handle("/oauth/", mcpHandler)
 	appHandler.Handle("/.well-known/", mcpHandler)
 	appServer := httpserver.New(authService, metadataProvider, os.Getenv("VISTO_WEB_DIR"), library.NewService(store), tracking.NewService(store), profiles, feed.NewService(store), exportapp.NewService(store), watchService, pushConfig).
-		WithTrustedProxies(trustedProxies).WithOAuth(oauthService).WithGoogleOAuth(googleOAuth).WithBackups(backupService)
+		WithTrustedProxies(trustedProxies).WithOAuth(oauthService).WithGoogleOAuth(googleOAuth).WithBackups(backupService).
+		WithSeasonAlerts(seasonalerts.NewService(store))
 	var plexMetadataProvider plexsync.MetadataProvider
 	if metadataProvider != nil {
 		plexMetadataProvider = metadataProvider

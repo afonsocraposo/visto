@@ -2,6 +2,7 @@ package notifications
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"time"
@@ -48,6 +49,12 @@ type Service struct {
 	decryptor  Decryptor
 	now        func() time.Time
 	web        *WebService
+	season     *SeasonService
+}
+
+func (service *Service) WithSeasonAlerts(season *SeasonService) *Service {
+	service.season = season
+	return service
 }
 
 func NewService(repository Repository, sender Sender, decryptor Decryptor, web ...*WebService) *Service {
@@ -60,12 +67,13 @@ func NewService(repository Repository, sender Sender, decryptor Decryptor, web .
 
 func (service *Service) Dispatch(ctx context.Context) error {
 	now := service.now().UTC()
+	seasonError := service.season.Dispatch(ctx)
 	var webError error
 	if service.web != nil {
 		webError = service.web.Dispatch(ctx)
 	}
 	if service.repository == nil {
-		return webError
+		return errors.Join(seasonError, webError)
 	}
 	candidates, err := service.repository.NotificationCandidates(ctx, now, 50)
 	if err != nil {
@@ -108,10 +116,7 @@ func (service *Service) Dispatch(ctx context.Context) error {
 			firstError = fmt.Errorf("record sent notification for %s: %w", candidate.EpisodeID, err)
 		}
 	}
-	if firstError != nil {
-		return firstError
-	}
-	return webError
+	return errors.Join(seasonError, webError, firstError)
 }
 
 func (service *Service) Run(ctx context.Context, interval time.Duration, logger *log.Logger) {

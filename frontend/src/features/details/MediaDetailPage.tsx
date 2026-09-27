@@ -21,6 +21,7 @@ import {
 } from "@mantine/core";
 import {
   IconArrowLeft,
+  IconBell,
   IconCheck,
   IconChevronDown,
   IconClock,
@@ -141,6 +142,34 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
   const selectedSeasonID = savedSeasons.data?.find(
     (item) => String(item.season_number) === selectedSeason,
   )?.id;
+  const seasonAlertURL = selectedSeasonID
+    ? `/api/v1/seasons/${encodeURIComponent(selectedSeasonID)}/ready-alert`
+    : "";
+  const seasonAlert = useQuery({
+    queryKey: userQueryKey("season-ready-alert", selectedSeasonID),
+    enabled:
+      target.mediaType === "tv" &&
+      isSaved &&
+      Number(selectedSeason) > 0 &&
+      Boolean(selectedSeasonID),
+    queryFn: () => api.get<{ ready: boolean; subscribed: boolean }>(seasonAlertURL),
+  });
+  const updateSeasonAlert = useMutation({
+    mutationFn: (subscribe: boolean) =>
+      subscribe
+        ? api.put(seasonAlertURL, undefined, "Could not subscribe to this season.")
+        : api.delete(seasonAlertURL, "Could not cancel this season alert."),
+    onSuccess: (_result, subscribe) => {
+      void queryClient.invalidateQueries({
+        queryKey: userQueryKey("season-ready-alert", selectedSeasonID),
+      });
+      showActionFeedback(
+        subscribe
+          ? `You'll be notified when season ${selectedSeason} is ready.`
+          : `Season ${selectedSeason} alert canceled.`,
+      );
+    },
+  });
   const detailScope = ["media-detail", target.mediaType, target.tmdbID];
   const episodeScopes = [
     ["detail-episodes", showID],
@@ -1030,6 +1059,46 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
                     w={150}
                   />
                 )}
+                {isSaved &&
+                  selectedSeasonID &&
+                  Number(selectedSeason) > 0 &&
+                  library.data?.item.status === "watching" &&
+                  seasonAlert.data && (
+                    <Tooltip
+                      label={
+                        seasonAlert.data.ready && !seasonAlert.data.subscribed
+                          ? "All episodes in this season are available"
+                          : seasonAlert.data.subscribed
+                            ? "Cancel season-ready alert"
+                            : "Notify me when all episodes are available"
+                      }
+                      withArrow
+                    >
+                      <ActionIcon
+                        size={44}
+                        variant={seasonAlert.data.subscribed ? "filled" : "subtle"}
+                        color="yellow"
+                        aria-label={
+                          seasonAlert.data.ready && !seasonAlert.data.subscribed
+                            ? `Season ${selectedSeason} is ready`
+                            : seasonAlert.data.subscribed
+                              ? `Cancel season ${selectedSeason} ready alert`
+                              : `Notify me when season ${selectedSeason} is ready`
+                        }
+                        disabled={
+                          (seasonAlert.data.ready && !seasonAlert.data.subscribed) ||
+                          updateSeasonAlert.isPending
+                        }
+                        onClick={() => updateSeasonAlert.mutate(!seasonAlert.data!.subscribed)}
+                      >
+                        {seasonAlert.data.ready && !seasonAlert.data.subscribed ? (
+                          <IconCheck size={19} />
+                        ) : (
+                          <IconBell size={19} />
+                        )}
+                      </ActionIcon>
+                    </Tooltip>
+                  )}
                 {seasonBulkAction && (
                   <Tooltip
                     label={
@@ -1056,6 +1125,16 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
               </Group>
             </Group>
           </Group>
+          {updateSeasonAlert.isError && (
+            <Alert color="red" mb="sm">
+              {updateSeasonAlert.error.message}
+            </Alert>
+          )}
+          {seasonAlert.isError && (
+            <Alert color="red" mb="sm">
+              Could not load this season's alert status.
+            </Alert>
+          )}
           {((isSaved && episodes.isPending) ||
             (!isSaved && (temporary.isPending || temporaryEpisodes.isPending))) && (
             <Group justify="center" py="lg">

@@ -74,6 +74,7 @@ import type {
   PushoverSettingsRequest,
   SaveLibraryRequest,
   Season,
+  SeasonReadyAlert,
   SetEpisodeRatingRequest,
   ShowProgress,
   SignupRequest,
@@ -8135,6 +8136,321 @@ export function useGetSeasonsSeasonIDEpisodes<
 
   return withQueryKey(query, queryOptions.queryKey);
 }
+
+export const getGetSeasonsSeasonIDReadyAlertUrl = (seasonID: string) => {
+  return `/seasons/${seasonID}/ready-alert`;
+};
+
+/**
+ * @summary Get season availability and the user's season-ready subscription
+ */
+export const getSeasonsSeasonIDReadyAlert = async (
+  seasonID: string,
+  options?: Parameters<typeof customFetch>[1],
+): Promise<SeasonReadyAlert> => {
+  return customFetch<SeasonReadyAlert>(getGetSeasonsSeasonIDReadyAlertUrl(seasonID), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetSeasonsSeasonIDReadyAlertQueryKey = (seasonID: string) => {
+  return [`/seasons/${seasonID}/ready-alert`] as const;
+};
+
+export const getGetSeasonsSeasonIDReadyAlertQueryOptions = <
+  TData = Awaited<ReturnType<typeof getSeasonsSeasonIDReadyAlert>>,
+  TError = UnauthorizedResponse | void,
+>(
+  seasonID: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getSeasonsSeasonIDReadyAlert>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetSeasonsSeasonIDReadyAlertQueryKey(seasonID);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getSeasonsSeasonIDReadyAlert>>> = ({
+    signal,
+  }) => getSeasonsSeasonIDReadyAlert(seasonID, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: seasonID !== null && seasonID !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof getSeasonsSeasonIDReadyAlert>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+};
+
+export type GetSeasonsSeasonIDReadyAlertQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getSeasonsSeasonIDReadyAlert>>
+>;
+export type GetSeasonsSeasonIDReadyAlertQueryError = UnauthorizedResponse | void;
+
+export function useGetSeasonsSeasonIDReadyAlert<
+  TData = Awaited<ReturnType<typeof getSeasonsSeasonIDReadyAlert>>,
+  TError = UnauthorizedResponse | void,
+>(
+  seasonID: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getSeasonsSeasonIDReadyAlert>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getSeasonsSeasonIDReadyAlert>>,
+          TError,
+          Awaited<ReturnType<typeof getSeasonsSeasonIDReadyAlert>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetSeasonsSeasonIDReadyAlert<
+  TData = Awaited<ReturnType<typeof getSeasonsSeasonIDReadyAlert>>,
+  TError = UnauthorizedResponse | void,
+>(
+  seasonID: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getSeasonsSeasonIDReadyAlert>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getSeasonsSeasonIDReadyAlert>>,
+          TError,
+          Awaited<ReturnType<typeof getSeasonsSeasonIDReadyAlert>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetSeasonsSeasonIDReadyAlert<
+  TData = Awaited<ReturnType<typeof getSeasonsSeasonIDReadyAlert>>,
+  TError = UnauthorizedResponse | void,
+>(
+  seasonID: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getSeasonsSeasonIDReadyAlert>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Get season availability and the user's season-ready subscription
+ */
+
+export function useGetSeasonsSeasonIDReadyAlert<
+  TData = Awaited<ReturnType<typeof getSeasonsSeasonIDReadyAlert>>,
+  TError = UnauthorizedResponse | void,
+>(
+  seasonID: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getSeasonsSeasonIDReadyAlert>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetSeasonsSeasonIDReadyAlertQueryOptions(seasonID, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export const getPutSeasonsSeasonIDReadyAlertUrl = (seasonID: string) => {
+  return `/seasons/${seasonID}/ready-alert`;
+};
+
+/**
+ * @summary Subscribe to an alert when all regular episodes in this season are available
+ */
+export const putSeasonsSeasonIDReadyAlert = async (
+  seasonID: string,
+  options?: Parameters<typeof customFetch>[1],
+): Promise<void> => {
+  return customFetch<void>(getPutSeasonsSeasonIDReadyAlertUrl(seasonID), {
+    ...options,
+    method: "PUT",
+  });
+};
+
+export const getPutSeasonsSeasonIDReadyAlertMutationKey = () =>
+  ["putSeasonsSeasonIDReadyAlert"] as const;
+
+export const getPutSeasonsSeasonIDReadyAlertMutationOptions = <
+  TError = UnauthorizedResponse | void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof putSeasonsSeasonIDReadyAlert>>,
+    TError,
+    PutSeasonsSeasonIDReadyAlertMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof putSeasonsSeasonIDReadyAlert>>,
+  TError,
+  PutSeasonsSeasonIDReadyAlertMutationVariables,
+  TContext
+> => {
+  const mutationKey = getPutSeasonsSeasonIDReadyAlertMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof putSeasonsSeasonIDReadyAlert>>,
+    PutSeasonsSeasonIDReadyAlertMutationVariables
+  > = (props) => {
+    const { seasonID } = props ?? {};
+
+    return putSeasonsSeasonIDReadyAlert(seasonID, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PutSeasonsSeasonIDReadyAlertMutationResult = NonNullable<
+  Awaited<ReturnType<typeof putSeasonsSeasonIDReadyAlert>>
+>;
+
+export type PutSeasonsSeasonIDReadyAlertMutationError = UnauthorizedResponse | void;
+export type PutSeasonsSeasonIDReadyAlertMutationVariables = { seasonID: string };
+
+/**
+ * @summary Subscribe to an alert when all regular episodes in this season are available
+ */
+export const usePutSeasonsSeasonIDReadyAlert = <
+  TError = UnauthorizedResponse | void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof putSeasonsSeasonIDReadyAlert>>,
+      TError,
+      PutSeasonsSeasonIDReadyAlertMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof putSeasonsSeasonIDReadyAlert>>,
+  TError,
+  PutSeasonsSeasonIDReadyAlertMutationVariables,
+  TContext
+> => {
+  return useMutation(getPutSeasonsSeasonIDReadyAlertMutationOptions(options), queryClient);
+};
+
+export const getDeleteSeasonsSeasonIDReadyAlertUrl = (seasonID: string) => {
+  return `/seasons/${seasonID}/ready-alert`;
+};
+
+/**
+ * @summary Cancel a pending season-ready alert
+ */
+export const deleteSeasonsSeasonIDReadyAlert = async (
+  seasonID: string,
+  options?: Parameters<typeof customFetch>[1],
+): Promise<void> => {
+  return customFetch<void>(getDeleteSeasonsSeasonIDReadyAlertUrl(seasonID), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteSeasonsSeasonIDReadyAlertMutationKey = () =>
+  ["deleteSeasonsSeasonIDReadyAlert"] as const;
+
+export const getDeleteSeasonsSeasonIDReadyAlertMutationOptions = <
+  TError = UnauthorizedResponse | void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteSeasonsSeasonIDReadyAlert>>,
+    TError,
+    DeleteSeasonsSeasonIDReadyAlertMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteSeasonsSeasonIDReadyAlert>>,
+  TError,
+  DeleteSeasonsSeasonIDReadyAlertMutationVariables,
+  TContext
+> => {
+  const mutationKey = getDeleteSeasonsSeasonIDReadyAlertMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteSeasonsSeasonIDReadyAlert>>,
+    DeleteSeasonsSeasonIDReadyAlertMutationVariables
+  > = (props) => {
+    const { seasonID } = props ?? {};
+
+    return deleteSeasonsSeasonIDReadyAlert(seasonID, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteSeasonsSeasonIDReadyAlertMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteSeasonsSeasonIDReadyAlert>>
+>;
+
+export type DeleteSeasonsSeasonIDReadyAlertMutationError = UnauthorizedResponse | void;
+export type DeleteSeasonsSeasonIDReadyAlertMutationVariables = { seasonID: string };
+
+/**
+ * @summary Cancel a pending season-ready alert
+ */
+export const useDeleteSeasonsSeasonIDReadyAlert = <
+  TError = UnauthorizedResponse | void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof deleteSeasonsSeasonIDReadyAlert>>,
+      TError,
+      DeleteSeasonsSeasonIDReadyAlertMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof deleteSeasonsSeasonIDReadyAlert>>,
+  TError,
+  DeleteSeasonsSeasonIDReadyAlertMutationVariables,
+  TContext
+> => {
+  return useMutation(getDeleteSeasonsSeasonIDReadyAlertMutationOptions(options), queryClient);
+};
 
 export const getGetContinueWatchingUrl = () => {
   return `/continue-watching`;

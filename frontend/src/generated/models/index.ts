@@ -94,6 +94,7 @@ export * from "./pushoverSettingsRequest";
 export * from "./saveLibraryRequest";
 export * from "./saveLibraryRequestStatus";
 export * from "./season";
+export * from "./seasonReadyAlert";
 export * from "./setEpisodeRatingRequest";
 export * from "./showEpisode";
 export * from "./showLibraryProgress";

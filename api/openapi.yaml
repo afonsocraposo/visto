@@ -705,6 +705,35 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { description: Season is not in the authenticated user's library }
+  /seasons/{seasonID}/ready-alert:
+    get:
+      summary: Get season availability and the user's season-ready subscription
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      parameters:
+        - { name: seasonID, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Season alert state, content: { application/json: { schema: { $ref: '#/components/schemas/SeasonReadyAlert' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: Season is not in the authenticated user's library }
+    put:
+      summary: Subscribe to an alert when all regular episodes in this season are available
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      parameters:
+        - { name: seasonID, in: path, required: true, schema: { type: string } }
+      responses:
+        '204': { description: Season alert subscribed }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: Season is not in the authenticated user's library }
+        '409': { description: Show is not Watching or the season is already ready }
+    delete:
+      summary: Cancel a pending season-ready alert
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      parameters:
+        - { name: seasonID, in: path, required: true, schema: { type: string } }
+      responses:
+        '204': { description: Pending season alert canceled }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: Season is not in the authenticated user's library }
   /continue-watching:
     get:
       summary: Derive the authenticated user's next released episodes
@@ -1168,6 +1197,12 @@ components:
         name: { type: string }
         episode_count: { type: integer, minimum: 0 }
         air_date: { type: string, format: date }
+    SeasonReadyAlert:
+      type: object
+      required: [ready, subscribed]
+      properties:
+        ready: { type: boolean, description: All known regular episodes in the listed season count have aired. }
+        subscribed: { type: boolean, description: A pending season-ready alert exists for this user. }
     ShowEpisode:
       type: object
       required: [episode, name, watched]

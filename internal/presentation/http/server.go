@@ -13,6 +13,7 @@ import "github.com/afonsocosta/visto/internal/application/library"
 import "github.com/afonsocosta/visto/internal/application/oauth"
 import "github.com/afonsocosta/visto/internal/application/plexsync"
 import "github.com/afonsocosta/visto/internal/application/profile"
+import "github.com/afonsocosta/visto/internal/application/seasonalerts"
 import "github.com/afonsocosta/visto/internal/application/tracking"
 import "github.com/afonsocosta/visto/internal/application/watch"
 import "github.com/afonsocosta/visto/internal/domain"
@@ -99,6 +100,13 @@ func (server *Server) WithBackups(service *backup.Service) *Server {
 	server.mux.HandleFunc("PUT /api/v1/admin/backups", adminBackup(server.authService, service, "save"))
 	server.mux.HandleFunc("POST /api/v1/admin/backups/test", adminBackup(server.authService, service, "test"))
 	server.mux.HandleFunc("POST /api/v1/admin/backups/run", adminBackup(server.authService, service, "run"))
+	return server
+}
+
+func (server *Server) WithSeasonAlerts(service *seasonalerts.Service) *Server {
+	server.mux.HandleFunc("GET /api/v1/seasons/{seasonID}/ready-alert", seasonAlert(server.authService, service, "get"))
+	server.mux.HandleFunc("PUT /api/v1/seasons/{seasonID}/ready-alert", seasonAlert(server.authService, service, "subscribe"))
+	server.mux.HandleFunc("DELETE /api/v1/seasons/{seasonID}/ready-alert", seasonAlert(server.authService, service, "cancel"))
 	return server
 }
 

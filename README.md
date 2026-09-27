@@ -307,6 +307,12 @@ check interval is 15 minutes and can be changed with `VISTO_PUSHOVER_INTERVAL`.
 Visto alerts for newly aired regular episodes in shows a user is watching.
 Specials, paused or dropped shows, disabled show alerts, and episodes already
 marked watched are excluded. Delivery is deduplicated per user and episode.
+For a show marked Watching, the bell beside a season can instead subscribe to a
+one-time alert when every listed regular episode in that season has aired.
+Individual episode alerts for that season stop after subscription. The alert
+uses the user's enabled Pushover and Web Push channels. If neither channel is
+enabled when the season becomes ready, Visto shows it as ready without sending
+a later notification. Leaving Watching cancels pending season alerts.
 
 ## Plex watched-content sync
 

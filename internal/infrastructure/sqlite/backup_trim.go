@@ -30,12 +30,13 @@ func trimMetadata(ctx context.Context, path string) error {
 			SELECT episode_id FROM episode_ratings UNION
 			SELECT episode_id FROM notification_deliveries UNION
 			SELECT episode_id FROM web_push_deliveries)`,
-		`DELETE FROM seasons WHERE id NOT IN (SELECT season_id FROM episodes)`,
+		`DELETE FROM seasons WHERE id NOT IN (SELECT season_id FROM episodes UNION SELECT season_id FROM season_ready_alerts)`,
 		`DELETE FROM media WHERE id NOT IN (
 			SELECT media_id FROM user_media UNION
 			SELECT media_id FROM plays WHERE media_id IS NOT NULL UNION
 			SELECT media_id FROM activity_events WHERE media_id IS NOT NULL UNION
-			SELECT show_id FROM episodes)`,
+			SELECT show_id FROM episodes UNION
+			SELECT show_id FROM seasons)`,
 		`UPDATE media SET title=media_type || ':' || tmdb_id,
 			original_title=NULL,overview=NULL,release_date=NULL,status=NULL,
 			poster_path=NULL,backdrop_path=NULL,original_language=NULL,

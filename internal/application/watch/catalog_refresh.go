@@ -45,6 +45,37 @@ func (service *Service) RefreshCatalog(ctx context.Context, activeTTL, finishedT
 		if err != nil {
 			return err
 		}
+		if seasons, ok := service.repository.(interface {
+			PendingSeasonNumbers(context.Context, string) ([]int, error)
+		}); ok {
+			if provider, ok := service.metadataProvider.(domain.TVShowSummaryProvider); ok {
+				showID := fmt.Sprintf("tv:%d", tmdbID)
+				numbers, err := seasons.PendingSeasonNumbers(ctx, showID)
+				if err != nil {
+					return err
+				}
+				for _, number := range numbers {
+					season, err := provider.Season(ctx, tmdbID, number)
+					if err != nil {
+						return err
+					}
+					replaced := false
+					for i := range metadata.Seasons {
+						if metadata.Seasons[i].Number == number {
+							if metadata.Seasons[i].EpisodeCount > season.EpisodeCount {
+								season.EpisodeCount = metadata.Seasons[i].EpisodeCount
+							}
+							metadata.Seasons[i] = season
+							replaced = true
+							break
+						}
+					}
+					if !replaced {
+						metadata.Seasons = append(metadata.Seasons, season)
+					}
+				}
+			}
+		}
 		if err := repository.ImportShowMetadata(ctx, fmt.Sprintf("tv:%d", tmdbID), metadata); err != nil {
 			return err
 		}

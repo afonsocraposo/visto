@@ -34,6 +34,7 @@ func (s *Store) WebPushCandidates(ctx context.Context, now time.Time, limit int)
  FROM web_push_subscriptions ps JOIN user_media um ON um.user_id=ps.user_id AND um.status='watching' AND um.notifications_enabled=1
  JOIN media m ON m.id=um.media_id AND m.media_type='tv' JOIN episodes e ON e.show_id=m.id
  WHERE e.season_number>0 AND e.air_date IS NOT NULL AND date(e.air_date)<=date(?)
+ AND NOT EXISTS (SELECT 1 FROM season_ready_alerts a WHERE a.user_id=ps.user_id AND a.season_id=e.season_id)
  AND date(e.air_date)>=date(ps.created_at) AND date(e.air_date)>=date(COALESCE(um.notifications_since,um.added_at))
  AND NOT EXISTS (SELECT 1 FROM plays p WHERE p.user_id=ps.user_id AND p.episode_id=e.id)
  AND NOT EXISTS (SELECT 1 FROM web_push_deliveries d WHERE d.user_id=ps.user_id AND d.episode_id=e.id AND d.subscription_id=ps.id

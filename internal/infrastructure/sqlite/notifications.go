@@ -19,6 +19,7 @@ func (store *Store) NotificationCandidates(ctx context.Context, now time.Time, l
 		WHERE um.status='watching' AND um.notifications_enabled=1
 			AND us.pushover_notifications_enabled=1 AND us.pushover_app_token_encrypted IS NOT NULL AND us.pushover_user_key_encrypted IS NOT NULL
 			AND e.season_number>0 AND e.air_date IS NOT NULL
+			AND NOT EXISTS (SELECT 1 FROM season_ready_alerts a WHERE a.user_id=um.user_id AND a.season_id=e.season_id)
 			AND date(e.air_date)<=date(?) AND date(e.air_date)>=date(COALESCE(um.notifications_since,um.added_at))
 			AND NOT EXISTS (SELECT 1 FROM plays p WHERE p.user_id=um.user_id AND p.episode_id=e.id)
 			AND NOT EXISTS (SELECT 1 FROM notification_deliveries d WHERE d.user_id=um.user_id AND d.episode_id=e.id
