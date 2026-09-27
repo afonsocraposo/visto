@@ -232,7 +232,7 @@ func TestSearch_GivenDifferentRequestsReceive429_WhenRetried_ThenTheInstancePaus
 		callNumber := callsByQuery[query]
 		mu.Unlock()
 		if query != "third" && callNumber == 1 {
-			w.Header().Set("Retry-After", "1")
+			w.Header().Set("Retry-After", "3")
 			w.WriteHeader(http.StatusTooManyRequests)
 			_, _ = w.Write([]byte(`{"status_code":25,"status_message":"rate limited"}`))
 			if limitedRequests.Add(1) == 2 {
@@ -301,7 +301,7 @@ func TestSearch_GivenDifferentRequestsReceive429_WhenRetried_ThenTheInstancePaus
 			if err != nil {
 				t.Fatal(err)
 			}
-		case <-time.After(4 * time.Second):
+		case <-time.After(6 * time.Second):
 			t.Fatal("limited search did not finish after its bounded retry")
 		}
 	}
