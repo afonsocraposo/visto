@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.1](https://github.com/afonsocraposo/visto/compare/v0.11.0...v0.11.1) (2026-09-27)
+
+
+### Bug Fixes
+
+* make API hook setup work in Docker ([e5e4f99](https://github.com/afonsocraposo/visto/commit/e5e4f99b8c3b516c02ade24fa8e9221ec0f95978))
+
 ## [0.11.0](https://github.com/afonsocraposo/visto/compare/v0.10.0...v0.11.0) (2026-09-27)
 
 
