@@ -27,7 +27,7 @@ import type {
   BackupSettingsRequest,
   BadRequestResponse,
   BootstrapRequest,
-  CalendarEntry,
+  CalendarPage,
   ConnectedApp,
   ContinueEntry,
   CorrectPlayRequest,
@@ -41,6 +41,7 @@ import type {
   ExportData,
   FeedPage,
   GetAuthStatus200,
+  GetCalendarDatesParams,
   GetCalendarParams,
   GetFeedParams,
   GetLibraryParams,
@@ -8278,8 +8279,8 @@ export const getGetCalendarUrl = (params?: GetCalendarParams) => {
 export const getCalendar = async (
   params?: GetCalendarParams,
   options?: Parameters<typeof customFetch>[1],
-): Promise<CalendarEntry[]> => {
-  return customFetch<CalendarEntry[]>(getGetCalendarUrl(params), {
+): Promise<CalendarPage> => {
+  return customFetch<CalendarPage>(getGetCalendarUrl(params), {
     ...options,
     method: "GET",
   });
@@ -8381,6 +8382,137 @@ export function useGetCalendar<
   queryClient?: QueryClient,
 ): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
   const queryOptions = getGetCalendarQueryOptions(params, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export const getGetCalendarDatesUrl = (params: GetCalendarDatesParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : String(value));
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/calendar/dates?${stringifiedParams}` : `/calendar/dates`;
+};
+
+/**
+ * @summary List dates with upcoming episodes for calendar markers
+ */
+export const getCalendarDates = async (
+  params: GetCalendarDatesParams,
+  options?: Parameters<typeof customFetch>[1],
+): Promise<string[]> => {
+  return customFetch<string[]>(getGetCalendarDatesUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetCalendarDatesQueryKey = (params?: GetCalendarDatesParams) => {
+  return [`/calendar/dates`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetCalendarDatesQueryOptions = <
+  TData = Awaited<ReturnType<typeof getCalendarDates>>,
+  TError = BadRequestResponse | UnauthorizedResponse,
+>(
+  params: GetCalendarDatesParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getCalendarDates>>, TError, TData>>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetCalendarDatesQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getCalendarDates>>> = ({ signal }) =>
+    getCalendarDates(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getCalendarDates>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetCalendarDatesQueryResult = NonNullable<Awaited<ReturnType<typeof getCalendarDates>>>;
+export type GetCalendarDatesQueryError = BadRequestResponse | UnauthorizedResponse;
+
+export function useGetCalendarDates<
+  TData = Awaited<ReturnType<typeof getCalendarDates>>,
+  TError = BadRequestResponse | UnauthorizedResponse,
+>(
+  params: GetCalendarDatesParams,
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getCalendarDates>>, TError, TData>> &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCalendarDates>>,
+          TError,
+          Awaited<ReturnType<typeof getCalendarDates>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetCalendarDates<
+  TData = Awaited<ReturnType<typeof getCalendarDates>>,
+  TError = BadRequestResponse | UnauthorizedResponse,
+>(
+  params: GetCalendarDatesParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getCalendarDates>>, TError, TData>> &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getCalendarDates>>,
+          TError,
+          Awaited<ReturnType<typeof getCalendarDates>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetCalendarDates<
+  TData = Awaited<ReturnType<typeof getCalendarDates>>,
+  TError = BadRequestResponse | UnauthorizedResponse,
+>(
+  params: GetCalendarDatesParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getCalendarDates>>, TError, TData>>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary List dates with upcoming episodes for calendar markers
+ */
+
+export function useGetCalendarDates<
+  TData = Awaited<ReturnType<typeof getCalendarDates>>,
+  TError = BadRequestResponse | UnauthorizedResponse,
+>(
+  params: GetCalendarDatesParams,
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getCalendarDates>>, TError, TData>>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetCalendarDatesQueryOptions(params, options);
 
   const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
     queryKey: DataTag<QueryKey, TData, TError>;

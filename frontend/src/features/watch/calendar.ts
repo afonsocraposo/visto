@@ -17,6 +17,21 @@ export function monthInTimezone(timeZone: string, instant = new Date()): string 
   return dateInTimezone(timeZone, instant).slice(0, 7);
 }
 
+export function upcomingYearRange(today: string): { from: string; to: string } {
+  const [year, month, day] = today.split("-").map(Number);
+  const start = new Date(Date.UTC(year, month - 1, day));
+  const end = new Date(start);
+  end.setUTCFullYear(end.getUTCFullYear() + 1);
+  return { from: today, to: end.toISOString().slice(0, 10) };
+}
+
+export function daysUntilRelease(today: string, date: string): number {
+  return Math.max(
+    0,
+    Math.round((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86400000),
+  );
+}
+
 export function shiftCalendarMonth(month: string, amount: number): string {
   const [year, index] = month.split("-").map(Number);
   return new Date(Date.UTC(year, index - 1 + amount, 1)).toISOString().slice(0, 7);
@@ -51,9 +66,10 @@ export function groupCalendarEntries(entries: CalendarEntry[]): CalendarGroup[] 
       date,
       entries: items.sort(
         (left, right) =>
-          left.title.localeCompare(right.title) ||
+          (left.title < right.title ? -1 : left.title > right.title ? 1 : 0) ||
           left.episode.season_number - right.episode.season_number ||
-          left.episode.episode_number - right.episode.episode_number,
+          left.episode.episode_number - right.episode.episode_number ||
+          (left.episode.id < right.episode.id ? -1 : left.episode.id > right.episode.id ? 1 : 0),
       ),
     }));
 }

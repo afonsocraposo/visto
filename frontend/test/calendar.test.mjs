@@ -3,10 +3,12 @@ import assert from "node:assert/strict";
 import {
   calendarMonthRange,
   dateInTimezone,
+  daysUntilRelease,
   formatCalendarDate,
   groupCalendarEntries,
   monthInTimezone,
   shiftCalendarMonth,
+  upcomingYearRange,
 } from "../src/features/watch/calendar.ts";
 
 const entry = (id, title, date, season = 1, episode = 1) => ({
@@ -18,6 +20,11 @@ const entry = (id, title, date, season = 1, episode = 1) => ({
     episode_number: episode,
     air_date: date,
   },
+});
+
+test("Given a leap day, When the upcoming year range is computed, Then it stays within one year", () => {
+  assert.deepEqual(upcomingYearRange("2028-02-29"), { from: "2028-02-29", to: "2029-03-01" });
+  assert.equal(daysUntilRelease("2026-12-31", "2027-01-02"), 2);
 });
 
 test("Given unordered upcoming episodes, When grouped for the calendar, Then dates and episodes are ordered", () => {

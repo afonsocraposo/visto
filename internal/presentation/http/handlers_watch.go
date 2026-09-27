@@ -138,8 +138,12 @@ func calendar(authService *auth.Service, service *watch.Service) http.HandlerFun
 			writeError(w, http.StatusServiceUnavailable, "watch data is not configured")
 			return
 		}
+		request, err := pagination.Parse(r)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
 		from, to := time.Time{}, time.Time{}
-		var err error
 		if value := r.URL.Query().Get("from"); value != "" {
 			from, err = time.Parse("2006-01-02", value)
 			if err != nil {
@@ -154,11 +158,40 @@ func calendar(authService *auth.Service, service *watch.Service) http.HandlerFun
 				return
 			}
 		}
-		entries, err := service.Calendar(r.Context(), user.ID, from, to)
+		entries, err := service.CalendarPage(r.Context(), user.ID, from, to, request)
+		if err != nil {
+			writePageError(w, err, "Calendar is temporarily unavailable.")
+			return
+		}
+		writeJSON(w, http.StatusOK, entries)
+	}
+}
+
+func calendarDates(authService *auth.Service, service *watch.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := authenticatedUser(w, r, authService)
+		if !ok {
+			return
+		}
+		if service == nil {
+			writeError(w, http.StatusServiceUnavailable, "watch data is not configured")
+			return
+		}
+		from, err := time.Parse(time.DateOnly, r.URL.Query().Get("from"))
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "from must use YYYY-MM-DD")
+			return
+		}
+		to, err := time.Parse(time.DateOnly, r.URL.Query().Get("to"))
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "to must use YYYY-MM-DD")
+			return
+		}
+		dates, err := service.CalendarDates(r.Context(), user.ID, from, to)
 		if err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		writeJSON(w, http.StatusOK, entries)
+		writeJSON(w, http.StatusOK, dates)
 	}
 }

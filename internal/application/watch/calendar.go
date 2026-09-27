@@ -3,7 +3,10 @@ package watch
 import (
 	"context"
 	"fmt"
+	"sort"
 	"time"
+
+	"github.com/afonsocosta/visto/internal/application/pagination"
 )
 
 func (service *Service) Calendar(ctx context.Context, userID string, from, to time.Time) ([]CalendarEntry, error) {
@@ -60,4 +63,75 @@ func (service *Service) Calendar(ctx context.Context, userID string, from, to ti
 		}
 	}
 	return entries, nil
+}
+
+func (service *Service) CalendarPage(ctx context.Context, userID string, from, to time.Time, request pagination.Request) (pagination.Page[CalendarEntry], error) {
+	entries, err := service.Calendar(ctx, userID, from, to)
+	if err != nil {
+		return pagination.Page[CalendarEntry]{}, err
+	}
+	scope := "calendar|" + userID + "|" + from.Format(time.DateOnly) + "|" + to.Format(time.DateOnly)
+	keys, err := pagination.Decode(request.Cursor, scope, 5)
+	if err != nil {
+		return pagination.Page[CalendarEntry]{}, err
+	}
+	sort.Slice(entries, func(i, j int) bool {
+		return calendarKeyCompare(calendarEntryKey(entries[i]), calendarEntryKey(entries[j])) < 0
+	})
+	start := 0
+	if keys != nil {
+		found := false
+		for i, entry := range entries {
+			if calendarKeyCompare(calendarEntryKey(entry), keys) == 0 {
+				start = i + 1
+				found = true
+				break
+			}
+		}
+		if !found {
+			return pagination.Page[CalendarEntry]{}, pagination.ErrInvalidCursor
+		}
+	}
+	return pagination.Slice(entries[start:], request.Limit, func(entry CalendarEntry) string {
+		return pagination.Encode(scope, calendarEntryKey(entry)...)
+	}), nil
+}
+
+func calendarEntryKey(entry CalendarEntry) []string {
+	return []string{
+		entry.Episode.AirDate.UTC().Format(time.DateOnly),
+		entry.Title,
+		fmt.Sprintf("%08d", entry.Episode.SeasonNumber),
+		fmt.Sprintf("%08d", entry.Episode.EpisodeNumber),
+		entry.Episode.ID,
+	}
+}
+
+func calendarKeyCompare(left, right []string) int {
+	for i := range left {
+		if left[i] < right[i] {
+			return -1
+		}
+		if left[i] > right[i] {
+			return 1
+		}
+	}
+	return 0
+}
+
+func (service *Service) CalendarDates(ctx context.Context, userID string, from, to time.Time) ([]string, error) {
+	entries, err := service.Calendar(ctx, userID, from, to)
+	if err != nil {
+		return nil, err
+	}
+	dates := make(map[string]struct{})
+	for _, entry := range entries {
+		dates[entry.Episode.AirDate.UTC().Format(time.DateOnly)] = struct{}{}
+	}
+	result := make([]string, 0, len(dates))
+	for date := range dates {
+		result = append(result, date)
+	}
+	sort.Strings(result)
+	return result, nil
 }

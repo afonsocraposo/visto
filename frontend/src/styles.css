@@ -230,11 +230,11 @@ select {
 }
 .calendar-list {
   display: grid;
-  gap: 26px;
+  gap: 28px;
 }
 .calendar-date {
-  margin-bottom: 10px;
-  font-size: 1.05rem;
+  margin-bottom: 12px;
+  font-size: 1.2rem;
 }
 .calendar-day-entries {
   display: grid;
@@ -243,10 +243,11 @@ select {
 .calendar-card {
   display: flex;
   align-items: stretch;
-  gap: 16px;
-  min-height: 106px;
+  gap: 0;
+  min-height: 132px;
   overflow: hidden;
-  background: var(--mantine-color-body);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--mantine-color-body) 94%, var(--mantine-color-gray-5));
   cursor: pointer;
   transition:
     border-color 150ms ease,
@@ -262,8 +263,8 @@ select {
   outline-offset: 2px;
 }
 .calendar-card-art {
-  width: 164px;
-  flex: 0 0 164px;
+  width: 92px;
+  flex: 0 0 92px;
   overflow: hidden;
   background: #1b2430;
 }
@@ -281,21 +282,57 @@ select {
   min-width: 0;
   flex-direction: column;
   justify-content: center;
-  gap: 3px;
-  padding: 12px 16px 12px 0;
+  gap: 6px;
+  padding: 14px 12px 14px 20px;
 }
-.calendar-card-show,
 .calendar-card-number {
   color: var(--mantine-color-dimmed);
-  font-size: 0.82rem;
+  font-size: 0.9rem;
+}
+.calendar-card-show {
+  font-size: 1.1rem;
 }
 .calendar-card-episode {
-  font-size: 1rem;
+  color: var(--mantine-color-dimmed);
+  font-size: 0.9rem;
   line-height: 1.35;
   overflow-wrap: anywhere;
 }
-.calendar-card-number {
-  font-weight: 650;
+.calendar-card-countdown {
+  display: flex;
+  flex: 0 0 68px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  color: var(--mantine-color-dimmed);
+}
+.calendar-card-countdown strong {
+  color: var(--mantine-color-text);
+  font-size: 1.65rem;
+  line-height: 1;
+}
+.calendar-card-countdown span {
+  font-size: 0.8rem;
+}
+.calendar-selected-day {
+  margin-top: 24px;
+}
+.calendar-selected-day .calendar-card {
+  min-height: 100px;
+}
+.calendar-selected-day .calendar-card-art {
+  flex-basis: 72px;
+  width: 72px;
+}
+.calendar-selected-day .calendar-card-copy {
+  padding-left: 12px;
+}
+.calendar-selected-day .calendar-card-countdown {
+  flex-basis: 54px;
+}
+.calendar-selected-day .calendar-card-countdown strong {
+  font-size: 1.25rem;
 }
 @media (prefers-reduced-motion: reduce) {
   .calendar-card {
@@ -992,18 +1029,20 @@ select {
     gap: 22px;
   }
   .calendar-card {
-    min-height: 96px;
-    gap: 12px;
+    min-height: 112px;
   }
   .calendar-card-art {
-    width: 104px;
-    flex-basis: 104px;
+    width: 76px;
+    flex-basis: 76px;
   }
   .calendar-card-art .artwork-fallback {
     min-height: 96px;
   }
   .calendar-card-copy {
-    padding: 9px 10px 9px 0;
+    padding: 9px 8px 9px 12px;
+  }
+  .calendar-card-countdown {
+    flex-basis: 52px;
   }
   .auth-screen-inner {
     width: min(100% - 32px, 440px);

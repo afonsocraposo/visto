@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ActionIcon,
   Alert,
@@ -7,6 +7,7 @@ import {
   Button,
   Group,
   Image,
+  Indicator,
   Loader,
   Modal,
   Paper,
@@ -14,7 +15,9 @@ import {
   Title,
   Tooltip,
 } from "@mantine/core";
-import { IconCheck, IconChevronLeft, IconChevronRight, IconEye } from "@tabler/icons-react";
+import { Calendar } from "@mantine/dates";
+import { IconCalendar, IconCheck, IconEye } from "@tabler/icons-react";
+import { InfiniteScrollTrigger } from "../../components/InfiniteScrollTrigger";
 import { EmptyState } from "../../components/EmptyState";
 import { useUserQueryKey } from "../auth/SessionContext";
 import { api } from "../../lib/api";
@@ -22,16 +25,15 @@ import { showActionFeedback } from "../../components/ActionFeedback";
 import type { Play } from "../../generated/models/play";
 import { useInvalidateUserCache, userCache } from "../../lib/userCache";
 import {
-  calendarMonthRange,
   dateInTimezone,
+  daysUntilRelease,
   formatCalendarDate,
-  formatCalendarMonth,
   groupCalendarEntries,
-  monthInTimezone,
-  shiftCalendarMonth,
+  upcomingYearRange,
 } from "./calendar";
-import type { CalendarEntry, ContinueEntry, MediaDetailTarget } from "../../types";
+import type { CalendarEntry, ContinueEntry, CursorPage, MediaDetailTarget } from "../../types";
 import { backdropURL, posterURL } from "../../lib/artwork";
+import { pageURL } from "../../lib/pagination";
 
 export function WatchNow({ onOpenDetail }: { onOpenDetail?: (target: MediaDetailTarget) => void }) {
   const queryClient = useQueryClient();
@@ -298,7 +300,8 @@ export function WatchCalendar({
   onOpenDetail?: (target: MediaDetailTarget) => void;
 }) {
   const userQueryKey = useUserQueryKey();
-  const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const settings = useQuery({
     queryKey: userQueryKey("profile-settings"),
     queryFn: () =>
@@ -308,18 +311,40 @@ export function WatchCalendar({
       ),
   });
   const today = settings.data ? dateInTimezone(settings.data.timezone) : "";
-  const currentMonth = today ? today.slice(0, 7) : "";
-  const month = selectedMonth ?? currentMonth;
-  const range = today && month ? calendarMonthRange(month, today) : null;
-  const calendar = useQuery({
+  const range = today ? upcomingYearRange(today) : null;
+  const calendarPath = range ? `/api/v1/calendar?from=${range.from}&to=${range.to}` : "";
+  const entries = useInfiniteQuery({
     queryKey: userQueryKey("calendar", range?.from, range?.to),
     enabled: range !== null,
-    queryFn: () =>
-      api.get<CalendarEntry[]>(
-        `/api/v1/calendar?from=${range!.from}&to=${range!.to}`,
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }) =>
+      api.get<CursorPage<CalendarEntry>>(
+        pageURL(calendarPath, pageParam),
         "Calendar is temporarily unavailable.",
       ),
+    getNextPageParam: (page) => page.next_cursor ?? undefined,
   });
+  const dates = useQuery({
+    queryKey: userQueryKey("calendar-dates", range?.from, range?.to),
+    enabled: range !== null && calendarOpen,
+    queryFn: () =>
+      api.get<string[]>(
+        `/api/v1/calendar/dates?from=${range!.from}&to=${range!.to}`,
+        "Release dates are temporarily unavailable.",
+      ),
+  });
+  const dayEntries = useInfiniteQuery({
+    queryKey: userQueryKey("calendar", selectedDate, selectedDate),
+    enabled: selectedDate !== null && calendarOpen,
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }) =>
+      api.get<CursorPage<CalendarEntry>>(
+        pageURL(`/api/v1/calendar?from=${selectedDate}&to=${selectedDate}`, pageParam),
+        "Episodes for this date are temporarily unavailable.",
+      ),
+    getNextPageParam: (page) => page.next_cursor ?? undefined,
+  });
+
   if (settings.isPending)
     return (
       <Group justify="center" mt="xl">
@@ -332,128 +357,196 @@ export function WatchCalendar({
         Calendar settings are temporarily unavailable.
       </Alert>
     );
-  const controls = (
-    <Group className="calendar-header" justify="space-between" align="center" mt="md">
-      <Title order={1} className="calendar-month">
-        {formatCalendarMonth(month)}
-      </Title>
-      <Group gap="xs" wrap="nowrap">
-        <ActionIcon
-          variant="default"
-          size="lg"
-          aria-label="Previous month"
-          disabled={month <= currentMonth}
-          onClick={() => setSelectedMonth(shiftCalendarMonth(month, -1))}
-        >
-          <IconChevronLeft size={18} />
-        </ActionIcon>
-        <ActionIcon
-          variant="default"
-          size="lg"
-          aria-label="Next month"
-          onClick={() => setSelectedMonth(shiftCalendarMonth(month, 1))}
-        >
-          <IconChevronRight size={18} />
-        </ActionIcon>
-      </Group>
-    </Group>
-  );
-  if (calendar.isPending)
-    return (
-      <Group justify="center" mt="xl">
-        <Loader />
-      </Group>
-    );
-  if (calendar.isError)
-    return (
-      <Alert color="red" mt="md">
-        Calendar is temporarily unavailable.
-      </Alert>
-    );
-  if (!calendar.data?.length)
-    return (
-      <>
-        {controls}
-        <EmptyState
-          title="No upcoming episodes this month"
-          detail="You are all clear for this part of your calendar."
-        />
-      </>
-    );
-  const groups = groupCalendarEntries(calendar.data);
 
+  const releaseDates = new Set(dates.data ?? []);
+  const loaded = entries.data?.pages.flatMap((page) => page.items) ?? [];
+  const groups = groupCalendarEntries(loaded);
+  const selectedEntries = dayEntries.data?.pages.flatMap((page) => page.items) ?? [];
   return (
     <>
-      {controls}
-      <div className="calendar-list">
-        {groups.map((group) => (
-          <section
-            className="calendar-day"
-            key={group.date}
-            aria-label={`Episodes airing ${formatCalendarDate(group.date)}`}
-          >
-            <Text component="h2" className="calendar-date" fw={700}>
-              {formatCalendarDate(group.date)}
-            </Text>
-            <div className="calendar-day-entries">
-              {group.entries.map((item) => {
-                const art =
-                  backdropURL(item.episode_still_path, "w780") ??
-                  posterURL(item.poster_path, "w500");
-                return (
-                  <Paper
+      <Group className="calendar-header" justify="space-between" align="center" mt="md">
+        <Title order={1} className="calendar-month">
+          Upcoming episodes
+        </Title>
+        <ActionIcon
+          variant="default"
+          size="xl"
+          aria-label="Open release calendar"
+          onClick={() => setCalendarOpen(true)}
+        >
+          <IconCalendar size={22} />
+        </ActionIcon>
+      </Group>
+      {entries.isPending ? (
+        <Group justify="center" mt="xl">
+          <Loader />
+        </Group>
+      ) : entries.isError ? (
+        <Alert color="red" mt="md">
+          Calendar is temporarily unavailable.
+        </Alert>
+      ) : loaded.length === 0 ? (
+        <EmptyState title="No upcoming episodes" detail="New release dates will appear here." />
+      ) : (
+        <div className="calendar-list">
+          {groups.map((group) => (
+            <section
+              className="calendar-day"
+              key={group.date}
+              aria-label={`Episodes airing ${formatCalendarDate(group.date)}`}
+            >
+              <Text component="h2" className="calendar-date" fw={700}>
+                {formatCalendarDate(group.date)}
+              </Text>
+              <div className="calendar-day-entries">
+                {group.entries.map((item) => (
+                  <CalendarEpisodeCard
                     key={item.episode.id}
-                    className="calendar-card"
-                    withBorder
-                    p={0}
-                    role={onOpenDetail ? "button" : undefined}
-                    tabIndex={onOpenDetail ? 0 : undefined}
-                    aria-label={
-                      onOpenDetail
-                        ? `Open ${item.title}, season ${item.episode.season_number}, episode ${item.episode.episode_number}`
-                        : undefined
-                    }
-                    onClick={() =>
-                      onOpenDetail?.({
-                        mediaType: "tv",
-                        tmdbID: Number(item.show_id.split(":")[1]),
-                        mediaID: item.show_id,
-                        episodeID: item.episode.id,
-                        episode: item.episode,
-                      })
-                    }
-                    onKeyDown={(event) => {
-                      if (onOpenDetail && (event.key === "Enter" || event.key === " ")) {
-                        event.preventDefault();
-                        event.currentTarget.click();
-                      }
-                    }}
-                  >
-                    <div className="calendar-card-art">
-                      {art ? (
-                        <Image src={art} alt="" />
-                      ) : (
-                        <div className="artwork-fallback">{item.title.slice(0, 1)}</div>
-                      )}
-                    </div>
-                    <div className="calendar-card-copy">
-                      <Text className="calendar-card-show" lineClamp={1}>
-                        {item.title}
-                      </Text>
-                      <Text className="calendar-card-episode" fw={700}>
-                        {item.episode_name || `Episode ${item.episode.episode_number}`}
-                      </Text>
-                      <Text className="calendar-card-number">
-                        {`S${String(item.episode.season_number).padStart(2, "0")} · E${String(item.episode.episode_number).padStart(2, "0")}`}
-                      </Text>
-                    </div>
-                  </Paper>
-                );
-              })}
-            </div>
-          </section>
-        ))}
-      </div>
+                    item={item}
+                    today={today}
+                    onOpenDetail={onOpenDetail}
+                  />
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+      )}
+      <InfiniteScrollTrigger
+        hasNextPage={!!entries.hasNextPage}
+        isFetchingNextPage={entries.isFetchingNextPage}
+        isFetchNextPageError={entries.isFetchNextPageError}
+        fetchNextPage={() => void entries.fetchNextPage()}
+      />
+      <Modal
+        opened={calendarOpen}
+        onClose={() => {
+          setCalendarOpen(false);
+          setSelectedDate(null);
+        }}
+        title="Release calendar"
+        centered
+        size="lg"
+      >
+        {dates.isPending ? (
+          <Group justify="center">
+            <Loader />
+          </Group>
+        ) : dates.isError ? (
+          <Alert color="red">Release dates are temporarily unavailable.</Alert>
+        ) : (
+          <Calendar
+            fullWidth
+            defaultDate={today}
+            minDate={range.from}
+            maxDate={range.to}
+            renderDay={(date) => (
+              <Indicator size={6} color="amber" offset={-3} disabled={!releaseDates.has(date)}>
+                <span>{Number(date.slice(-2))}</span>
+              </Indicator>
+            )}
+            getDayProps={(date) => ({
+              selected: date === selectedDate,
+              onClick: () => setSelectedDate(releaseDates.has(date) ? date : null),
+            })}
+          />
+        )}
+        {selectedDate && (
+          <div className="calendar-selected-day">
+            <Text component="h2" fw={700} mb="sm">
+              {formatCalendarDate(selectedDate)}
+            </Text>
+            {dayEntries.isPending ? (
+              <Group justify="center">
+                <Loader size="sm" />
+              </Group>
+            ) : dayEntries.isError ? (
+              <Alert color="red">Episodes for this date are temporarily unavailable.</Alert>
+            ) : (
+              <div className="calendar-day-entries">
+                {selectedEntries.map((item) => (
+                  <CalendarEpisodeCard
+                    key={item.episode.id}
+                    item={item}
+                    today={today}
+                    onOpenDetail={onOpenDetail}
+                  />
+                ))}
+              </div>
+            )}
+            <InfiniteScrollTrigger
+              hasNextPage={!!dayEntries.hasNextPage}
+              isFetchingNextPage={dayEntries.isFetchingNextPage}
+              isFetchNextPageError={dayEntries.isFetchNextPageError}
+              fetchNextPage={() => void dayEntries.fetchNextPage()}
+            />
+          </div>
+        )}
+      </Modal>
     </>
+  );
+}
+
+function CalendarEpisodeCard({
+  item,
+  today,
+  onOpenDetail,
+}: {
+  item: CalendarEntry;
+  today: string;
+  onOpenDetail?: (target: MediaDetailTarget) => void;
+}) {
+  const art = backdropURL(item.episode_still_path, "w780") ?? posterURL(item.poster_path, "w500");
+  const releaseDate = item.episode.air_date?.slice(0, 10) ?? today;
+  const days = daysUntilRelease(today, releaseDate);
+  const open = () =>
+    onOpenDetail?.({
+      mediaType: "tv",
+      tmdbID: Number(item.show_id.split(":")[1]),
+      mediaID: item.show_id,
+      episodeID: item.episode.id,
+      episode: item.episode,
+    });
+  return (
+    <Paper
+      className="calendar-card"
+      withBorder
+      p={0}
+      role={onOpenDetail ? "button" : undefined}
+      tabIndex={onOpenDetail ? 0 : undefined}
+      aria-label={
+        onOpenDetail
+          ? `Open ${item.title}, season ${item.episode.season_number}, episode ${item.episode.episode_number}`
+          : undefined
+      }
+      onClick={open}
+      onKeyDown={(event) => {
+        if (onOpenDetail && (event.key === "Enter" || event.key === " ")) {
+          event.preventDefault();
+          open();
+        }
+      }}
+    >
+      <div className="calendar-card-art">
+        {art ? (
+          <Image src={art} alt="" />
+        ) : (
+          <div className="artwork-fallback">{item.title.slice(0, 1)}</div>
+        )}
+      </div>
+      <div className="calendar-card-copy">
+        <Text className="calendar-card-show" lineClamp={1}>
+          {item.title}
+        </Text>
+        <Text className="calendar-card-number">{`S${String(item.episode.season_number).padStart(2, "0")} E${String(item.episode.episode_number).padStart(2, "0")}`}</Text>
+        <Text className="calendar-card-episode" lineClamp={1}>
+          {item.episode_name || `Episode ${item.episode.episode_number}`}
+        </Text>
+      </div>
+      <div className="calendar-card-countdown">
+        <strong>{days}</strong>
+        <span>{days === 1 ? "day" : "days"}</span>
+      </div>
+    </Paper>
   );
 }
