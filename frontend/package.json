@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "prepare": "node ./scripts/install-git-hooks.mjs",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "db:diagram": "node ./scripts/generate-db-diagram.mjs",
