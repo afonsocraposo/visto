@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.12.0](https://github.com/afonsocraposo/visto/compare/v0.11.2...v0.12.0) (2026-09-27)
+
+
+### Features
+
+* add instance user profiles ([c18e454](https://github.com/afonsocraposo/visto/commit/c18e45406eae0b7fc64b4bbd27aa4cc21abc3eca))
+* notify when a subscribed season is ready ([cf87858](https://github.com/afonsocraposo/visto/commit/cf87858c1f943f6cdb23d5fb8292c3aa410f22db))
+
+
+### Bug Fixes
+
+* increase debounce value of search ([3aefa25](https://github.com/afonsocraposo/visto/commit/3aefa258d0f41c0b8b30c40890f64ed54941624d))
+* keep feed cards compact and disable touch hover ([d2c6ca2](https://github.com/afonsocraposo/visto/commit/d2c6ca24d0a3b9f398a2b64545243bf883b2c2e2))
+* prevent mobile input focus zoom ([93c87db](https://github.com/afonsocraposo/visto/commit/93c87dbc913112fe7b23bc6b34872bfe94d1683c))
+
 ## [0.11.2](https://github.com/afonsocraposo/visto/compare/v0.11.1...v0.11.2) (2026-09-27)
 
 
