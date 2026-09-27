@@ -71,8 +71,8 @@ func TestMovieWatch_MovesMovieOutOfWatchlist(t *testing.T) {
 	if err := store.DB.QueryRow(`SELECT status FROM user_media WHERE user_id=? AND media_id=?`, userID, mediaID).Scan(&status); err != nil {
 		t.Fatal(err)
 	}
-	if status != "watching" {
-		t.Fatalf("movie status=%q, want watching", status)
+	if status != "completed" {
+		t.Fatalf("movie status=%q, want completed", status)
 	}
 }
 
@@ -244,8 +244,12 @@ func TestTracking_GivenNewAndExistingTitles_WhenPlaysAreRecorded_ThenItCreatesOr
 		if err := store.DB.QueryRow(`SELECT status FROM user_media WHERE user_id=? AND media_id=?`, aliceID, mediaID).Scan(&status); err != nil {
 			t.Fatalf("find Alice's %s relationship: %v", mediaID, err)
 		}
-		if status != "watching" {
-			t.Fatalf("Alice's %s status=%q, want watching", mediaID, status)
+		want := "watching"
+		if mediaID == "movie:10" {
+			want = "completed"
+		}
+		if status != want {
+			t.Fatalf("Alice's %s status=%q, want %s", mediaID, status, want)
 		}
 	}
 
@@ -260,7 +264,7 @@ func TestTracking_GivenNewAndExistingTitles_WhenPlaysAreRecorded_ThenItCreatesOr
 	if err := store.DB.QueryRow(`SELECT status FROM user_media WHERE user_id=? AND media_id='movie:10'`, bobID).Scan(&bobStatus); err != nil {
 		t.Fatal(err)
 	}
-	if bobStatus != "paused" {
-		t.Fatalf("Bob's paused state was changed to %q", bobStatus)
+	if bobStatus != "completed" {
+		t.Fatalf("Bob's movie status=%q, want completed", bobStatus)
 	}
 }

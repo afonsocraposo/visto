@@ -13,6 +13,8 @@ import { RatingStars } from "../../components/RatingStars";
 import type { SearchMedia, ShowEpisodeEntry } from "../../types";
 
 type ActionMutation<T> = { isPending: boolean; mutate: (value: T) => void };
+const completionQuestion =
+  "Have you watched every regular episode, including future-dated episodes? Specials are excluded.";
 
 type EpisodeActionsProps = {
   entry: ShowEpisodeEntry;
@@ -90,8 +92,8 @@ type MediaActionsProps = {
   status?: string;
   rating?: number | null;
   notificationsEnabled: boolean;
-  add: ActionMutation<"watching" | "watchlist">;
-  update: ActionMutation<{ status: string; rating: number | null }>;
+  add: ActionMutation<"watching" | "watchlist" | "paused" | "dropped" | "completed">;
+  update: ActionMutation<{ status: string; rating: number | null; confirm_all_episodes?: boolean }>;
   updateNotifications: ActionMutation<boolean>;
   watched: boolean;
   onWatch: () => void;
@@ -237,6 +239,27 @@ export function MediaActions({
             <IconBookmark size={20} />
           </ActionIcon>
         </Tooltip>
+        <Select
+          aria-label="Add to list"
+          placeholder="Choose list"
+          value={null}
+          onChange={(value) => {
+            if (!value) return;
+            if (value === "completed" && !window.confirm(completionQuestion)) return;
+            add.mutate(value as "watching" | "watchlist" | "paused" | "dropped" | "completed");
+          }}
+          data={[
+            { value: "watchlist", label: "Watchlist" },
+            { value: "watching", label: "Watching" },
+            { value: "paused", label: "Paused" },
+            { value: "dropped", label: "Dropped" },
+            ...(["Ended", "Canceled", "Cancelled"].includes(media.status ?? "")
+              ? [{ value: "completed", label: "Completed" }]
+              : []),
+          ]}
+          disabled={pending || add.isPending}
+          w={150}
+        />
         {showWatchAction}
       </Group>
     );
@@ -245,19 +268,26 @@ export function MediaActions({
     { value: "watching", label: "Watching" },
     { value: "paused", label: "Paused" },
     { value: "dropped", label: "Dropped" },
+    ...(["Ended", "Canceled", "Cancelled"].includes(media.status ?? "")
+      ? [{ value: "completed", label: "Completed" }]
+      : []),
   ];
   return (
     <Group className="detail-actions" mt="lg">
       <Select
         aria-label="Current list"
-        allowDeselect
+        allowDeselect={status !== "completed"}
         value={status}
         onChange={(value) => {
-          if (value) update.mutate({ status: value, rating: rating ?? null });
-          else if (status === "watchlist") onRemoveWatchlist();
+          if (value) {
+            if (value === "completed" && status !== "completed") {
+              if (!window.confirm(completionQuestion)) return;
+              update.mutate({ status: value, rating: rating ?? null, confirm_all_episodes: true });
+            } else update.mutate({ status: value, rating: rating ?? null });
+          } else if (status === "watchlist") onRemoveWatchlist();
           else onRemoveCurrentList();
         }}
-        data={statusOptions}
+        data={status === "completed" ? [{ value: "completed", label: "Completed" }] : statusOptions}
         disabled={pending || update.isPending}
         w={150}
       />

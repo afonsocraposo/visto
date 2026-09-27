@@ -79,10 +79,11 @@ type fakeLibrary struct {
 	imported     domain.TVSeasonMetadata
 }
 
-func (catalog *fakeLibrary) SaveMedia(_ context.Context, _ string, media library.Media, _ domain.LibraryStatus, _ *int) (library.Item, error) {
+func (catalog *fakeLibrary) StoreMedia(_ context.Context, media library.Media) error {
 	catalog.saved = append(catalog.saved, media)
-	return library.Item{}, nil
+	return nil
 }
+
 func (catalog *fakeLibrary) ImportShowSeason(_ context.Context, _ string, show domain.TVShowMetadata, season domain.TVSeasonMetadata) error {
 	catalog.importedShow, catalog.imported = show, season
 	return nil

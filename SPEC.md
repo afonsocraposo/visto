@@ -52,7 +52,7 @@ trademark policy.
   existing local account with the same email; new Google accounts follow the
   instance signup setting.
 - TMDB search and lazy local metadata import for movies and TV shows.
-- Per-user library states: `watchlist`, `watching`, `paused`, and `dropped`.
+- Per-user library states: `watchlist`, `watching`, `paused`, `dropped`, and `completed`.
 - Movie and episode watch-play history, including rewatches and corrections.
 - 1–5 whole-star ratings.
 - Derived TV progress, Continue Watching, and an upcoming-episode calendar
@@ -161,13 +161,27 @@ Statuses have these meanings:
 - `dropped`: retain data but hide from Continue Watching and suppress episode
   notifications.
 
-`completed` and `caught_up` are computed display states. They are not stored as
-library statuses. A movie is considered watched when it has at least one play.
-Recording a movie play moves a watchlisted movie to the watched display state.
-Removing a movie's watches also removes its library entry. A user can remove a
-watchlist movie with its bookmark action. A TV show can be removed from its
-current list by selecting that list again. Removing it from Watching, Paused, or
-Dropped preserves its episode watch history.
+`completed` is a stored library status; `caught_up` remains a computed display
+state. Movies can be in Watchlist or Completed. Recording a movie play moves it
+to Completed. Removing its last play also removes its library entry. A TV show
+with any recorded episode play cannot enter Watchlist. Paused and Dropped can
+be selected without recording an episode; either can return to Watchlist while
+no episode play exists. Removing a TV show from Watching, Paused, or Dropped
+preserves its episode history.
+
+A TV show is Completed only when its metadata status is Ended, Canceled, or
+Cancelled, its regular episode catalog is complete and nonempty, and every
+regular episode has a play. Specials are excluded; future-dated regular
+episodes count. Manually selecting Completed asks the user to confirm that
+they watched all regular episodes, records only missing plays, and changes the
+status in one transaction. Completing the last episode moves a show from any
+list to Completed automatically. If a completed show gains an unwatched regular
+episode, an episode becomes unwatched, or its metadata status is no longer
+terminal, it moves to Watching. A completed show cannot be removed from its
+list while retaining its watch history.
+
+This lifecycle is a breaking API change: library responses expose completion
+through `item.status` and no longer return a separate `completed` boolean.
 
 ### Watch plays and corrections
 

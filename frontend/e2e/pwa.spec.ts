@@ -342,7 +342,6 @@ test("TV details show the production status for saved and unsaved shows", async 
     fulfillJSON(route, {
       media: media("Returning Series"),
       item: { media_id: "tv:100", status: "watching", rating: null, notifications_enabled: false },
-      completed: false,
     }),
   );
   await page.goto("/media/tv/100");
@@ -391,7 +390,7 @@ test("TV details show the production status for saved and unsaved shows", async 
   ).toBeVisible();
 
   await page.route("**/api/v1/movies/100", (route) =>
-    fulfillJSON(route, { media: media("Ended", "movie"), item: {}, completed: false }),
+    fulfillJSON(route, { media: media("Ended", "movie"), item: {} }),
   );
   await page.goto("/media/movie/100");
   await expect(page.locator(".detail-hero .mantine-Badge-root")).toHaveCount(1);
@@ -413,6 +412,7 @@ test("Given a TV show detail, When the user uses compact watch controls, Then sh
     release_date: "2024-01-01",
     poster_path: "",
     original_language: "en",
+    status: "Ended",
   };
   const episodes = [1, 2].map((number) => ({
     episode: {
@@ -425,7 +425,7 @@ test("Given a TV show detail, When the user uses compact watch controls, Then sh
     name: `Episode ${number}`,
     watched: false,
   }));
-  let savedStatus: "watching" | "watchlist" | null = null;
+  let savedStatus: "watching" | "watchlist" | "completed" | null = null;
   let allWatched = false;
   await page.route("**/api/v1/shows/**/progress", (route) =>
     fulfillJSON(route, { is_fully_watched: allWatched, watched_episodes: allWatched ? 2 : 0 }),
@@ -440,7 +440,6 @@ test("Given a TV show detail, When the user uses compact watch controls, Then sh
             rating: null,
             notifications_enabled: true,
           },
-          completed: false,
         })
       : fulfillJSON(route, { error: "not saved" }, 404),
   );
@@ -451,6 +450,16 @@ test("Given a TV show detail, When the user uses compact watch controls, Then sh
     } else {
       await fulfillJSON(route, { items: [], next_cursor: null });
     }
+  });
+  let confirmedCompletion = false;
+  await page.route("**/api/v1/library/tv%3A100", async (route) => {
+    const body = route.request().postDataJSON() as {
+      status: "completed";
+      confirm_all_episodes: boolean;
+    };
+    confirmedCompletion = body.status === "completed" && body.confirm_all_episodes;
+    savedStatus = body.status;
+    await fulfillJSON(route, { media_id: show.id, status: savedStatus });
   });
   await page.route("**/api/v1/shows/**/episodes", (route) =>
     fulfillJSON(route, {
@@ -511,6 +520,11 @@ test("Given a TV show detail, When the user uses compact watch controls, Then sh
   await page.getByRole("button", { name: "Save The Example Show for later" }).click();
   await expect.poll(() => savedStatus).toBe("watchlist");
   await expect(page.getByRole("combobox", { name: "Current list" })).toHaveValue("Watchlist");
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("combobox", { name: "Current list" }).click();
+  await page.getByRole("option", { name: "Completed" }).click();
+  await expect.poll(() => confirmedCompletion).toBe(true);
+  await expect(page.getByRole("combobox", { name: "Current list" })).toHaveValue("Completed");
 });
 
 test("Given a movie in Watchlist, When it is marked watched from search, Then Undo restores Watchlist", async ({
@@ -531,8 +545,12 @@ test("Given a movie in Watchlist, When it is marked watched from search, Then Un
   let status = "watchlist";
   let playDeleted = false;
   await page.route("**/api/v1/search**", (route) => fulfillJSON(route, [movie]));
-  await page.route(/\/api\/v1\/library(?:\?.*)?$/, (route) =>
-    fulfillJSON(route, [
+  await page.route(/\/api\/v1\/library(?:\?.*)?$/, (route) => {
+    if (route.request().method() === "POST") {
+      status = route.request().postDataJSON().status;
+      return fulfillJSON(route, { media_id: movie.id, status }, 201);
+    }
+    return fulfillJSON(route, [
       {
         item: {
           media_id: movie.id,
@@ -542,10 +560,9 @@ test("Given a movie in Watchlist, When it is marked watched from search, Then Un
           updated_at: "2026-09-25T00:00:00Z",
         },
         media: movie,
-        completed: status === "watching",
       },
-    ]),
-  );
+    ]);
+  });
   await page.route("**/api/v1/library/lookup", (route) =>
     fulfillJSON(route, [
       {
@@ -557,16 +574,16 @@ test("Given a movie in Watchlist, When it is marked watched from search, Then Un
           updated_at: "2026-09-25T00:00:00Z",
         },
         media: movie,
-        completed: status === "watching",
       },
     ]),
   );
   await page.route("**/api/v1/plays", async (route) => {
-    if (route.request().method() === "POST") status = "watching";
+    if (route.request().method() === "POST") status = "completed";
     await fulfillJSON(route, { id: "play-1" }, 201);
   });
   await page.route("**/api/v1/plays/play-1", async (route) => {
     playDeleted = true;
+    status = "";
     await route.fulfill({ status: 204, body: "" });
   });
   await page.route("**/api/v1/library/movie%3A10", async (route) => {
@@ -749,16 +766,15 @@ test("Given another library page, When the user scrolls the list, Then more titl
       poster_path: "",
       original_language: "en",
     },
-    completed: false,
   });
   await page.route(/\/api\/v1\/library(?:\?.*)?$/, async (route) => {
     const url = new URL(route.request().url());
     if (url.searchParams.get("status") !== "watchlist")
       return fulfillJSON(route, { items: [], next_cursor: null });
-    if (url.searchParams.has("limit"))
-      return fulfillJSON(route, { items: [entry(1)], next_cursor: "overview-more" });
     if (url.searchParams.has("cursor"))
       return fulfillJSON(route, { items: [entry(2)], next_cursor: null });
+    if (url.searchParams.has("limit"))
+      return fulfillJSON(route, { items: [entry(1)], next_cursor: "overview-more" });
     return fulfillJSON(route, { items: [entry(1)], next_cursor: "list-more" });
   });
   await page.goto("/");
@@ -791,7 +807,6 @@ test("Expanded library pages filter media before pagination and keep the selecti
       poster_path: "",
       original_language: "en",
     },
-    completed: true,
   });
   await page.route(/\/api\/v1\/library(?:\?.*)?$/, (route) => {
     const url = new URL(route.request().url());

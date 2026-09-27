@@ -183,6 +183,9 @@ func (store *Store) RecordPlexPlay(ctx context.Context, userID, fingerprint stri
 		return false, fmt.Errorf("get Plex play ID: %w", err)
 	}
 	playID := strconv.FormatInt(playIDValue, 10)
+	if err := reconcileMediaStatus(ctx, tx, userID, trackedMediaID); err != nil {
+		return false, err
+	}
 	var visibility string
 	if err := tx.QueryRowContext(ctx, `SELECT activity_visibility FROM user_settings WHERE user_id=?`, userID).Scan(&visibility); err != nil {
 		return false, fmt.Errorf("get activity visibility: %w", err)

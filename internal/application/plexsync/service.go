@@ -67,7 +67,7 @@ type MetadataProvider interface {
 }
 
 type Library interface {
-	SaveMedia(context.Context, string, library.Media, domain.LibraryStatus, *int) (library.Item, error)
+	StoreMedia(context.Context, library.Media) error
 	ImportShowSeason(context.Context, string, domain.TVShowMetadata, domain.TVSeasonMetadata) error
 }
 
@@ -162,7 +162,7 @@ func (service *Service) Handle(ctx context.Context, secret, rawPayload string) e
 			return service.logResolutionError(ctx, userID, fingerprint, event, resolveErr)
 		}
 		media := library.Media{ID: fmt.Sprintf("movie:%d", movie.TMDBID), Type: domain.MovieMediaType, TMDBID: movie.TMDBID, Title: movie.Title, OriginalTitle: movie.OriginalTitle, Overview: movie.Overview, ReleaseDate: movie.ReleaseDate, PosterPath: movie.PosterPath, BackdropPath: movie.BackdropPath, OriginalLanguage: movie.OriginalLanguage, Status: movie.Status}
-		if _, err := service.library.SaveMedia(ctx, userID, media, domain.WatchingStatus, nil); err != nil {
+		if err := service.library.StoreMedia(ctx, media); err != nil {
 			event.Status, event.Message = "failed", "Could not add the movie to the Visto library"
 			return service.log(ctx, userID, fingerprint, event)
 		}
@@ -174,7 +174,7 @@ func (service *Service) Handle(ctx context.Context, secret, rawPayload string) e
 			return service.logResolutionError(ctx, userID, fingerprint, event, resolveErr)
 		}
 		media := library.Media{ID: fmt.Sprintf("tv:%d", show.TMDBID), Type: domain.TVMediaType, TMDBID: show.TMDBID, Title: show.Name, OriginalTitle: show.Name, Overview: show.Overview, ReleaseDate: show.FirstAirDate, PosterPath: show.PosterPath, BackdropPath: show.BackdropPath, OriginalLanguage: show.OriginalLanguage, Status: show.Status}
-		if _, err := service.library.SaveMedia(ctx, userID, media, domain.WatchingStatus, nil); err != nil {
+		if err := service.library.StoreMedia(ctx, media); err != nil {
 			event.Status, event.Message = "failed", "Could not add the TV show to the Visto library"
 			return service.log(ctx, userID, fingerprint, event)
 		}

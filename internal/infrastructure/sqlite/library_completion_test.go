@@ -35,7 +35,13 @@ func TestLibrary_GivenMovieAndShowPlays_WhenLibraryIsRead_ThenCompletionAndRegul
 		t.Fatal(err)
 	}
 	for _, mediaID := range []string{"movie:10", "movie:11", "tv:42"} {
-		if _, err := store.DB.Exec(`INSERT INTO user_media(id,user_id,media_id,status,added_at,updated_at) VALUES(?, ?, ?, 'watching', ?, ?)`, aliceID+":"+mediaID, aliceID, mediaID, testTimestamp, testTimestamp); err != nil {
+		status := "watching"
+		if mediaID == "movie:10" {
+			status = "completed"
+		} else if mediaID == "movie:11" {
+			status = "watchlist"
+		}
+		if _, err := store.DB.Exec(`INSERT INTO user_media(id,user_id,media_id,status,added_at,updated_at) VALUES(?, ?, ?, ?, ?, ?)`, aliceID+":"+mediaID, aliceID, mediaID, status, testTimestamp, testTimestamp); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -59,13 +65,13 @@ func TestLibrary_GivenMovieAndShowPlays_WhenLibraryIsRead_ThenCompletionAndRegul
 	completed := map[string]bool{}
 	progress := map[string]*struct{ watched, total int }{}
 	for _, entry := range entries {
-		completed[entry.Item.MediaID] = entry.Completed
+		completed[entry.Item.MediaID] = entry.Item.Status == domain.CompletedStatus
 		if entry.Progress != nil {
 			progress[entry.Item.MediaID] = &struct{ watched, total int }{entry.Progress.WatchedEpisodes, entry.Progress.TotalEpisodes}
 		}
 	}
 	if !completed["movie:10"] || completed["movie:11"] || completed["tv:42"] {
-		t.Fatalf("derived completion states=%v", completed)
+		t.Fatalf("completion statuses=%v", completed)
 	}
 	if got := progress["tv:42"]; got == nil || got.watched != 1 || got.total != 2 {
 		t.Fatalf("show progress=%+v, want 1 of 2 regular episodes (specials excluded)", got)
@@ -84,14 +90,14 @@ func TestLibrary_GivenMovieAndShowPlays_WhenLibraryIsRead_ThenCompletionAndRegul
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !movie.Completed {
-		t.Fatalf("movie detail did not derive completion: %+v", movie)
+	if movie.Item.Status != domain.CompletedStatus {
+		t.Fatalf("movie detail status=%+v", movie)
 	}
 	var storedCompletedStatus int
 	if err := store.DB.QueryRow(`SELECT COUNT(*) FROM user_media WHERE status='completed'`).Scan(&storedCompletedStatus); err != nil {
 		t.Fatal(err)
 	}
-	if storedCompletedStatus != 0 {
-		t.Fatal("computed completion must not be stored as a library status")
+	if storedCompletedStatus != 1 {
+		t.Fatal("completion must be stored as a library status")
 	}
 }

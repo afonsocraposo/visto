@@ -96,6 +96,9 @@ func TestPagesTraverseLibraryPlaysAndUsers(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	if _, err := store.DB.Exec(`UPDATE user_media SET status='completed' WHERE user_id=? AND media_id='movie:1'`, userID); err != nil {
+		t.Fatal(err)
+	}
 	completed, err := store.ListItemsPage(ctx, userID, library.ListOptions{Sort: "updated", Status: "completed"}, pagination.Request{Limit: 10})
 	if err != nil || len(completed.Items) != 1 || completed.Items[0].Item.MediaID != "movie:1" {
 		t.Fatalf("completed library page: %v %v", completed, err)

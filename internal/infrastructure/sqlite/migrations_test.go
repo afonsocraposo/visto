@@ -19,7 +19,7 @@ func TestMigrator_GivenFreshDatabase_WhenAppliedTwice_ThenCurrentSchemaExistsAnd
 	if err != nil {
 		t.Fatalf("new migrator: %v", err)
 	}
-	if len(migrator.Migrations) != 6 || migrator.Migrations[0].Version != 1 || migrator.Migrations[1].Version != 2 || migrator.Migrations[2].Version != 3 || migrator.Migrations[3].Version != 4 || migrator.Migrations[4].Version != 5 || migrator.Migrations[5].Version != 6 {
+	if len(migrator.Migrations) != 7 || migrator.Migrations[0].Version != 1 || migrator.Migrations[1].Version != 2 || migrator.Migrations[2].Version != 3 || migrator.Migrations[3].Version != 4 || migrator.Migrations[4].Version != 5 || migrator.Migrations[5].Version != 6 || migrator.Migrations[6].Version != 7 {
 		t.Fatalf("loaded migrations = %#v, want baseline, Plex account, backup, Web Push, pagination, and activity visibility migrations", migrator.Migrations)
 	}
 	migrator.Now = func() time.Time { return time.Date(2026, 9, 24, 0, 0, 0, 0, time.UTC) }
@@ -35,8 +35,8 @@ func TestMigrator_GivenFreshDatabase_WhenAppliedTwice_ThenCurrentSchemaExistsAnd
 	if err := db.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&count); err != nil {
 		t.Fatalf("count migrations: %v", err)
 	}
-	if count != 6 {
-		t.Fatalf("migration count = %d, want 6", count)
+	if count != 7 {
+		t.Fatalf("migration count = %d, want 7", count)
 	}
 	var version int
 	var name string
@@ -150,6 +150,77 @@ func TestLoadMigrations_GivenInvalidFilename_WhenLoaded_ThenItFails(t *testing.T
 	_, err := sqlite.LoadMigrations(fstest.MapFS{"migrations/not-a-migration.txt": {Data: []byte("SELECT 1;")}})
 	if err == nil || !strings.Contains(err.Error(), "invalid migration filename") {
 		t.Fatalf("error = %v, want invalid filename error", err)
+	}
+}
+
+func TestCompletedStatusMigration_PreservesHistoryAndNormalizesLists(t *testing.T) {
+	db := openTestDatabase(t)
+	migrator, err := sqlite.NewMigrator()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, migration := range migrator.Migrations[:6] {
+		if _, err := db.Exec(migration.SQL); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_, err = db.Exec(`INSERT INTO users(id,username,display_name,password_hash,role,created_at,updated_at)
+		VALUES(1,'u','User','hash','user','now','now');
+		INSERT INTO media(id,media_type,tmdb_id,title,status,metadata_updated_at,created_at) VALUES
+		('movie:1','movie',1,'Watched Movie','','now','now'),
+		('movie:2','movie',2,'Saved Movie','','now','now'),
+		('tv:3','tv',3,'Started Show','Returning Series','now','now'),
+		('tv:4','tv',4,'Finished Show','Ended','now','now'),
+		('tv:5','tv',5,'Unlisted Finished Show','Ended','now','now');
+		INSERT INTO seasons(id,show_id,season_number,name,episode_count) VALUES
+		('tv:3:season:1','tv:3',1,'Season 1',2),('tv:4:season:1','tv:4',1,'Season 1',1),
+		('tv:5:season:1','tv:5',1,'Season 1',1);
+		INSERT INTO episodes(id,show_id,season_id,season_number,episode_number,name) VALUES
+		('e31','tv:3','tv:3:season:1',1,1,'One'),('e41','tv:4','tv:4:season:1',1,1,'One'),
+		('e51','tv:5','tv:5:season:1',1,1,'One');
+		INSERT INTO user_media(id,user_id,media_id,status,rating,added_at,updated_at) VALUES
+		('u:m1',1,'movie:1','watching',5,'old','old'),('u:m2',1,'movie:2','watching',NULL,'old','old'),
+		('u:t3',1,'tv:3','watchlist',NULL,'old','old'),('u:t4',1,'tv:4','paused',NULL,'old','old');
+		INSERT INTO plays(user_id,media_id,episode_id,watched_at,source,created_at) VALUES
+		(1,'movie:1',NULL,'old','web','old'),(1,NULL,'e31','old','web','old'),(1,NULL,'e41','old','web','old'),
+		(1,NULL,'e51','old','web','2026-09-27T00:00:00Z');`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(migrator.Migrations[6].SQL); err != nil {
+		t.Fatal(err)
+	}
+	want := map[string]string{"movie:1": "completed", "movie:2": "watchlist", "tv:3": "watching", "tv:4": "completed", "tv:5": "completed"}
+	rows, err := db.Query(`SELECT media_id,status FROM user_media ORDER BY media_id`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id, status string
+		if err := rows.Scan(&id, &status); err != nil {
+			t.Fatal(err)
+		}
+		if status != want[id] {
+			t.Fatalf("%s status=%s want %s", id, status, want[id])
+		}
+		delete(want, id)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	if len(want) != 0 {
+		t.Fatalf("missing entries: %v", want)
+	}
+	var rating, plays int
+	if err := db.QueryRow(`SELECT rating FROM user_media WHERE media_id='movie:1'`).Scan(&rating); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRow(`SELECT COUNT(*) FROM plays`).Scan(&plays); err != nil {
+		t.Fatal(err)
+	}
+	if rating != 5 || plays != 4 {
+		t.Fatalf("history changed: rating=%d plays=%d", rating, plays)
 	}
 }
 

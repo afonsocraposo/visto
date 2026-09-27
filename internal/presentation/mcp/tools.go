@@ -42,7 +42,7 @@ func toolDefinitions() []toolDefinition {
 		{Name: "get_upcoming_episodes", Description: "List upcoming unwatched episodes for shows in the user's watching list.", InputSchema: objectSchema(map[string]any{"from": map[string]string{"type": "string", "format": "date"}, "to": map[string]string{"type": "string", "format": "date"}}), Annotations: readOnly, SecuritySchemes: readSecurity},
 		{Name: "get_watch_history", Description: "Read recent watch history for the authenticated user.", InputSchema: objectSchema(map[string]any{"limit": map[string]any{"type": "integer", "minimum": 1, "maximum": 500}}), Annotations: readOnly, SecuritySchemes: readSecurity},
 		{Name: "add_to_watchlist", Description: "Save a movie or TV show to the user's watchlist. Pass a media result returned by search_media.", InputSchema: objectSchema(map[string]any{"media": searchResultSchema()}, "media"), Annotations: writeAction, SecuritySchemes: writeSecurity},
-		{Name: "set_show_status", Description: "Change a tracked TV show's library status.", InputSchema: objectSchema(map[string]any{"show_id": map[string]string{"type": "string"}, "status": statusSchema()}, "show_id", "status"), Annotations: writeAction, SecuritySchemes: writeSecurity},
+		{Name: "set_show_status", Description: "Change a tracked TV show's library status. Completing requires confirmation that every regular episode was watched.", InputSchema: objectSchema(map[string]any{"show_id": map[string]string{"type": "string"}, "status": statusSchema(), "confirm_all_episodes": map[string]any{"type": "boolean"}}, "show_id", "status"), Annotations: writeAction, SecuritySchemes: writeSecurity},
 		{Name: "mark_movie_watched", Description: "Mark a movie watched. Pass a media result returned by search_media.", InputSchema: objectSchema(map[string]any{"media": searchResultSchema(), "watched_at": map[string]string{"type": "string", "format": "date-time"}}, "media"), Annotations: writeAction, SecuritySchemes: writeSecurity},
 		{Name: "mark_episode_watched", Description: "Mark one episode watched. Adds the show to Watching if needed. Does not mark prior episodes automatically. Pass a show result returned by search_media and the Visto episode ID.", InputSchema: objectSchema(map[string]any{"show": searchResultSchema(), "episode_id": map[string]string{"type": "string"}, "watched_at": map[string]string{"type": "string", "format": "date-time"}}, "show", "episode_id"), Annotations: writeAction, SecuritySchemes: writeSecurity},
 		{Name: "mark_episodes_through", Description: "Mark every missing released regular episode through the given season and episode, including that episode. Works even when the last episode is already watched. The show must already be tracked.", InputSchema: objectSchema(map[string]any{"show_id": map[string]string{"type": "string"}, "season_number": map[string]any{"type": "integer", "minimum": 1}, "episode_number": map[string]any{"type": "integer", "minimum": 1}, "watched_at": map[string]string{"type": "string", "format": "date-time"}}, "show_id", "season_number", "episode_number"), Annotations: writeAction, SecuritySchemes: writeSecurity},
@@ -63,7 +63,7 @@ func searchResultSchema() map[string]any {
 }
 
 func statusSchema() map[string]any {
-	return map[string]any{"type": "string", "enum": []string{"watchlist", "watching", "paused", "dropped"}}
+	return map[string]any{"type": "string", "enum": []string{"watchlist", "watching", "paused", "dropped", "completed"}}
 }
 
 func (server *Server) callTool(ctx context.Context, userID, name string, args map[string]any) (any, error) {
@@ -87,7 +87,7 @@ func (server *Server) callTool(ctx context.Context, userID, name string, args ma
 		if mediaType != "" && mediaType != "movie" && mediaType != "tv" {
 			return nil, fmt.Errorf("media_type must be movie or tv")
 		}
-		if status != "" && status != "watchlist" && status != "watching" && status != "paused" && status != "dropped" {
+		if status != "" && status != "watchlist" && status != "watching" && status != "paused" && status != "dropped" && status != "completed" {
 			return nil, fmt.Errorf("invalid library status")
 		}
 		entries, err := server.library.List(ctx, userID)
@@ -175,12 +175,29 @@ func (server *Server) callTool(ctx context.Context, userID, name string, args ma
 		if !strings.HasPrefix(showID, "tv:") {
 			return nil, fmt.Errorf("show_id must be a Visto TV ID such as tv:123")
 		}
-		if status != domain.WatchlistStatus && status != domain.WatchingStatus && status != domain.PausedStatus && status != domain.DroppedStatus {
+		if status != domain.WatchlistStatus && status != domain.WatchingStatus && status != domain.PausedStatus && status != domain.DroppedStatus && status != domain.CompletedStatus {
 			return nil, fmt.Errorf("invalid show status")
+		}
+		if status == domain.CompletedStatus {
+			if args["confirm_all_episodes"] != true {
+				return nil, fmt.Errorf("confirm_all_episodes must be true")
+			}
+			provider, ok := server.metadata.(domain.TVShowMetadataProvider)
+			if !ok {
+				return nil, fmt.Errorf("TV metadata is not configured")
+			}
+			var tmdbID int64
+			if _, err := fmt.Sscanf(showID, "tv:%d", &tmdbID); err != nil || tmdbID <= 0 {
+				return nil, fmt.Errorf("invalid show ID")
+			}
+			if err := server.library.RefreshShow(ctx, tmdbID, provider); err != nil {
+				return nil, err
+			}
+			return server.library.Complete(ctx, userID, showID, nil, "mcp")
 		}
 		return server.library.Save(ctx, userID, showID, status, nil)
 	case "mark_movie_watched":
-		if server.tracking == nil {
+		if server.tracking == nil || server.library == nil {
 			return nil, fmt.Errorf("watch tracking is not configured")
 		}
 		media, err := mediaArg(args)
@@ -190,7 +207,7 @@ func (server *Server) callTool(ctx context.Context, userID, name string, args ma
 		if media.Type != domain.MovieMediaType {
 			return nil, fmt.Errorf("media must be a movie")
 		}
-		if _, err := server.saveMedia(ctx, userID, media, domain.WatchingStatus); err != nil {
+		if err := server.library.StoreMedia(ctx, library.Media{TMDBID: media.TMDBID, Type: media.Type, Title: media.Title, OriginalTitle: media.OriginalTitle, Overview: media.Overview, ReleaseDate: media.ReleaseDate, PosterPath: media.PosterPath, BackdropPath: media.BackdropPath, OriginalLanguage: media.OriginalLanguage}); err != nil {
 			return nil, err
 		}
 		mediaID := fmt.Sprintf("movie:%d", media.TMDBID)
@@ -397,7 +414,7 @@ func (server *Server) ensureTrackedShow(ctx context.Context, userID string, show
 	for _, entry := range entries {
 		if entry.Item.MediaID == mediaID {
 			found = true
-			if entry.Item.Status != domain.WatchingStatus {
+			if entry.Item.Status == domain.WatchlistStatus {
 				if _, err := server.library.Save(ctx, userID, mediaID, domain.WatchingStatus, entry.Item.Rating); err != nil {
 					return err
 				}

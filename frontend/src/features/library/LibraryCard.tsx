@@ -15,7 +15,7 @@ export function LibraryCard({
   } as MediaDetailTarget;
   const progress =
     entry.media.type === "tv" &&
-    !entry.completed &&
+    entry.item.status !== "completed" &&
     entry.progress &&
     entry.progress.total_episodes > 0
       ? {

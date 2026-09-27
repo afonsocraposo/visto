@@ -207,10 +207,18 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
     return all;
   };
   const update = useMutation({
-    mutationFn: ({ status, rating }: { status: string; rating: number | null }) =>
+    mutationFn: ({
+      status,
+      rating,
+      confirm_all_episodes,
+    }: {
+      status: string;
+      rating: number | null;
+      confirm_all_episodes?: boolean;
+    }) =>
       api.patch(
         `/api/v1/library/${encodeURIComponent(showID!)}`,
-        { status, rating },
+        { status, rating, confirm_all_episodes },
         "Could not update this title.",
       ),
     onSuccess: (_result, changed) => {
@@ -223,7 +231,9 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
       );
       const previousStatus = library.data?.item.status;
       const previousRating = library.data?.item.rating ?? null;
-      if (
+      if (changed.status === "completed" && previousStatus !== "completed") {
+        showActionFeedback("Show completed.");
+      } else if (
         previousStatus &&
         (previousStatus !== changed.status || previousRating !== changed.rating)
       ) {
@@ -256,18 +266,22 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
     onSuccess: () => invalidate(userCache.library, detailScope),
   });
   const add = useMutation({
-    mutationFn: (status: "watching" | "watchlist") =>
-      api.post("/api/v1/library", { media, status }, "Could not add this title."),
+    mutationFn: (status: "watching" | "watchlist" | "paused" | "dropped" | "completed") =>
+      api.post(
+        "/api/v1/library",
+        { media, status, confirm_all_episodes: status === "completed" },
+        "Could not add this title.",
+      ),
     onSuccess: (_result, status) => {
       void invalidate(userCache.library, detailScope);
+      if (status === "completed") {
+        showActionFeedback(`${media?.title} completed.`);
+        return;
+      }
       showActionFeedback(
-        status === "watchlist"
-          ? `${media?.title} added to Watchlist.`
-          : `${media?.title} added to Watching.`,
+        `${media?.title} added to ${status[0].toUpperCase() + status.slice(1)}.`,
         async () => {
-          await api.delete(
-            `/api/v1/library/${encodeURIComponent(showID!)}${status === "watching" ? "?status=watching" : ""}`,
-          );
+          await api.delete(`/api/v1/library/${encodeURIComponent(showID!)}?status=${status}`);
           await invalidate(userCache.library, detailScope);
         },
       );
@@ -315,7 +329,7 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
       if (!savedMediaID)
         await api.post(
           "/api/v1/library",
-          { media, status: "watching" },
+          { media, status: "watchlist" },
           "Could not add this title.",
         );
       let play: Play;
@@ -327,9 +341,7 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
         );
       } catch (error) {
         if (!savedMediaID)
-          await api
-            .delete(`/api/v1/library/${encodeURIComponent(showID!)}?status=watching`)
-            .catch(() => undefined);
+          await api.delete(`/api/v1/library/${encodeURIComponent(showID!)}`).catch(() => undefined);
         throw error;
       }
       return {
@@ -343,13 +355,8 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
       void invalidate(userCache.library, userCache.history, userCache.feed, detailScope);
       showActionFeedback(`${media?.title} marked watched.`, async () => {
         await api.delete(`/api/v1/plays/${encodeURIComponent(play.id)}`);
-        if (!wasSaved)
-          await api.delete(`/api/v1/library/${encodeURIComponent(showID!)}?status=watching`);
-        else if (previousStatus === "watchlist")
-          await api.patch(`/api/v1/library/${encodeURIComponent(showID!)}`, {
-            status: "watchlist",
-            rating: previousRating,
-          });
+        if (wasSaved && previousStatus === "watchlist")
+          await api.post("/api/v1/library", { media, status: "watchlist", rating: previousRating });
         await invalidate(userCache.library, userCache.history, userCache.feed, detailScope);
       });
     },
@@ -927,7 +934,7 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
               add={add}
               update={update}
               updateNotifications={updateNotifications}
-              watched={Boolean(watchedPlay) || library.data?.completed === true}
+              watched={Boolean(watchedPlay) || library.data?.item.status === "completed"}
               onWatch={() => markMovieWatched.mutate()}
               onUnwatch={() => removeMovieWatches.mutate()}
               onRemoveWatchlist={() => removeWatchlist.mutate()}
@@ -955,6 +962,11 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
       {updateNotifications.isError && (
         <Alert color="red" mt="sm">
           {updateNotifications.error.message}
+        </Alert>
+      )}
+      {update.isError && (
+        <Alert color="red" mt="sm">
+          {update.error.message}
         </Alert>
       )}
       {removeMovieWatches.isError && (

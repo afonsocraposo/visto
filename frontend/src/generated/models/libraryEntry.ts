@@ -12,7 +12,5 @@ import type { ShowLibraryProgress } from "./showLibraryProgress";
 export interface LibraryEntry {
   item: LibraryItem;
   media: MediaSnapshot;
-  /** Derived movie display state; true when this user has at least one movie play. Never stored as a library status. */
-  completed: boolean;
   progress?: ShowLibraryProgress;
 }

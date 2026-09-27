@@ -35,7 +35,7 @@ export function LibraryListPage({
   const [sort, setSort] = useState<LibrarySort>("updated");
   const userQueryKey = useUserQueryKey();
   const library = useInfiniteQuery({
-    queryKey: [...userQueryKey("library"), sort, status, mediaFilter],
+    queryKey: [...userQueryKey("library"), "page", sort, status, mediaFilter],
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam }) =>
       api.get<CursorPage<LibraryEntry>>(

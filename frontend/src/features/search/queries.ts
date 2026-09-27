@@ -77,12 +77,12 @@ export function useDiscoverMutations() {
   });
   const addMovieAsWatched = useMutation({
     mutationFn: async (media: SearchMedia) => {
-      await postLibrary({ media, status: "watching" });
+      await postLibrary({ media, status: "watchlist" });
       try {
         return await postPlays({ media_id: `${media.type}:${media.tmdb_id}` });
       } catch (error) {
         await api
-          .delete(`/api/v1/library/${encodeURIComponent(`movie:${media.tmdb_id}`)}?status=watching`)
+          .delete(`/api/v1/library/${encodeURIComponent(`movie:${media.tmdb_id}`)}`)
           .catch(() => undefined);
         throw error;
       }
@@ -91,9 +91,6 @@ export function useDiscoverMutations() {
       void invalidate(userCache.library, userCache.history, userCache.feed);
       showActionFeedback(`${media.title} marked watched.`, async () => {
         await api.delete(`/api/v1/plays/${encodeURIComponent(play.id)}`);
-        await api.delete(
-          `/api/v1/library/${encodeURIComponent(`movie:${media.tmdb_id}`)}?status=watching`,
-        );
         await invalidate(userCache.library, userCache.history, userCache.feed);
       });
     },
@@ -109,10 +106,7 @@ export function useDiscoverMutations() {
       void invalidate(userCache.library, userCache.history, userCache.feed);
       showActionFeedback(`${media.title} marked watched.`, async () => {
         await api.delete(`/api/v1/plays/${encodeURIComponent(play.id)}`);
-        await api.patch(`/api/v1/library/${encodeURIComponent(`movie:${media.tmdb_id}`)}`, {
-          status: "watchlist",
-          rating,
-        });
+        await postLibrary({ media, status: "watchlist", ...(rating === null ? {} : { rating }) });
         await invalidate(userCache.library, userCache.history, userCache.feed);
       });
     },

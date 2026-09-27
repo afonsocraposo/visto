@@ -48,7 +48,6 @@ export type LibraryEntry = {
     updated_at: string;
   };
   media: SearchMedia & { id: string };
-  completed: boolean;
   progress?: { watched_episodes: number; total_episodes: number };
 };
 

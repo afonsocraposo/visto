@@ -114,21 +114,22 @@ export function SearchPanel({
       {results.data?.map((item) => {
         const mediaID = `${item.type}:${item.tmdb_id}`;
         const savedEntry = libraryEntries.get(mediaID);
-        const savedLabel = savedEntry?.completed
-          ? item.type === "movie"
-            ? "Watched"
-            : "Completed"
-          : savedEntry?.item.status === "watchlist"
-            ? "In Watchlist"
-            : savedEntry?.item.status === "watching"
-              ? item.type === "movie"
-                ? "Watched"
-                : "In Watching"
-              : savedEntry?.item.status === "paused"
-                ? "Paused"
-                : savedEntry?.item.status === "dropped"
-                  ? "Dropped"
-                  : "In your library";
+        const savedLabel =
+          savedEntry?.item.status === "completed"
+            ? item.type === "movie"
+              ? "Watched"
+              : "Completed"
+            : savedEntry?.item.status === "watchlist"
+              ? "In Watchlist"
+              : savedEntry?.item.status === "watching"
+                ? item.type === "movie"
+                  ? "Watched"
+                  : "In Watching"
+                : savedEntry?.item.status === "paused"
+                  ? "Paused"
+                  : savedEntry?.item.status === "dropped"
+                    ? "Dropped"
+                    : "In your library";
         return (
           <Paper
             className="search-result-card search-result-clickable"
@@ -177,9 +178,7 @@ export function SearchPanel({
                 saved={Boolean(savedEntry)}
                 savedLabel={savedLabel}
                 canMarkSavedWatched={
-                  item.type === "movie" &&
-                  savedEntry?.item.status === "watchlist" &&
-                  !savedEntry.completed
+                  item.type === "movie" && savedEntry?.item.status === "watchlist"
                 }
                 busy={
                   library.isPending ||

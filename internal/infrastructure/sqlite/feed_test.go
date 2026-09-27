@@ -67,7 +67,7 @@ func TestFeed_GivenPrivateAndOptedInActivity_WhenListed_ThenPrivateEventsStayHid
 	for index, rating := range []int{5, 4} {
 		updatedAt := time.Date(2026, 9, 24, 12+index, 0, 0, 0, time.UTC)
 		if err := store.UpsertItem(ctx, library.Item{
-			UserID: familyUserID, MediaID: movieID, Status: domain.WatchlistStatus,
+			UserID: familyUserID, MediaID: movieID, Status: domain.CompletedStatus,
 			Rating: &rating, AddedAt: updatedAt, UpdatedAt: updatedAt,
 		}); err != nil {
 			t.Fatal(err)
@@ -75,7 +75,7 @@ func TestFeed_GivenPrivateAndOptedInActivity_WhenListed_ThenPrivateEventsStayHid
 	}
 	privateRating := 5
 	if err := store.UpsertItem(ctx, library.Item{
-		UserID: privateUserID, MediaID: movieID, Status: domain.WatchlistStatus,
+		UserID: privateUserID, MediaID: movieID, Status: domain.CompletedStatus,
 		Rating: &privateRating, AddedAt: time.Now(), UpdatedAt: time.Now(),
 	}); err != nil {
 		t.Fatal(err)

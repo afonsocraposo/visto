@@ -54,6 +54,9 @@ func (store *Store) CreatePlay(ctx context.Context, play tracking.Play) (trackin
 		return tracking.Play{}, fmt.Errorf("get new play ID: %w", err)
 	}
 	play.ID = strconv.FormatInt(id, 10)
+	if err := reconcileMediaStatus(ctx, tx, play.UserID, trackedMediaID); err != nil {
+		return tracking.Play{}, err
+	}
 	var visibility string
 	if err := tx.QueryRowContext(ctx, `SELECT activity_visibility FROM user_settings WHERE user_id=?`, play.UserID).Scan(&visibility); err != nil {
 		return tracking.Play{}, fmt.Errorf("get activity visibility: %w", err)
@@ -130,6 +133,9 @@ func (store *Store) createBulkPlaysInTx(ctx context.Context, tx *sql.Tx, plays [
 			return nil, fmt.Errorf("get new bulk play ID: %w", err)
 		}
 		plays[index].ID = strconv.FormatInt(id, 10)
+	}
+	if err := reconcileShowStatus(ctx, tx, plays[0].UserID, showID); err != nil {
+		return nil, err
 	}
 	var visibility string
 	if err := tx.QueryRowContext(ctx, `SELECT activity_visibility FROM user_settings WHERE user_id=?`, plays[0].UserID).Scan(&visibility); err != nil {
@@ -333,7 +339,7 @@ func ensureWatchingRelationship(ctx context.Context, tx *sql.Tx, userID, mediaID
 	timestamp := createdAt.Format(time.RFC3339Nano)
 	_, err := tx.ExecContext(ctx, `INSERT INTO user_media(id,user_id,media_id,status,added_at,updated_at,notifications_since)
 		VALUES(?,?,?,'watching',?,?,?) ON CONFLICT(user_id,media_id) DO UPDATE SET updated_at=excluded.updated_at,
-		status=CASE WHEN excluded.media_id LIKE 'movie:%' AND user_media.status='watchlist' THEN 'watching' ELSE user_media.status END`, userID+":"+mediaID, userID, mediaID, timestamp, timestamp, timestamp)
+		status=CASE WHEN excluded.media_id LIKE 'tv:%' AND user_media.status='watchlist' THEN 'watching' ELSE user_media.status END`, userID+":"+mediaID, userID, mediaID, timestamp, timestamp, timestamp)
 	if err != nil {
 		return fmt.Errorf("ensure library relationship for tracked media: %w", err)
 	}
@@ -369,6 +375,8 @@ func (store *Store) DeletePlay(ctx context.Context, userID, playID string) error
 		return fmt.Errorf("begin play deletion: %w", err)
 	}
 	defer tx.Rollback()
+	var mediaID string
+	_ = tx.QueryRowContext(ctx, `SELECT COALESCE(p.media_id,e.show_id) FROM plays p LEFT JOIN episodes e ON e.id=p.episode_id WHERE p.id=? AND p.user_id=?`, playID, userID).Scan(&mediaID)
 	result, err := tx.ExecContext(ctx, `DELETE FROM plays WHERE id=? AND user_id=?`, playID, userID)
 	if err != nil {
 		return fmt.Errorf("delete play: %w", err)
@@ -383,6 +391,16 @@ func (store *Store) DeletePlay(ctx context.Context, userID, playID string) error
 	if _, err := tx.ExecContext(ctx, `DELETE FROM activity_events WHERE play_id=? OR (kind='bulk_watch' AND EXISTS(SELECT 1 FROM json_each(activity_events.detail_json,'$.play_ids') WHERE value=?))`, playID, playID); err != nil {
 		return fmt.Errorf("remove deleted play activity: %w", err)
 	}
+	if len(mediaID) >= 3 && mediaID[:3] == "tv:" {
+		if err := reconcileShowStatus(ctx, tx, userID, mediaID); err != nil {
+			return err
+		}
+	}
+	if len(mediaID) >= 6 && mediaID[:6] == "movie:" {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM user_media WHERE user_id=? AND media_id=? AND status='completed' AND NOT EXISTS(SELECT 1 FROM plays WHERE user_id=? AND media_id=?)`, userID, mediaID, userID, mediaID); err != nil {
+			return err
+		}
+	}
 	return tx.Commit()
 }
 
@@ -392,6 +410,14 @@ func (store *Store) DeleteEpisodePlays(ctx context.Context, userID string, episo
 		return fmt.Errorf("begin episode watch removal: %w", err)
 	}
 	defer tx.Rollback()
+	showIDs := map[string]bool{}
+	for _, id := range episodeIDs {
+		var showID string
+		if err := tx.QueryRowContext(ctx, `SELECT show_id FROM episodes WHERE id=?`, id).Scan(&showID); err != nil {
+			return err
+		}
+		showIDs[showID] = true
+	}
 	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(episodeIDs)), ",")
 	arguments := make([]any, 0, len(episodeIDs)+1)
 	arguments = append(arguments, userID)
@@ -425,6 +451,11 @@ func (store *Store) DeleteEpisodePlays(ctx context.Context, userID string, episo
 	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM plays WHERE user_id=? AND episode_id IN (`+placeholders+`)`, arguments...); err != nil {
 		return fmt.Errorf("remove episode watches: %w", err)
+	}
+	for showID := range showIDs {
+		if err := reconcileShowStatus(ctx, tx, userID, showID); err != nil {
+			return err
+		}
 	}
 	return tx.Commit()
 }

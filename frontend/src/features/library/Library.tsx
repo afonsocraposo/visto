@@ -32,7 +32,7 @@ export function LibraryPanel({
   const userQueryKey = useUserQueryKey();
   const libraries = useQueries({
     queries: sections.map((section) => ({
-      queryKey: [...userQueryKey("library"), sort, section.status, mediaFilter],
+      queryKey: [...userQueryKey("library"), "preview", sort, section.status, mediaFilter],
       queryFn: () =>
         api.get<CursorPage<LibraryEntry>>(
           `/api/v1/library?sort=${sort}&status=${section.status}&limit=${PREVIEW_LIMIT}${mediaFilter === "all" ? "" : `&media_type=${mediaFilter}`}`,

@@ -45,7 +45,7 @@ func removeWatchlistItem(authService *auth.Service, service *library.Service) ht
 	}
 }
 
-func updateLibrary(authService *auth.Service, service *library.Service) http.HandlerFunc {
+func updateLibrary(authService *auth.Service, service *library.Service, provider domain.MetadataProvider) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		user, ok := authenticatedUser(w, r, authService)
 		if !ok {
@@ -56,14 +56,49 @@ func updateLibrary(authService *auth.Service, service *library.Service) http.Han
 			return
 		}
 		var request struct {
-			Status domain.LibraryStatus `json:"status"`
-			Rating *int                 `json:"rating"`
+			Status             domain.LibraryStatus `json:"status"`
+			Rating             *int                 `json:"rating"`
+			ConfirmAllEpisodes bool                 `json:"confirm_all_episodes"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid JSON")
 			return
 		}
-		item, err := service.Save(r.Context(), user.ID, r.PathValue("mediaID"), request.Status, request.Rating)
+		mediaID := r.PathValue("mediaID")
+		var item library.Item
+		var err error
+		if request.Status == domain.CompletedStatus {
+			if !request.ConfirmAllEpisodes {
+				item, err = service.Save(r.Context(), user.ID, mediaID, request.Status, request.Rating)
+				if err == nil {
+					writeJSON(w, http.StatusOK, item)
+					return
+				}
+				if len(mediaID) >= 3 && mediaID[:3] == "tv:" {
+					writeError(w, http.StatusBadRequest, err.Error())
+					return
+				}
+			}
+			if len(mediaID) >= 3 && mediaID[:3] == "tv:" {
+				var tmdbID int64
+				if _, err = fmt.Sscanf(mediaID, "tv:%d", &tmdbID); err != nil || tmdbID <= 0 {
+					writeError(w, http.StatusBadRequest, "invalid show ID")
+					return
+				}
+				tvProvider, ok := provider.(domain.TVShowMetadataProvider)
+				if !ok {
+					writeError(w, http.StatusServiceUnavailable, "TV metadata is not configured")
+					return
+				}
+				if err = service.RefreshShow(r.Context(), tmdbID, tvProvider); err != nil {
+					writeError(w, http.StatusBadGateway, "could not refresh TV show metadata")
+					return
+				}
+			}
+			item, err = service.Complete(r.Context(), user.ID, mediaID, request.Rating, "web")
+		} else {
+			item, err = service.Save(r.Context(), user.ID, mediaID, request.Status, request.Rating)
+		}
 		if err != nil {
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
@@ -102,9 +137,10 @@ func setLibraryNotifications(authService *auth.Service, service *library.Service
 }
 
 type libraryRequest struct {
-	Media  library.Media        `json:"media"`
-	Status domain.LibraryStatus `json:"status"`
-	Rating *int                 `json:"rating"`
+	Media              library.Media        `json:"media"`
+	Status             domain.LibraryStatus `json:"status"`
+	Rating             *int                 `json:"rating"`
+	ConfirmAllEpisodes bool                 `json:"confirm_all_episodes"`
 }
 
 func saveLibrary(authService *auth.Service, service *library.Service, provider domain.MetadataProvider) http.HandlerFunc {
@@ -120,6 +156,34 @@ func saveLibrary(authService *auth.Service, service *library.Service, provider d
 		var request libraryRequest
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid JSON")
+			return
+		}
+		if request.Status == domain.CompletedStatus {
+			if request.Media.Type == domain.TVMediaType && !request.ConfirmAllEpisodes {
+				writeError(w, http.StatusBadRequest, "confirm all episodes were watched")
+				return
+			}
+			if err := service.StoreMedia(r.Context(), request.Media); err != nil {
+				writeError(w, http.StatusBadRequest, err.Error())
+				return
+			}
+			if request.Media.Type == domain.TVMediaType {
+				tvProvider, ok := provider.(domain.TVShowMetadataProvider)
+				if !ok {
+					writeError(w, http.StatusServiceUnavailable, "TV metadata is not configured")
+					return
+				}
+				if err := service.RefreshShow(r.Context(), request.Media.TMDBID, tvProvider); err != nil {
+					writeError(w, http.StatusBadGateway, "could not refresh TV show metadata")
+					return
+				}
+			}
+			item, err := service.Complete(r.Context(), user.ID, fmt.Sprintf("%s:%d", request.Media.Type, request.Media.TMDBID), request.Rating, "web")
+			if err != nil {
+				writeError(w, http.StatusBadRequest, err.Error())
+				return
+			}
+			writeJSON(w, http.StatusCreated, item)
 			return
 		}
 		item, err := service.SaveMedia(r.Context(), user.ID, request.Media, request.Status, request.Rating)

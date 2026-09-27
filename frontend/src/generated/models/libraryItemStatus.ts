@@ -17,4 +17,5 @@ export const LibraryItemStatus = {
   watching: "watching",
   paused: "paused",
   dropped: "dropped",
+  completed: "completed",
 } as const;

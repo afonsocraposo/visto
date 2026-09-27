@@ -36,15 +36,11 @@ func (s *Store) ListItemsPage(ctx context.Context, userID string, options librar
 		predicate = "1=1"
 	}
 	query := `WITH candidates AS (
- SELECT um.media_id,um.updated_at,m.title,COALESCE(NULLIF(m.release_date,''),'0000-00-00') AS released,m.media_type,um.status,
- ((m.media_type='movie' AND EXISTS(SELECT 1 FROM plays p WHERE p.user_id=um.user_id AND p.media_id=um.media_id)) OR
- (m.media_type='tv' AND COALESCE(m.status,'') IN ('Ended','Canceled','Cancelled','') AND EXISTS(SELECT 1 FROM episodes e WHERE e.show_id=m.id AND e.season_number>0) AND
- COALESCE((SELECT SUM(s.episode_count) FROM seasons s WHERE s.show_id=m.id AND s.season_number>0),0) <= (SELECT COUNT(*) FROM episodes e WHERE e.show_id=m.id AND e.season_number>0) AND
- NOT EXISTS(SELECT 1 FROM episodes e WHERE e.show_id=m.id AND e.season_number>0 AND (e.air_date IS NULL OR e.air_date<=date('now')) AND NOT EXISTS(SELECT 1 FROM plays p WHERE p.user_id=um.user_id AND p.episode_id=e.id)))) AS completed
+ SELECT um.media_id,um.updated_at,m.title,COALESCE(NULLIF(m.release_date,''),'0000-00-00') AS released,m.media_type,um.status
  FROM user_media um JOIN media m ON m.id=um.media_id WHERE um.user_id=?),
- filtered AS (SELECT * FROM candidates WHERE (?='' OR media_type=?) AND (?='' OR (CASE WHEN ?='completed' THEN completed ELSE NOT completed AND status=? END)))
+ filtered AS (SELECT * FROM candidates WHERE (?='' OR media_type=?) AND (?='' OR status=?))
  SELECT media_id,updated_at,title,released FROM filtered WHERE ` + predicate + ` ORDER BY ` + order + ` LIMIT ?`
-	args := []any{userID, options.MediaType, options.MediaType, options.Status, options.Status, options.Status}
+	args := []any{userID, options.MediaType, options.MediaType, options.Status, options.Status}
 	if keys != nil {
 		switch options.Sort {
 		case "title":

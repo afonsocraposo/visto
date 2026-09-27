@@ -16,4 +16,6 @@ export interface SaveLibraryRequest {
    * @maximum 5
    */
   rating?: number;
+  /** Required when manually completing a TV show. */
+  confirm_all_episodes?: boolean;
 }

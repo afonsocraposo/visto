@@ -15,4 +15,6 @@ export interface UpdateLibraryRequest {
    * @nullable
    */
   rating?: number | null;
+  /** Required when manually completing a TV show. */
+  confirm_all_episodes?: boolean;
 }

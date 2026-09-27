@@ -14,4 +14,5 @@ export const ExportDataLibraryItemStatus = {
   watching: "watching",
   paused: "paused",
   dropped: "dropped",
+  completed: "completed",
 } as const;

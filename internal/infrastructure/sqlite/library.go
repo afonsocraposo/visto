@@ -86,6 +86,30 @@ func (s *Store) ImportShowMetadata(ctx context.Context, showID string, show doma
 			}
 		}
 	}
+	rows, err := tx.QueryContext(ctx, `SELECT user_id FROM user_media WHERE media_id=?
+		UNION SELECT p.user_id FROM plays p JOIN episodes e ON e.id=p.episode_id WHERE e.show_id=?`, showID, showID)
+	if err != nil {
+		return err
+	}
+	userIDs := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return err
+		}
+		userIDs = append(userIDs, id)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	rows.Close()
+	for _, id := range userIDs {
+		if err := reconcileShowStatus(ctx, tx, id, showID); err != nil {
+			return err
+		}
+	}
 	return tx.Commit()
 }
 
@@ -112,9 +136,29 @@ func (s *Store) UpsertItem(ctx context.Context, item library.Item) error {
 	}
 	defer tx.Rollback()
 	var previousRating sql.NullInt64
-	err = tx.QueryRowContext(ctx, `SELECT rating FROM user_media WHERE user_id=? AND media_id=?`, item.UserID, item.MediaID).Scan(&previousRating)
+	var previousStatus string
+	err = tx.QueryRowContext(ctx, `SELECT rating,status FROM user_media WHERE user_id=? AND media_id=?`, item.UserID, item.MediaID).Scan(&previousRating, &previousStatus)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return fmt.Errorf("get existing library item: %w", err)
+	}
+	if item.Status == domain.CompletedStatus && previousStatus != "completed" {
+		return fmt.Errorf("use confirmed completion to mark this title completed")
+	}
+	if previousStatus == "completed" && item.Status != domain.CompletedStatus {
+		return fmt.Errorf("completed titles cannot change lists while fully watched")
+	}
+	if item.Status == domain.WatchlistStatus {
+		var watched bool
+		if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM plays p LEFT JOIN episodes e ON e.id=p.episode_id
+			WHERE p.user_id=? AND (p.media_id=? OR e.show_id=?))`, item.UserID, item.MediaID, item.MediaID).Scan(&watched); err != nil {
+			return err
+		}
+		if watched {
+			return fmt.Errorf("titles with watch history cannot enter Watchlist")
+		}
+	}
+	if strings.HasPrefix(item.MediaID, "movie:") && item.Status != domain.WatchlistStatus && item.Status != domain.CompletedStatus {
+		return fmt.Errorf("movies can only be in Watchlist or Completed")
 	}
 	var rating any
 	if item.Rating != nil {
@@ -127,6 +171,11 @@ func (s *Store) UpsertItem(ctx context.Context, item library.Item) error {
 		item.UserID+":"+item.MediaID, item.UserID, item.MediaID, item.Status, rating, item.AddedAt.Format(time.RFC3339Nano), item.UpdatedAt.Format(time.RFC3339Nano), item.Status, item.UpdatedAt.Format(time.RFC3339Nano))
 	if err != nil {
 		return fmt.Errorf("upsert library item: %w", err)
+	}
+	if strings.HasPrefix(item.MediaID, "tv:") {
+		if err := reconcileShowStatus(ctx, tx, item.UserID, item.MediaID); err != nil {
+			return err
+		}
 	}
 	if item.Rating != nil && (!previousRating.Valid || int(previousRating.Int64) != *item.Rating) {
 		var visibility string
@@ -146,6 +195,12 @@ func (s *Store) UpsertItem(ctx context.Context, item library.Item) error {
 	return nil
 }
 
+func (s *Store) ItemStatus(ctx context.Context, userID, mediaID string) (domain.LibraryStatus, error) {
+	var status domain.LibraryStatus
+	err := s.DB.QueryRowContext(ctx, `SELECT status FROM user_media WHERE user_id=? AND media_id=?`, userID, mediaID).Scan(&status)
+	return status, err
+}
+
 func (s *Store) RemoveWatchlistItem(ctx context.Context, userID, mediaID string) error {
 	result, err := s.DB.ExecContext(ctx, `DELETE FROM user_media WHERE user_id=? AND media_id=? AND status='watchlist'`, userID, mediaID)
 	if err != nil {
@@ -162,6 +217,9 @@ func (s *Store) RemoveWatchlistItem(ctx context.Context, userID, mediaID string)
 }
 
 func (s *Store) RemoveStatusItem(ctx context.Context, userID, mediaID string, status domain.LibraryStatus) error {
+	if status == domain.CompletedStatus {
+		return fmt.Errorf("completed shows cannot be removed while watch history remains")
+	}
 	result, err := s.DB.ExecContext(ctx, `DELETE FROM user_media WHERE user_id=? AND media_id=? AND status=?`, userID, mediaID, status)
 	if err != nil {
 		return fmt.Errorf("remove library item: %w", err)
@@ -229,10 +287,6 @@ func (s *Store) listItemsSorted(ctx context.Context, userID, sort string, select
 		}
 	}
 	rows, err := s.DB.QueryContext(ctx, `SELECT um.user_id,um.media_id,um.status,um.rating,um.added_at,um.updated_at,um.notifications_enabled,m.media_type,m.tmdb_id,m.title,COALESCE(m.original_title,''),COALESCE(m.overview,''),COALESCE(m.release_date,''),COALESCE(m.poster_path,''),COALESCE(m.original_language,''),COALESCE(m.status,''),
-		((m.media_type='movie' AND EXISTS(SELECT 1 FROM plays p WHERE p.user_id=um.user_id AND p.media_id=um.media_id)) OR
-		 (m.media_type='tv' AND (COALESCE(m.status,'') IN ('Ended','Canceled','Cancelled') OR COALESCE(m.status,'')='') AND EXISTS(SELECT 1 FROM episodes e WHERE e.show_id=m.id AND e.season_number>0) AND
-		  COALESCE((SELECT SUM(s.episode_count) FROM seasons s WHERE s.show_id=m.id AND s.season_number>0),0) <= (SELECT COUNT(*) FROM episodes e WHERE e.show_id=m.id AND e.season_number>0) AND
-		  NOT EXISTS(SELECT 1 FROM episodes e WHERE e.show_id=m.id AND e.season_number>0 AND (e.air_date IS NULL OR e.air_date<=date('now')) AND NOT EXISTS(SELECT 1 FROM plays p WHERE p.user_id=um.user_id AND p.episode_id=e.id)))),
 		progress.watched_episodes,progress.total_episodes
 		FROM user_media um JOIN media m ON m.id=um.media_id
 		LEFT JOIN (
@@ -252,7 +306,7 @@ func (s *Store) listItemsSorted(ctx context.Context, userID, sort string, select
 		var entry library.Entry
 		var rating, watchedEpisodes, totalEpisodes sql.NullInt64
 		var addedAt, updatedAt string
-		if err := rows.Scan(&entry.Item.UserID, &entry.Item.MediaID, &entry.Item.Status, &rating, &addedAt, &updatedAt, &entry.Item.NotificationsEnabled, &entry.Media.Type, &entry.Media.TMDBID, &entry.Media.Title, &entry.Media.OriginalTitle, &entry.Media.Overview, &entry.Media.ReleaseDate, &entry.Media.PosterPath, &entry.Media.OriginalLanguage, &entry.Media.Status, &entry.Completed, &watchedEpisodes, &totalEpisodes); err != nil {
+		if err := rows.Scan(&entry.Item.UserID, &entry.Item.MediaID, &entry.Item.Status, &rating, &addedAt, &updatedAt, &entry.Item.NotificationsEnabled, &entry.Media.Type, &entry.Media.TMDBID, &entry.Media.Title, &entry.Media.OriginalTitle, &entry.Media.Overview, &entry.Media.ReleaseDate, &entry.Media.PosterPath, &entry.Media.OriginalLanguage, &entry.Media.Status, &watchedEpisodes, &totalEpisodes); err != nil {
 			return nil, fmt.Errorf("scan library item: %w", err)
 		}
 		if entry.Media.Type == domain.TVMediaType && watchedEpisodes.Valid && totalEpisodes.Valid && totalEpisodes.Int64 > 0 {
@@ -284,14 +338,12 @@ func (s *Store) GetMediaByTMDBID(ctx context.Context, userID string, mediaType d
 	var rating sql.NullInt64
 	var addedAt, updatedAt string
 	err := s.DB.QueryRowContext(ctx, `SELECT um.user_id,um.media_id,um.status,um.rating,um.added_at,um.updated_at,um.notifications_enabled,
-		m.media_type,m.tmdb_id,m.title,COALESCE(m.original_title,''),COALESCE(m.overview,''),COALESCE(m.release_date,''),COALESCE(m.poster_path,''),COALESCE(m.original_language,''),COALESCE(m.status,''),
-		((m.media_type='movie' AND EXISTS(SELECT 1 FROM plays p WHERE p.user_id=um.user_id AND p.media_id=um.media_id)) OR
-		 (m.media_type='tv' AND (COALESCE(m.status,'') IN ('Ended','Canceled','Cancelled') OR COALESCE(m.status,'')='') AND EXISTS(SELECT 1 FROM episodes e WHERE e.show_id=m.id AND e.season_number>0) AND NOT EXISTS(SELECT 1 FROM episodes e WHERE e.show_id=m.id AND e.season_number>0 AND (e.air_date IS NULL OR e.air_date<=date('now')) AND NOT EXISTS(SELECT 1 FROM plays p WHERE p.user_id=um.user_id AND p.episode_id=e.id))))
+		m.media_type,m.tmdb_id,m.title,COALESCE(m.original_title,''),COALESCE(m.overview,''),COALESCE(m.release_date,''),COALESCE(m.poster_path,''),COALESCE(m.original_language,''),COALESCE(m.status,'')
 		FROM user_media um JOIN media m ON m.id=um.media_id
 		WHERE um.user_id=? AND m.media_type=? AND m.tmdb_id=?`, userID, mediaType, tmdbID).Scan(
 		&entry.Item.UserID, &entry.Item.MediaID, &entry.Item.Status, &rating, &addedAt, &updatedAt, &entry.Item.NotificationsEnabled,
 		&entry.Media.Type, &entry.Media.TMDBID, &entry.Media.Title, &entry.Media.OriginalTitle,
-		&entry.Media.Overview, &entry.Media.ReleaseDate, &entry.Media.PosterPath, &entry.Media.OriginalLanguage, &entry.Media.Status, &entry.Completed,
+		&entry.Media.Overview, &entry.Media.ReleaseDate, &entry.Media.PosterPath, &entry.Media.OriginalLanguage, &entry.Media.Status,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return library.Entry{}, library.ErrMediaNotFound

@@ -522,7 +522,7 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
   /library/{mediaID}:
     delete:
-      summary: Remove a library entry from its current list (TV watch history is preserved)
+      summary: Remove a non-completed library entry from its current list (TV watch history is preserved)
       security: [{ sessionCookie: [] }, { bearerToken: [] }]
       parameters:
         - { name: mediaID, in: path, required: true, schema: { type: string } }
@@ -531,7 +531,7 @@ paths:
         '204': { description: Item removed from the selected list }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
-        '404': { description: "Title is not in the selected list, or is a watched movie" }
+        '404': { description: "Title is not in the selected list or is completed" }
     patch:
       summary: Change the authenticated user's status and rating for a library item
       security: [{ sessionCookie: [] }, { bearerToken: [] }]
@@ -951,7 +951,7 @@ components:
               media_id: { type: string }
               title: { type: string }
               type: { type: string, enum: [movie, tv] }
-              status: { type: string, enum: [watchlist, watching, paused, dropped] }
+              status: { type: string, enum: [watchlist, watching, paused, dropped, completed] }
               rating: { type: [integer, 'null'], minimum: 1, maximum: 5 }
         plays:
           type: array
@@ -1068,14 +1068,16 @@ components:
       required: [media, status]
       properties:
         media: { $ref: '#/components/schemas/MediaSearchResult' }
-        status: { type: string, enum: [watchlist, watching, paused, dropped] }
+        status: { type: string, enum: [watchlist, watching, paused, dropped, completed] }
         rating: { type: integer, minimum: 1, maximum: 5 }
+        confirm_all_episodes: { type: boolean, description: Required when manually completing a TV show. }
     UpdateLibraryRequest:
       type: object
       required: [status]
       properties:
-        status: { type: string, enum: [watchlist, watching, paused, dropped] }
+        status: { type: string, enum: [watchlist, watching, paused, dropped, completed] }
         rating: { type: [integer, 'null'], minimum: 1, maximum: 5 }
+        confirm_all_episodes: { type: boolean, description: Required when manually completing a TV show. }
     EpisodeRating:
       type: object
       required: [episode_id, rating]
@@ -1094,18 +1096,17 @@ components:
       properties:
         user_id: { type: string }
         media_id: { type: string }
-        status: { type: string, enum: ['', watchlist, watching, paused, dropped], description: Empty only in an unsaved movie or show detail response. }
+        status: { type: string, enum: ['', watchlist, watching, paused, dropped, completed], description: Empty only in an unsaved movie or show detail response. }
         rating: { type: [integer, 'null'], minimum: 1, maximum: 5 }
         notifications_enabled: { type: boolean, description: Per-show new-episode notification preference. }
         added_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
     LibraryEntry:
       type: object
-      required: [item, media, completed]
+      required: [item, media]
       properties:
         item: { $ref: '#/components/schemas/LibraryItem' }
         media: { $ref: '#/components/schemas/MediaSnapshot' }
-        completed: { type: boolean, description: Derived movie display state; true when this user has at least one movie play. Never stored as a library status. }
         progress: { $ref: '#/components/schemas/ShowLibraryProgress' }
     ShowLibraryProgress:
       type: object

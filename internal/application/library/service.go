@@ -42,10 +42,9 @@ type Media struct {
 }
 
 type Entry struct {
-	Item      Item          `json:"item"`
-	Media     Media         `json:"media"`
-	Completed bool          `json:"completed"`
-	Progress  *ShowProgress `json:"progress,omitempty"`
+	Item     Item          `json:"item"`
+	Media    Media         `json:"media"`
+	Progress *ShowProgress `json:"progress,omitempty"`
 }
 
 type ShowProgress struct {
@@ -95,6 +94,37 @@ type notificationPreferenceReader interface {
 	GetNotificationsEnabled(context.Context, string, string) (bool, error)
 }
 
+type itemStatusReader interface {
+	ItemStatus(context.Context, string, string) (domain.LibraryStatus, error)
+}
+
+type completionRepository interface {
+	CompleteMedia(context.Context, string, string, *int, string) (Item, error)
+}
+
+func (s *Service) Complete(ctx context.Context, userID, mediaID string, rating *int, source string) (Item, error) {
+	if userID == "" || mediaID == "" {
+		return Item{}, fmt.Errorf("user and media are required")
+	}
+	repo, ok := s.repository.(completionRepository)
+	if !ok {
+		return Item{}, fmt.Errorf("completion is not configured")
+	}
+	return repo.CompleteMedia(ctx, userID, mediaID, rating, source)
+}
+
+func (s *Service) StoreMedia(ctx context.Context, media Media) error {
+	if media.Type != domain.MovieMediaType && media.Type != domain.TVMediaType || media.TMDBID <= 0 || media.Title == "" {
+		return fmt.Errorf("valid media is required")
+	}
+	media.ID = fmt.Sprintf("%s:%d", media.Type, media.TMDBID)
+	repo, ok := s.repository.(mediaRepository)
+	if !ok {
+		return fmt.Errorf("media storage is not configured")
+	}
+	return repo.UpsertMedia(ctx, media)
+}
+
 func NewService(repository Repository) *Service {
 	return &Service{repository: repository, now: time.Now}
 }
@@ -102,11 +132,11 @@ func (s *Service) Save(ctx context.Context, userID, mediaID string, status domai
 	if userID == "" || mediaID == "" {
 		return Item{}, fmt.Errorf("user and media are required")
 	}
-	if status != domain.WatchlistStatus && status != domain.WatchingStatus && status != domain.PausedStatus && status != domain.DroppedStatus {
+	if status != domain.WatchlistStatus && status != domain.WatchingStatus && status != domain.PausedStatus && status != domain.DroppedStatus && status != domain.CompletedStatus {
 		return Item{}, fmt.Errorf("invalid library status")
 	}
-	if strings.HasPrefix(mediaID, "movie:") && status != domain.WatchlistStatus && status != domain.WatchingStatus {
-		return Item{}, fmt.Errorf("movies can only be in the watchlist or watching list")
+	if strings.HasPrefix(mediaID, "movie:") && status != domain.WatchlistStatus && status != domain.CompletedStatus {
+		return Item{}, fmt.Errorf("movies can only be in Watchlist or Completed")
 	}
 	if rating != nil && (*rating < 1 || *rating > 5) {
 		return Item{}, fmt.Errorf("rating must be from 1 to 5")
@@ -115,6 +145,13 @@ func (s *Service) Save(ctx context.Context, userID, mediaID string, status domai
 	item := Item{UserID: userID, MediaID: mediaID, Status: status, Rating: rating, NotificationsEnabled: true, AddedAt: now, UpdatedAt: now}
 	if err := s.repository.UpsertItem(ctx, item); err != nil {
 		return Item{}, err
+	}
+	if reader, ok := s.repository.(itemStatusReader); ok {
+		stored, err := reader.ItemStatus(ctx, userID, mediaID)
+		if err != nil {
+			return Item{}, err
+		}
+		item.Status = stored
 	}
 	if reader, ok := s.repository.(notificationPreferenceReader); ok {
 		enabled, err := reader.GetNotificationsEnabled(ctx, userID, mediaID)
@@ -234,6 +271,14 @@ func (s *Service) GetByTMDBID(ctx context.Context, userID string, mediaType doma
 }
 
 func (s *Service) ImportShow(ctx context.Context, tmdbID int64, provider domain.TVShowMetadataProvider) error {
+	return s.importShow(ctx, tmdbID, provider, 24*time.Hour)
+}
+
+func (s *Service) RefreshShow(ctx context.Context, tmdbID int64, provider domain.TVShowMetadataProvider) error {
+	return s.importShow(ctx, tmdbID, provider, 0)
+}
+
+func (s *Service) importShow(ctx context.Context, tmdbID int64, provider domain.TVShowMetadataProvider, ttl time.Duration) error {
 	if provider == nil {
 		return fmt.Errorf("TV metadata provider is not configured")
 	}
@@ -241,9 +286,13 @@ func (s *Service) ImportShow(ctx context.Context, tmdbID int64, provider domain.
 	if !ok {
 		return fmt.Errorf("show metadata storage is not configured")
 	}
-	needsRefresh, err := repository.ShowMetadataNeedsRefresh(ctx, fmt.Sprintf("tv:%d", tmdbID), 24*time.Hour)
-	if err != nil {
-		return err
+	needsRefresh := ttl == 0
+	if !needsRefresh {
+		var err error
+		needsRefresh, err = repository.ShowMetadataNeedsRefresh(ctx, fmt.Sprintf("tv:%d", tmdbID), ttl)
+		if err != nil {
+			return err
+		}
 	}
 	if !needsRefresh {
 		return nil

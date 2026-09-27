@@ -19,6 +19,7 @@ const (
 	WatchingStatus  LibraryStatus = "watching"
 	PausedStatus    LibraryStatus = "paused"
 	DroppedStatus   LibraryStatus = "dropped"
+	CompletedStatus LibraryStatus = "completed"
 )
 
 // Episode is a locally cached TMDB episode. Its ID, rather than its displayed
@@ -39,16 +40,19 @@ func (episode Episode) IsReleasedAt(now time.Time) bool {
 	return episode.AirDate == nil || episode.AirDate.UTC().Format(time.DateOnly) <= now.In(now.Location()).Format(time.DateOnly)
 }
 
-func (episode Episode) MarshalJSON() ([]byte,error) {
+func (episode Episode) MarshalJSON() ([]byte, error) {
 	type response struct {
-		ID string `json:"id"`
-		ShowID string `json:"show_id"`
-		SeasonNumber int `json:"season_number"`
-		EpisodeNumber int `json:"episode_number"`
-		AirDate *string `json:"air_date"`
+		ID            string  `json:"id"`
+		ShowID        string  `json:"show_id"`
+		SeasonNumber  int     `json:"season_number"`
+		EpisodeNumber int     `json:"episode_number"`
+		AirDate       *string `json:"air_date"`
 	}
-	result:=response{ID:episode.ID,ShowID:episode.ShowID,SeasonNumber:episode.SeasonNumber,EpisodeNumber:episode.EpisodeNumber}
-	if episode.AirDate!=nil{value:=episode.AirDate.UTC().Format(time.DateOnly);result.AirDate=&value}
+	result := response{ID: episode.ID, ShowID: episode.ShowID, SeasonNumber: episode.SeasonNumber, EpisodeNumber: episode.EpisodeNumber}
+	if episode.AirDate != nil {
+		value := episode.AirDate.UTC().Format(time.DateOnly)
+		result.AirDate = &value
+	}
 	return json.Marshal(result)
 }
 
