@@ -1025,6 +1025,10 @@ select {
 }
 
 @media (max-width: 680px) {
+  .mantine-Input-input {
+    font-size: max(16px, var(--_input-fz, var(--input-fz, var(--mantine-font-size-md))));
+  }
+
   .calendar-list {
     gap: 22px;
   }
