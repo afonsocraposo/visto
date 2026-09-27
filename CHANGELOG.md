@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.2](https://github.com/afonsocraposo/visto/compare/v0.11.1...v0.11.2) (2026-09-27)
+
+
+### Bug Fixes
+
+* include Git hook installer in Docker context ([1f9138b](https://github.com/afonsocraposo/visto/commit/1f9138b6beea83a32e09f8cf772c4f90950b880e))
+
 ## [0.11.1](https://github.com/afonsocraposo/visto/compare/v0.11.0...v0.11.1) (2026-09-27)
 
 
