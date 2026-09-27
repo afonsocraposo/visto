@@ -1,5 +1,5 @@
-import { useState } from "react";
 import { useDebouncedValue } from "@mantine/hooks";
+import { useNavigate, useSearch } from "@tanstack/react-router";
 import { Alert, Group, Image, Loader, Paper, Text, TextInput, Title } from "@mantine/core";
 import { IconSearch } from "@tabler/icons-react";
 import { MediaQuickActions } from "../../components/MediaQuickActions";
@@ -13,7 +13,8 @@ export function SearchPanel({
 }: {
   onOpenDetail?: (target: MediaDetailTarget) => void;
 }) {
-  const [query, setQuery] = useState("");
+  const query = useSearch({ from: "/discover" }).q ?? "";
+  const navigate = useNavigate({ from: "/discover" });
   const [debouncedQuery] = useDebouncedValue(query.trim(), 300);
   const { library, results, trending } = useDiscoverQueries(debouncedQuery);
   const { addToLibrary, addMovieAsWatched, markWatchlistMovieWatched } = useDiscoverMutations();
@@ -31,7 +32,13 @@ export function SearchPanel({
         label="Search TMDB"
         placeholder="Try a show, movie, actor…"
         value={query}
-        onChange={(event) => setQuery(event.currentTarget.value)}
+        onChange={(event) =>
+          void navigate({
+            to: "/discover",
+            search: { q: event.currentTarget.value || undefined },
+            replace: true,
+          })
+        }
         leftSection={<IconSearch size={18} />}
       />
       {!debouncedQuery && trending.isPending && (

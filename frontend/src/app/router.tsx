@@ -21,6 +21,7 @@ const discoverRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/discover",
   component: () => <DashboardRoute page={{ kind: "discover" }} />,
+  validateSearch: (search) => z.object({ q: z.string().optional() }).parse(search),
 });
 const feedRoute = createRoute({
   getParentRoute: () => rootRoute,

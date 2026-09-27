@@ -248,19 +248,52 @@ test("Media detail links stay short and load after refresh", async ({ page }) =>
   );
   await page.goto("/discover");
   await page.getByRole("textbox", { name: "Search TMDB" }).fill("Example");
+  await expect(page).toHaveURL(/\/discover\?q=Example$/);
 
   for (const title of titles) {
     await page.getByRole("link", { name: `Open details for ${title.title}` }).click();
     await expect(page).toHaveURL(
-      new RegExp(`/media/${title.type}/${title.tmdb_id}\\?from=%2Fdiscover$`),
+      new RegExp(`/media/${title.type}/${title.tmdb_id}\\?from=%2Fdiscover%3Fq%3DExample$`),
     );
     await expect(page.getByRole("heading", { name: title.title })).toBeVisible();
     await page.reload();
     await expect(page.getByRole("heading", { name: title.title })).toBeVisible();
     await page.getByRole("button", { name: "Back" }).click();
-    await expect(page).toHaveURL(/\/discover$/);
-    await page.getByRole("textbox", { name: "Search TMDB" }).fill("Example");
+    await expect(page).toHaveURL(/\/discover\?q=Example$/);
+    await expect(page.getByRole("textbox", { name: "Search TMDB" })).toHaveValue("Example");
+    await expect(page.getByRole("link", { name: `Open details for ${title.title}` })).toBeVisible();
   }
+});
+
+test("Discovery search survives reload and clears back to trending", async ({ page }) => {
+  await mockSignedInSession(page);
+  await page.route("**/api/v1/trending**", (route) =>
+    fulfillJSON(route, {
+      tv: [{ tmdb_id: 200, type: "tv", title: "Trending Show" }],
+      movies: [],
+    }),
+  );
+  await page.route("**/api/v1/search**", (route) =>
+    fulfillJSON(route, [{ tmdb_id: 100, type: "tv", title: "Example Show" }]),
+  );
+  await page.goto("/watch");
+  await page.getByRole("button", { name: "Discover" }).click();
+  const search = page.getByRole("textbox", { name: "Search TMDB" });
+  await search.fill("Example");
+  await expect(page).toHaveURL(/\/discover\?q=Example$/);
+  await expect(page.getByRole("link", { name: "Open details for Example Show" })).toBeVisible();
+
+  await page.reload();
+  await expect(search).toHaveValue("Example");
+  await expect(page.getByRole("link", { name: "Open details for Example Show" })).toBeVisible();
+
+  await search.clear();
+  await expect(page).toHaveURL(/\/discover$/);
+  await expect(search).toHaveValue("");
+  await expect(page.getByRole("heading", { name: "Trending TV shows" })).toBeVisible();
+  await expect(page.getByText("Trending Show")).toBeVisible();
+  await page.goBack();
+  await expect(page).toHaveURL(/\/watch$/);
 });
 
 test("TV details show the production status for saved and unsaved shows", async ({ page }) => {
