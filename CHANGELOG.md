@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.11.0](https://github.com/afonsocraposo/visto/compare/v0.10.0...v0.11.0) (2026-09-27)
+
+
+### ⚠ BREAKING CHANGES
+
+* Library statuses are mutually exclusive. Completed is now a stored status, and API responses no longer expose a separate completion flag.
+
+### Features
+
+* enable activity sharing by default ([9cf37be](https://github.com/afonsocraposo/visto/commit/9cf37bed76a97a942e6169e198bb26ef56d97e3a))
+* filter expanded library by media type ([62d3134](https://github.com/afonsocraposo/visto/commit/62d313414cb742a3a0ce47d95c286c82c8370430))
+* improve library and PWA experience ([4dfcc48](https://github.com/afonsocraposo/visto/commit/4dfcc48a4ede4d987793cdfb06cc64f02ec1f357))
+* refactor media lifecycle statuses ([926f944](https://github.com/afonsocraposo/visto/commit/926f944ff03666c7a8410e956bed2d4cb43b9105))
+
+
+### Bug Fixes
+
+* preserve discovery search in URL ([3f40265](https://github.com/afonsocraposo/visto/commit/3f402652f85055c0105a380ca41a0c5a587f214a))
+* sync generated API documentation ([3011717](https://github.com/afonsocraposo/visto/commit/301171715e7c0b773f59b0b731c71c01da701122))
+
 ## [0.10.0](https://github.com/afonsocraposo/visto/compare/v0.9.0...v0.10.0) (2026-09-27)
 
 
