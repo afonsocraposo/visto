@@ -85,7 +85,7 @@ func insertUserAndSettings(ctx context.Context, tx *sql.Tx, user domain.User, pa
 		return domain.User{}, fmt.Errorf("get new user ID: %w", err)
 	}
 	user.ID = strconv.FormatInt(id, 10)
-	if _, err := tx.ExecContext(ctx, `INSERT INTO user_settings(user_id,created_at,updated_at) VALUES(?,?,?)`, user.ID, now, now); err != nil {
+	if _, err := tx.ExecContext(ctx, `INSERT INTO user_settings(user_id,activity_visibility,created_at,updated_at) VALUES(?,?,?,?)`, user.ID, "instance", now, now); err != nil {
 		return domain.User{}, err
 	}
 	return user, nil
