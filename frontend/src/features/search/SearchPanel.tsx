@@ -15,7 +15,7 @@ export function SearchPanel({
 }) {
   const query = useSearch({ from: "/discover" }).q ?? "";
   const navigate = useNavigate({ from: "/discover" });
-  const [debouncedQuery] = useDebouncedValue(query.trim(), 300);
+  const [debouncedQuery] = useDebouncedValue(query.trim(), 1000);
   const { library, results, trending } = useDiscoverQueries(debouncedQuery);
   const { addToLibrary, addMovieAsWatched, markWatchlistMovieWatched } = useDiscoverMutations();
   const libraryEntries = new Map(library.data?.map((entry) => [entry.item.media_id, entry]) ?? []);
