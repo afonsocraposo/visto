@@ -50,7 +50,7 @@ export function FeedPanel({
 
   return (
     <>
-      <div className="activity-list">
+      <div className="activity-list activity-list-feed">
         {items.map((item) => (
           <ActivityRow
             key={item.id}

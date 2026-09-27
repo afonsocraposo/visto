@@ -795,6 +795,98 @@ test("Given another feed page, When the sentinel enters view, Then it loads with
   expect(requested).toContain("next-page");
 });
 
+test("Feed cards stay compact and touch does not leave a hover border", async ({
+  browser,
+  page,
+}) => {
+  const items = [
+    {
+      id: "episode",
+      display_name: "Afonso",
+      kind: "watch",
+      title: "Silo",
+      media_type: "tv",
+      artwork_path: "/episode.svg",
+      season_number: 3,
+      episode_number: 2,
+      episode_name: "It's All Good",
+      occurred_at: "2026-09-26T12:00:00Z",
+    },
+    {
+      id: "poster",
+      display_name: "Afonso",
+      kind: "bulk_watch",
+      count: 12,
+      title: "American Horror Story",
+      media_type: "tv",
+      artwork_path: "/poster.svg",
+      occurred_at: "2026-09-26T12:00:00Z",
+    },
+  ];
+  const setupFeed = async (target: Page) => {
+    await mockSignedInSession(target);
+    await target.route(/\/api\/v1\/feed(?:\?.*)?$/, (route) =>
+      fulfillJSON(route, { items, next_cursor: null }),
+    );
+    await target.route("https://image.tmdb.org/t/p/**", (route) =>
+      route.fulfill({
+        contentType: "image/svg+xml",
+        body: '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="300"/>',
+      }),
+    );
+    await target.goto("/");
+    await target.getByRole("button", { name: "Feed" }).click();
+    await target.getByRole("tab", { name: "Community" }).click();
+    await expect(target.locator(".activity-list-feed .activity-row")).toHaveCount(2);
+  };
+
+  const mobileContext = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    hasTouch: true,
+    isMobile: true,
+  });
+  try {
+    const mobilePage = await mobileContext.newPage();
+    await setupFeed(mobilePage);
+    const mobileRows = mobilePage.locator(".activity-list-feed .activity-row");
+    for (const row of await mobileRows.all()) {
+      await expect(row).toHaveCSS("height", "128px");
+      const layout = await row.evaluate((element) => {
+        const art = element.querySelector(".activity-row-art")!.getBoundingClientRect();
+        const image = element.querySelector(".activity-row-art img")!.getBoundingClientRect();
+        const main = element.querySelector(".activity-row-main")!;
+        return {
+          artHeight: art.height,
+          imageHeight: image.height,
+          contentFits: main.scrollHeight <= main.clientHeight,
+        };
+      });
+      expect(layout.imageHeight).toBe(layout.artHeight);
+      expect(layout.contentFits).toBe(true);
+    }
+    const borderBefore = await mobileRows
+      .nth(1)
+      .evaluate((element) => getComputedStyle(element).borderColor);
+    await mobileRows.nth(1).tap();
+    await expect(mobileRows.nth(1)).toHaveCSS("border-color", borderBefore);
+
+    await setupFeed(page);
+    const desktopRows = page.locator(".activity-list-feed .activity-row");
+    for (const row of await desktopRows.all()) {
+      await expect(row).toHaveCSS("height", "136px");
+    }
+    const desktopBorder = await desktopRows
+      .nth(1)
+      .evaluate((element) => getComputedStyle(element).borderColor);
+    await desktopRows.nth(1).hover();
+    await expect
+      .poll(() => desktopRows.nth(1).evaluate((element) => getComputedStyle(element).borderColor))
+      .not.toBe(desktopBorder);
+  } finally {
+    await mobileContext.close();
+  }
+});
+
 test("Given another library page, When the user scrolls the list, Then more titles appear", async ({
   page,
 }) => {

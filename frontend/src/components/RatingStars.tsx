@@ -73,7 +73,9 @@ export function RatingStars({
                 : `${star} ${star === 1 ? "star" : "stars"}`
             }
             disabled={disabled}
-            onMouseEnter={() => setHovered(star)}
+            onMouseEnter={() => {
+              if (window.matchMedia("(hover: hover) and (pointer: fine)").matches) setHovered(star);
+            }}
             onFocus={() => setHovered(star)}
             onBlur={() => setHovered(null)}
             onClick={() => {
