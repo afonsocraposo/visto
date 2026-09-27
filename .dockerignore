@@ -13,6 +13,8 @@ frontend/test-results
 frontend/playwright-report
 frontend/playwright.config.ts
 frontend/scripts
+!frontend/scripts/
+!frontend/scripts/install-git-hooks.mjs
 frontend/drizzle.config.ts
 frontend/orval.config.ts
 frontend/.prettierignore
