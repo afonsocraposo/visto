@@ -3,12 +3,44 @@ package tmdb
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/afonsocosta/visto/internal/domain"
 	tmdbapi "github.com/cyruzin/golang-tmdb"
 )
+
+// FindByTVDB resolves a Bingers external ID without fetching a full catalog.
+func (client *Client) FindByTVDB(ctx context.Context, kind, tvdbID string) (int64, error) {
+	if kind != "tv" && kind != "movie" {
+		return 0, fmt.Errorf("invalid media type")
+	}
+	id, err := strconv.ParseInt(tvdbID, 10, 64)
+	if err != nil || id <= 0 {
+		return 0, fmt.Errorf("invalid TVDB ID")
+	}
+	if err := client.acquire(ctx); err != nil {
+		return 0, err
+	}
+	defer func() { <-client.requests }()
+	var found *tmdbapi.FindByID
+	err = client.requestHeld(ctx, func() error {
+		var requestErr error
+		found, requestErr = client.client.GetFindByID(tvdbID, map[string]string{"external_source": "tvdb_id"})
+		return requestErr
+	})
+	if err != nil {
+		return 0, err
+	}
+	if kind == "tv" && len(found.TvResults) == 1 {
+		return found.TvResults[0].ID, nil
+	}
+	if kind == "movie" && len(found.MovieResults) == 1 {
+		return found.MovieResults[0].ID, nil
+	}
+	return 0, fmt.Errorf("no unique TMDB match")
+}
 
 func (client *Client) Search(ctx context.Context, query, language string) ([]domain.MediaSearchResult, error) {
 	if err := ctx.Err(); err != nil {

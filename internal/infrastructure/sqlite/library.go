@@ -3,43 +3,82 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/afonsocosta/visto/internal/application/library"
+	"github.com/afonsocosta/visto/internal/application/watch"
 	"github.com/afonsocosta/visto/internal/domain"
 )
 
+type mediaExtras struct {
+	Cast        []domain.TVCastMember `json:"cast"`
+	Runtime     int                   `json:"runtime,omitempty"`
+	Genres      []string              `json:"genres,omitempty"`
+	VoteAverage float32               `json:"vote_average,omitempty"`
+}
+
+func applyMediaExtras(entry *library.Entry, raw sql.NullString) error {
+	if !raw.Valid || raw.String == "" {
+		return nil
+	}
+	entry.DetailsReady = true
+	var extra mediaExtras
+	if err := json.Unmarshal([]byte(raw.String), &extra); err != nil {
+		return fmt.Errorf("decode media metadata: %w", err)
+	}
+	entry.Cast, entry.Runtime, entry.Genres, entry.VoteAverage = extra.Cast, extra.Runtime, extra.Genres, extra.VoteAverage
+	return nil
+}
+
+func (s *Store) SaveShowSummary(ctx context.Context, show domain.TVShowMetadata) error {
+	raw, err := json.Marshal(mediaExtras{Cast: show.Cast})
+	if err != nil {
+		return err
+	}
+	_, err = s.DB.ExecContext(ctx, `UPDATE media SET title=?,original_title=?,overview=?,release_date=?,poster_path=?,backdrop_path=?,original_language=?,status=?,raw_metadata=?,metadata_updated_at=? WHERE media_type='tv' AND tmdb_id=? AND (metadata_updated_at='' OR raw_metadata IS NULL)`, show.Name, show.Name, show.Overview, show.FirstAirDate, show.PosterPath, show.BackdropPath, show.OriginalLanguage, show.Status, raw, time.Now().UTC().Format(time.RFC3339Nano), show.TMDBID)
+	return err
+}
+
+func (s *Store) SaveMovieMetadata(ctx context.Context, movie domain.MovieMetadata) error {
+	raw, err := json.Marshal(mediaExtras{Cast: movie.Cast, Runtime: movie.Runtime, Genres: movie.Genres, VoteAverage: movie.VoteAverage})
+	if err != nil {
+		return err
+	}
+	_, err = s.DB.ExecContext(ctx, `UPDATE media SET title=?,original_title=?,overview=?,release_date=?,poster_path=?,backdrop_path=?,original_language=?,status=?,raw_metadata=?,metadata_updated_at=? WHERE media_type='movie' AND tmdb_id=? AND (metadata_updated_at='' OR raw_metadata IS NULL)`, movie.Title, movie.OriginalTitle, movie.Overview, movie.ReleaseDate, movie.PosterPath, movie.BackdropPath, movie.OriginalLanguage, movie.Status, raw, time.Now().UTC().Format(time.RFC3339Nano), movie.TMDBID)
+	return err
+}
+
 func (s *Store) UpsertMedia(ctx context.Context, media library.Media) error {
 	now := time.Now().UTC().Format(time.RFC3339Nano)
-	_, err := s.DB.ExecContext(ctx, `INSERT INTO media(id,media_type,tmdb_id,title,original_title,overview,release_date,poster_path,original_language,status,metadata_updated_at,created_at)
-		VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
-		ON CONFLICT(media_type,tmdb_id) DO UPDATE SET title=excluded.title,original_title=excluded.original_title,overview=excluded.overview,release_date=excluded.release_date,poster_path=excluded.poster_path,original_language=excluded.original_language,status=COALESCE(NULLIF(excluded.status,''),media.status),metadata_updated_at=excluded.metadata_updated_at`,
-		media.ID, media.Type, media.TMDBID, media.Title, media.OriginalTitle, media.Overview, media.ReleaseDate, media.PosterPath, media.OriginalLanguage, media.Status, now, now)
+	_, err := s.DB.ExecContext(ctx, `INSERT INTO media(id,media_type,tmdb_id,title,original_title,overview,release_date,poster_path,backdrop_path,original_language,status,metadata_updated_at,created_at)
+		VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
+		ON CONFLICT(media_type,tmdb_id) DO UPDATE SET title=excluded.title,original_title=excluded.original_title,overview=excluded.overview,release_date=excluded.release_date,poster_path=excluded.poster_path,backdrop_path=excluded.backdrop_path,original_language=excluded.original_language,status=COALESCE(NULLIF(excluded.status,''),media.status),metadata_updated_at=excluded.metadata_updated_at`,
+		media.ID, media.Type, media.TMDBID, media.Title, media.OriginalTitle, media.Overview, media.ReleaseDate, media.PosterPath, media.BackdropPath, media.OriginalLanguage, media.Status, now, now)
 	if err != nil {
 		return fmt.Errorf("upsert media: %w", err)
 	}
 	return nil
 }
 
-// MoviesNeedingMetadataRefresh finds identity rows restored from a user-data backup.
-func (s *Store) MoviesNeedingMetadataRefresh(ctx context.Context, limit int) ([]int64, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT tmdb_id FROM media WHERE media_type='movie' AND metadata_updated_at='' ORDER BY tmdb_id LIMIT ?`, limit)
+func (s *Store) MissingMetadataAfter(ctx context.Context, cursor watch.MissingMedia, limit int) ([]watch.MissingMedia, error) {
+	rows, err := s.DB.QueryContext(ctx, `SELECT media_type,tmdb_id FROM media WHERE ((media_type='movie' AND metadata_updated_at='') OR (media_type='tv' AND (metadata_updated_at='' OR catalog_updated_at IS NULL))) AND (media_type>? OR (media_type=? AND tmdb_id>?)) ORDER BY media_type,tmdb_id LIMIT ?`, cursor.Type, cursor.Type, cursor.TMDBID, limit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var ids []int64
+	items := []watch.MissingMedia{}
 	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
+		var item watch.MissingMedia
+		if err := rows.Scan(&item.Type, &item.TMDBID); err != nil {
 			return nil, err
 		}
-		ids = append(ids, id)
+		items = append(items, item)
 	}
-	return ids, rows.Err()
+	return items, rows.Err()
 }
 
 func (s *Store) ShowMetadataMissing(ctx context.Context, tmdbID int64) (bool, error) {
@@ -49,13 +88,17 @@ func (s *Store) ShowMetadataMissing(ctx context.Context, tmdbID int64) (bool, er
 }
 
 func (s *Store) ImportShowMetadata(ctx context.Context, showID string, show domain.TVShowMetadata) error {
+	raw, err := json.Marshal(mediaExtras{Cast: show.Cast})
+	if err != nil {
+		return err
+	}
 	tx, err := s.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("begin show metadata import: %w", err)
 	}
 	defer tx.Rollback()
 	now := time.Now().UTC().Format(time.RFC3339Nano)
-	if _, err := tx.ExecContext(ctx, `UPDATE media SET title=?,original_title=?,overview=?,release_date=?,poster_path=?,original_language=?,status=?,metadata_updated_at=?,catalog_updated_at=? WHERE id=? AND media_type='tv' AND tmdb_id=?`, show.Name, show.Name, show.Overview, show.FirstAirDate, show.PosterPath, show.OriginalLanguage, show.Status, now, now, showID, show.TMDBID); err != nil {
+	if _, err := tx.ExecContext(ctx, `UPDATE media SET title=?,original_title=?,overview=?,release_date=?,poster_path=?,backdrop_path=?,original_language=?,status=?,raw_metadata=?,metadata_updated_at=?,catalog_updated_at=? WHERE id=? AND media_type='tv' AND tmdb_id=?`, show.Name, show.Name, show.Overview, show.FirstAirDate, show.PosterPath, show.BackdropPath, show.OriginalLanguage, show.Status, raw, now, now, showID, show.TMDBID); err != nil {
 		return fmt.Errorf("update show metadata: %w", err)
 	}
 	for _, season := range show.Seasons {
@@ -286,7 +329,7 @@ func (s *Store) listItemsSorted(ctx context.Context, userID, sort string, select
 			args = append(args, id)
 		}
 	}
-	rows, err := s.DB.QueryContext(ctx, `SELECT um.user_id,um.media_id,um.status,um.rating,um.added_at,um.updated_at,um.notifications_enabled,m.media_type,m.tmdb_id,m.title,COALESCE(m.original_title,''),COALESCE(m.overview,''),COALESCE(m.release_date,''),COALESCE(m.poster_path,''),COALESCE(m.original_language,''),COALESCE(m.status,''),
+	rows, err := s.DB.QueryContext(ctx, `SELECT um.user_id,um.media_id,um.status,um.rating,um.added_at,um.updated_at,um.notifications_enabled,m.media_type,m.tmdb_id,m.title,COALESCE(m.original_title,''),COALESCE(m.overview,''),COALESCE(m.release_date,''),COALESCE(m.poster_path,''),COALESCE(m.backdrop_path,''),COALESCE(m.original_language,''),COALESCE(m.status,''),m.metadata_updated_at<>'',m.raw_metadata,
 		progress.watched_episodes,progress.total_episodes
 		FROM user_media um JOIN media m ON m.id=um.media_id
 		LEFT JOIN (
@@ -305,9 +348,13 @@ func (s *Store) listItemsSorted(ctx context.Context, userID, sort string, select
 	for rows.Next() {
 		var entry library.Entry
 		var rating, watchedEpisodes, totalEpisodes sql.NullInt64
+		var raw sql.NullString
 		var addedAt, updatedAt string
-		if err := rows.Scan(&entry.Item.UserID, &entry.Item.MediaID, &entry.Item.Status, &rating, &addedAt, &updatedAt, &entry.Item.NotificationsEnabled, &entry.Media.Type, &entry.Media.TMDBID, &entry.Media.Title, &entry.Media.OriginalTitle, &entry.Media.Overview, &entry.Media.ReleaseDate, &entry.Media.PosterPath, &entry.Media.OriginalLanguage, &entry.Media.Status, &watchedEpisodes, &totalEpisodes); err != nil {
+		if err := rows.Scan(&entry.Item.UserID, &entry.Item.MediaID, &entry.Item.Status, &rating, &addedAt, &updatedAt, &entry.Item.NotificationsEnabled, &entry.Media.Type, &entry.Media.TMDBID, &entry.Media.Title, &entry.Media.OriginalTitle, &entry.Media.Overview, &entry.Media.ReleaseDate, &entry.Media.PosterPath, &entry.Media.BackdropPath, &entry.Media.OriginalLanguage, &entry.Media.Status, &entry.MetadataReady, &raw, &watchedEpisodes, &totalEpisodes); err != nil {
 			return nil, fmt.Errorf("scan library item: %w", err)
+		}
+		if err := applyMediaExtras(&entry, raw); err != nil {
+			return nil, err
 		}
 		if entry.Media.Type == domain.TVMediaType && watchedEpisodes.Valid && totalEpisodes.Valid && totalEpisodes.Int64 > 0 {
 			entry.Progress = &library.ShowProgress{WatchedEpisodes: int(watchedEpisodes.Int64), TotalEpisodes: int(totalEpisodes.Int64)}
@@ -336,20 +383,24 @@ func (s *Store) listItemsSorted(ctx context.Context, userID, sort string, select
 func (s *Store) GetMediaByTMDBID(ctx context.Context, userID string, mediaType domain.MediaType, tmdbID int64) (library.Entry, error) {
 	var entry library.Entry
 	var rating sql.NullInt64
+	var raw sql.NullString
 	var addedAt, updatedAt string
 	err := s.DB.QueryRowContext(ctx, `SELECT um.user_id,um.media_id,um.status,um.rating,um.added_at,um.updated_at,um.notifications_enabled,
-		m.media_type,m.tmdb_id,m.title,COALESCE(m.original_title,''),COALESCE(m.overview,''),COALESCE(m.release_date,''),COALESCE(m.poster_path,''),COALESCE(m.original_language,''),COALESCE(m.status,'')
+		m.media_type,m.tmdb_id,m.title,COALESCE(m.original_title,''),COALESCE(m.overview,''),COALESCE(m.release_date,''),COALESCE(m.poster_path,''),COALESCE(m.backdrop_path,''),COALESCE(m.original_language,''),COALESCE(m.status,''),m.metadata_updated_at<>'',m.raw_metadata,m.catalog_updated_at IS NOT NULL
 		FROM user_media um JOIN media m ON m.id=um.media_id
 		WHERE um.user_id=? AND m.media_type=? AND m.tmdb_id=?`, userID, mediaType, tmdbID).Scan(
 		&entry.Item.UserID, &entry.Item.MediaID, &entry.Item.Status, &rating, &addedAt, &updatedAt, &entry.Item.NotificationsEnabled,
 		&entry.Media.Type, &entry.Media.TMDBID, &entry.Media.Title, &entry.Media.OriginalTitle,
-		&entry.Media.Overview, &entry.Media.ReleaseDate, &entry.Media.PosterPath, &entry.Media.OriginalLanguage, &entry.Media.Status,
+		&entry.Media.Overview, &entry.Media.ReleaseDate, &entry.Media.PosterPath, &entry.Media.BackdropPath, &entry.Media.OriginalLanguage, &entry.Media.Status, &entry.MetadataReady, &raw, &entry.CatalogReady,
 	)
 	if errors.Is(err, sql.ErrNoRows) {
 		return library.Entry{}, library.ErrMediaNotFound
 	}
 	if err != nil {
 		return library.Entry{}, fmt.Errorf("get library media by TMDB ID: %w", err)
+	}
+	if err := applyMediaExtras(&entry, raw); err != nil {
+		return library.Entry{}, err
 	}
 	entry.Media.ID = entry.Item.MediaID
 	if rating.Valid {

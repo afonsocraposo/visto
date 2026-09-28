@@ -19,8 +19,8 @@ func TestMigrator_GivenFreshDatabase_WhenAppliedTwice_ThenCurrentSchemaExistsAnd
 	if err != nil {
 		t.Fatalf("new migrator: %v", err)
 	}
-	if len(migrator.Migrations) != 8 || migrator.Migrations[0].Version != 1 || migrator.Migrations[1].Version != 2 || migrator.Migrations[2].Version != 3 || migrator.Migrations[3].Version != 4 || migrator.Migrations[4].Version != 5 || migrator.Migrations[5].Version != 6 || migrator.Migrations[6].Version != 7 || migrator.Migrations[7].Version != 8 {
-		t.Fatalf("loaded migrations = %#v, want versions 1 through 8", migrator.Migrations)
+	if len(migrator.Migrations) != 10 || migrator.Migrations[0].Version != 1 || migrator.Migrations[1].Version != 2 || migrator.Migrations[2].Version != 3 || migrator.Migrations[3].Version != 4 || migrator.Migrations[4].Version != 5 || migrator.Migrations[5].Version != 6 || migrator.Migrations[6].Version != 7 || migrator.Migrations[7].Version != 8 || migrator.Migrations[8].Version != 9 || migrator.Migrations[9].Version != 10 {
+		t.Fatalf("loaded migrations = %#v, want versions 1 through 10", migrator.Migrations)
 	}
 	migrator.Now = func() time.Time { return time.Date(2026, 9, 24, 0, 0, 0, 0, time.UTC) }
 
@@ -35,8 +35,8 @@ func TestMigrator_GivenFreshDatabase_WhenAppliedTwice_ThenCurrentSchemaExistsAnd
 	if err := db.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&count); err != nil {
 		t.Fatalf("count migrations: %v", err)
 	}
-	if count != 8 {
-		t.Fatalf("migration count = %d, want 8", count)
+	if count != 10 {
+		t.Fatalf("migration count = %d, want 10", count)
 	}
 	var version int
 	var name string
@@ -221,6 +221,43 @@ func TestCompletedStatusMigration_PreservesHistoryAndNormalizesLists(t *testing.
 	}
 	if rating != 5 || plays != 4 {
 		t.Fatalf("history changed: rating=%d plays=%d", rating, plays)
+	}
+}
+
+func TestImportedShowCompletionMigrationRepairsWatchingOnly(t *testing.T) {
+	db := openTestDatabase(t)
+	migrator, err := sqlite.NewMigrator()
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := *migrator
+	old.Migrations = migrator.Migrations[:9]
+	if err := old.Apply(context.Background(), db); err != nil {
+		t.Fatal(err)
+	}
+	_, err = db.Exec(`INSERT INTO users(id,username,display_name,password_hash,role,created_at,updated_at)
+		VALUES(1,'u','User','hash','user','now','now');
+		INSERT INTO media(id,media_type,tmdb_id,title,status,metadata_updated_at,created_at)
+		VALUES('tv:1','tv',1,'Finished','Ended','now','now'),('tv:2','tv',2,'Unfinished','Ended','now','now');
+		INSERT INTO seasons(id,show_id,season_number,name,episode_count)
+		VALUES('s1','tv:1',1,'Season 1',1),('s2','tv:2',1,'Season 1',2);
+		INSERT INTO episodes(id,show_id,season_id,season_number,episode_number,name)
+		VALUES('e1','tv:1','s1',1,1,'One'),('e2','tv:2','s2',1,1,'One'),('e3','tv:2','s2',1,2,'Two');
+		INSERT INTO user_media(id,user_id,media_id,status,added_at,updated_at)
+		VALUES('a',1,'tv:1','watching','old','old'),('b',1,'tv:2','watching','old','old');
+		INSERT INTO plays(user_id,episode_id,watched_at,source,created_at)
+		VALUES(1,'e1','old','import','old'),(1,'e2','old','import','old');`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := migrator.Apply(context.Background(), db); err != nil {
+		t.Fatal(err)
+	}
+	for mediaID, want := range map[string]string{"tv:1": "completed", "tv:2": "watching"} {
+		var status string
+		if err := db.QueryRow(`SELECT status FROM user_media WHERE media_id=?`, mediaID).Scan(&status); err != nil || status != want {
+			t.Fatalf("%s status=%q, want %q, err=%v", mediaID, status, want, err)
+		}
 	}
 }
 

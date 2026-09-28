@@ -48,6 +48,7 @@ export type LibraryEntry = {
     updated_at: string;
   };
   media: SearchMedia & { id: string };
+  metadata_ready: boolean;
   progress?: { watched_episodes: number; total_episodes: number };
 };
 

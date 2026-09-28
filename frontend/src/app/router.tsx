@@ -1,10 +1,16 @@
-import { createRootRouteWithContext, createRoute, createRouter } from "@tanstack/react-router";
+import {
+  createRootRouteWithContext,
+  createRoute,
+  createRouter,
+  redirect,
+} from "@tanstack/react-router";
 import { z } from "zod";
 import { Dashboard, type DashboardPage } from "../features/navigation/Dashboard";
 import { LogoutPage } from "../features/auth/LogoutPage";
 import type { Theme, User } from "../types";
 import type { LibraryMediaFilter } from "../features/library/mediaFilter";
 import { readLibraryFilter } from "../features/library/libraryPreferences";
+import { api } from "../lib/api";
 
 export type RouterContext = { user: User; theme: Theme; setTheme: (theme: Theme) => void };
 
@@ -12,6 +18,12 @@ const rootRoute = createRootRouteWithContext<RouterContext>()();
 const dashboardRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
+  beforeLoad: async () => {
+    const welcome = await api
+      .get<{ pending: boolean }>("/api/v1/imports/welcome")
+      .catch(() => null);
+    if (welcome?.pending) throw redirect({ to: "/discover", replace: true });
+  },
   component: () => <DashboardRoute page={{ kind: "watch" }} />,
 });
 const watchRoute = createRoute({

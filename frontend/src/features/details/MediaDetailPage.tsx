@@ -97,20 +97,16 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
   const [showWatchAction, setShowWatchAction] = useState<"watch" | "unwatch">("watch");
   const [selectedShowSeasons, setSelectedShowSeasons] = useState<Record<number, boolean>>({});
   const { library, show: temporary, movie: movieDetails, related } = useMediaDetailQueries(target);
+  const savedMediaID = library.data?.item.media_id || undefined;
   const seed = target.seed;
   const media = library.data?.media
-    ? {
-        ...library.data.media,
-        backdrop_path:
-          library.data.media.backdrop_path ??
-          (target.mediaType === "movie"
-            ? movieDetails.data?.media.backdrop_path
-            : temporary.data?.media.backdrop_path),
-      }
+    ? library.data.media
     : target.mediaType === "movie"
       ? (movieDetails.data?.media ?? seed)
       : (temporary.data?.media ?? seed);
-  const savedMediaID = library.data?.item.media_id || undefined;
+  const movieRuntime = savedMediaID ? library.data?.runtime : movieDetails.data?.runtime;
+  const movieGenres = savedMediaID ? library.data?.genres : movieDetails.data?.genres;
+  const movieScore = savedMediaID ? library.data?.vote_average : movieDetails.data?.vote_average;
   const showID = resolveMediaID(target.mediaID, savedMediaID, media);
   const isSaved = Boolean(savedMediaID);
   const savedSeasons = useQuery({
@@ -580,7 +576,7 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
   const mediaArtwork = resolveMediaArtwork(
     backdropURL(media.backdrop_path, "w1280"),
     art,
-    fallbackDetails.isPending,
+    !isSaved && fallbackDetails.isPending,
   );
   const artLayers = heroArtworkLayers(
     Boolean(target.episodeID),
@@ -912,15 +908,13 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
               : media.overview || "No description is available."}
           </Text>
           {(
-            selectedEpisode
-              ? episodeDetails.data?.runtime || selectedEpisode.runtime
-              : movieDetails.data?.runtime
+            selectedEpisode ? episodeDetails.data?.runtime || selectedEpisode.runtime : movieRuntime
           ) ? (
             <Text className="detail-runtime" mt="sm">
               <IconClock size={15} />{" "}
               {selectedEpisode
                 ? episodeDetails.data?.runtime || selectedEpisode.runtime
-                : movieDetails.data?.runtime}{" "}
+                : movieRuntime}{" "}
               min
             </Text>
           ) : null}
@@ -1160,12 +1154,12 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
             <Alert color="red">{markEpisodeWatched.error.message}</Alert>
           )}
           {add.isError && <Alert color="red">{add.error.message}</Alert>}
-          {!episodes.isPending &&
-            !temporary.isPending &&
-            !temporaryEpisodes.isPending &&
-            !episodes.isError &&
-            !temporary.isError &&
-            !temporaryEpisodes.isError &&
+          {(isSaved
+            ? !episodes.isPending && !episodes.isError
+            : !temporary.isPending &&
+              !temporaryEpisodes.isPending &&
+              !temporary.isError &&
+              !temporaryEpisodes.isError) &&
             !visibleEpisodes.length && (
               <Text c="dimmed">Episode details are not available yet.</Text>
             )}
@@ -1290,18 +1284,16 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
           </Stack>
         </section>
       )}
-      {target.mediaType === "movie" && !selectedEpisode && movieDetails.data?.genres?.length ? (
+      {target.mediaType === "movie" && !selectedEpisode && movieGenres?.length ? (
         <section className="detail-section">
           <Text className="section-kicker">About this film</Text>
           <Group gap="xs">
-            {movieDetails.data.genres.map((genre) => (
+            {movieGenres.map((genre) => (
               <Badge key={genre} variant="light">
                 {genre}
               </Badge>
             ))}
-            {movieDetails.data.vote_average ? (
-              <Badge variant="light">TMDB {movieDetails.data.vote_average.toFixed(1)} / 10</Badge>
-            ) : null}
+            {movieScore ? <Badge variant="light">TMDB {movieScore.toFixed(1)} / 10</Badge> : null}
           </Group>
         </section>
       ) : null}
@@ -1309,8 +1301,12 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
         <CastSection
           members={
             target.mediaType === "tv"
-              ? (temporary.data?.cast ?? [])
-              : (movieDetails.data?.cast ?? [])
+              ? isSaved
+                ? (library.data?.cast ?? [])
+                : (temporary.data?.cast ?? [])
+              : isSaved
+                ? (library.data?.cast ?? [])
+                : (movieDetails.data?.cast ?? [])
           }
           title="Cast"
           kicker="People"

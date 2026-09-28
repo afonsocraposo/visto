@@ -42,9 +42,16 @@ type Media struct {
 }
 
 type Entry struct {
-	Item     Item          `json:"item"`
-	Media    Media         `json:"media"`
-	Progress *ShowProgress `json:"progress,omitempty"`
+	Item          Item                  `json:"item"`
+	Media         Media                 `json:"media"`
+	Progress      *ShowProgress         `json:"progress,omitempty"`
+	MetadataReady bool                  `json:"metadata_ready"`
+	Cast          []domain.TVCastMember `json:"cast,omitempty"`
+	Runtime       int                   `json:"runtime,omitempty"`
+	Genres        []string              `json:"genres,omitempty"`
+	VoteAverage   float32               `json:"vote_average,omitempty"`
+	DetailsReady  bool                  `json:"-"`
+	CatalogReady  bool                  `json:"-"`
 }
 
 type ShowProgress struct {
@@ -268,6 +275,46 @@ func (s *Service) GetByTMDBID(ctx context.Context, userID string, mediaType doma
 		return Entry{}, fmt.Errorf("library lookup is not configured")
 	}
 	return repository.GetMediaByTMDBID(ctx, userID, mediaType, tmdbID)
+}
+
+// HydrateMissing saves a summary only for a title already in this user's library.
+func (s *Service) HydrateMissing(ctx context.Context, userID string, mediaType domain.MediaType, tmdbID int64, provider domain.MetadataProvider) (Entry, error) {
+	entry, err := s.GetByTMDBID(ctx, userID, mediaType, tmdbID)
+	if err != nil || (entry.MetadataReady && entry.DetailsReady) || provider == nil {
+		return entry, err
+	}
+	if mediaType == domain.TVMediaType {
+		fetcher, ok := provider.(domain.TVShowSummaryProvider)
+		writer, writable := s.repository.(interface {
+			SaveShowSummary(context.Context, domain.TVShowMetadata) error
+		})
+		if !ok || !writable {
+			return entry, nil
+		}
+		show, fetchErr := fetcher.ShowSummary(ctx, tmdbID)
+		if fetchErr != nil || show.TMDBID != tmdbID || show.Name == "" {
+			return entry, nil
+		}
+		if err = writer.SaveShowSummary(ctx, show); err != nil {
+			return entry, err
+		}
+	} else {
+		fetcher, ok := provider.(domain.MovieMetadataProvider)
+		writer, writable := s.repository.(interface {
+			SaveMovieMetadata(context.Context, domain.MovieMetadata) error
+		})
+		if !ok || !writable {
+			return entry, nil
+		}
+		movie, fetchErr := fetcher.Movie(ctx, tmdbID)
+		if fetchErr != nil || movie.TMDBID != tmdbID || movie.Title == "" {
+			return entry, nil
+		}
+		if err = writer.SaveMovieMetadata(ctx, movie); err != nil {
+			return entry, err
+		}
+	}
+	return s.GetByTMDBID(ctx, userID, mediaType, tmdbID)
 }
 
 func (s *Service) ImportShow(ctx context.Context, tmdbID int64, provider domain.TVShowMetadataProvider) error {

@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import { Alert, AppShell, Button, Center, Group, Loader, Tabs, Text } from "@mantine/core";
+import { Alert, AppShell, Button, Center, Group, Loader, Modal, Tabs, Text } from "@mantine/core";
 import {
   IconCalendar,
   IconCompass,
@@ -12,10 +12,12 @@ import {
 import { WatchNow, WatchCalendar } from "../watch/Watch";
 import type { LibraryStatus, MediaDetailTarget, Tab, Theme, User } from "../../types";
 import type { LibraryMediaFilter } from "../library/mediaFilter";
-import { connectionUnavailableEvent } from "../../lib/api";
+import { api, connectionUnavailableEvent } from "../../lib/api";
 import { ActionFeedback } from "../../components/ActionFeedback";
 import { clearSignedInCache, endCurrentSession } from "../auth/logout";
 import { readStoredChoice, writeStoredChoice } from "../../lib/browserStorage";
+import { ImportData } from "../library/ImportData";
+import { useUserQueryKey } from "../auth/SessionContext";
 
 const SearchPanel = lazy(async () => ({
   default: (await import("../search/SearchPanel")).SearchPanel,
@@ -56,6 +58,15 @@ export function Dashboard({
   page: DashboardPage;
 }) {
   const queryClient = useQueryClient();
+  const userQueryKey = useUserQueryKey();
+  const importWelcome = useQuery({
+    queryKey: userQueryKey("import-welcome"),
+    queryFn: () => api.get<{ pending: boolean }>("/api/v1/imports/welcome"),
+  });
+  const dismissImport = useMutation({
+    mutationFn: () => api.post("/api/v1/imports/welcome/dismiss"),
+    onSuccess: () => queryClient.setQueryData(userQueryKey("import-welcome"), { pending: false }),
+  });
   const navigate = useNavigate();
   const currentHref = useRouterState({ select: (state) => state.location.href });
   const detail = page.kind === "media" ? page.target : null;
@@ -156,6 +167,27 @@ export function Dashboard({
 
   return (
     <AppShell className="visto-shell" footer={{ height: 76 }} padding={0}>
+      <Modal
+        opened={importWelcome.data?.pending === true}
+        onClose={() => dismissImport.mutate()}
+        title="Bring your data to Visto"
+        centered
+      >
+        <ImportData withinModal />
+        <Button
+          variant="subtle"
+          mt="md"
+          onClick={() => dismissImport.mutate()}
+          loading={dismissImport.isPending}
+        >
+          Continue to Visto
+        </Button>
+        {dismissImport.isError && (
+          <Alert color="red" mt="sm">
+            Could not close this prompt. Try again.
+          </Alert>
+        )}
+      </Modal>
       <ActionFeedback />
       <AppShell.Main className="visto-main">
         {!online && (

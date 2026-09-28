@@ -50,6 +50,7 @@ import type {
   GetCommunityUsersUserIDActivityParams,
   GetCommunityUsersUserIDLibraryParams,
   GetFeedParams,
+  GetImportsWelcome200,
   GetLibraryParams,
   GetPeopleTmdbID200,
   GetPlaysParams,
@@ -71,6 +72,7 @@ import type {
   Play,
   PlaysPage,
   PlexWebhookStatus,
+  PostImportsBingers200,
   PostLibraryLookupBody,
   PostPlaysBulkBody,
   PostProfilePlexWebhook201,
@@ -135,6 +137,308 @@ const withQueryKey = <T extends object, K>(query: T, queryKey: K): T & { queryKe
     });
   }
   return result;
+};
+
+export const getGetImportsWelcomeUrl = () => {
+  return `/imports/welcome`;
+};
+
+/**
+ * @summary Check whether the current account should see the import welcome prompt
+ */
+export const getImportsWelcome = async (
+  options?: Parameters<typeof customFetch>[1],
+): Promise<GetImportsWelcome200> => {
+  return customFetch<GetImportsWelcome200>(getGetImportsWelcomeUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetImportsWelcomeQueryKey = () => {
+  return [`/imports/welcome`] as const;
+};
+
+export const getGetImportsWelcomeQueryOptions = <
+  TData = Awaited<ReturnType<typeof getImportsWelcome>>,
+  TError = unknown,
+>(options?: {
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getImportsWelcome>>, TError, TData>>;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetImportsWelcomeQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getImportsWelcome>>> = ({ signal }) =>
+    getImportsWelcome({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getImportsWelcome>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetImportsWelcomeQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getImportsWelcome>>
+>;
+export type GetImportsWelcomeQueryError = unknown;
+
+export function useGetImportsWelcome<
+  TData = Awaited<ReturnType<typeof getImportsWelcome>>,
+  TError = unknown,
+>(
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getImportsWelcome>>, TError, TData>> &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getImportsWelcome>>,
+          TError,
+          Awaited<ReturnType<typeof getImportsWelcome>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetImportsWelcome<
+  TData = Awaited<ReturnType<typeof getImportsWelcome>>,
+  TError = unknown,
+>(
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getImportsWelcome>>, TError, TData>> &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getImportsWelcome>>,
+          TError,
+          Awaited<ReturnType<typeof getImportsWelcome>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetImportsWelcome<
+  TData = Awaited<ReturnType<typeof getImportsWelcome>>,
+  TError = unknown,
+>(
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getImportsWelcome>>, TError, TData>>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Check whether the current account should see the import welcome prompt
+ */
+
+export function useGetImportsWelcome<
+  TData = Awaited<ReturnType<typeof getImportsWelcome>>,
+  TError = unknown,
+>(
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getImportsWelcome>>, TError, TData>>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetImportsWelcomeQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export const getPostImportsWelcomeDismissUrl = () => {
+  return `/imports/welcome/dismiss`;
+};
+
+/**
+ * @summary Dismiss the import welcome prompt for this account
+ */
+export const postImportsWelcomeDismiss = async (
+  options?: Parameters<typeof customFetch>[1],
+): Promise<void> => {
+  return customFetch<void>(getPostImportsWelcomeDismissUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getPostImportsWelcomeDismissMutationKey = () => ["postImportsWelcomeDismiss"] as const;
+
+export const getPostImportsWelcomeDismissMutationOptions = <
+  TError = unknown,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof postImportsWelcomeDismiss>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof postImportsWelcomeDismiss>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = getPostImportsWelcomeDismissMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof postImportsWelcomeDismiss>>,
+    void
+  > = () => {
+    return postImportsWelcomeDismiss(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PostImportsWelcomeDismissMutationResult = NonNullable<
+  Awaited<ReturnType<typeof postImportsWelcomeDismiss>>
+>;
+
+export type PostImportsWelcomeDismissMutationError = unknown;
+
+/**
+ * @summary Dismiss the import welcome prompt for this account
+ */
+export const usePostImportsWelcomeDismiss = <TError = unknown, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof postImportsWelcomeDismiss>>,
+      TError,
+      void,
+      TContext
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof postImportsWelcomeDismiss>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getPostImportsWelcomeDismissMutationOptions(options), queryClient);
+};
+
+export const getPostImportsBingersUrl = () => {
+  return `/imports/bingers`;
+};
+
+/**
+ * @summary Import a Bingers ZIP archive into the current account
+ */
+export const postImportsBingers = async (
+  postImportsBingersBody: Blob,
+  options?: Parameters<typeof customFetch>[1],
+): Promise<PostImportsBingers200> => {
+  const getHeaders = (
+    h?: NonNullable<RequestInit["headers"]>,
+  ): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(
+          h as Iterable<Iterable<string>>,
+          (entry) => Array.from(entry) as [string, string],
+        ),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+  return customFetch<PostImportsBingers200>(getPostImportsBingersUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/zip", ...getHeaders(options?.headers) },
+    body: postImportsBingersBody,
+  });
+};
+
+export const getPostImportsBingersMutationKey = () => ["postImportsBingers"] as const;
+
+export const getPostImportsBingersMutationOptions = <
+  TError = BadRequestResponse | void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof postImportsBingers>>,
+    TError,
+    PostImportsBingersMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof postImportsBingers>>,
+  TError,
+  PostImportsBingersMutationVariables,
+  TContext
+> => {
+  const mutationKey = getPostImportsBingersMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof postImportsBingers>>,
+    PostImportsBingersMutationVariables
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return postImportsBingers(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PostImportsBingersMutationResult = NonNullable<
+  Awaited<ReturnType<typeof postImportsBingers>>
+>;
+export type PostImportsBingersMutationBody = Blob;
+export type PostImportsBingersMutationError = BadRequestResponse | void;
+export type PostImportsBingersMutationVariables = { data: Blob };
+
+/**
+ * @summary Import a Bingers ZIP archive into the current account
+ */
+export const usePostImportsBingers = <TError = BadRequestResponse | void, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof postImportsBingers>>,
+      TError,
+      PostImportsBingersMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof postImportsBingers>>,
+  TError,
+  PostImportsBingersMutationVariables,
+  TContext
+> => {
+  return useMutation(getPostImportsBingersMutationOptions(options), queryClient);
 };
 
 export const getPostAuthBootstrapUrl = () => {

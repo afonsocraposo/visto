@@ -5,6 +5,7 @@
  * Self-hosted movie and TV tracking API.
  * OpenAPI spec version: 0.1.0
  */
+import type { CastMember } from "./castMember";
 import type { LibraryItem } from "./libraryItem";
 import type { MediaSnapshot } from "./mediaSnapshot";
 import type { ShowLibraryProgress } from "./showLibraryProgress";
@@ -13,4 +14,14 @@ export interface LibraryEntry {
   item: LibraryItem;
   media: MediaSnapshot;
   progress?: ShowLibraryProgress;
+  metadata_ready: boolean;
+  cast?: CastMember[];
+  /** @minimum 0 */
+  runtime?: number;
+  genres?: string[];
+  /**
+   * @minimum 0
+   * @maximum 10
+   */
+  vote_average?: number;
 }

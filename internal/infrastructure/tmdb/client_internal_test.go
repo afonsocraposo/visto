@@ -21,6 +21,22 @@ func (fn roundTripFunc) RoundTrip(request *http.Request) (*http.Response, error)
 	return fn(request)
 }
 
+func TestFindByTVDB(t *testing.T) {
+	client, err := New("test-key", &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		if request.URL.Path != "/3/find/123" || request.URL.Query().Get("external_source") != "tvdb_id" {
+			t.Errorf("unexpected lookup: %s", request.URL.String())
+		}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{"tv_results":[{"id":42,"name":"Example"}]}`)), Header: make(http.Header), Request: request}, nil
+	})})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id, err := client.FindByTVDB(context.Background(), "tv", "123")
+	if err != nil || id != 42 {
+		t.Fatalf("resolved ID=%d, error=%v", id, err)
+	}
+}
+
 func TestDetailCaches_GivenMoreThanTheLimit_StayBounded(t *testing.T) {
 	transport := roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		body := `{"id":42,"title":"Example","name":"Example","season_number":1,"episode_number":1}`

@@ -103,10 +103,11 @@ type Service struct {
 	repository       Repository
 	now              func() time.Time
 	metadataProvider domain.TVShowMetadataProvider
+	backfillWake     chan struct{}
 }
 
 func NewService(repository Repository, providers ...domain.TVShowMetadataProvider) *Service {
-	service := &Service{repository: repository, now: time.Now}
+	service := &Service{repository: repository, now: time.Now, backfillWake: make(chan struct{}, 1)}
 	if len(providers) > 0 {
 		service.metadataProvider = providers[0]
 	}

@@ -26,6 +26,7 @@ export function useMediaDetailQueries(target: MediaDetailTarget) {
     query: {
       queryKey: userQueryKey("media-detail", "tv", target.tmdbID),
       enabled: target.mediaType === "tv",
+      refetchOnMount: "always",
       ...retryOptions,
     },
   });
@@ -33,13 +34,15 @@ export function useMediaDetailQueries(target: MediaDetailTarget) {
     query: {
       queryKey: userQueryKey("media-detail", "movie", target.tmdbID),
       enabled: target.mediaType === "movie",
+      refetchOnMount: "always",
       ...retryOptions,
     },
   });
   const show = useGetDiscoverShowsTmdbID(target.tmdbID, {
     query: {
       queryKey: userQueryKey("temporary-show-detail", target.tmdbID),
-      enabled: target.mediaType === "tv",
+      enabled:
+        target.mediaType === "tv" && showLibrary.isSuccess && !showLibrary.data?.item.media_id,
       staleTime: 12 * 60 * 60 * 1000,
       ...retryOptions,
     },
@@ -47,7 +50,8 @@ export function useMediaDetailQueries(target: MediaDetailTarget) {
   const movie = useGetDiscoverMoviesTmdbID(target.tmdbID, {
     query: {
       queryKey: userQueryKey("temporary-movie-detail", target.tmdbID),
-      enabled: target.mediaType === "movie",
+      enabled:
+        target.mediaType === "movie" && movieLibrary.isSuccess && !movieLibrary.data?.item.media_id,
       staleTime: 12 * 60 * 60 * 1000,
       ...retryOptions,
     },

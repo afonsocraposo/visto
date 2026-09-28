@@ -6,6 +6,27 @@ info:
 servers:
   - url: /api/v1
 paths:
+  /imports/welcome:
+    get:
+      summary: Check whether the current account should see the import welcome prompt
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      responses:
+        '200': { description: Import welcome state, content: { application/json: { schema: { type: object, properties: { pending: { type: boolean } } } } } }
+  /imports/welcome/dismiss:
+    post:
+      summary: Dismiss the import welcome prompt for this account
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      responses:
+        '204': { description: Prompt dismissed }
+  /imports/bingers:
+    post:
+      summary: Import a Bingers ZIP archive into the current account
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      requestBody: { required: true, content: { application/zip: { schema: { type: string, format: binary } } } }
+      responses:
+        '200': { description: Imported counts and skipped records, content: { application/json: { schema: { type: object, properties: { titles: { type: integer }, watches: { type: integer }, ratings: { type: integer }, skipped: { type: integer }, unsupported: { type: integer }, issues: { type: array, items: { type: object, properties: { item: { type: string }, reason: { type: string } } } } } } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '413': { description: Archive is too large }
   /auth/bootstrap:
     post:
       summary: Create the first local administrator
@@ -1220,11 +1241,16 @@ components:
         updated_at: { type: string, format: date-time }
     LibraryEntry:
       type: object
-      required: [item, media]
+      required: [item, media, metadata_ready]
       properties:
         item: { $ref: '#/components/schemas/LibraryItem' }
         media: { $ref: '#/components/schemas/MediaSnapshot' }
         progress: { $ref: '#/components/schemas/ShowLibraryProgress' }
+        metadata_ready: { type: boolean }
+        cast: { type: array, items: { $ref: '#/components/schemas/CastMember' } }
+        runtime: { type: integer, minimum: 0 }
+        genres: { type: array, items: { type: string } }
+        vote_average: { type: number, minimum: 0, maximum: 10 }
     ShowLibraryProgress:
       type: object
       description: Per-user TV progress across regular episodes only; omitted for movies and shows without imported episode metadata.

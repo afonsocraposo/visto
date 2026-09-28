@@ -20,6 +20,7 @@ import (
 	"github.com/afonsocosta/visto/internal/application/auth"
 	exportapp "github.com/afonsocosta/visto/internal/application/export"
 	"github.com/afonsocosta/visto/internal/application/feed"
+	"github.com/afonsocosta/visto/internal/application/importer"
 	"github.com/afonsocosta/visto/internal/application/library"
 	"github.com/afonsocosta/visto/internal/application/notifications"
 	"github.com/afonsocosta/visto/internal/application/oauth"
@@ -82,6 +83,7 @@ func main() {
 	startWorker(func(ctx context.Context) {
 		watchService.RunCatalogRefresher(ctx, refreshInterval, activeRefreshTTL, finishedRefreshTTL)
 	})
+	startWorker(watchService.RunMetadataBackfill)
 	backupInterval := durationEnvironment("VISTO_BACKUP_INTERVAL", 24*time.Hour)
 	backupRetention := durationEnvironment("VISTO_BACKUP_RETENTION", 30*24*time.Hour)
 	backupDirectory := environment("VISTO_BACKUP_DIR", filepath.Join(filepath.Dir(databasePath), "backups"))
@@ -174,6 +176,11 @@ func main() {
 	appServer := httpserver.New(authService, metadataProvider, os.Getenv("VISTO_WEB_DIR"), library.NewService(store), tracking.NewService(store), profiles, feed.NewService(store), exportapp.NewService(store), watchService, pushConfig).
 		WithTrustedProxies(trustedProxies).WithOAuth(oauthService).WithGoogleOAuth(googleOAuth).WithBackups(backupService).
 		WithSeasonAlerts(seasonalerts.NewService(store))
+	var importResolver importer.TVDBResolver
+	if metadataProvider != nil {
+		importResolver = metadataProvider
+	}
+	appServer.WithImports(importer.NewService(store, importResolver, watchService.WakeMetadataBackfill))
 	var plexMetadataProvider plexsync.MetadataProvider
 	if metadataProvider != nil {
 		plexMetadataProvider = metadataProvider

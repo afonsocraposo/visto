@@ -7,6 +7,7 @@ import "net/http"
 import "strconv"
 import "github.com/afonsocosta/visto/internal/application/auth"
 import "github.com/afonsocosta/visto/internal/application/library"
+import "github.com/afonsocosta/visto/internal/application/watch"
 import "github.com/afonsocosta/visto/internal/application/pagination"
 import "github.com/afonsocosta/visto/internal/domain"
 
@@ -230,7 +231,7 @@ func listLibrary(authService *auth.Service, service *library.Service) http.Handl
 	}
 }
 
-func mediaDetails(authService *auth.Service, service *library.Service, provider domain.MetadataProvider, mediaType domain.MediaType) http.HandlerFunc {
+func mediaDetails(authService *auth.Service, service *library.Service, provider domain.MetadataProvider, mediaType domain.MediaType, backfill *watch.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		user, ok := authenticatedUser(w, r, authService)
 		if !ok {
@@ -245,14 +246,14 @@ func mediaDetails(authService *auth.Service, service *library.Service, provider 
 			writeError(w, http.StatusBadRequest, "invalid TMDB ID")
 			return
 		}
-		entry, err := service.GetByTMDBID(r.Context(), user.ID, mediaType, tmdbID)
+		entry, err := service.HydrateMissing(r.Context(), user.ID, mediaType, tmdbID, provider)
 		if err != nil {
 			if errors.Is(err, library.ErrMediaNotFound) {
 				if mediaType == domain.TVMediaType {
 					if tvProvider, ok := provider.(domain.TVShowSummaryProvider); ok {
 						show, providerErr := tvProvider.ShowSummary(r.Context(), tmdbID)
 						if providerErr == nil {
-							writeJSON(w, http.StatusOK, library.Entry{Media: library.Media{ID: fmt.Sprintf("tv:%d", show.TMDBID), Type: domain.TVMediaType, TMDBID: show.TMDBID, Title: show.Name, OriginalTitle: show.Name, Overview: show.Overview, ReleaseDate: show.FirstAirDate, PosterPath: show.PosterPath, OriginalLanguage: show.OriginalLanguage, Status: show.Status}})
+							writeJSON(w, http.StatusOK, library.Entry{Media: library.Media{ID: fmt.Sprintf("tv:%d", show.TMDBID), Type: domain.TVMediaType, TMDBID: show.TMDBID, Title: show.Name, OriginalTitle: show.Name, Overview: show.Overview, ReleaseDate: show.FirstAirDate, PosterPath: show.PosterPath, BackdropPath: show.BackdropPath, OriginalLanguage: show.OriginalLanguage, Status: show.Status}})
 							return
 						}
 					}
@@ -271,6 +272,9 @@ func mediaDetails(authService *auth.Service, service *library.Service, provider 
 			}
 			writeError(w, http.StatusInternalServerError, "media details are temporarily unavailable")
 			return
+		}
+		if mediaType == domain.TVMediaType && entry.Item.MediaID != "" && !entry.CatalogReady && backfill != nil {
+			backfill.WakeMetadataBackfill()
 		}
 		writeJSON(w, http.StatusOK, entry)
 	}

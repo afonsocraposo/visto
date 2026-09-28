@@ -1,7 +1,20 @@
-import { useQueries } from "@tanstack/react-query";
-import { Alert, Button, Group, Loader, SegmentedControl, Select, Text, Title } from "@mantine/core";
+import { useQueries, useQuery } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
+import {
+  Alert,
+  Button,
+  Group,
+  Loader,
+  Paper,
+  SegmentedControl,
+  Select,
+  Text,
+  Title,
+} from "@mantine/core";
+import { IconSearch } from "@tabler/icons-react";
 import { useState } from "react";
 import { EmptyState } from "../../components/EmptyState";
+import { ImportData } from "./ImportData";
 import { useSessionUserID, useUserQueryKey } from "../auth/SessionContext";
 import { api } from "../../lib/api";
 import { LibraryCard } from "./LibraryCard";
@@ -33,6 +46,7 @@ export function LibraryPanel({
   onOpenDetail?: (target: MediaDetailTarget) => void;
   onOpenList?: (status: LibraryStatus, mediaFilter: LibraryMediaFilter) => void;
 }) {
+  const navigate = useNavigate();
   const userID = useSessionUserID();
   const [mediaFilter, setMediaFilter] = useState<LibraryMediaFilter>(() =>
     readLibraryFilter(userID),
@@ -47,26 +61,57 @@ export function LibraryPanel({
           `/api/v1/library?sort=${sort}&status=${section.status}&limit=${PREVIEW_LIMIT}${mediaFilter === "all" ? "" : `&media_type=${mediaFilter}`}`,
           "Your library is temporarily unavailable.",
         ),
+      refetchOnMount: "always" as const,
+      refetchOnWindowFocus: "always" as const,
     })),
   });
-  if (libraries.some((library) => library.isPending))
+  const anyLibrary = useQuery({
+    queryKey: [...userQueryKey("library"), "any"],
+    queryFn: () =>
+      api.get<CursorPage<LibraryEntry>>(
+        "/api/v1/library?limit=1",
+        "Your library is temporarily unavailable.",
+      ),
+    refetchOnMount: "always",
+    refetchOnWindowFocus: "always",
+  });
+  if (libraries.some((library) => library.isPending) || anyLibrary.isPending)
     return (
       <Group justify="center" mt="xl">
         <Loader />
       </Group>
     );
-  if (libraries.some((library) => library.isError))
+  if (libraries.some((library) => library.isError) || anyLibrary.isError)
     return (
       <Alert color="red" mt="md">
         Your library is temporarily unavailable.
       </Alert>
     );
-  if (libraries.every((library) => !library.data?.items.length))
+  if (libraries.every((library) => !library.data?.items.length) && !anyLibrary.data?.items.length)
     return (
-      <EmptyState
-        title="Your library is empty"
-        detail="Search for something you want to watch, then make this space your own."
-      />
+      <>
+        <div className="page-heading">
+          <Text className="section-kicker">Your collection</Text>
+          <Title order={1}>Library</Title>
+        </div>
+        <Paper className="library-empty" withBorder radius="lg">
+          <Title order={2}>Start with your watch history</Title>
+          <Text c="dimmed" mt="sm">
+            Bring your shows, movies, and ratings from Bingers, or find something new to watch.
+          </Text>
+          <Group className="library-empty-actions" mt="xl">
+            <ImportData prominent refreshLibraryOnClose />
+            <Button
+              variant="subtle"
+              size="lg"
+              leftSection={<IconSearch size={18} />}
+              onClick={() => void navigate({ to: "/discover" })}
+            >
+              Browse trending
+            </Button>
+          </Group>
+        </Paper>
+      </>
     );
   return (
     <>
@@ -102,6 +147,12 @@ export function LibraryPanel({
           allowDeselect={false}
         />
       </Group>
+      {libraries.every((library) => !library.data?.items.length) && (
+        <EmptyState
+          title="No titles in this filter"
+          detail="Choose another media type to see your library."
+        />
+      )}
       <div className="library-sections">
         {sections.map((section, index) => {
           const page = libraries[index].data!;

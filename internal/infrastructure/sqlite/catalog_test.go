@@ -21,19 +21,25 @@ func TestShowsNeedingCatalogRefresh_GivenManyTrackedShows_WhenLimited_ThenItRetu
 	userID := insertTestUser(t, store.DB, "u", "u", "private")
 	for id := int64(1); id <= 4; id++ {
 		mediaID := fmt.Sprintf("tv:%d", id)
-		if _, err := store.DB.Exec(`INSERT INTO media(id,media_type,tmdb_id,title,status,metadata_updated_at,created_at) VALUES(?,'tv',?,?,'Returning','2026-01-01','2026-01-01')`, mediaID, id, mediaID); err != nil {
+		if _, err := store.DB.Exec(`INSERT INTO media(id,media_type,tmdb_id,title,status,metadata_updated_at,catalog_updated_at,created_at) VALUES(?,'tv',?,?,'Returning','2026-01-01','2026-01-01','2026-01-01')`, mediaID, id, mediaID); err != nil {
 			t.Fatal(err)
 		}
 		if _, err := store.DB.Exec(`INSERT INTO user_media(id,user_id,media_id,status,added_at,updated_at) VALUES(?, ?, ?, 'watching', '2026-01-01', '2026-01-01')`, userID+":"+mediaID, userID, mediaID); err != nil {
 			t.Fatal(err)
 		}
 	}
+	if _, err := store.DB.Exec(`INSERT INTO media(id,media_type,tmdb_id,title,metadata_updated_at,created_at) VALUES('tv:99','tv',99,'Placeholder','','2026-01-01')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.DB.Exec(`INSERT INTO user_media(id,user_id,media_id,status,added_at,updated_at) VALUES(?,?,'tv:99','watching','2026-01-01','2026-01-01')`, userID+":tv:99", userID); err != nil {
+		t.Fatal(err)
+	}
 
 	ids, err := store.ShowsNeedingCatalogRefresh(context.Background(), 24*time.Hour, 30*24*time.Hour, 2)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(ids) != 2 {
+	if len(ids) != 2 || ids[0] == 99 || ids[1] == 99 {
 		t.Fatalf("refresh IDs=%v, want exactly two", ids)
 	}
 }

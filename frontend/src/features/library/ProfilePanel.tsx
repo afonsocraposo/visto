@@ -19,6 +19,7 @@ import { PersonalTokensPanel } from "./PersonalTokensPanel";
 import { ConnectedAppsPanel } from "./ConnectedAppsPanel";
 import { PlexSyncPanel } from "./PlexSyncPanel";
 import { WebPushSettings } from "./WebPushSettings";
+import { ImportData } from "./ImportData";
 
 export function ProfilePanel({
   theme,
@@ -315,6 +316,14 @@ export function ProfilePanel({
         )}
 
         <WebPushSettings />
+
+        <Title order={3} mt="xl">
+          Import your data
+        </Title>
+        <Text size="sm" c="dimmed" mt="xs" mb="md">
+          Choose an app to import from.
+        </Text>
+        <ImportData />
 
         <Title order={3} mt="xl">
           Export your data

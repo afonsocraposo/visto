@@ -8,6 +8,7 @@ import "time"
 import "github.com/afonsocosta/visto/internal/application/auth"
 import "github.com/afonsocosta/visto/internal/infrastructure/backup"
 import exportapp "github.com/afonsocosta/visto/internal/application/export"
+import "github.com/afonsocosta/visto/internal/application/importer"
 import "github.com/afonsocosta/visto/internal/application/feed"
 import "github.com/afonsocosta/visto/internal/application/library"
 import "github.com/afonsocosta/visto/internal/application/oauth"
@@ -48,14 +49,25 @@ func limitAPIRequestBody(next http.Handler) http.Handler {
 	const maxBody = 1 << 20
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, "/api/v1/") && !strings.HasPrefix(r.URL.Path, "/api/v1/webhooks/plex/") && r.Method != http.MethodGet && r.Method != http.MethodHead {
-			if r.ContentLength > maxBody {
+			limit := int64(maxBody)
+			if r.URL.Path == "/api/v1/imports/bingers" {
+				limit = importer.MaxUpload
+			}
+			if r.ContentLength > limit {
 				http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
 				return
 			}
-			r.Body = http.MaxBytesReader(w, r.Body, maxBody)
+			r.Body = http.MaxBytesReader(w, r.Body, limit)
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func (server *Server) WithImports(service *importer.Service) *Server {
+	server.mux.HandleFunc("GET /api/v1/imports/welcome", importWelcome(server.authService, service))
+	server.mux.HandleFunc("POST /api/v1/imports/welcome/dismiss", dismissImportWelcome(server.authService, service))
+	server.mux.HandleFunc("POST /api/v1/imports/bingers", importBingers(server.authService, service))
+	return server
 }
 
 func (server *Server) WithTrustedProxies(proxies security.ProxyResolver) *Server {

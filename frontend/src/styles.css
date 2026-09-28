@@ -52,6 +52,50 @@ select {
   object-fit: cover;
   box-shadow: 0 8px 20px rgb(242 181 68 / 0.23);
 }
+.import-source-button {
+  height: 56px;
+  padding-inline: 12px 28px;
+  border-radius: 12px;
+}
+.import-source-button .mantine-Button-section {
+  margin-inline-end: 12px;
+}
+.import-source-button img {
+  display: block;
+  border-radius: 8px;
+}
+.import-file-input {
+  display: none;
+}
+.import-dropzone {
+  display: flex;
+  width: 100%;
+  min-height: 164px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 20px;
+  border: 2px dashed var(--mantine-color-default-border);
+  border-radius: 12px;
+  background: var(--mantine-color-default);
+  color: var(--mantine-color-text);
+  cursor: pointer;
+  text-align: center;
+}
+.import-dropzone svg {
+  color: var(--mantine-primary-color-filled);
+}
+.import-dropzone span {
+  color: var(--mantine-color-dimmed);
+  font-size: var(--mantine-font-size-sm);
+}
+.import-dropzone:hover,
+.import-dropzone-active,
+.import-dropzone:focus-visible {
+  border-color: var(--mantine-primary-color-filled);
+  outline: none;
+}
 .bottom-nav {
   width: min(100% - 24px, 680px);
   margin: 0 auto;
@@ -356,6 +400,22 @@ select {
 .poster-grid {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+}
+.library-empty {
+  max-width: 760px;
+  padding: clamp(24px, 4vw, 40px);
+  background: color-mix(in srgb, var(--mantine-color-body) 96%, #f2b544);
+}
+.library-empty h2 {
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  letter-spacing: -0.04em;
+}
+.library-empty > .mantine-Text-root {
+  max-width: 55ch;
+  line-height: 1.55;
+}
+.library-empty-actions {
   gap: 12px;
 }
 .library-sections {
@@ -1297,6 +1357,9 @@ select {
     min-width: 0;
     flex: 1 1 0;
     padding-inline: 8px;
+  }
+  .library-empty-actions .mantine-Button-root {
+    width: 100%;
   }
   .activity-row {
     grid-template-columns: 92px minmax(0, 1fr);

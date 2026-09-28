@@ -228,7 +228,7 @@ func (store *Store) ShowsNeedingCatalogRefresh(ctx context.Context, activeTTL, f
 	activeCutoff := time.Now().UTC().Add(-activeTTL).Format(time.RFC3339Nano)
 	finishedCutoff := time.Now().UTC().Add(-finishedTTL).Format(time.RFC3339Nano)
 	rows, err := store.DB.QueryContext(ctx, `SELECT DISTINCT m.tmdb_id FROM media m
-		WHERE m.media_type='tv' AND (m.metadata_updated_at='' OR EXISTS(SELECT 1 FROM user_media um WHERE um.media_id=m.id)) AND
+		WHERE m.media_type='tv' AND m.metadata_updated_at<>'' AND m.catalog_updated_at IS NOT NULL AND EXISTS(SELECT 1 FROM user_media um WHERE um.media_id=m.id) AND
 		((EXISTS(SELECT 1 FROM season_ready_alerts a JOIN seasons se ON se.id=a.season_id WHERE se.show_id=m.id AND a.ready_at IS NULL)
 			AND (m.catalog_updated_at IS NULL OR m.catalog_updated_at<?)) OR
 		(m.status IN ('Ended','Canceled','Cancelled') AND (m.catalog_updated_at IS NULL OR m.catalog_updated_at<?)) OR

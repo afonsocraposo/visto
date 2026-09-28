@@ -47,6 +47,8 @@ export function LibraryListPage({
         ),
         "Your library is temporarily unavailable.",
       ),
+    refetchOnMount: "always",
+    refetchOnWindowFocus: "always",
     getNextPageParam: (page) => page.next_cursor ?? undefined,
   });
   if (library.isPending)
