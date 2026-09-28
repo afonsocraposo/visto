@@ -222,7 +222,7 @@ func listLibrary(authService *auth.Service, service *library.Service) http.Handl
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		page, err := service.ListPage(r.Context(), user.ID, library.ListOptions{Sort: r.URL.Query().Get("sort"), Status: r.URL.Query().Get("status"), MediaType: r.URL.Query().Get("media_type")}, request)
+		page, err := service.ListPage(r.Context(), user.ID, library.ListOptions{Sort: r.URL.Query().Get("sort"), Status: r.URL.Query().Get("status"), MediaType: r.URL.Query().Get("media_type"), Query: r.URL.Query().Get("q")}, request)
 		if err != nil {
 			writePageError(w, err, "library is temporarily unavailable")
 			return

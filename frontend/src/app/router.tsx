@@ -72,7 +72,12 @@ const profileLibraryListRoute = createRoute({
     stringify: (params) => ({ status: params.status }),
   },
   validateSearch: (search) =>
-    z.object({ media_type: z.enum(["movie", "tv"]).optional().catch(undefined) }).parse(search),
+    z
+      .object({
+        media_type: z.enum(["movie", "tv"]).optional().catch(undefined),
+        q: z.string().optional().catch(undefined),
+      })
+      .parse(search),
 });
 const mediaSearchSchema = z.object({
   from: z.string().max(2048).optional(),
@@ -124,14 +129,15 @@ function DashboardRoute({ page }: { page: DashboardPage }) {
 }
 function LibraryListRoute() {
   const { user } = rootRoute.useRouteContext();
-  const mediaFilter: LibraryMediaFilter =
-    profileLibraryListRoute.useSearch().media_type ?? readLibraryFilter(user.id);
+  const search = profileLibraryListRoute.useSearch();
+  const mediaFilter: LibraryMediaFilter = search.media_type ?? readLibraryFilter(user.id);
   return (
     <DashboardRoute
       page={{
         kind: "library-list",
         status: profileLibraryListRoute.useParams().status,
         mediaFilter,
+        query: search.q ?? "",
       }}
     />
   );

@@ -4,12 +4,14 @@ import (
 	"context"
 	"fmt"
 	"github.com/afonsocosta/visto/internal/application/pagination"
+	"strings"
 )
 
 type ListOptions struct {
 	Sort      string
 	Status    string
 	MediaType string
+	Query     string
 }
 type pageRepository interface {
 	ListItemsPage(context.Context, string, ListOptions, pagination.Request) (pagination.Page[Entry], error)
@@ -31,6 +33,7 @@ func (s *Service) ListPage(ctx context.Context, userID string, options ListOptio
 	if options.MediaType != "" && options.MediaType != "movie" && options.MediaType != "tv" {
 		return pagination.Page[Entry]{}, fmt.Errorf("invalid media type")
 	}
+	options.Query = strings.TrimSpace(options.Query)
 	repo, ok := s.repository.(pageRepository)
 	if !ok {
 		return pagination.Page[Entry]{}, fmt.Errorf("library paging is not configured")

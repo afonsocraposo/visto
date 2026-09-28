@@ -17,6 +17,10 @@ export type GetLibraryParams = {
   status?: GetLibraryStatus;
   media_type?: GetLibraryMediaType;
   /**
+   * Filter saved media by title or original title, case-insensitively.
+   */
+  q?: string;
+  /**
    * @minimum 1
    * @maximum 100
    */

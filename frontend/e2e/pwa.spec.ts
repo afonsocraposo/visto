@@ -1363,6 +1363,55 @@ test("Expanded library pages filter media before pagination and keep the selecti
   await expect(page).toHaveURL(/\/profile\/library\/completed\?media_type=tv$/);
 });
 
+test("Expanded library search keeps its query and media filter in the URL", async ({ page }) => {
+  await mockSignedInSession(page);
+  const requests: string[] = [];
+  await page.route(/\/api\/v1\/library(?:\?.*)?$/, (route) => {
+    const url = new URL(route.request().url());
+    requests.push(url.search);
+    const title = url.searchParams.get("q") === "alpha" ? "Alpha title" : "Other title";
+    return fulfillJSON(route, {
+      items: [
+        {
+          item: {
+            media_id: "movie:1",
+            status: "completed",
+            rating: null,
+            notifications_enabled: true,
+            updated_at: "2026-09-26T12:00:00Z",
+          },
+          media: {
+            id: "movie:1",
+            tmdb_id: 1,
+            type: "movie",
+            title,
+            original_title: title,
+            overview: "",
+            release_date: "2026-01-01",
+            poster_path: "",
+            original_language: "en",
+          },
+        },
+      ],
+      next_cursor: null,
+      total_count: 1,
+    });
+  });
+  await page.goto("/profile/library/completed?media_type=movie");
+  const search = page.getByRole("textbox", { name: "Search your library" });
+  await search.fill("alpha");
+  await expect(page).toHaveURL(/media_type=movie.*q=alpha/);
+  await expect(page.getByText("Alpha title")).toBeVisible();
+  await page.reload();
+  await expect(search).toHaveValue("alpha");
+  await search.clear();
+  await expect(page).not.toHaveURL(/q=alpha/);
+  await expect(page.getByText("Other title")).toBeVisible();
+  expect(
+    requests.some((query) => query.includes("media_type=movie") && query.includes("q=alpha")),
+  ).toBe(true);
+});
+
 test("Library previews show full filtered counts in the requested order and restore saved choices", async ({
   page,
 }) => {

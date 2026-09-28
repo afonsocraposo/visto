@@ -11,7 +11,7 @@ import (
 )
 
 func (s *Store) ListItemsPage(ctx context.Context, userID string, options library.ListOptions, request pagination.Request) (pagination.Page[library.Entry], error) {
-	scope := "library|" + userID + "|" + options.Sort + "|" + options.Status + "|" + options.MediaType
+	scope := "library|" + userID + "|" + options.Sort + "|" + options.Status + "|" + options.MediaType + "|" + options.Query
 	keys, err := pagination.Decode(request.Cursor, scope, 3)
 	if err != nil {
 		return pagination.Page[library.Entry]{}, err
@@ -37,16 +37,16 @@ func (s *Store) ListItemsPage(ctx context.Context, userID string, options librar
 	}
 	var totalCount int
 	if err := s.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM user_media um JOIN media m ON m.id=um.media_id
-		WHERE um.user_id=? AND (?='' OR m.media_type=?) AND (?='' OR um.status=?)`,
-		userID, options.MediaType, options.MediaType, options.Status, options.Status).Scan(&totalCount); err != nil {
+		WHERE um.user_id=? AND (?='' OR m.media_type=?) AND (?='' OR um.status=?) AND (?='' OR instr(lower(m.title),lower(?))>0 OR instr(lower(COALESCE(m.original_title,'')),lower(?))>0)`,
+		userID, options.MediaType, options.MediaType, options.Status, options.Status, options.Query, options.Query, options.Query).Scan(&totalCount); err != nil {
 		return pagination.Page[library.Entry]{}, fmt.Errorf("count library items: %w", err)
 	}
 	query := `WITH candidates AS (
- SELECT um.media_id,um.updated_at,m.title,COALESCE(NULLIF(m.release_date,''),'0000-00-00') AS released,m.media_type,um.status
+	 SELECT um.media_id,um.updated_at,m.title,COALESCE(NULLIF(m.release_date,''),'0000-00-00') AS released,m.media_type,um.status,m.original_title
  FROM user_media um JOIN media m ON m.id=um.media_id WHERE um.user_id=?),
- filtered AS (SELECT * FROM candidates WHERE (?='' OR media_type=?) AND (?='' OR status=?))
+	 filtered AS (SELECT * FROM candidates WHERE (?='' OR media_type=?) AND (?='' OR status=?) AND (?='' OR instr(lower(title),lower(?))>0 OR instr(lower(COALESCE(original_title,'')),lower(?))>0))
  SELECT media_id,updated_at,title,released FROM filtered WHERE ` + predicate + ` ORDER BY ` + order + ` LIMIT ?`
-	args := []any{userID, options.MediaType, options.MediaType, options.Status, options.Status}
+	args := []any{userID, options.MediaType, options.MediaType, options.Status, options.Status, options.Query, options.Query, options.Query}
 	if keys != nil {
 		switch options.Sort {
 		case "title":

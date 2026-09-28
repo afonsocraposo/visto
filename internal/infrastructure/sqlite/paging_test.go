@@ -64,6 +64,46 @@ func TestPagesTraverseLibraryPlaysAndUsers(t *testing.T) {
 	if len(ids) != 3 || ids[0] != "movie:1" || ids[1] != "movie:2" || ids[2] != "movie:3" {
 		t.Fatalf("library pages: %v", ids)
 	}
+	if _, err := store.DB.Exec(`UPDATE media SET original_title='The First Film' WHERE id='movie:1'`); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		query string
+		want  []string
+	}{
+		{"ALPHA", []string{"movie:1", "movie:2"}},
+		{"first film", []string{"movie:1"}},
+		{"%", nil},
+	} {
+		request := pagination.Request{Limit: 1}
+		var got []string
+		for {
+			page, err := store.ListItemsPage(ctx, userID, library.ListOptions{Sort: "title", Status: "watchlist", MediaType: "movie", Query: tc.query}, request)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if page.TotalCount == nil || *page.TotalCount != len(tc.want) {
+				t.Fatalf("query %q count = %v", tc.query, page.TotalCount)
+			}
+			for _, item := range page.Items {
+				got = append(got, item.Item.MediaID)
+			}
+			if page.NextCursor == nil {
+				break
+			}
+			request.Cursor = *page.NextCursor
+		}
+		if fmt.Sprint(got) != fmt.Sprint(tc.want) && !(len(got) == 0 && len(tc.want) == 0) {
+			t.Fatalf("query %q items = %v, want %v", tc.query, got, tc.want)
+		}
+	}
+	searched, err := store.ListItemsPage(ctx, userID, library.ListOptions{Sort: "title", Status: "watchlist", Query: "alpha"}, pagination.Request{Limit: 1})
+	if err != nil || searched.NextCursor == nil {
+		t.Fatalf("search first page = %+v, %v", searched, err)
+	}
+	if _, err := store.ListItemsPage(ctx, userID, library.ListOptions{Sort: "title", Status: "watchlist", Query: "zulu"}, pagination.Request{Limit: 1, Cursor: *searched.NextCursor}); err == nil {
+		t.Fatal("cursor accepted for a different search")
+	}
 	for _, tc := range []struct {
 		sort string
 		want []string

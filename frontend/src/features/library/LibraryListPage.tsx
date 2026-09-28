@@ -1,5 +1,6 @@
 import { InfiniteScrollTrigger } from "../../components/InfiniteScrollTrigger";
 import { useInfiniteQuery } from "@tanstack/react-query";
+import { useDebouncedValue } from "@mantine/hooks";
 import {
   Alert,
   Button,
@@ -8,9 +9,10 @@ import {
   Select,
   Skeleton,
   Text,
+  TextInput,
   Title,
 } from "@mantine/core";
-import { IconArrowLeft } from "@tabler/icons-react";
+import { IconArrowLeft, IconSearch } from "@tabler/icons-react";
 import { useState } from "react";
 import { useSessionUserID, useUserQueryKey } from "../auth/SessionContext";
 import { api } from "../../lib/api";
@@ -33,26 +35,31 @@ const labels: Record<LibraryStatus, string> = {
 export function LibraryListPage({
   status,
   mediaFilter,
+  query,
   onMediaFilterChange,
+  onQueryChange,
   onBack,
   onOpenDetail,
 }: {
   status: LibraryStatus;
   mediaFilter: LibraryMediaFilter;
+  query: string;
   onMediaFilterChange: (mediaFilter: LibraryMediaFilter) => void;
+  onQueryChange: (query: string) => void;
   onBack: () => void;
   onOpenDetail?: (target: MediaDetailTarget) => void;
 }) {
   const userID = useSessionUserID();
   const [sort, setSort] = useState<LibrarySort>(() => readLibrarySort(userID));
+  const [debouncedQuery] = useDebouncedValue(query.trim(), 350);
   const userQueryKey = useUserQueryKey();
   const library = useInfiniteQuery({
-    queryKey: [...userQueryKey("library"), "page", sort, status, mediaFilter],
+    queryKey: [...userQueryKey("library"), "page", sort, status, mediaFilter, debouncedQuery],
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam }) =>
       api.get<CursorPage<LibraryEntry>>(
         pageURL(
-          `/api/v1/library?sort=${sort}&status=${status}${mediaFilter === "all" ? "" : `&media_type=${mediaFilter}`}`,
+          `/api/v1/library?sort=${sort}&status=${status}${mediaFilter === "all" ? "" : `&media_type=${mediaFilter}`}${debouncedQuery ? `&q=${encodeURIComponent(debouncedQuery)}` : ""}`,
           pageParam,
         ),
         "Your library is temporarily unavailable.",
@@ -61,6 +68,16 @@ export function LibraryListPage({
     refetchOnWindowFocus: "always",
     getNextPageParam: (page) => page.next_cursor ?? undefined,
   });
+  const searchInput = (
+    <TextInput
+      label="Search your library"
+      placeholder="Search titles"
+      value={query}
+      onChange={(event) => onQueryChange(event.currentTarget.value)}
+      leftSection={<IconSearch size={18} />}
+      mb="md"
+    />
+  );
   if (library.isPending)
     return (
       <div className="library-list-page">
@@ -70,6 +87,7 @@ export function LibraryListPage({
           <Skeleton height={34} width={200} mb={8} />
           <Skeleton height={16} width={90} />
         </div>
+        {searchInput}
         <Group mb="xl" justify="space-between" align="end">
           <Skeleton height={36} width={220} radius="xl" />
           <Skeleton height={60} width={160} />
@@ -79,9 +97,12 @@ export function LibraryListPage({
     );
   if (library.isError)
     return (
-      <Alert color="red" mt="md">
-        Your library is temporarily unavailable.
-      </Alert>
+      <div className="library-list-page">
+        {searchInput}
+        <Alert color="red" mt="md">
+          Your library is temporarily unavailable.
+        </Alert>
+      </div>
     );
   const entries = library.data.pages.flatMap((page) => page.items);
   return (
@@ -102,6 +123,7 @@ export function LibraryListPage({
           {(library.data.pages[0].total_count ?? entries.length) === 1 ? "title" : "titles"}
         </Text>
       </div>
+      {searchInput}
       <Group mb="xl" align="end" justify="space-between">
         <SegmentedControl
           aria-label="Filter library by media type"
@@ -128,7 +150,9 @@ export function LibraryListPage({
         />
       </Group>
       {entries.length === 0 ? (
-        <Text c="dimmed">This list is empty.</Text>
+        <Text c="dimmed">
+          {debouncedQuery ? "No titles match your search." : "This list is empty."}
+        </Text>
       ) : (
         <div className="poster-grid">
           {entries.map((entry) => (

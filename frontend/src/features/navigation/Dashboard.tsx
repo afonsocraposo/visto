@@ -41,7 +41,7 @@ const UserProfilePage = lazy(async () => ({
 
 export type DashboardPage =
   | { kind: "watch" | "discover" | "feed" | "profile" }
-  | { kind: "library-list"; status: LibraryStatus; mediaFilter: LibraryMediaFilter }
+  | { kind: "library-list"; status: LibraryStatus; mediaFilter: LibraryMediaFilter; query: string }
   | { kind: "media"; target: MediaDetailTarget; returnTo?: string }
   | { kind: "person"; personID: number; returnTo?: string }
   | { kind: "user-profile"; userID: string; returnTo?: string };
@@ -215,11 +215,29 @@ export function Dashboard({
             <LibraryListPage
               status={listStatus}
               mediaFilter={page.kind === "library-list" ? page.mediaFilter : "all"}
+              query={page.kind === "library-list" ? page.query : ""}
+              onQueryChange={(query) =>
+                void navigate({
+                  to: "/profile/library/$status",
+                  params: { status: listStatus },
+                  search: {
+                    media_type:
+                      page.kind === "library-list" && page.mediaFilter !== "all"
+                        ? page.mediaFilter
+                        : undefined,
+                    q: query || undefined,
+                  },
+                  replace: true,
+                })
+              }
               onMediaFilterChange={(mediaFilter) =>
                 void navigate({
                   to: "/profile/library/$status",
                   params: { status: listStatus },
-                  search: { media_type: mediaFilter === "all" ? undefined : mediaFilter },
+                  search: {
+                    media_type: mediaFilter === "all" ? undefined : mediaFilter,
+                    q: page.kind === "library-list" ? page.query || undefined : undefined,
+                  },
                   replace: true,
                 })
               }
