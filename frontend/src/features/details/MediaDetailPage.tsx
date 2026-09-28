@@ -8,11 +8,11 @@ import {
   Checkbox,
   Group,
   Image,
-  Loader,
   Menu,
   Modal,
   Paper,
   Select,
+  Skeleton,
   Stack,
   Switch,
   Text,
@@ -30,6 +30,7 @@ import {
 } from "@tabler/icons-react";
 import { fetchAllPages } from "../../lib/pagination";
 import { InfiniteScrollTrigger } from "../../components/InfiniteScrollTrigger";
+import { PosterGridSkeleton } from "../../components/PosterGridSkeleton";
 import { api } from "../../lib/api";
 import { postPlaysBulk } from "../../generated/api";
 import { showActionFeedback } from "../../lib/actionFeedback";
@@ -582,9 +583,30 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
   const fallbackDetails = target.mediaType === "tv" ? temporary : movieDetails;
   if (!media && (library.isPending || fallbackDetails.isPending))
     return (
-      <Group justify="center" mt="xl">
-        <Loader />
-      </Group>
+      <div className="detail-page">
+        <Skeleton height={36} width={90} radius="sm" mb="md" />
+        <section className="detail-hero">
+          <Skeleton
+            height="100%"
+            width="100%"
+            radius={0}
+            animate={false}
+            style={{ position: "absolute", inset: 0, opacity: 0.4 }}
+          />
+          <div className="detail-hero-content">
+            <Skeleton height={22} width={90} radius="xl" mb="md" />
+            <Skeleton height={48} width="55%" mb="sm" />
+            <Skeleton height={16} width="25%" mb="lg" />
+            <Skeleton height={14} width="90%" mb={6} />
+            <Skeleton height={14} width="80%" mb={6} />
+            <Skeleton height={14} width="65%" mb="lg" />
+            <Group gap="sm">
+              <Skeleton height={42} width={150} radius="sm" />
+              <Skeleton height={42} width={42} circle />
+            </Group>
+          </div>
+        </section>
+      </div>
     );
   if (!media)
     return (
@@ -1210,9 +1232,27 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
           )}
           {((isSaved && episodes.isPending) ||
             (!isSaved && (temporary.isPending || temporaryEpisodes.isPending))) && (
-            <Group justify="center" py="lg">
-              <Loader />
-            </Group>
+            <Stack gap="xs">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <Paper key={i} className="episode-row" withBorder p={0}>
+                  <Group className="episode-row-layout" justify="space-between" wrap="nowrap" gap={0}>
+                    <Group className="episode-row-main" wrap="nowrap" gap={0}>
+                      <div className="episode-art">
+                        <Skeleton height="100%" width="100%" radius={0} />
+                      </div>
+                      <div className="episode-row-copy">
+                        <Skeleton height={14} width={180} mb={8} />
+                        <Skeleton height={12} width={110} mb={6} />
+                        <Skeleton height={12} width={230} />
+                      </div>
+                    </Group>
+                    <div className="episode-row-controls">
+                      <Skeleton height={32} width={32} circle />
+                    </div>
+                  </Group>
+                </Paper>
+              ))}
+            </Stack>
           )}
           {episodes.isError && isSaved && (
             <Alert color="red">Episodes are temporarily unavailable.</Alert>
@@ -1398,9 +1438,7 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
             <Text className="section-kicker">More to explore</Text>
             <Title order={2}>More like this</Title>
             {related.isPending && (
-              <Group justify="center" py="lg">
-                <Loader size="sm" />
-              </Group>
+              <PosterGridSkeleton count={6} className="poster-grid related-media-grid" />
             )}
             {related.isError && (
               <Alert color="yellow" mt="sm">

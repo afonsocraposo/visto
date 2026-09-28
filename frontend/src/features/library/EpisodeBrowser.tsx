@@ -5,10 +5,10 @@ import {
   Alert,
   Button,
   Group,
-  Loader,
   Modal,
   Paper,
   Select,
+  Skeleton,
   Text,
   Tooltip,
 } from "@mantine/core";
@@ -109,9 +109,20 @@ export function EpisodeBrowser({
     <>
       <Modal opened onClose={onClose} title={`Episodes · ${title}`} size="lg" centered>
         {(episodes.isPending || seasonsQuery.isPending) && (
-          <Group justify="center" py="xl">
-            <Loader />
-          </Group>
+          <>
+            <Skeleton height={60} mb="sm" />
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Paper key={i} withBorder p="sm" mt="sm">
+                <Group justify="space-between">
+                  <div>
+                    <Skeleton height={14} width={170} mb={6} />
+                    <Skeleton height={12} width={100} />
+                  </div>
+                  <Skeleton height={36} width={36} circle />
+                </Group>
+              </Paper>
+            ))}
+          </>
         )}
         {(episodes.isError || seasonsQuery.isError) && (
           <Alert color="red">Could not load episodes.</Alert>

@@ -1,7 +1,8 @@
 import { InfiniteScrollTrigger } from "../../components/InfiniteScrollTrigger";
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { Alert, Button, Group, Loader } from "@mantine/core";
+import { Alert, Button } from "@mantine/core";
 import { EmptyState } from "../../components/EmptyState";
+import { ListSkeleton } from "../../components/ListSkeleton";
 import { useUserQueryKey } from "../auth/SessionContext";
 import { api } from "../../lib/api";
 import type { FeedItem, MediaDetailTarget } from "../../types";
@@ -29,9 +30,15 @@ export function FeedPanel({
   });
   if (feed.isPending)
     return (
-      <Group justify="center" mt="xl">
-        <Loader />
-      </Group>
+      <div className="activity-list activity-list-feed">
+        <ListSkeleton
+          count={5}
+          rowClassName="activity-row"
+          artClassName="activity-row-art"
+          contentClassName="activity-row-main"
+          lines={2}
+        />
+      </div>
     );
   if (feed.isError)
     return (

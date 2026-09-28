@@ -9,10 +9,10 @@ import {
   Badge,
   Button,
   Group,
-  Loader,
   Modal,
   Paper,
   PasswordInput,
+  Skeleton,
   Stack,
   Table,
   Text,
@@ -28,6 +28,7 @@ import { api } from "../../lib/api";
 import { showActionFeedback } from "../../lib/actionFeedback";
 import { ActivityTime } from "../../components/ActivityTime";
 import { EmptyState } from "../../components/EmptyState";
+import { TableSkeleton } from "../../components/TableSkeleton";
 
 export function AdminPanel({ currentUser }: { currentUser: User }) {
   const [search, setSearch] = useState("");
@@ -75,9 +76,26 @@ export function AdminPanel({ currentUser }: { currentUser: User }) {
           </Alert>
         )}
         {users.isPending && (
-          <Group justify="center" mt="xl">
-            <Loader size="sm" />
-          </Group>
+          <Table.ScrollContainer minWidth={640} mt="md">
+            <TableSkeleton
+              columns={["User", "Email", "Role", "Joined", ""]}
+              rows={6}
+              renderCell={(column) =>
+                column === 0 ? (
+                  <Group gap="sm" wrap="nowrap">
+                    <Skeleton circle height={32} />
+                    <Skeleton height={12} width={110} />
+                  </Group>
+                ) : column === 2 ? (
+                  <Skeleton height={20} width={56} radius="xl" />
+                ) : column === 4 ? (
+                  <Skeleton height={28} width={56} />
+                ) : (
+                  <Skeleton height={12} width="70%" />
+                )
+              }
+            />
+          </Table.ScrollContainer>
         )}
         {users.isSuccess && matches.length === 0 && (
           <EmptyState

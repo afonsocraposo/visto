@@ -1,9 +1,10 @@
 import { useDebouncedValue } from "@mantine/hooks";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { Alert, Group, Image, Loader, Paper, Text, TextInput, Title } from "@mantine/core";
+import { Alert, Group, Image, Paper, Skeleton, Text, TextInput, Title } from "@mantine/core";
 import { IconSearch } from "@tabler/icons-react";
 import { MediaQuickActions } from "../../components/MediaQuickActions";
 import { MediaPosterCard } from "../../components/MediaPosterCard";
+import { PosterGridSkeleton } from "../../components/PosterGridSkeleton";
 import { useDiscoverMutations, useDiscoverQueries } from "./queries";
 import type { MediaDetailTarget } from "../../types";
 import { posterURL } from "../../lib/artwork";
@@ -42,9 +43,17 @@ export function SearchPanel({
         leftSection={<IconSearch size={18} />}
       />
       {!debouncedQuery && trending.isPending && (
-        <Group justify="center" py="xl">
-          <Loader size="sm" />
-        </Group>
+        <div className="trending-sections">
+          {[0, 1].map((i) => (
+            <section className="trending-section" key={i}>
+              <Group justify="space-between" mb="sm">
+                <Skeleton height={22} width={160} />
+                <Skeleton height={14} width={70} />
+              </Group>
+              <PosterGridSkeleton count={10} />
+            </section>
+          ))}
+        </div>
       )}
       {!debouncedQuery && trending.isError && (
         <Alert color="yellow" mt="md">

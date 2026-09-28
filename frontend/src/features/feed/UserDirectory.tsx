@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Avatar, Button, Drawer, Loader, Stack, Text, TextInput } from "@mantine/core";
+import { Alert, Avatar, Button, Drawer, Skeleton, Stack, Text, TextInput } from "@mantine/core";
 import { useUserQueryKey } from "../auth/SessionContext";
 import { fetchAllPages } from "../../lib/pagination";
 import type { CommunityUser } from "../../types";
@@ -35,7 +35,13 @@ export function UserDirectory({
         onChange={(event) => setSearch(event.currentTarget.value)}
         mb="md"
       />
-      {users.isPending && <Loader size="sm" />}
+      {users.isPending && (
+        <Stack gap="xs">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} height={36} radius="sm" />
+          ))}
+        </Stack>
+      )}
       {users.isError && <Alert color="red">Could not load users.</Alert>}
       {users.isSuccess && (
         <Stack gap="xs">

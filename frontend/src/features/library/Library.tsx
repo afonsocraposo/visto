@@ -4,16 +4,17 @@ import {
   Alert,
   Button,
   Group,
-  Loader,
   Paper,
   SegmentedControl,
   Select,
+  Skeleton,
   Text,
   Title,
 } from "@mantine/core";
 import { IconSearch } from "@tabler/icons-react";
 import { useState } from "react";
 import { EmptyState } from "../../components/EmptyState";
+import { PosterGridSkeleton } from "../../components/PosterGridSkeleton";
 import { ImportData } from "./ImportData";
 import { useSessionUserID, useUserQueryKey } from "../auth/SessionContext";
 import { api } from "../../lib/api";
@@ -77,9 +78,26 @@ export function LibraryPanel({
   });
   if (libraries.some((library) => library.isPending) || anyLibrary.isPending)
     return (
-      <Group justify="center" mt="xl">
-        <Loader />
-      </Group>
+      <>
+        <div className="page-heading">
+          <Skeleton height={12} width={130} mb={8} />
+          <Skeleton height={34} width={180} mb={8} />
+          <Skeleton height={16} width={280} />
+        </div>
+        <Group mb="xl" justify="space-between" align="end">
+          <Skeleton height={36} width={220} radius="xl" />
+          <Skeleton height={60} width={160} />
+        </Group>
+        <div className="library-sections">
+          {Array.from({ length: 2 }).map((_, i) => (
+            <section className="library-section" key={i}>
+              <Skeleton height={22} width={140} mb={4} />
+              <Skeleton height={14} width={70} mb="sm" />
+              <PosterGridSkeleton count={6} />
+            </section>
+          ))}
+        </div>
+      </>
     );
   if (libraries.some((library) => library.isError) || anyLibrary.isError)
     return (

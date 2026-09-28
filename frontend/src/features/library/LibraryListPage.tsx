@@ -1,6 +1,15 @@
 import { InfiniteScrollTrigger } from "../../components/InfiniteScrollTrigger";
 import { useInfiniteQuery } from "@tanstack/react-query";
-import { Alert, Button, Group, Loader, SegmentedControl, Select, Text, Title } from "@mantine/core";
+import {
+  Alert,
+  Button,
+  Group,
+  SegmentedControl,
+  Select,
+  Skeleton,
+  Text,
+  Title,
+} from "@mantine/core";
 import { IconArrowLeft } from "@tabler/icons-react";
 import { useState } from "react";
 import { useSessionUserID, useUserQueryKey } from "../auth/SessionContext";
@@ -8,6 +17,7 @@ import { api } from "../../lib/api";
 import type { CursorPage, LibraryEntry, LibraryStatus, MediaDetailTarget } from "../../types";
 import { pageURL } from "../../lib/pagination";
 import { LibraryCard } from "./LibraryCard";
+import { PosterGridSkeleton } from "../../components/PosterGridSkeleton";
 import { librarySortOptions, type LibrarySort } from "./librarySort";
 import { libraryMediaFilterOptions, type LibraryMediaFilter } from "./mediaFilter";
 import { readLibrarySort, saveLibraryFilter, saveLibrarySort } from "./libraryPreferences";
@@ -53,9 +63,19 @@ export function LibraryListPage({
   });
   if (library.isPending)
     return (
-      <Group justify="center" mt="xl">
-        <Loader />
-      </Group>
+      <div className="library-list-page">
+        <Skeleton height={20} width={140} mb="md" />
+        <div className="page-heading">
+          <Skeleton height={12} width={130} mb={8} />
+          <Skeleton height={34} width={200} mb={8} />
+          <Skeleton height={16} width={90} />
+        </div>
+        <Group mb="xl" justify="space-between" align="end">
+          <Skeleton height={36} width={220} radius="xl" />
+          <Skeleton height={60} width={160} />
+        </Group>
+        <PosterGridSkeleton count={12} />
+      </div>
     );
   if (library.isError)
     return (

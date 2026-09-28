@@ -4,10 +4,10 @@ import { useForm } from "@mantine/form";
 import {
   Alert,
   Button,
-  Group,
-  Loader,
   Paper,
   PasswordInput,
+  Skeleton,
+  Stack,
   Text,
   TextInput,
   Title,
@@ -227,9 +227,11 @@ export function AuthGate() {
                   : "Sign in to track what you watch."}
           </Text>
           {setup.isPending && (
-            <Group justify="center" py="xl">
-              <Loader />
-            </Group>
+            <Stack mt="lg" gap="md">
+              <Skeleton height={42} radius="sm" />
+              <Skeleton height={42} radius="sm" />
+              <Skeleton height={42} radius="sm" mt="xs" />
+            </Stack>
           )}
           {setup.isError && (
             <Alert color="red" mt="lg">

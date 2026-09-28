@@ -2,9 +2,10 @@ import { InfiniteScrollTrigger } from "../../components/InfiniteScrollTrigger";
 import { useState } from "react";
 import { useMutation, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "@mantine/form";
-import { ActionIcon, Alert, Button, Group, Loader, Menu, Text, TextInput } from "@mantine/core";
+import { ActionIcon, Alert, Button, Group, Menu, Text, TextInput } from "@mantine/core";
 import { IconClock, IconDots, IconEdit, IconRefresh, IconTrash } from "@tabler/icons-react";
 import { EmptyState } from "../../components/EmptyState";
+import { ListSkeleton } from "../../components/ListSkeleton";
 import { ActivityRow } from "../feed/ActivityRow";
 import { useUserQueryKey } from "../auth/SessionContext";
 import { api } from "../../lib/api";
@@ -36,9 +37,15 @@ export function HistoryPanel({
   });
   if (history.isPending)
     return (
-      <Group justify="center" mt="xl">
-        <Loader />
-      </Group>
+      <div className="activity-list">
+        <ListSkeleton
+          count={5}
+          rowClassName="activity-row"
+          artClassName="activity-row-art"
+          contentClassName="activity-row-main"
+          lines={2}
+        />
+      </div>
     );
   if (history.isError)
     return (

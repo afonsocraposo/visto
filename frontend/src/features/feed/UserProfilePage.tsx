@@ -4,9 +4,9 @@ import {
   Avatar,
   Button,
   Group,
-  Loader,
   SegmentedControl,
   Select,
+  Skeleton,
   Tabs,
   Text,
   Title,
@@ -16,6 +16,8 @@ import { useState } from "react";
 import { EmptyState } from "../../components/EmptyState";
 import { InfiniteScrollTrigger } from "../../components/InfiniteScrollTrigger";
 import { MediaPosterCard } from "../../components/MediaPosterCard";
+import { PosterGridSkeleton } from "../../components/PosterGridSkeleton";
+import { ListSkeleton } from "../../components/ListSkeleton";
 import { useUserQueryKey } from "../auth/SessionContext";
 import { api, APIRequestError } from "../../lib/api";
 import { pageURL } from "../../lib/pagination";
@@ -94,9 +96,17 @@ export function UserProfilePage({
         Back to activity
       </Button>
       {(profile.isPending || profile.isFetching) && (
-        <Group justify="center" mt="xl">
-          <Loader />
-        </Group>
+        <>
+          <Group className="page-heading" gap="md">
+            <Skeleton circle height={56} />
+            <div>
+              <Skeleton height={12} width={140} mb={6} />
+              <Skeleton height={28} width={180} />
+            </div>
+          </Group>
+          <Skeleton height={36} width={260} mt="lg" mb="md" radius="sm" />
+          <PosterGridSkeleton count={6} />
+        </>
       )}
       {profile.isError && (
         <Alert color="red" mt="md">
@@ -148,7 +158,7 @@ export function UserProfilePage({
                     allowDeselect={false}
                   />
                 </Group>
-                {library.isPending && <Loader size="sm" />}
+                {library.isPending && <PosterGridSkeleton count={12} />}
                 {library.isError && <Alert color="red">Library is temporarily unavailable.</Alert>}
                 {library.isSuccess &&
                   (() => {
@@ -224,7 +234,17 @@ export function UserProfilePage({
                 <Title order={2} mb="md">
                   Recent activity
                 </Title>
-                {activity.isPending && <Loader size="sm" />}
+                {activity.isPending && (
+                  <div className="activity-list">
+                    <ListSkeleton
+                      count={5}
+                      rowClassName="activity-row"
+                      artClassName="activity-row-art"
+                      contentClassName="activity-row-main"
+                      lines={2}
+                    />
+                  </div>
+                )}
                 {activity.isError && (
                   <Alert color="red">Activity is temporarily unavailable.</Alert>
                 )}

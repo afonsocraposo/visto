@@ -6,14 +6,15 @@ import {
   Button,
   Group,
   Image,
-  Loader,
   Paper,
+  Skeleton,
   Stack,
   Text,
   Title,
 } from "@mantine/core";
 import { IconArrowLeft, IconMapPin } from "@tabler/icons-react";
 import { MediaPosterCard } from "../../components/MediaPosterCard";
+import { PosterGridSkeleton } from "../../components/PosterGridSkeleton";
 import { api } from "../../lib/api";
 import { posterURL } from "../../lib/artwork";
 import { useUserQueryKey } from "../auth/SessionContext";
@@ -42,9 +43,26 @@ export function PersonDetailPage({ personID, onBack, onOpenDetail }: Props) {
 
   if (person.isPending)
     return (
-      <Stack align="center" py="xl">
-        <Loader aria-label="Loading actor details" />
-      </Stack>
+      <div className="person-detail-page">
+        <Skeleton height={20} width={90} mb="md" />
+        <section className="person-hero">
+          <Paper className="person-portrait" withBorder p={0}>
+            <Skeleton height="100%" width="100%" radius={0} />
+          </Paper>
+          <div className="person-biography">
+            <Skeleton height={20} width={120} radius="xl" mb="sm" />
+            <Skeleton height={40} width="55%" mb="md" />
+            <Skeleton height={16} width={220} mb="md" />
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} height={12} width={i === 4 ? "60%" : "95%"} mb={6} />
+            ))}
+          </div>
+        </section>
+        <section className="person-filmography">
+          <Skeleton height={22} width={150} mb="sm" />
+          <PosterGridSkeleton count={12} />
+        </section>
+      </div>
     );
   if (person.isError)
     return (

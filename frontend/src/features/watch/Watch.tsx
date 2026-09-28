@@ -8,9 +8,9 @@ import {
   Group,
   Image,
   Indicator,
-  Loader,
   Modal,
   Paper,
+  Skeleton,
   Text,
   Title,
   Tooltip,
@@ -19,6 +19,7 @@ import { Calendar } from "@mantine/dates";
 import { IconCalendar, IconCheck, IconEye } from "@tabler/icons-react";
 import { InfiniteScrollTrigger } from "../../components/InfiniteScrollTrigger";
 import { EmptyState } from "../../components/EmptyState";
+import { ListSkeleton } from "../../components/ListSkeleton";
 import { useUserQueryKey } from "../auth/SessionContext";
 import { api } from "../../lib/api";
 import { showActionFeedback } from "../../lib/actionFeedback";
@@ -87,9 +88,33 @@ export function WatchNow({ onOpenDetail }: { onOpenDetail?: (target: MediaDetail
 
   if (entries.isPending)
     return (
-      <Group justify="center" mt="xl">
-        <Loader />
-      </Group>
+      <>
+        <div className="watch-intro">
+          <Skeleton height={12} width={90} mb={6} />
+          <Skeleton height={30} width={220} />
+        </div>
+        <div className="watch-list">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Paper key={i} className="watch-row" withBorder p={0}>
+              <div className="watch-row-art">
+                <Skeleton height="100%" width="100%" radius={0} />
+              </div>
+              <div className="watch-row-content">
+                <Skeleton height={26} width={120} radius="xl" />
+                <Skeleton height={16} width={90} mt={6} />
+                <Skeleton height={14} width={160} mt={6} />
+              </div>
+              <Skeleton
+                height={44}
+                width={44}
+                circle
+                mx="lg"
+                style={{ alignSelf: "center", flexShrink: 0 }}
+              />
+            </Paper>
+          ))}
+        </div>
+      </>
     );
   if (entries.isError)
     return (
@@ -347,9 +372,15 @@ export function WatchCalendar({
 
   if (settings.isPending)
     return (
-      <Group justify="center" mt="xl">
-        <Loader />
-      </Group>
+      <>
+        <Group className="calendar-header" justify="space-between" align="center" mt="md">
+          <Skeleton height={28} width={220} />
+          <Skeleton height={44} width={44} circle />
+        </Group>
+        <div className="calendar-list">
+          <CalendarDayGroupSkeleton />
+        </div>
+      </>
     );
   if (settings.isError || !range)
     return (
@@ -378,9 +409,10 @@ export function WatchCalendar({
         </ActionIcon>
       </Group>
       {entries.isPending ? (
-        <Group justify="center" mt="xl">
-          <Loader />
-        </Group>
+        <div className="calendar-list">
+          <CalendarDayGroupSkeleton />
+          <CalendarDayGroupSkeleton />
+        </div>
       ) : entries.isError ? (
         <Alert color="red" mt="md">
           Calendar is temporarily unavailable.
@@ -429,9 +461,7 @@ export function WatchCalendar({
         size="lg"
       >
         {dates.isPending ? (
-          <Group justify="center">
-            <Loader />
-          </Group>
+          <Skeleton height={320} radius="md" />
         ) : dates.isError ? (
           <Alert color="red">Release dates are temporarily unavailable.</Alert>
         ) : (
@@ -457,9 +487,16 @@ export function WatchCalendar({
               {formatCalendarDate(selectedDate)}
             </Text>
             {dayEntries.isPending ? (
-              <Group justify="center">
-                <Loader size="sm" />
-              </Group>
+              <div className="calendar-day-entries">
+                <ListSkeleton
+                  count={2}
+                  rowClassName="calendar-card"
+                  artClassName="calendar-card-art"
+                  contentClassName="calendar-card-copy"
+                  lines={3}
+                  padded={false}
+                />
+              </div>
             ) : dayEntries.isError ? (
               <Alert color="red">Episodes for this date are temporarily unavailable.</Alert>
             ) : (
@@ -484,6 +521,24 @@ export function WatchCalendar({
         )}
       </Modal>
     </>
+  );
+}
+
+function CalendarDayGroupSkeleton() {
+  return (
+    <section className="calendar-day">
+      <Skeleton height={20} width={160} mb="sm" />
+      <div className="calendar-day-entries">
+        <ListSkeleton
+          count={2}
+          rowClassName="calendar-card"
+          artClassName="calendar-card-art"
+          contentClassName="calendar-card-copy"
+          lines={3}
+          padded={false}
+        />
+      </div>
+    </section>
   );
 }
 
