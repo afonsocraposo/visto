@@ -1,12 +1,26 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
-import { Alert, Avatar, Button, Group, Loader, Tabs, Text, Title } from "@mantine/core";
+import {
+  Alert,
+  Avatar,
+  Button,
+  Group,
+  Loader,
+  SegmentedControl,
+  Select,
+  Tabs,
+  Text,
+  Title,
+} from "@mantine/core";
 import { IconArrowLeft } from "@tabler/icons-react";
+import { useState } from "react";
 import { EmptyState } from "../../components/EmptyState";
 import { InfiniteScrollTrigger } from "../../components/InfiniteScrollTrigger";
 import { MediaPosterCard } from "../../components/MediaPosterCard";
 import { useUserQueryKey } from "../auth/SessionContext";
 import { api, APIRequestError } from "../../lib/api";
 import { pageURL } from "../../lib/pagination";
+import { librarySortOptions, type LibrarySort } from "../library/librarySort";
+import { libraryMediaFilterOptions, type LibraryMediaFilter } from "../library/mediaFilter";
 import type {
   CommunityLibraryItem,
   CommunityProfile,
@@ -35,6 +49,8 @@ export function UserProfilePage({
   onOpenDetail?: (target: MediaDetailTarget) => void;
 }) {
   const userQueryKey = useUserQueryKey();
+  const [mediaFilter, setMediaFilter] = useState<LibraryMediaFilter>("all");
+  const [sort, setSort] = useState<LibrarySort>("updated");
   const base = `/api/v1/community/users/${encodeURIComponent(userID)}`;
   const profile = useQuery({
     queryKey: userQueryKey("community-profile", userID),
@@ -42,12 +58,15 @@ export function UserProfilePage({
     refetchOnMount: "always",
   });
   const library = useInfiniteQuery({
-    queryKey: userQueryKey("community-library", userID),
+    queryKey: userQueryKey("community-library", userID, sort, mediaFilter),
     enabled: !profile.isFetching && profile.data?.sharing === true,
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam }) =>
       api.get<CursorPage<CommunityLibraryItem>>(
-        pageURL(`${base}/library?sort=updated`, pageParam),
+        pageURL(
+          `${base}/library?sort=${sort}${mediaFilter === "all" ? "" : `&media_type=${mediaFilter}`}`,
+          pageParam,
+        ),
         "Library is temporarily unavailable.",
       ),
     getNextPageParam: (page) => page.next_cursor ?? undefined,
@@ -110,13 +129,43 @@ export function UserProfilePage({
                 <Title order={2} mb="md">
                   Library
                 </Title>
+                <Group mb="xl" align="end" justify="space-between">
+                  <SegmentedControl
+                    aria-label="Filter library by media type"
+                    value={mediaFilter}
+                    onChange={(value) => setMediaFilter(value as LibraryMediaFilter)}
+                    data={libraryMediaFilterOptions}
+                  />
+                  <Select
+                    label="Sort by"
+                    aria-label="Sort library media"
+                    data={librarySortOptions}
+                    value={sort}
+                    onChange={(value) => {
+                      if (!value) return;
+                      setSort(value as LibrarySort);
+                    }}
+                    allowDeselect={false}
+                  />
+                </Group>
                 {library.isPending && <Loader size="sm" />}
                 {library.isError && <Alert color="red">Library is temporarily unavailable.</Alert>}
                 {library.isSuccess &&
                   (() => {
                     const entries = library.data.pages.flatMap((page) => page.items);
                     return entries.length === 0 ? (
-                      <Text c="dimmed">This library is empty.</Text>
+                      <EmptyState
+                        title={
+                          mediaFilter === "all"
+                            ? "This library is empty."
+                            : "No titles in this filter"
+                        }
+                        detail={
+                          mediaFilter === "all"
+                            ? "This user hasn't added anything yet."
+                            : "Choose another media type to see this library."
+                        }
+                      />
                     ) : (
                       <div className="library-sections">
                         {sections.map((section) => {
