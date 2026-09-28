@@ -15,4 +15,5 @@ export interface ShowEpisode {
   runtime?: number;
   still_path?: string;
   watched: boolean;
+  last_watched_at?: string;
 }

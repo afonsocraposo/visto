@@ -112,6 +112,7 @@ export type ShowEpisodeEntry = {
   runtime?: number;
   still_path?: string;
   watched: boolean;
+  last_watched_at?: string;
 };
 export type EpisodeRating = { episode_id: string; rating: number | null; updated_at?: string };
 export type TVCastMember = { id: number; name: string; character: string; profile_path?: string };

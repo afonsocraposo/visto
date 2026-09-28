@@ -17,6 +17,7 @@ import { useUserQueryKey } from "../auth/SessionContext";
 import { api } from "../../lib/api";
 import { fetchAllPages, pageURL } from "../../lib/pagination";
 import { InfiniteScrollTrigger } from "../../components/InfiniteScrollTrigger";
+import { formatActivityTime } from "../../lib/time";
 import type { CursorPage } from "../../types";
 import { findMissingPriorEpisodes } from "./episodeSelection";
 import type { ShowEpisodeEntry } from "../../types";
@@ -143,7 +144,9 @@ export function EpisodeBrowser({
                   <Tooltip
                     label={
                       entry.watched
-                        ? "Already watched"
+                        ? entry.last_watched_at
+                          ? `Last watched ${formatActivityTime(entry.last_watched_at)}`
+                          : "Already watched"
                         : `Mark episode ${entry.episode.episode_number} watched`
                     }
                     withArrow

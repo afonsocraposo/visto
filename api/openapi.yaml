@@ -1393,6 +1393,7 @@ components:
         runtime: { type: integer, minimum: 0 }
         still_path: { type: string }
         watched: { type: boolean }
+        last_watched_at: { type: string, format: date-time }
     MediaSnapshot:
       type: object
       required: [id, title, original_title, overview, release_date, poster_path, original_language, type, tmdb_id]

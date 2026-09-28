@@ -54,7 +54,7 @@ func (store *Store) episodePage(ctx context.Context, userID, parentID string, se
 		args = append(args, seasonNumber, seasonNumber, episodeNumber, episodeNumber, keys[2])
 	}
 	args = append(args, request.Limit+1)
-	rows, err := store.DB.QueryContext(ctx, `SELECT e.id,e.show_id,e.season_number,e.episode_number,e.air_date,COALESCE(e.name,''),e.overview,e.runtime,e.still_path,EXISTS(SELECT 1 FROM plays p WHERE p.user_id=? AND p.episode_id=e.id) FROM episodes e WHERE `+column+`=?`+where+` ORDER BY e.season_number,e.episode_number,e.id LIMIT ?`, args...)
+	rows, err := store.DB.QueryContext(ctx, `SELECT e.id,e.show_id,e.season_number,e.episode_number,e.air_date,COALESCE(e.name,''),e.overview,e.runtime,e.still_path,(SELECT MAX(p.watched_at) FROM plays p WHERE p.user_id=? AND p.episode_id=e.id) FROM episodes e WHERE `+column+`=?`+where+` ORDER BY e.season_number,e.episode_number,e.id LIMIT ?`, args...)
 	if err != nil {
 		return pagination.Page[watch.ShowEpisode]{}, err
 	}
@@ -62,9 +62,9 @@ func (store *Store) episodePage(ctx context.Context, userID, parentID string, se
 	items := []watch.ShowEpisode{}
 	for rows.Next() {
 		var item watch.ShowEpisode
-		var air, overview, still sql.NullString
+		var air, overview, still, lastWatchedAt sql.NullString
 		var runtime sql.NullInt64
-		if err := rows.Scan(&item.Episode.ID, &item.Episode.ShowID, &item.Episode.SeasonNumber, &item.Episode.EpisodeNumber, &air, &item.Name, &overview, &runtime, &still, &item.Watched); err != nil {
+		if err := rows.Scan(&item.Episode.ID, &item.Episode.ShowID, &item.Episode.SeasonNumber, &item.Episode.EpisodeNumber, &air, &item.Name, &overview, &runtime, &still, &lastWatchedAt); err != nil {
 			return pagination.Page[watch.ShowEpisode]{}, err
 		}
 		item.Overview = overview.String
@@ -76,6 +76,14 @@ func (store *Store) episodePage(ctx context.Context, userID, parentID string, se
 				return pagination.Page[watch.ShowEpisode]{}, err
 			}
 			item.Episode.AirDate = &date
+		}
+		if lastWatchedAt.Valid {
+			watchedAt, err := time.Parse(time.RFC3339Nano, lastWatchedAt.String)
+			if err != nil {
+				return pagination.Page[watch.ShowEpisode]{}, err
+			}
+			item.Watched = true
+			item.LastWatchedAt = &watchedAt
 		}
 		items = append(items, item)
 	}
