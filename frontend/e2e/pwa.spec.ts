@@ -80,7 +80,7 @@ test("Given a signed-in user, When they navigate and manage appearance and accou
   await page.getByRole("tab", { name: "Community" }).click();
   await expect(page.getByText("No shared activity yet")).toBeVisible();
   await expect
-    .poll(() => page.evaluate(() => sessionStorage.getItem("visto:tab:user-1:feed")))
+    .poll(() => page.evaluate(() => localStorage.getItem("visto:tab:user-1:feed")))
     .toBe("community");
   await page.getByRole("button", { name: "Discover" }).click();
   await expect(page.getByRole("textbox", { name: "Search TMDB" })).toBeVisible();
@@ -109,6 +109,12 @@ test("Given a signed-in user, When they navigate and manage appearance and accou
     "aria-selected",
     "true",
   );
+  await page.getByRole("button", { name: "Feed", exact: true }).click();
+  await expect(page.getByRole("tab", { name: "Community" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await page.reload();
   await page.getByRole("button", { name: "Feed", exact: true }).click();
   await expect(page.getByRole("tab", { name: "Community" })).toHaveAttribute(
     "aria-selected",

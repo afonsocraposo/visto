@@ -20,7 +20,7 @@ export function FeedArea({
 }) {
   const tabStorageKey = `visto:tab:${userID}:feed`;
   const [section, setSection] = useState<FeedSection>(() =>
-    readStoredChoice("session", tabStorageKey, ["history", "community"] as const, "history"),
+    readStoredChoice("local", tabStorageKey, ["history", "community"] as const, "history"),
   );
   const [directoryOpen, setDirectoryOpen] = useState(false);
 
@@ -59,7 +59,7 @@ export function FeedArea({
         onChange={(value) => {
           const next = value === "community" ? "community" : "history";
           setSection(next);
-          writeStoredChoice("session", tabStorageKey, next);
+          writeStoredChoice("local", tabStorageKey, next);
         }}
       >
         <Tabs.List>
