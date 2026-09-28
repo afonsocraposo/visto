@@ -71,6 +71,40 @@ async function mockSignedInSession(page: Page, asAdmin = false) {
   );
 }
 
+test("Given a phone viewport, When switching destinations, Then the bottom navigation stays usable", async ({
+  page,
+}) => {
+  await mockSignedInSession(page);
+  const nav = page.getByRole("navigation", { name: "Main navigation" });
+
+  for (const width of [320, 390]) {
+    await page.setViewportSize({ width, height: 740 });
+    await page.goto("/watch");
+    await expect(nav.getByRole("button", { name: "Watching" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    const boxes = await nav.getByRole("button").evaluateAll((buttons) =>
+      buttons.map((button) => {
+        const { x, width, height } = button.getBoundingClientRect();
+        return { x, width, height, direction: getComputedStyle(button).flexDirection };
+      }),
+    );
+    expect(boxes).toHaveLength(4);
+    expect(
+      boxes.every((box) => box.width >= 44 && box.height >= 44 && box.direction === "column"),
+    ).toBe(true);
+    expect(boxes[0].x).toBeGreaterThanOrEqual(0);
+    expect(boxes[3].x + boxes[3].width).toBeLessThanOrEqual(width);
+
+    await nav.getByRole("button", { name: "Discover" }).click();
+    await expect(nav.getByRole("button", { name: "Discover" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+  }
+});
+
 test("Given a signed-in user, When they navigate and manage appearance and account settings, Then the shell stays compact and actions work", async ({
   page,
 }) => {

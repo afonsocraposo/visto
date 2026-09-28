@@ -17,6 +17,7 @@ import { clearSignedInCache, endCurrentSession } from "../auth/logout";
 import { readStoredChoice, writeStoredChoice } from "../../lib/browserStorage";
 import { ImportData } from "../library/ImportData";
 import { useUserQueryKey } from "../auth/SessionContext";
+import { activeTabForLocation } from "./activeTab";
 
 const SearchPanel = lazy(async () => ({
   default: (await import("../search/SearchPanel")).SearchPanel,
@@ -68,6 +69,7 @@ export function Dashboard({
   });
   const navigate = useNavigate();
   const currentHref = useRouterState({ select: (state) => state.location.href });
+  const currentURL = new URL(currentHref, window.location.origin);
   const detail = page.kind === "media" ? page.target : null;
   const personID = page.kind === "person" ? page.personID : undefined;
   const profileUserID = page.kind === "user-profile" ? page.userID : undefined;
@@ -77,15 +79,9 @@ export function Dashboard({
       ? page.returnTo
       : undefined;
   const tab: Tab =
-    page.kind === "discover"
-      ? "search"
-      : page.kind === "feed"
-        ? "feed"
-        : page.kind === "user-profile"
-          ? "feed"
-          : page.kind === "profile" || page.kind === "library-list"
-            ? "library"
-            : "watch";
+    page.kind === "user-profile"
+      ? "feed"
+      : activeTabForLocation(currentURL.pathname, currentURL.search, currentURL.origin);
   const openDetail = (target: MediaDetailTarget) =>
     void navigate({
       to: `/media/${target.mediaType}/${target.tmdbID}`,
@@ -150,22 +146,27 @@ export function Dashboard({
   }, [user.id]);
 
   const nav = (value: Tab, label: string, Icon: typeof IconHome) => (
-    <Button
+    <button
+      type="button"
       className="bottom-nav-button"
-      variant={tab === value ? "light" : "subtle"}
-      leftSection={<Icon size={18} stroke={1.8} />}
+      aria-current={tab === value ? "page" : undefined}
       onClick={() =>
         void navigate({
           to: value === "search" ? "/discover" : value === "library" ? "/profile" : `/${value}`,
         })
       }
     >
-      {label}
-    </Button>
+      <Icon size={22} stroke={1.8} aria-hidden="true" />
+      <span>{label}</span>
+    </button>
   );
 
   return (
-    <AppShell className="visto-shell" footer={{ height: 76 }} padding={0}>
+    <AppShell
+      className="visto-shell"
+      footer={{ height: "calc(76px + env(safe-area-inset-bottom))" }}
+      padding={0}
+    >
       <Modal
         opened={importWelcome.data?.pending === true}
         onClose={() => dismissImport.mutate()}
@@ -314,12 +315,12 @@ export function Dashboard({
         )}
       </AppShell.Main>
       <AppShell.Footer className="visto-footer">
-        <Group className="bottom-nav" justify="space-around" h="100%">
+        <nav className="bottom-nav" aria-label="Main navigation">
           {nav("watch", "Watching", IconHome)}
           {nav("search", "Discover", IconSearch)}
           {nav("feed", "Feed", IconCompass)}
           {nav("library", "Profile", IconUserCircle)}
-        </Group>
+        </nav>
       </AppShell.Footer>
     </AppShell>
   );
