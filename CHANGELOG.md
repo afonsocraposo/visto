@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.16.0](https://github.com/afonsocraposo/visto/compare/v0.15.0...v0.16.0) (2026-09-28)
+
+
+### Features
+
+* add media type filter and sort to community profile library ([3355aea](https://github.com/afonsocraposo/visto/commit/3355aeaebf1d215c235dc3ba98db6c1d8e3b2045))
+* add poster art and overlay the back button on media detail hero ([7b9702b](https://github.com/afonsocraposo/visto/commit/7b9702b568a4f8b2161a6b7be19b2c3b70cd94cf))
+* redesign the admin manage-users panel ([0e884f5](https://github.com/afonsocraposo/visto/commit/0e884f5e62a6b1a0976c73cbd020d3e4dd265a1f))
+* replace loading spinners with skeleton placeholders ([5441d98](https://github.com/afonsocraposo/visto/commit/5441d98c5b0315ce8d468becfb3e42f23a811d86))
+* search expanded library lists ([8228fa2](https://github.com/afonsocraposo/visto/commit/8228fa282bfd2d12b6eadf45ddf74a131983a83b))
+
+
+### Bug Fixes
+
+* polish media detail hero alignment and mobile actions ([f5da89b](https://github.com/afonsocraposo/visto/commit/f5da89b7d4ea25314fa3a2a8310d246d0f8a8d52))
+
 ## [0.15.0](https://github.com/afonsocraposo/visto/compare/v0.14.0...v0.15.0) (2026-09-28)
 
 
