@@ -260,7 +260,10 @@ test("Given an Upcoming episode, When the user opens its season and selects anot
   await expect(page).toHaveURL(/season=2/);
   await page.getByRole("button", { name: "Back" }).click();
   await expect(page).toHaveURL("/");
-  await expect(page.getByRole("tab", { name: "Upcoming" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("tab", { name: "Upcoming" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
   await expect(page.getByRole("heading", { name: "Upcoming episodes" })).toBeVisible();
 
   await page.goto("/media/tv/100?from=%2F&media=tv%3A100&season=2");
@@ -363,12 +366,26 @@ test("Given a discovered Plex account, When an admin assigns it, Then the mappin
       route.request().url().includes("cursor=next")
         ? {
             items: [
-              { id: "user-2", name: "Family Member", email: "family@example.com", role: "user" },
+              {
+                id: "user-2",
+                name: "Family Member",
+                email: "family@example.com",
+                role: "user",
+                created_at: "2026-01-01T00:00:00Z",
+              },
             ],
             next_cursor: null,
           }
         : {
-            items: [{ id: user.id, name: "Afonso", email: "afonso@example.com", role: "admin" }],
+            items: [
+              {
+                id: user.id,
+                name: "Afonso",
+                email: "afonso@example.com",
+                role: "admin",
+                created_at: user.created_at,
+              },
+            ],
             next_cursor: "next",
           },
     ),
@@ -482,7 +499,9 @@ test("Media detail links stay short and load after refresh", async ({ page }) =>
   for (const title of titles) {
     await page.getByRole("link", { name: `Open details for ${title.title}` }).click();
     await expect(page).toHaveURL(
-      new RegExp(`/media/${title.type}/${title.tmdb_id}\\?from=%2Fdiscover%3Fq%3DExample&tab=search$`),
+      new RegExp(
+        `/media/${title.type}/${title.tmdb_id}\\?from=%2Fdiscover%3Fq%3DExample&tab=search$`,
+      ),
     );
     await expect(page.getByRole("heading", { name: title.title })).toBeVisible();
     await page.reload();
@@ -625,7 +644,9 @@ test("TV details show the production status for saved and unsaved shows", async 
   await expect(page.locator(".detail-hero .mantine-Badge-root")).toHaveCount(1);
 });
 
-test("Detail Back restores the show's scroll position and direct links use a fallback", async ({ page }) => {
+test("Detail Back restores the show's scroll position and direct links use a fallback", async ({
+  page,
+}) => {
   await mockSignedInSession(page);
   const show = {
     id: "tv:100",
@@ -847,9 +868,10 @@ test("Given a TV show detail, When the user uses compact watch controls, Then sh
   await page.getByRole("button", { name: "Add The Example Show to Watching" }).click();
   await expect.poll(() => savedStatus).toBe("watching");
   await expect(page.getByRole("combobox", { name: "Current list" })).toBeVisible();
-  await expect(
-    page.getByRole("switch", { name: "New episode notifications for this show" }),
-  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Turn off episode alerts" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByRole("button", { name: "Mark The Example Show watched" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Mark season 1 watched" })).toBeVisible();
