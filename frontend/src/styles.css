@@ -124,6 +124,9 @@ select {
   font-size: 0.78rem;
   font-weight: 600;
   line-height: 1.1;
+  appearance: none;
+  -webkit-appearance: none;
+  -webkit-tap-highlight-color: transparent;
 }
 .bottom-nav-button[aria-current="page"] {
   background: color-mix(in srgb, #f2b544 18%, transparent);
