@@ -1,5 +1,7 @@
-import { ActionIcon, Group, Menu, Select, Switch, Text, Tooltip } from "@mantine/core";
+import { ActionIcon, Group, Menu, Select, Text, Tooltip } from "@mantine/core";
 import {
+  IconBell,
+  IconBellOff,
   IconBookmark,
   IconCheck,
   IconChevronDown,
@@ -300,13 +302,22 @@ export function MediaActions({
         size="md"
       />
       {media.type === "tv" && status === "watching" && (
-        <Switch
-          aria-label="New episode notifications for this show"
-          label="Episode alerts"
-          checked={notificationsEnabled}
-          disabled={updateNotifications.isPending}
-          onChange={(event) => updateNotifications.mutate(event.currentTarget.checked)}
-        />
+        <Tooltip
+          label={notificationsEnabled ? "Turn off episode alerts" : "Turn on episode alerts"}
+          withArrow
+        >
+          <ActionIcon
+            size={44}
+            variant={notificationsEnabled ? "filled" : "default"}
+            color={notificationsEnabled ? "yellow" : undefined}
+            aria-label={notificationsEnabled ? "Turn off episode alerts" : "Turn on episode alerts"}
+            aria-pressed={notificationsEnabled}
+            loading={updateNotifications.isPending}
+            onClick={() => updateNotifications.mutate(!notificationsEnabled)}
+          >
+            {notificationsEnabled ? <IconBell size={20} /> : <IconBellOff size={20} />}
+          </ActionIcon>
+        </Tooltip>
       )}
     </Group>
   );

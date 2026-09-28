@@ -613,6 +613,7 @@ select {
   overflow: hidden;
   align-items: flex-end;
   justify-content: center;
+  margin-top: -32px;
   margin-inline: calc(50% - 50vw);
   background-position: center;
   background-size: cover;
@@ -637,7 +638,7 @@ select {
   position: relative;
   z-index: 1;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   gap: clamp(24px, 4vw, 48px);
   width: calc(100% - 32px);
   max-width: 1120px;
@@ -1352,11 +1353,12 @@ select {
   .detail-hero {
     min-height: 560px;
     align-items: flex-end;
+    margin-top: -24px;
   }
   .detail-hero-content {
     width: calc(100% - 24px);
     max-width: 1120px;
-    padding: 22px;
+    padding: 72px 22px 22px;
     flex-direction: column;
     align-items: center;
     text-align: center;
@@ -1418,29 +1420,21 @@ select {
     margin-right: 8px;
   }
   .detail-actions {
-    align-items: stretch;
-    flex-direction: column;
-  }
-  .detail-actions > * {
-    width: 100%;
-  }
-  .detail-icon-actions {
     flex-direction: row;
     align-items: center;
+    justify-content: center;
+    gap: 8px;
   }
-  .detail-icon-actions > :not(.rating-stars) {
-    width: auto;
+  .detail-actions .mantine-Select-root {
+    width: 130px !important;
   }
   .detail-actions > .show-bulk-action {
     width: 44px;
-    align-self: flex-start;
   }
   .detail-actions > .rating-stars {
+    order: 1;
     width: max-content !important;
     flex: 0 0 auto;
-    align-self: center;
-  }
-  .detail-icon-actions > .rating-stars {
     flex-basis: 100%;
     justify-content: center;
   }
