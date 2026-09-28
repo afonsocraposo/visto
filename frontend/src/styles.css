@@ -32,20 +32,19 @@ select {
   min-height: 100vh;
 }
 .visto-footer {
-  background: color-mix(in srgb, var(--mantine-color-body) 92%, transparent);
+  padding-bottom: env(safe-area-inset-bottom);
+  border-top: 1px solid var(--mantine-color-gray-3);
+  background: color-mix(in srgb, var(--mantine-color-body) 94%, transparent);
   backdrop-filter: blur(16px);
 }
 .visto-main {
   width: min(100% - 32px, 1120px);
   margin: 0 auto;
-  padding: 32px 0 112px;
+  padding: 32px 0 calc(112px + env(safe-area-inset-bottom));
 }
 .visto-main button,
 .visto-main [role="tab"] {
   scroll-margin-top: 24px;
-}
-.visto-footer {
-  border-top: 1px solid var(--mantine-color-gray-3);
 }
 .auth-mark {
   display: block;
@@ -101,12 +100,51 @@ select {
   outline: none;
 }
 .bottom-nav {
-  width: min(100% - 24px, 680px);
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  width: min(100% - 24px, 600px);
+  height: 76px;
   margin: 0 auto;
+  padding: 8px 0;
 }
 .bottom-nav-button {
+  display: flex;
+  min-width: 0;
+  min-height: 60px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border: 0;
   border-radius: 12px;
-  min-width: 84px;
+  background: transparent;
+  color: #6b7280;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.1;
+}
+.bottom-nav-button[aria-current="page"] {
+  background: color-mix(in srgb, #f2b544 18%, transparent);
+  color: #925912;
+}
+.bottom-nav-button:focus-visible {
+  outline: 2px solid #b77316;
+  outline-offset: -3px;
+}
+:root[data-mantine-color-scheme="dark"] .bottom-nav-button {
+  color: #aeb6c3;
+}
+:root[data-mantine-color-scheme="dark"] .bottom-nav-button[aria-current="page"] {
+  color: #f2b544;
+}
+@media (min-width: 681px) {
+  .bottom-nav-button {
+    flex-direction: row;
+    gap: 8px;
+    font-size: 0.84rem;
+  }
 }
 .section-kicker {
   display: block;
@@ -1221,22 +1259,6 @@ select {
   .visto-main {
     width: min(100% - 24px, 1120px);
     padding-top: 24px;
-  }
-  .bottom-nav-button {
-    min-width: auto;
-    padding-inline: 9px;
-    font-size: 0.71rem;
-  }
-  .bottom-nav-button .mantine-Button-section {
-    margin-inline-end: 4px;
-  }
-  .bottom-nav {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 0;
-  }
-  .bottom-nav-button {
-    width: 100%;
   }
   .watch-list {
     gap: 10px;
