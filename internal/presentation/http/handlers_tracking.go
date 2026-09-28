@@ -167,11 +167,12 @@ func deleteBulkEpisodePlays(authService *auth.Service, service *tracking.Service
 			writeError(w, http.StatusBadRequest, "invalid JSON")
 			return
 		}
-		if err := service.RemoveEpisodes(r.Context(), user.ID, request.EpisodeIDs); err != nil {
+		removed, err := service.RemoveEpisodesWithHistory(r.Context(), user.ID, request.EpisodeIDs)
+		if err != nil {
 			writeTrackingError(w, err)
 			return
 		}
-		w.WriteHeader(http.StatusNoContent)
+		writeJSON(w, http.StatusOK, removed)
 	}
 }
 

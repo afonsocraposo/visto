@@ -485,12 +485,42 @@ test("Given a TV show detail, When the user uses compact watch controls, Then sh
   let confirmedCompletion = false;
   await page.route("**/api/v1/library/tv%3A100", async (route) => {
     const body = route.request().postDataJSON() as {
-      status: "completed";
-      confirm_all_episodes: boolean;
+      status: "completed" | "watchlist";
+      confirm_all_episodes?: boolean;
     };
-    confirmedCompletion = body.status === "completed" && body.confirm_all_episodes;
+    if (body.status === "completed") {
+      confirmedCompletion = body.confirm_all_episodes === true;
+      allWatched = true;
+    }
     savedStatus = body.status;
-    await fulfillJSON(route, { media_id: show.id, status: savedStatus });
+    await fulfillJSON(route, {
+      media_id: show.id,
+      status: savedStatus,
+      created_episode_ids:
+        body.status === "completed" ? episodes.map((entry) => entry.episode.id) : [],
+    });
+  });
+  await page.route("**/api/v1/plays/bulk", async (route) => {
+    if (route.request().method() === "DELETE") {
+      allWatched = false;
+      return fulfillJSON(
+        route,
+        episodes.map((entry, index) => ({
+          id: `play-${index + 1}`,
+          user_id: user.id,
+          episode_id: entry.episode.id,
+          watched_at: "2024-02-01T12:00:00Z",
+          source: "web",
+        })),
+      );
+    }
+    return fulfillJSON(route, []);
+  });
+  const restoredPlays: unknown[] = [];
+  await page.route("**/api/v1/plays", async (route) => {
+    restoredPlays.push(route.request().postDataJSON());
+    if (restoredPlays.length === episodes.length) allWatched = true;
+    await fulfillJSON(route, { id: `restored-${restoredPlays.length}` }, 201);
   });
   await page.route("**/api/v1/shows/**/episodes", (route) =>
     fulfillJSON(route, {
@@ -548,6 +578,25 @@ test("Given a TV show detail, When the user uses compact watch controls, Then sh
   await expect(page.getByRole("dialog", { name: "Mark The Example Show unwatched" })).toBeVisible();
   await page.getByRole("button", { name: "Cancel" }).click();
   await expect(page.getByRole("button", { name: "Mark season 1 unwatched" })).toBeVisible();
+  await page.getByRole("button", { name: "Mark season 1 unwatched" }).click();
+  await page
+    .getByRole("dialog", { name: "Mark season unwatched" })
+    .getByRole("button", { name: "Mark unwatched" })
+    .click();
+  await expect(page.getByText("Episodes marked unwatched.")).toBeVisible();
+  await page
+    .getByText("Episodes marked unwatched.")
+    .locator("..")
+    .getByRole("button", { name: "Undo" })
+    .click();
+  await expect.poll(() => restoredPlays.length).toBe(2);
+  expect(restoredPlays).toEqual(
+    episodes.map((entry) => ({
+      episode_id: entry.episode.id,
+      watched_at: "2024-02-01T12:00:00Z",
+      source: "web",
+    })),
+  );
   savedStatus = null;
   allWatched = false;
   await page.reload();
@@ -562,6 +611,13 @@ test("Given a TV show detail, When the user uses compact watch controls, Then sh
   await page.getByRole("option", { name: "Completed" }).click();
   await expect.poll(() => confirmedCompletion).toBe(true);
   await expect(page.getByRole("combobox", { name: "Current list" })).toHaveValue("Completed");
+  await page
+    .getByText("Show completed.")
+    .locator("..")
+    .getByRole("button", { name: "Undo" })
+    .click();
+  await expect.poll(() => savedStatus).toBe("watchlist");
+  await expect(page.getByRole("combobox", { name: "Current list" })).toHaveValue("Watchlist");
 });
 
 test("Given a movie in Watchlist, When it is marked watched from search, Then Undo restores Watchlist", async ({

@@ -22,4 +22,6 @@ export interface LibraryItem {
   notifications_enabled: boolean;
   added_at: string;
   updated_at: string;
+  /** Episodes first marked watched by a confirmed show completion; present only in that response. */
+  created_episode_ids?: string[];
 }

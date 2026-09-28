@@ -53,8 +53,12 @@ func TestTracking_GivenRewatches_WhenMarkedUnwatched_ThenAllPlaysAndTheirFeedEve
 	if rewatches != 2 {
 		t.Fatalf("rewatch activity count=%d, want 2 (movie and episode)", rewatches)
 	}
-	if err := store.DeleteEpisodePlays(ctx, aliceID, []string{episodeID}); err != nil {
+	removed, err := store.DeleteEpisodePlaysWithHistory(ctx, aliceID, []string{episodeID})
+	if err != nil {
 		t.Fatalf("mark episode unwatched: %v", err)
+	}
+	if len(removed) != 2 || removed[0].EpisodeID == nil || *removed[0].EpisodeID != episodeID || removed[1].WatchedAt.IsZero() {
+		t.Fatalf("removed episode watches=%v, want two restorable plays", removed)
 	}
 	if err := store.DeleteMediaPlays(ctx, aliceID, movieID); err != nil {
 		t.Fatalf("mark movie unwatched: %v", err)

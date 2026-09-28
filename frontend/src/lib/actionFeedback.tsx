@@ -1,16 +1,18 @@
 import { Button, Group, Text } from "@mantine/core";
 import { notifications } from "@mantine/notifications";
 
+const feedbackDuration = 5000;
+
 export function showActionFeedback(message: string, undo?: () => Promise<void>) {
   if (!undo) {
-    notifications.show({ message, color: "blue", autoClose: 8000 });
+    notifications.show({ message, color: "blue", autoClose: feedbackDuration });
     return;
   }
 
   let busy = false;
   const id = notifications.show({
     color: "teal",
-    autoClose: 8000,
+    autoClose: feedbackDuration,
     message: (
       <Group justify="space-between" gap="sm" wrap="nowrap">
         <Text size="sm">{message}</Text>
@@ -34,7 +36,7 @@ export function showActionFeedback(message: string, undo?: () => Promise<void>) 
                 message: "Action undone.",
                 color: "blue",
                 loading: false,
-                autoClose: 8000,
+                autoClose: feedbackDuration,
                 allowClose: true,
               });
             } catch (error) {
@@ -43,7 +45,7 @@ export function showActionFeedback(message: string, undo?: () => Promise<void>) 
                 message: error instanceof Error ? error.message : "Could not undo this action.",
                 color: "red",
                 loading: false,
-                autoClose: 8000,
+                autoClose: feedbackDuration,
                 allowClose: true,
               });
             }

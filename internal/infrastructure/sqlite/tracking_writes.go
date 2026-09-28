@@ -405,16 +405,21 @@ func (store *Store) DeletePlay(ctx context.Context, userID, playID string) error
 }
 
 func (store *Store) DeleteEpisodePlays(ctx context.Context, userID string, episodeIDs []string) error {
+	_, err := store.DeleteEpisodePlaysWithHistory(ctx, userID, episodeIDs)
+	return err
+}
+
+func (store *Store) DeleteEpisodePlaysWithHistory(ctx context.Context, userID string, episodeIDs []string) ([]tracking.Play, error) {
 	tx, err := store.DB.BeginTx(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("begin episode watch removal: %w", err)
+		return nil, fmt.Errorf("begin episode watch removal: %w", err)
 	}
 	defer tx.Rollback()
 	showIDs := map[string]bool{}
 	for _, id := range episodeIDs {
 		var showID string
 		if err := tx.QueryRowContext(ctx, `SELECT show_id FROM episodes WHERE id=?`, id).Scan(&showID); err != nil {
-			return err
+			return nil, err
 		}
 		showIDs[showID] = true
 	}
@@ -424,40 +429,50 @@ func (store *Store) DeleteEpisodePlays(ctx context.Context, userID string, episo
 	for _, episodeID := range episodeIDs {
 		arguments = append(arguments, episodeID)
 	}
-	rows, err := tx.QueryContext(ctx, `SELECT id FROM plays WHERE user_id=? AND episode_id IN (`+placeholders+`)`, arguments...)
+	rows, err := tx.QueryContext(ctx, `SELECT id,episode_id,watched_at,source FROM plays WHERE user_id=? AND episode_id IN (`+placeholders+`) ORDER BY id`, arguments...)
 	if err != nil {
-		return fmt.Errorf("list episode watches to remove: %w", err)
+		return nil, fmt.Errorf("list episode watches to remove: %w", err)
 	}
 	playIDs := []string{}
+	removed := []tracking.Play{}
 	for rows.Next() {
-		var playID string
-		if err := rows.Scan(&playID); err != nil {
+		var playID, episodeID, watchedAt, source string
+		if err := rows.Scan(&playID, &episodeID, &watchedAt, &source); err != nil {
 			rows.Close()
-			return fmt.Errorf("scan episode watch to remove: %w", err)
+			return nil, fmt.Errorf("scan episode watch to remove: %w", err)
+		}
+		parsedWatchedAt, err := time.Parse(time.RFC3339Nano, watchedAt)
+		if err != nil {
+			rows.Close()
+			return nil, fmt.Errorf("parse episode watch time: %w", err)
 		}
 		playIDs = append(playIDs, playID)
+		removed = append(removed, tracking.Play{ID: playID, UserID: userID, EpisodeID: &episodeID, WatchedAt: parsedWatchedAt, Source: source})
 	}
 	if err := rows.Err(); err != nil {
 		rows.Close()
-		return fmt.Errorf("iterate episode watches to remove: %w", err)
+		return nil, fmt.Errorf("iterate episode watches to remove: %w", err)
 	}
 	if err := rows.Close(); err != nil {
-		return fmt.Errorf("close episode watches: %w", err)
+		return nil, fmt.Errorf("close episode watches: %w", err)
 	}
 	for _, playID := range playIDs {
 		if _, err := tx.ExecContext(ctx, `DELETE FROM activity_events WHERE play_id=? OR (kind='bulk_watch' AND EXISTS(SELECT 1 FROM json_each(activity_events.detail_json,'$.play_ids') WHERE value=?))`, playID, playID); err != nil {
-			return fmt.Errorf("remove activity for episode watch: %w", err)
+			return nil, fmt.Errorf("remove activity for episode watch: %w", err)
 		}
 	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM plays WHERE user_id=? AND episode_id IN (`+placeholders+`)`, arguments...); err != nil {
-		return fmt.Errorf("remove episode watches: %w", err)
+		return nil, fmt.Errorf("remove episode watches: %w", err)
 	}
 	for showID := range showIDs {
 		if err := reconcileShowStatus(ctx, tx, userID, showID); err != nil {
-			return err
+			return nil, err
 		}
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return removed, nil
 }
 
 func (store *Store) DeleteMediaPlays(ctx context.Context, userID, mediaID string) error {

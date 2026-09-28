@@ -68,7 +68,7 @@ export function App() {
       defaultColorScheme="auto"
       forceColorScheme={forcedColorScheme(theme)}
     >
-      <Notifications position="bottom-center" autoClose={8000} />
+      <Notifications position="bottom-center" autoClose={5000} />
       {setup.isPending || session.isPending ? (
         <Group justify="center" mt="xl">
           <Loader />

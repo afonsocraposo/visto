@@ -20,6 +20,7 @@ type Item struct {
 	NotificationsEnabled bool                 `json:"notifications_enabled"`
 	AddedAt              time.Time            `json:"added_at"`
 	UpdatedAt            time.Time            `json:"updated_at"`
+	CreatedEpisodeIDs    []string             `json:"created_episode_ids,omitempty"`
 }
 type Repository interface {
 	UpsertItem(context.Context, Item) error

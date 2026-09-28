@@ -241,12 +241,12 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
       rating: number | null;
       confirm_all_episodes?: boolean;
     }) =>
-      api.patch(
+      api.patch<{ created_episode_ids?: string[] }>(
         `/api/v1/library/${encodeURIComponent(showID!)}`,
         { status, rating, confirm_all_episodes },
         "Could not update this title.",
       ),
-    onSuccess: (_result, changed) => {
+    onSuccess: (result, changed) => {
       void invalidate(
         userCache.library,
         userCache.continue,
@@ -257,7 +257,30 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
       const previousStatus = library.data?.item.status;
       const previousRating = library.data?.item.rating ?? null;
       if (changed.status === "completed" && previousStatus !== "completed") {
-        showActionFeedback("Show completed.");
+        const createdEpisodeIDs = result.created_episode_ids ?? [];
+        showActionFeedback(
+          "Show completed.",
+          createdEpisodeIDs.length && previousStatus
+            ? async () => {
+                for (const batch of chunk(createdEpisodeIDs, 100)) {
+                  await api.delete("/api/v1/plays/bulk", "Could not undo show completion.", {
+                    episode_ids: batch,
+                  });
+                }
+                await api.patch(`/api/v1/library/${encodeURIComponent(showID!)}`, {
+                  status: previousStatus,
+                  rating: previousRating,
+                });
+                await invalidate(
+                  userCache.library,
+                  userCache.continue,
+                  userCache.calendar,
+                  userCache.feed,
+                  detailScope,
+                );
+              }
+            : undefined,
+        );
       } else if (
         previousStatus &&
         (previousStatus !== changed.status || previousRating !== changed.rating)
@@ -292,15 +315,32 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
   });
   const add = useMutation({
     mutationFn: (status: "watching" | "watchlist" | "paused" | "dropped" | "completed") =>
-      api.post(
+      api.post<{ created_episode_ids?: string[] }>(
         "/api/v1/library",
         { media, status, confirm_all_episodes: status === "completed" },
         "Could not add this title.",
       ),
-    onSuccess: (_result, status) => {
+    onSuccess: (result, status) => {
       void invalidate(userCache.library, detailScope);
       if (status === "completed") {
-        showActionFeedback(`${media?.title} completed.`);
+        const createdEpisodeIDs = result.created_episode_ids ?? [];
+        showActionFeedback(
+          `${media?.title} completed.`,
+          target.mediaType === "tv" && createdEpisodeIDs.length
+            ? async () => {
+                for (const batch of chunk(createdEpisodeIDs, 100)) {
+                  await api.delete("/api/v1/plays/bulk", "Could not undo show completion.", {
+                    episode_ids: batch,
+                  });
+                }
+                await api.delete(
+                  `/api/v1/library/${encodeURIComponent(showID!)}?status=watching`,
+                  "Could not remove the show from your library.",
+                );
+                await invalidate(userCache.library, detailScope);
+              }
+            : undefined,
+        );
         return;
       }
       showActionFeedback(
@@ -460,16 +500,40 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
             ),
             selection.selectedSeasons,
           );
+      const removed: Play[] = [];
       for (const batch of chunk([...new Set(episodeIDs)], 100)) {
-        await api.delete("/api/v1/plays/bulk", "Could not mark these episodes unwatched.", {
-          episode_ids: batch,
-        });
+        removed.push(
+          ...(await api.delete<Play[]>(
+            "/api/v1/plays/bulk",
+            "Could not mark these episodes unwatched.",
+            { episode_ids: batch },
+          )),
+        );
       }
+      return removed;
     },
-    onSuccess: () => {
+    onSuccess: (removed) => {
       setPendingWatch(null);
       setShowWatchModal(false);
-      showActionFeedback("Episodes marked unwatched.");
+      showActionFeedback(
+        "Episodes marked unwatched.",
+        removed.length
+          ? async () => {
+              for (const batch of chunk(removed, 10)) {
+                await Promise.all(
+                  batch.map((play) =>
+                    api.post("/api/v1/plays", {
+                      episode_id: play.episode_id,
+                      watched_at: play.watched_at,
+                      source: play.source,
+                    }),
+                  ),
+                );
+              }
+              await invalidateEpisodeData();
+            }
+          : undefined,
+      );
       return invalidateEpisodeData();
     },
   });

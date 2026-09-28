@@ -76,8 +76,8 @@ export const api = {
   put<T = void>(path: string, body: unknown, fallback = "Request failed."): Promise<T> {
     return request<T>(path, jsonInit("PUT", body), fallback);
   },
-  delete(path: string, fallback = "Request failed.", body?: unknown): Promise<void> {
-    return request<void>(
+  delete<T = void>(path: string, fallback = "Request failed.", body?: unknown): Promise<T> {
+    return request<T>(
       path,
       body === undefined ? { method: "DELETE" } : jsonInit("DELETE", body),
       fallback,

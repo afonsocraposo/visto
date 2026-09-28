@@ -64,6 +64,10 @@ type episodePlayDeletionRepository interface {
 	DeleteEpisodePlays(context.Context, string, []string) error
 }
 
+type episodePlayHistoryDeletionRepository interface {
+	DeleteEpisodePlaysWithHistory(context.Context, string, []string) ([]Play, error)
+}
+
 type mediaPlayDeletionRepository interface {
 	DeleteMediaPlays(context.Context, string, string) error
 }
@@ -252,6 +256,28 @@ func (service *Service) Remove(ctx context.Context, userID, playID string) error
 }
 
 func (service *Service) RemoveEpisodes(ctx context.Context, userID string, episodeIDs []string) error {
+	if err := validateEpisodeRemoval(userID, episodeIDs); err != nil {
+		return err
+	}
+	repository, ok := service.repository.(episodePlayDeletionRepository)
+	if !ok {
+		return fmt.Errorf("bulk episode deletion is not configured")
+	}
+	return repository.DeleteEpisodePlays(ctx, userID, episodeIDs)
+}
+
+func (service *Service) RemoveEpisodesWithHistory(ctx context.Context, userID string, episodeIDs []string) ([]Play, error) {
+	if err := validateEpisodeRemoval(userID, episodeIDs); err != nil {
+		return nil, err
+	}
+	repository, ok := service.repository.(episodePlayHistoryDeletionRepository)
+	if !ok {
+		return nil, fmt.Errorf("bulk episode deletion is not configured")
+	}
+	return repository.DeleteEpisodePlaysWithHistory(ctx, userID, episodeIDs)
+}
+
+func validateEpisodeRemoval(userID string, episodeIDs []string) error {
 	if userID == "" {
 		return fmt.Errorf("user is required")
 	}
@@ -265,11 +291,7 @@ func (service *Service) RemoveEpisodes(ctx context.Context, userID string, episo
 		}
 		seen[episodeID] = true
 	}
-	repository, ok := service.repository.(episodePlayDeletionRepository)
-	if !ok {
-		return fmt.Errorf("bulk episode deletion is not configured")
-	}
-	return repository.DeleteEpisodePlays(ctx, userID, episodeIDs)
+	return nil
 }
 
 func (service *Service) RemoveMediaPlays(ctx context.Context, userID, mediaID string) error {

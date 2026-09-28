@@ -109,8 +109,12 @@ func TestShowLifecycle_CompletesAndReopensFromEpisodeHistory(t *testing.T) {
 	if got := status(); got != "watching" {
 		t.Fatalf("after marking finale unwatched: %s", got)
 	}
-	if _, err := store.CompleteMedia(ctx, userID, "tv:42", nil, "web"); err != nil {
+	completedItem, err := store.CompleteMedia(ctx, userID, "tv:42", nil, "web")
+	if err != nil {
 		t.Fatal(err)
+	}
+	if len(completedItem.CreatedEpisodeIDs) != 1 || completedItem.CreatedEpisodeIDs[0] != second {
+		t.Fatalf("completion created episodes=%v, want only %s", completedItem.CreatedEpisodeIDs, second)
 	}
 	if got := status(); got != "completed" {
 		t.Fatalf("after manual completion: %s", got)

@@ -97,6 +97,7 @@ func (s *Store) CompleteMedia(ctx context.Context, userID, mediaID string, ratin
 		addedAt = now
 	}
 	var storedRating any
+	var createdEpisodeIDs []string
 	if rating != nil {
 		storedRating = int64(*rating)
 	} else if previousRating.Valid {
@@ -143,6 +144,10 @@ func (s *Store) CompleteMedia(ctx context.Context, userID, mediaID string, ratin
 			if _, err := s.createBulkPlaysInTx(ctx, tx, missing); err != nil {
 				return library.Item{}, err
 			}
+			createdEpisodeIDs = make([]string, 0, len(missing))
+			for _, play := range missing {
+				createdEpisodeIDs = append(createdEpisodeIDs, *play.EpisodeID)
+			}
 		}
 	}
 	if _, err = tx.ExecContext(ctx, `UPDATE user_media SET status='completed',updated_at=? WHERE user_id=? AND media_id=?`, now, userID, mediaID); err != nil {
@@ -158,5 +163,5 @@ func (s *Store) CompleteMedia(ctx context.Context, userID, mediaID string, ratin
 		value := int(storedRating.(int64))
 		resultRating = &value
 	}
-	return library.Item{UserID: userID, MediaID: mediaID, Status: domain.CompletedStatus, Rating: resultRating, NotificationsEnabled: notifications, AddedAt: parsedAdded, UpdatedAt: parsedNow}, nil
+	return library.Item{UserID: userID, MediaID: mediaID, Status: domain.CompletedStatus, Rating: resultRating, NotificationsEnabled: notifications, AddedAt: parsedAdded, UpdatedAt: parsedNow, CreatedEpisodeIDs: createdEpisodeIDs}, nil
 }

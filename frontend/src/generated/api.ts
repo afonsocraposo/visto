@@ -8152,7 +8152,7 @@ export const getDeletePlaysBulkUrl = () => {
 export const deletePlaysBulk = async (
   deletePlaysBulkBody: DeletePlaysBulkBody,
   options?: Parameters<typeof customFetch>[1],
-): Promise<void> => {
+): Promise<Play[]> => {
   const getHeaders = (
     h?: NonNullable<RequestInit["headers"]>,
   ): Record<string, string | readonly string[]> => {
@@ -8172,7 +8172,7 @@ export const deletePlaysBulk = async (
     }
     return headers;
   };
-  return customFetch<void>(getDeletePlaysBulkUrl(), {
+  return customFetch<Play[]>(getDeletePlaysBulkUrl(), {
     ...options,
     method: "DELETE",
     headers: { "Content-Type": "application/json", ...getHeaders(options?.headers) },
