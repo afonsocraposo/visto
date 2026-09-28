@@ -3,453 +3,43 @@
 Visto is a self-hosted movie and TV tracker. It stores viewing data locally in
 SQLite and uses TMDB only for metadata.
 
-## Run with Docker
+## Quick start (Docker)
 
-Install Docker Compose and create a TMDB API key. TMDB access is needed for
-search, artwork, cast, episode details, and other metadata features. Copy
-`.env.example` to `.env` beside `compose.yaml`, then set `VISTO_TMDB_API_KEY`:
+1. Install Docker Compose and create a [TMDB API key](https://www.themoviedb.org/settings/api) — needed for search, artwork, cast, episode details, and other metadata.
+2. Copy `.env.example` to `.env` beside `compose.yaml` and set `VISTO_TMDB_API_KEY`. `.env.example` lists every supported variable with safe defaults; `.env` is git-ignored, so keep your key there.
+3. Start Visto and follow the logs until it's ready:
 
-```dotenv
-VISTO_TMDB_API_KEY=replace_with_your_tmdb_api_key
-VISTO_ALLOW_SIGNUPS=true
-# Optional: pin a published Docker release instead of using latest.
-# VISTO_VERSION=0.1.0
-# Optional: set all three values to enable Google sign-in.
-# VISTO_GOOGLE_CLIENT_ID=your-google-oauth-client-id
-# VISTO_GOOGLE_CLIENT_SECRET=your-google-oauth-client-secret
-# VISTO_GOOGLE_REDIRECT_URL=http://localhost:8080/api/v1/auth/google/callback
-```
+   ```sh
+   docker compose pull
+   docker compose up -d
+   docker compose logs -f visto
+   ```
 
-The repository ignores `.env`. Keep your API key there and do not commit it.
-`.env.example` lists all supported environment variables and safe defaults.
-Local accounts use a name, email address, and password. Google sign-in is
-optional; configure it below to show the Google button on the sign-in screen.
+4. Open <http://localhost:8080>. The first account created becomes the instance administrator; admins manage accounts under Profile → Admin. Public signup can be turned off with `VISTO_ALLOW_SIGNUPS=false`.
 
-Pull the published image, start Visto, and follow the logs until the server is
-ready:
+The named volume `visto-data` holds the SQLite database and backups and survives `docker compose down`. See [docs/configuration.md](docs/configuration.md) for the full environment variable reference, host-directory volumes, backups & S3, reverse proxies, and Google sign-in.
 
-```sh
-docker compose pull
-docker compose up -d
-docker compose logs -f visto
-```
+## Optional features
 
-The container logs each HTTP request with its method, path, status, response
-size, and duration. Query strings and Plex webhook secrets are omitted.
+- **[Pushover & Web Push alerts](docs/notifications.md)** — per-user notifications for newly aired episodes.
+- **[Plex watched-content sync](docs/plex-sync.md)** — import watches from Plex via webhook.
+- **[ChatGPT MCP connection](docs/mcp.md)** — connect Visto to ChatGPT as an MCP app.
 
-Open <http://localhost:8080>. The first account created is the instance
-administrator. After setup, that account can use the app and sign in again
-normally. Other people can create accounts from the sign-in page when public
-signup is enabled. Admins manage accounts under Profile → Admin. The named
-Docker volume `visto-data` keeps the SQLite database and backups across
-container restarts. Stop the app with `docker compose down`; this keeps the
-volume and its data.
+## Releases
 
-#### Using a host directory instead
+Multi-platform images (`linux/amd64`, `linux/arm64`) are published to [ghcr.io/afonsocraposo/visto](https://github.com/afonsocraposo/visto/pkgs/container/visto). [Release Please](https://github.com/googleapis/release-please) opens a release PR from Conventional Commits merged to `main`; merging it cuts the GitHub release and publishes the matching image (`feat:` → minor, `fix:`/`perf:` → patch, breaking changes → minor while below 1.0.0; docs/test/build/CI/refactor/chore commits don't trigger a release).
 
-The default named volume works with the image's non-root `visto` user. If you
-replace it with a host bind mount, the host directory's permissions apply
-inside `/data`. Make sure it exists and is writable by the container user. On
-Linux, you can run the container as the owner of that directory by setting
-`user` to its numeric UID and GID:
+Pin a deployment to a release with `VISTO_VERSION=0.1.0` in `.env`, then `docker compose pull && docker compose up -d` to upgrade.
 
-```yaml
-services:
-  visto:
-    user: "1000:1000" # replace with the directory owner's UID:GID
-    volumes:
-      - /home/pi/visto:/data
-```
-
-Check the directory owner's IDs with `stat -c '%u:%g' /home/pi/visto`. Do not
-copy `1000:1000` unless those are the IDs on your server. Keep the default
-named volume if you do not need a host directory; setting a host-specific
-`user` in the default Compose file can make the named volume unwritable.
-
-By default, Compose uses the `latest` image. Set `VISTO_VERSION` in `.env` to a
-release tag such as `0.1.0` to pin an instance. To build and run the current
-source checkout instead, use:
-
-```sh
-docker compose -f compose.yaml -f compose.build.yaml up -d --build
-```
-
-### Published Docker images
-
-Visto publishes multi-platform images for `linux/amd64` and `linux/arm64` to
-[`ghcr.io/afonsocraposo/visto`](https://github.com/afonsocraposo/visto/pkgs/container/visto).
-Releases are generated from Conventional Commits by Release Please. When
-changes are merged to `main`, it opens or updates a release pull request with
-the next version and `CHANGELOG.md`. Review and merge that pull request to
-create the GitHub release and publish its matching image. Feature commits
-(`feat:`) request a minor release, fixes (`fix:`) and performance changes
-(`perf:`) request a patch release, and breaking changes request a minor bump
-while Visto is below 1.0.0. Documentation, test, build, CI, refactor, and chore
-commits do not trigger a release by themselves.
-
-The repository must allow GitHub Actions to create pull requests. GitHub exposes
-this as “Allow GitHub Actions to create and approve pull requests” under
-Settings → Actions → General. Visto does not use Actions to approve pull
-requests; the setting is required only because GitHub does not offer a
-separate switch for workflow-created pull requests.
-
-The workflow publishes version and minor-version tags, plus `latest`, after a
-release pull request is merged. Images are public and can be pulled without
-logging in:
-
-```sh
-docker pull ghcr.io/afonsocraposo/visto:0.1.0
-```
-
-To pin a deployment to a release, set `VISTO_VERSION=0.1.0` in `.env`. Update
-to a newer release with:
-
-```sh
-docker compose pull
-docker compose up -d
-```
-
-### Environment variables
-
-The Compose file below is also the project’s `compose.yaml`. Docker Compose
-reads `.env` for the image tag and values shown in `${...}`. Application
-settings are passed into the Visto container. You only need to set
-`VISTO_TMDB_API_KEY` for a standard local deployment; the other settings have
-defaults.
-
-| Variable                         | Default          | Purpose                                                                                                                                                                                                    |
-| -------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `VISTO_VERSION`                  | `latest`         | Docker image tag used by Compose. Pin to a release such as `0.1.0` for predictable upgrades.                                                                                                               |
-| `VISTO_TMDB_API_KEY`             | empty            | TMDB API key. Set this to enable metadata features.                                                                                                                                                        |
-| `VISTO_GOOGLE_CLIENT_ID`         | empty            | Google OAuth client ID. Set with the secret and redirect URL to show “Continue with Google” on the sign-in page.                                                                                           |
-| `VISTO_GOOGLE_CLIENT_SECRET`     | empty            | Secret for the Google OAuth client.                                                                                                                                                                        |
-| `VISTO_GOOGLE_REDIRECT_URL`      | empty            | Exact callback URL registered in Google Cloud, such as `https://visto.example.com/api/v1/auth/google/callback`. All three Google variables are required; if any is missing, Google sign-in stays disabled. |
-| `VISTO_ALLOW_SIGNUPS`            | `true`           | Allow public account creation. Set to `false` to disable it. The first-admin setup and admin-created accounts remain available.                                                                            |
-| `VISTO_PUBLIC_URL`               | empty            | Public HTTPS origin, such as `https://visto.example.com`. Used for browser-origin checks and secure cookies when TLS ends at a proxy. Also required for ChatGPT MCP or Plex webhook URLs. Do not include a path such as `/mcp`. |
-| `VISTO_PLEX_SYNC_MODE`           | `personal`       | `personal` lets users create their own Plex webhook URLs. `managed` lets admins create one shared URL and assign Plex accounts to Visto users. Set it in Compose and restart Visto. |
-| `VISTO_TRUSTED_PROXY_CIDRS`      | empty            | Optional comma-separated IP ranges for trusted reverse proxies. Set this only when Visto should use forwarded headers to identify visitor IPs and proxy HTTPS. Use the direct proxy address seen by Visto.                         |
-| `VISTO_LISTEN_ADDR`              | `:8080`          | Address used by the server inside the container. Keep the default with the example port mapping.                                                                                                           |
-| `VISTO_DATABASE_PATH`            | `/data/visto.db` | SQLite database path inside the persistent volume.                                                                                                                                                         |
-| `VISTO_BACKUP_DIR`               | `/data/backups`  | Directory for automatic SQLite backups.                                                                                                                                                                    |
-| `VISTO_BACKUP_INTERVAL`          | `24h`            | Time between automatic backups.                                                                                                                                                                            |
-| `VISTO_BACKUP_RETENTION`         | `720h`           | How long automatic local backups are kept (30 days by default).                                                                                                                                            |
-| `VISTO_BACKUP_SCOPE`             | `everything`     | `everything` keeps the full database; `user_data` excludes TMDB metadata while retaining user records and their media identifiers. Applies to scheduled and manual backups made with `visto backup`.      |
-| `VISTO_BACKUP_DESTINATION`       | `local`          | `local`, `s3`, or `both`. `s3`/`both` require the `VISTO_BACKUP_S3_*` variables below.                                                                                                                      |
-| `VISTO_BACKUP_S3_BUCKET`         | empty            | S3 bucket for backups.                                                                                                                                                                                      |
-| `VISTO_BACKUP_S3_REGION`         | empty            | S3 region for backups.                                                                                                                                                                                      |
-| `VISTO_BACKUP_S3_ENDPOINT`       | empty            | Optional HTTPS endpoint for an S3-compatible provider. Leave unset for AWS S3.                                                                                                                              |
-| `VISTO_BACKUP_S3_ACCESS_KEY_ID`  | empty            | S3 access key ID.                                                                                                                                                                                           |
-| `VISTO_BACKUP_S3_SECRET_ACCESS_KEY` | empty         | S3 secret access key.                                                                                                                                                                                       |
-| `VISTO_BACKUP_S3_PATH_STYLE`     | `false`          | Set to `true` for S3-compatible providers that need path-style addressing.                                                                                                                                 |
-| `VISTO_BACKUP_S3_PREFIX`         | `visto/`         | Object key prefix for uploaded backups.                                                                                                                                                                     |
-| `VISTO_BACKUP_S3_MAX_KEEP`       | `30`             | Number of scheduled S3 backups to retain. Visto deletes only older scheduled backups with its own filename pattern under the configured prefix; manual backups are not removed by this cleanup.           |
-| `VISTO_CATALOG_REFRESH_INTERVAL` | `6h`             | How often the backend checks tracked TV metadata for refresh.                                                                                                                                              |
-| `VISTO_CATALOG_ACTIVE_TTL`       | `24h`            | Minimum age of metadata for active shows before refresh.                                                                                                                                                   |
-| `VISTO_CATALOG_FINISHED_TTL`     | `720h`           | Minimum age of metadata for ended or cancelled shows before refresh (30 days).                                                                                                                             |
-| `VISTO_ACTIVITY_CLEANUP_INTERVAL` | `24h`          | How often the backend removes old activity feed events.                                                                                                                                                    |
-| `VISTO_ACTIVITY_RETENTION`       | `8760h`          | How long activity feed events are kept (365 days). This does not remove watch history.                                                                                                                     |
-| `VISTO_SECRET_ENCRYPTION_KEY`    | empty            | Optional base64-encoded 32-byte key for encrypting users’ Pushover credentials and Web Push subscriptions. Generate it with `openssl rand -base64 32` and keep it safe; losing it makes saved credentials unreadable.                 |
-| `VISTO_PUSHOVER_INTERVAL`        | `15m`            | How often the backend checks for new-episode alerts. Each user configures their own Pushover app token and user key in Profile.                                                                            |
-| `VISTO_OAUTH_CLEANUP_INTERVAL`   | `24h`            | How often expired OAuth data is cleaned up.                                                                                                                                                                |
-
-The interval values use Go duration syntax, such as `12h` or `30m`. Pushover
-and ChatGPT MCP are optional. To use Pushover, set a persistent
-`VISTO_SECRET_ENCRYPTION_KEY`; users then enter their own credentials in
-Profile. To use MCP or Plex webhooks outside your network, set
-`VISTO_PUBLIC_URL` and configure the reverse proxy to pass the required paths
-to Visto.
-
-#### Reverse proxy and Cloudflare
-
-For a standard HTTPS deployment, set `VISTO_PUBLIC_URL` to the public origin.
-Visto uses it to validate browser write requests and mark cookies as secure,
-even when HTTPS ends at a reverse proxy. This means
-`VISTO_TRUSTED_PROXY_CIDRS` is optional for normal browser use.
-
-Visto cannot safely discover a visitor IP by trusting arbitrary request
-headers. A client can send forged `X-Forwarded-For`, `X-Real-IP`, or
-`CF-Connecting-IP` headers. Configure each proxy to establish a trusted chain.
-For Cloudflare → Nginx Proxy Manager → Visto:
-
-1. Configure Nginx to accept Cloudflare's `CF-Connecting-IP` only from
-   Cloudflare's published IP ranges, then forward the resulting client address
-   to Visto in `X-Forwarded-For`. Cloudflare documents the header and Nginx
-   real-IP setup in its [HTTP header reference](https://developers.cloudflare.com/fundamentals/reference/http-headers/) and [visitor IP restoration guide](https://developers.cloudflare.com/support/troubleshooting/restoring-visitor-ips/restoring-original-visitor-ips/).
-2. If you want Visto to use that address for IP-based rate limits, set
-   `VISTO_TRUSTED_PROXY_CIDRS` to the Nginx Proxy Manager address as seen by
-   Visto. Do not put Cloudflare's ranges here: Nginx is Visto's direct peer.
-   Prefer a stable Nginx address and an exact `/32` (or `/128`) over a broad
-   shared Docker subnet.
-
-If you leave `VISTO_TRUSTED_PROXY_CIDRS` empty, Visto ignores forwarded client
-IP headers. Login limits use a normalized account email so one person's failed
-logins do not block the whole household behind the same proxy. MCP OAuth
-rate-limits use the peer address and are therefore shared by clients behind
-that proxy. Set the CIDR if you need per-client IP limits.
-
-For Nginx Proxy Manager on a Docker network, find its address on the shared
-network (replace `npm_network` if yours has a different name):
-
-```sh
-docker network inspect npm_network --format '{{range .Containers}}{{println .Name .IPv4Address}}{{end}}'
-```
-
-To enable per-client IP handling, set the NPM address as a `/32` CIDR in
-Visto's Compose environment. Replace the example with the address from the
-command:
-
-```yaml
-environment:
-  VISTO_TRUSTED_PROXY_CIDRS: "172.20.0.5/32"
-```
-
-Make sure the proxy preserves the original `Host` and forwards
-`X-Forwarded-Proto: https`. If the proxy's address changes, use a stable
-address or the smallest subnet reserved for trusted proxies. Do not trust all
-addresses (`0.0.0.0/0`). Recreate Visto after changing the setting so the
-container receives the updated environment:
-
-```sh
-docker compose up -d --force-recreate visto
-```
-
-To enable Google sign-in, create a Google OAuth web client and register the
-redirect URL shown above as an authorized redirect URI. Set all three Google
-variables in `.env`. The Google button appears automatically. Google accounts
-must have a verified email address. If that email already belongs to a local
-account, Visto links the Google sign-in to that account and keeps its password
-login active. New Google accounts follow `VISTO_ALLOW_SIGNUPS`; the first
-administrator must still be created with email and password before Google
-users can join.
-
-Example `compose.yaml`:
-
-```yaml
-services:
-  visto:
-    image: ghcr.io/afonsocraposo/visto:${VISTO_VERSION:-latest}
-    ports:
-      - "8080:8080"
-    environment:
-      VISTO_LISTEN_ADDR: ${VISTO_LISTEN_ADDR:-:8080}
-      VISTO_DATABASE_PATH: ${VISTO_DATABASE_PATH:-/data/visto.db}
-      VISTO_PUBLIC_URL: ${VISTO_PUBLIC_URL:-}
-      VISTO_TRUSTED_PROXY_CIDRS: ${VISTO_TRUSTED_PROXY_CIDRS:-}
-      VISTO_ALLOW_SIGNUPS: "${VISTO_ALLOW_SIGNUPS:-true}"
-      VISTO_OAUTH_CLEANUP_INTERVAL: ${VISTO_OAUTH_CLEANUP_INTERVAL:-24h}
-      VISTO_TMDB_API_KEY: ${VISTO_TMDB_API_KEY:-}
-      VISTO_GOOGLE_CLIENT_ID: ${VISTO_GOOGLE_CLIENT_ID:-}
-      VISTO_GOOGLE_CLIENT_SECRET: ${VISTO_GOOGLE_CLIENT_SECRET:-}
-      VISTO_GOOGLE_REDIRECT_URL: ${VISTO_GOOGLE_REDIRECT_URL:-}
-      VISTO_BACKUP_DIR: ${VISTO_BACKUP_DIR:-/data/backups}
-      VISTO_BACKUP_INTERVAL: ${VISTO_BACKUP_INTERVAL:-24h}
-      VISTO_BACKUP_RETENTION: ${VISTO_BACKUP_RETENTION:-720h}
-      VISTO_CATALOG_REFRESH_INTERVAL: ${VISTO_CATALOG_REFRESH_INTERVAL:-6h}
-      VISTO_CATALOG_ACTIVE_TTL: ${VISTO_CATALOG_ACTIVE_TTL:-24h}
-      VISTO_CATALOG_FINISHED_TTL: ${VISTO_CATALOG_FINISHED_TTL:-720h}
-      VISTO_ACTIVITY_CLEANUP_INTERVAL: ${VISTO_ACTIVITY_CLEANUP_INTERVAL:-24h}
-      VISTO_ACTIVITY_RETENTION: ${VISTO_ACTIVITY_RETENTION:-8760h}
-      VISTO_SECRET_ENCRYPTION_KEY: ${VISTO_SECRET_ENCRYPTION_KEY:-}
-      VISTO_PUSHOVER_INTERVAL: ${VISTO_PUSHOVER_INTERVAL:-15m}
-    volumes:
-      - visto-data:/data
-    restart: unless-stopped
-
-volumes:
-  visto-data:
-```
-
-Set `VISTO_ALLOW_SIGNUPS=false` in the environment or `.env` file to disable
-public account creation. This does not disable initial administrator setup or
-administrator-created accounts.
-
-To make a consistent manual backup while Visto is running, choose a new
-destination path inside the data volume:
-
-```sh
-docker compose exec visto /usr/local/bin/visto backup /data/visto-backup.db
-```
-
-The command does not overwrite an existing file. It stores the backup with
-owner-only permissions. Copy the backup out of the Docker volume to keep a
-separate copy away from the server.
-
-To restore a backup, stop Visto first and keep a copy of the current database.
-Copy the selected backup to the configured `VISTO_DATABASE_PATH` (normally
-`/data/visto.db` in the container volume), then start Visto and open the app to
-confirm the expected accounts and library appear. Never overwrite the only copy
-of the current database; retain it until the restored instance is verified.
-
-Visto also creates an online SQLite backup every 24 hours in
-`/data/backups` and removes its own backups after 30 days. Set
-`VISTO_BACKUP_DIR`, `VISTO_BACKUP_INTERVAL`, or `VISTO_BACKUP_RETENTION` to
-change the directory, interval, or retention duration (Go duration format,
-such as `12h` or `336h` for 14 days). Set `VISTO_BACKUP_SCOPE=user_data` to
-omit TMDB metadata from these scheduled backups; the default, `everything`,
-retains the full database. User-data backups keep media and episode
-identifiers so user records can be restored, but TMDB details must be fetched
-again after restore. The separate `visto backup` command above always makes a
-full database copy regardless of this setting.
-
-To also (or instead) upload scheduled backups to S3 or an S3-compatible
-provider, set `VISTO_BACKUP_DESTINATION` to `s3` or `both`, along with
-`VISTO_BACKUP_S3_BUCKET`, `VISTO_BACKUP_S3_REGION`,
-`VISTO_BACKUP_S3_ACCESS_KEY_ID`, and `VISTO_BACKUP_S3_SECRET_ACCESS_KEY`. Set
-`VISTO_BACKUP_S3_ENDPOINT` (HTTPS only) and `VISTO_BACKUP_S3_PATH_STYLE=true`
-for providers that need them. `VISTO_BACKUP_S3_PREFIX` (default `visto/`) sets
-the object key prefix, and `VISTO_BACKUP_S3_MAX_KEEP` (default `30`) sets how
-many scheduled S3 backups are retained; Visto deletes only older scheduled
-backups with its own filename pattern under the configured prefix, so manual
-backups are not removed by this cleanup. All of these are read once at
-startup; restart Visto after changing them. To restore an S3 backup, download
-the `.db` object from your bucket, stop Visto, and follow the SQLite restore
-steps above, keeping a copy of the current database until the restored
-instance is verified.
-
-Tracked TV catalogs refresh in the background, independently of page views.
-Defaults are every 6 hours, with a 24-hour freshness window for active shows
-and a 30-day freshness window for ended or cancelled shows. These defaults
-can be changed with `VISTO_CATALOG_REFRESH_INTERVAL`,
-`VISTO_CATALOG_ACTIVE_TTL`, and `VISTO_CATALOG_FINISHED_TTL`.
-
-Activity feed events are removed after 365 days by default. The backend runs
-this cleanup daily in bounded batches and uses the event's recorded creation
-time, not the watch time supplied by the user. It removes only `activity_events`;
-watch history in `plays`, library entries, and ratings are retained. Set
-`VISTO_ACTIVITY_RETENTION` or `VISTO_ACTIVITY_CLEANUP_INTERVAL` to change the
-retention period or cleanup interval.
-
-## Pushover alerts
-
-Pushover alerts are optional and configured per user. Each user adds their own
-Pushover application token and user key under Profile settings, then opts in.
-The **Send test notification** button checks saved credentials without turning on
-scheduled alerts.
-Visto encrypts both credentials before it stores them. To enable secure storage,
-set a base64-encoded 32-byte `VISTO_SECRET_ENCRYPTION_KEY` in the server
-environment. Generate it with `openssl rand -base64 32` and keep a secure copy:
-losing it makes saved credentials unreadable. Users must create or use their
-own Pushover application and user keys; the server does not need a shared
-Pushover application token. After an upgrade, users must opt in again because
-the previous server-wide application token is no longer used. The default
-check interval is 15 minutes and can be changed with `VISTO_PUSHOVER_INTERVAL`.
-
-Visto alerts for newly aired regular episodes in shows a user is watching.
-Specials, paused or dropped shows, disabled show alerts, and episodes already
-marked watched are excluded. Delivery is deduplicated per user and episode.
-For a show marked Watching, the bell beside a season can instead subscribe to a
-one-time alert when every listed regular episode in that season has aired.
-Individual episode alerts for that season stop after subscription. The alert
-uses the user's enabled Pushover and Web Push channels. If neither channel is
-enabled when the season becomes ready, Visto shows it as ready without sending
-a later notification. Leaving Watching cancels pending season alerts.
-
-## Plex watched-content sync
-
-With the default `VISTO_PLEX_SYNC_MODE=personal`, Plex sync is configured separately by each Visto user under Profile →
-Settings → Plex watch sync. Plex Pass is required. Create a webhook URL in
-Visto, copy it when it is shown, then add it in Plex Web under your account's
-webhook settings. Visto shows the URL secret only once; rotate it in Profile if
-you lose it. Revoking or rotating the URL immediately invalidates the old URL.
-
-To limit sync to your own Plex viewer, enter its numeric account ID before
-creating the webhook URL. If you do not know the ID, leave the field empty,
-create the URL, and watch something using your Plex profile. Visto skips the
-event and shows the account ID under Recent sync activity. Enter that ID,
-rotate the URL, and replace the URL in Plex. An unset account ID skips every
-event. Existing webhook URLs also skip events until rotated with an account ID.
-
-Plex must be able to reach Visto over HTTPS. Set `VISTO_PUBLIC_URL` to the
-public origin (for example, `https://visto.example.com`) and forward
-`/api/v1/webhooks/plex/` to Visto. In personal mode, each URL is unique to one Visto user. The
-server stores only a hash of its secret. Keep the URL private because it grants
-Plex permission to record watches for that account.
-
-For a Plex Pass owner whose family members do not have Plex Pass, set
-`VISTO_PLEX_SYNC_MODE=managed` in Compose and restart Visto. In the Admin panel,
-create the shared URL and add it to the owner's Plex webhook settings. Start
-playback on each family account. The Admin panel shows recently seen Plex
-account IDs, names, and last-seen times. Assign each ID to one Visto user. Only
-assigned accounts record watches; an account is discovered on playback but
-records a watch only after Plex sends `media.scrobble`. Admins can also enter
-an ID manually. The latest 100 distinct observed accounts are retained. Full
-Plex payloads are not stored for discovery. Existing personal URLs remain saved
-but stop syncing in managed mode. They work again if the mode returns to
-`personal`.
-
-Visto processes Plex `media.scrobble` events for the configured Plex account
-only, for movies and TV episodes. It
-uses TMDB IDs from Plex when available, then falls back to exact title and
-year matching. Ambiguous titles and episodes without an exact season/episode
-match are skipped and shown in Recent sync activity. Successful events add the
-title to that user's library and record the watched movie or episode. Plex
-events only sync watches that happen after webhook setup; existing Plex
-history is not imported. Visto suppresses repeat events when a play for the
-same item was recorded in the last seven days. The latest 100 event outcomes
-are retained per user; Profile displays the latest 20.
-
-## ChatGPT MCP connection
-
-Visto's MCP endpoint is `/mcp`. To connect ChatGPT, set `VISTO_PUBLIC_URL` to
-the canonical HTTPS origin used to reach the instance, for example
-`https://visto.example.com`. OAuth discovery uses this exact origin, so set it
-to the external address exposed by the reverse proxy or secure tunnel. Keep
-the `/mcp`, `/oauth/`, and `/.well-known/` paths available through that proxy.
-The server supports PKCE authorization, separate read and write permissions,
-and per-user Visto accounts.
-
-`VISTO_TRUSTED_PROXY_CIDRS` is optional for MCP behind a reverse proxy. Set it
-to the direct proxy IP ranges if you need visitor-IP-aware rate limits. Visto
-trusts forwarded client and HTTPS headers only from those ranges. OAuth codes
-and old tokens are cleaned in bounded daily batches; set
-`VISTO_OAUTH_CLEANUP_INTERVAL` to change that interval.
-
-In ChatGPT web, enable developer mode, create a custom MCP app, and enter
-`https://visto.example.com/mcp` as its endpoint. ChatGPT discovers Visto's
-OAuth endpoints and asks each user to sign in with their Visto account and
-approve access. Visto uses the identity associated with that user's token,
-not a `user_id` sent in an MCP tool call. See [OpenAI's MCP app guide](https://help.openai.com/en/articles/12584461-developer-mode-and-mcp-apps-in-chatgpt).
-
-For TV progress, `get_show_episodes` lists episode IDs and watched state.
-`mark_episodes_through` marks missing released episodes up to a chosen episode,
-even if that episode is already watched. `mark_season_watched` and
-`mark_selected_episodes_watched` cover other bulk updates; `mark_selected_episodes_unwatched`
-corrects mistakes. Bulk watch actions skip existing plays, so repeating one
-does not create rewatch history. `get_show_progress` reports earlier gaps
-separately from `is_caught_up`, which only refers to episodes after the
-furthest watched episode. `get_library` lists saved media and supports filters
-by status and media type. REST clients can use
-`POST /api/v1/shows/{showID}/episodes/watch-through` with `season_number` and
-`episode_number` to apply the same watch-through action.
-
-REST list responses for `/api/v1/library`, `/api/v1/plays`,
-`/api/v1/shows/{showID}/episodes`, `/api/v1/seasons/{seasonID}/episodes`, and
-`/api/v1/users` now return `{ "items": [...], "next_cursor": null }` instead
-of a bare array. Clients can pass `limit` (1–100, default 30) and then pass
-`next_cursor` as `cursor` to request the next page. Library lists also accept
-`sort`, `status`, and `media_type`; play history accepts `media_id` or
-`episode_id`. Cursors are tied to the endpoint and filters. Existing REST
-clients must update their response parsing when they upgrade the server.
-
-The destructive `remove_media` MCP action removes a movie or TV show from the
-authenticated user's library along with that user's plays, ratings, and
-activity for the title. It leaves other users' records and shared catalog data
-intact.
+> The repository needs "Allow GitHub Actions to create and approve pull requests" enabled under Settings → Actions → General, so the release workflow can open its PR.
 
 ## Development
 
-Requirements: Go 1.25.13+, Node.js 22+, Air, and a TMDB API key for metadata search.
-
-Install Air once:
+Requirements: Go 1.25.13+, Node.js 22+, [Air](https://github.com/air-verse/air), and a TMDB API key.
 
 ```sh
 go install github.com/air-verse/air@v1.67.4
-```
 
-Run the Go API and the Vite frontend in separate terminals. Docker is not
-needed for the development loop.
-
-```sh
 # terminal 1
 air
 
@@ -459,56 +49,9 @@ npm install
 npm run dev
 ```
 
-Air rebuilds and restarts the Go server when Go, SQL, or environment files
-change. It loads `.env.development` first, then `.env`, so values in `.env`
-override matching values from `.env.development`. Vite
-reloads the frontend when TypeScript or CSS files change. The Vite server
-proxies `/api` and `/health` requests to the Go server on port 8080.
+Open <http://localhost:5173>. Vite proxies `/api` and `/health` to the Go server on `:8080`; Air rebuilds and restarts the Go server on Go/SQL/env changes, loading `.env.development` then `.env` (values in `.env` win). Docker is not needed for the dev loop — use it on port 8080 only for production-like checks.
 
-Open `http://localhost:5173` during development. Use Docker on port 8080 for
-production-like checks only.
-
-### Inspect the development database
-
-To browse the local SQLite database during development, run this in a separate
-terminal:
-
-```sh
-cd frontend
-npm run db:studio
-```
-
-[Drizzle Studio](https://orm.drizzle.team/docs/drizzle-kit-studio) opens at
-<https://local.drizzle.studio> and connects to the database at
-`VISTO_DATABASE_PATH` from the repository's `.env` file. If unset, it uses
-`./data/visto.db`. This is a development/debugging tool; it does not run in
-the Visto server or Docker image. Use a local database path, not a
-container-only path such as `/data/visto.db`.
-
-### Reset a development database after baseline changes
-
-The current development schema uses one baseline migration. It does not upgrade
-databases created from an earlier development schema, including the previous
-multi-migration history. Stop Visto, then set `VISTO_DATABASE_PATH` to a new,
-empty SQLite file (or remove your old development database after making a backup
-if you no longer need its data). Start Visto again and it will create the
-current schema. This reset is only needed for a database created before the
-current baseline; new databases are initialized on first startup.
-
-### Generate a database diagram
-
-After Visto has created and migrated the local database, generate a Mermaid ER
-diagram with:
-
-```sh
-cd frontend
-npm run db:diagram
-```
-
-This reads the database at `VISTO_DATABASE_PATH` from the repository's `.env`
-file, or `./data/visto.db` when unset. It opens the database read-only and writes
-`docs/database-schema.mmd`. Run the command again after schema migrations to
-refresh the diagram.
+See [docs/development.md](docs/development.md) for inspecting the dev database, resetting it after baseline changes, and regenerating the schema diagram.
 
 ## Checks
 
@@ -518,24 +61,8 @@ cd frontend && npm test && npm run build
 npx playwright install chromium && npm run test:e2e
 ```
 
-The project uses BDD-style Given/When/Then test names for domain and application
-behaviour. See [SPEC.md](SPEC.md) for the v0.1 product and engineering scope.
+Tests use BDD-style Given/When/Then names for domain and application behaviour. See [SPEC.md](SPEC.md) for the v0.1 product and engineering scope.
 
 ## License
 
-Visto is source-available under the [PolyForm Noncommercial License 1.0.0](LICENSE).
-Personal and family self-hosting is permitted. Commercial use requires a
-separate licence from the copyright holder.
-
-## Web Push alerts
-
-Web Push is optional and works alongside Pushover. Set the persistent
-`VISTO_SECRET_ENCRYPTION_KEY`, `VISTO_WEB_PUSH_PUBLIC_KEY`,
-`VISTO_WEB_PUSH_PRIVATE_KEY`, and `VISTO_WEB_PUSH_SUBJECT` (a `mailto:` address
-or your public HTTPS origin) on the server. Generate the VAPID key pair with
-`go run ./cmd/vapid`. Keep the private key secret and stable; changing it
-invalidates existing device subscriptions. Serve Visto over HTTPS and set
-`VISTO_PUBLIC_URL` to its public origin. Each user enables notifications on
-each device in Profile and can use **Send test notification** there. On iPhone
-and iPad, install Visto to the Home Screen before enabling notifications.
-The existing `VISTO_PUSHOVER_INTERVAL` controls checks for both channels.
+Visto is source-available under the [PolyForm Noncommercial License 1.0.0](LICENSE). Personal and family self-hosting is permitted; commercial use requires a separate licence from the copyright holder.
