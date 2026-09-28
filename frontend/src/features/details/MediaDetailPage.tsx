@@ -584,8 +584,8 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
   if (!media && (library.isPending || fallbackDetails.isPending))
     return (
       <div className="detail-page">
-        <Skeleton height={36} width={90} radius="sm" mb="md" />
         <section className="detail-hero">
+          <Skeleton height={36} width={90} radius="xl" className="detail-hero-back" />
           <Skeleton
             height="100%"
             width="100%"
@@ -594,16 +594,21 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
             style={{ position: "absolute", inset: 0, opacity: 0.4 }}
           />
           <div className="detail-hero-content">
-            <Skeleton height={22} width={90} radius="xl" mb="md" />
-            <Skeleton height={48} width="55%" mb="sm" />
-            <Skeleton height={16} width="25%" mb="lg" />
-            <Skeleton height={14} width="90%" mb={6} />
-            <Skeleton height={14} width="80%" mb={6} />
-            <Skeleton height={14} width="65%" mb="lg" />
-            <Group gap="sm">
-              <Skeleton height={42} width={150} radius="sm" />
-              <Skeleton height={42} width={42} circle />
-            </Group>
+            <div className="detail-poster">
+              <Skeleton height="100%" width="100%" radius={0} />
+            </div>
+            <div className="detail-hero-body">
+              <Skeleton height={22} width={90} radius="xl" mb="md" />
+              <Skeleton height={48} width="55%" mb="sm" />
+              <Skeleton height={16} width="25%" mb="lg" />
+              <Skeleton height={14} width="90%" mb={6} />
+              <Skeleton height={14} width="80%" mb={6} />
+              <Skeleton height={14} width="65%" mb="lg" />
+              <Group gap="sm">
+                <Skeleton height={42} width={150} radius="sm" />
+                <Skeleton height={42} width={42} circle />
+              </Group>
+            </div>
           </div>
         </section>
       </div>
@@ -948,126 +953,137 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
           </Button>
         </Group>
       </Modal>
-      <Button
-        className="detail-back"
-        variant="subtle"
-        leftSection={<IconArrowLeft size={17} />}
-        onClick={onBack}
-      >
-        Back
-      </Button>
       <section className="detail-hero" style={{ backgroundImage: heroBackground }}>
+        <Button
+          className="detail-hero-back"
+          variant="subtle"
+          leftSection={<IconArrowLeft size={17} />}
+          onClick={onBack}
+        >
+          Back
+        </Button>
         <div className="detail-hero-content">
-          <Group gap="xs">
-            <Badge className="watch-kind" variant="filled">
-              {media.type === "tv" ? "TV show" : "Movie"}
-            </Badge>
-            {media.type === "tv" && showStatusLabel(media.status) && (
-              <Badge variant="light" color="gray">
-                {showStatusLabel(media.status)}
-              </Badge>
+          <div className="detail-poster">
+            {art ? (
+              <Image src={art} alt={`${media.title} poster`} />
+            ) : (
+              <div className="artwork-fallback">{media.title.slice(0, 1)}</div>
             )}
-          </Group>
-          <Title order={1}>{selectedEpisode ? selectedEpisode.name : media.title}</Title>
-          {selectedEpisode ? (
-            <Button
-              className="detail-season-link"
-              variant="subtle"
-              onClick={() =>
-                onOpenDetail(
-                  {
-                    mediaType: "tv",
-                    tmdbID: media.tmdb_id,
-                    mediaID: showID,
-                    seasonNumber: selectedEpisode.episode.season_number,
-                  },
-                  { from: returnTo, replace: true },
-                )
-              }
-            >{`${media.title} · Season ${selectedEpisode.episode.season_number}`}</Button>
-          ) : (
-            <Text className="detail-subtitle">{`${media.release_date ? media.release_date.slice(0, 4) : ""}${media.original_language ? ` · ${media.original_language.toUpperCase()}` : ""}`}</Text>
-          )}
-          <Text className="detail-overview">
-            {selectedEpisode
-              ? episodeDetails.data?.overview ||
-                selectedEpisode.overview ||
-                "Episode details are shown from your local catalog."
-              : media.overview || "No description is available."}
-          </Text>
-          {(
-            selectedEpisode ? episodeDetails.data?.runtime || selectedEpisode.runtime : movieRuntime
-          ) ? (
-            <Text className="detail-runtime" mt="sm">
-              <IconClock size={15} />{" "}
+          </div>
+          <div className="detail-hero-body">
+            <Group gap="xs">
+              <Badge className="watch-kind" variant="filled">
+                {media.type === "tv" ? "TV show" : "Movie"}
+              </Badge>
+              {media.type === "tv" && showStatusLabel(media.status) && (
+                <Badge variant="light" color="gray">
+                  {showStatusLabel(media.status)}
+                </Badge>
+              )}
+            </Group>
+            <Title order={1}>{selectedEpisode ? selectedEpisode.name : media.title}</Title>
+            {selectedEpisode ? (
+              <Button
+                className="detail-season-link"
+                variant="subtle"
+                onClick={() =>
+                  onOpenDetail(
+                    {
+                      mediaType: "tv",
+                      tmdbID: media.tmdb_id,
+                      mediaID: showID,
+                      seasonNumber: selectedEpisode.episode.season_number,
+                    },
+                    { from: returnTo, replace: true },
+                  )
+                }
+              >{`${media.title} · Season ${selectedEpisode.episode.season_number}`}</Button>
+            ) : (
+              <Text className="detail-subtitle">{`${media.release_date ? media.release_date.slice(0, 4) : ""}${media.original_language ? ` · ${media.original_language.toUpperCase()}` : ""}`}</Text>
+            )}
+            <Text className="detail-overview">
               {selectedEpisode
+                ? episodeDetails.data?.overview ||
+                  selectedEpisode.overview ||
+                  "Episode details are shown from your local catalog."
+                : media.overview || "No description is available."}
+            </Text>
+            {(
+              selectedEpisode
                 ? episodeDetails.data?.runtime || selectedEpisode.runtime
-                : movieRuntime}{" "}
-              min
-            </Text>
-          ) : null}
-          {selectedEpisode && episodeDetails.data?.vote_average ? (
-            <Text className="detail-runtime" mt="sm">
-              TMDB {episodeDetails.data.vote_average.toFixed(1)} / 10
-            </Text>
-          ) : null}
-          {selectedEpisode && episodeDetails.data?.air_date ? (
-            <Text className="detail-runtime" mt="sm">
-              Aired {episodeDetails.data.air_date}
-              {episodeDetails.data.production_code
-                ? ` · ${episodeDetails.data.production_code}`
-                : ""}
-            </Text>
-          ) : null}
-          {selectedEpisode ? (
-            <EpisodeActions
-              entry={selectedEpisode}
-              canRate={isSaved}
-              rating={episodeRating.data?.rating}
-              onRate={(rating) => rateEpisode.mutate(rating)}
-              onWatch={() => requestEpisodeWatch(selectedEpisode)}
-              onRewatch={() => markEpisodeWatched.mutate(selectedEpisode.episode.id)}
-              onUnwatch={() => removeEpisodesWatched.mutate([selectedEpisode.episode.id])}
-              pending={
-                prepareEpisodeWatch.isPending ||
-                markEpisodeWatched.isPending ||
-                removeEpisodesWatched.isPending ||
-                rateEpisode.isPending
-              }
-            />
-          ) : (
-            <MediaActions
-              media={media}
-              isSaved={isSaved}
-              status={status}
-              rating={library.data?.item.rating}
-              notificationsEnabled={library.data?.item.notifications_enabled ?? true}
-              add={add}
-              update={update}
-              updateNotifications={updateNotifications}
-              watched={Boolean(watchedPlay) || library.data?.item.status === "completed"}
-              onWatch={() => markMovieWatched.mutate()}
-              onUnwatch={() => removeMovieWatches.mutate()}
-              onRemoveWatchlist={() => removeWatchlist.mutate()}
-              onRemoveCurrentList={() =>
-                removeCurrentList.mutate(status as "watching" | "paused" | "dropped")
-              }
-              onViewWatchHistory={() => setMovieHistoryMode("view")}
-              onChangeWatchDate={() => setMovieHistoryMode("edit")}
-              showBulkAction={target.mediaType === "tv" ? showBulkAction : null}
-              onShowBulkAction={() => {
-                if (showBulkAction === "watch") openShowWatchModal();
-                else if (showBulkAction === "unwatch") openShowActionModal("unwatch");
-              }}
-              showBulkPending={markEpisodesWatched.isPending || removeEpisodesWatched.isPending}
-              pending={
-                markMovieWatched.isPending ||
-                removeMovieWatches.isPending ||
-                removeWatchlist.isPending ||
-                removeCurrentList.isPending
-              }
-            />
-          )}
+                : movieRuntime
+            ) ? (
+              <Text className="detail-runtime" mt="sm">
+                <IconClock size={15} />{" "}
+                {selectedEpisode
+                  ? episodeDetails.data?.runtime || selectedEpisode.runtime
+                  : movieRuntime}{" "}
+                min
+              </Text>
+            ) : null}
+            {selectedEpisode && episodeDetails.data?.vote_average ? (
+              <Text className="detail-runtime" mt="sm">
+                TMDB {episodeDetails.data.vote_average.toFixed(1)} / 10
+              </Text>
+            ) : null}
+            {selectedEpisode && episodeDetails.data?.air_date ? (
+              <Text className="detail-runtime" mt="sm">
+                Aired {episodeDetails.data.air_date}
+                {episodeDetails.data.production_code
+                  ? ` · ${episodeDetails.data.production_code}`
+                  : ""}
+              </Text>
+            ) : null}
+            {selectedEpisode ? (
+              <EpisodeActions
+                entry={selectedEpisode}
+                canRate={isSaved}
+                rating={episodeRating.data?.rating}
+                onRate={(rating) => rateEpisode.mutate(rating)}
+                onWatch={() => requestEpisodeWatch(selectedEpisode)}
+                onRewatch={() => markEpisodeWatched.mutate(selectedEpisode.episode.id)}
+                onUnwatch={() => removeEpisodesWatched.mutate([selectedEpisode.episode.id])}
+                pending={
+                  prepareEpisodeWatch.isPending ||
+                  markEpisodeWatched.isPending ||
+                  removeEpisodesWatched.isPending ||
+                  rateEpisode.isPending
+                }
+              />
+            ) : (
+              <MediaActions
+                media={media}
+                isSaved={isSaved}
+                status={status}
+                rating={library.data?.item.rating}
+                notificationsEnabled={library.data?.item.notifications_enabled ?? true}
+                add={add}
+                update={update}
+                updateNotifications={updateNotifications}
+                watched={Boolean(watchedPlay) || library.data?.item.status === "completed"}
+                onWatch={() => markMovieWatched.mutate()}
+                onUnwatch={() => removeMovieWatches.mutate()}
+                onRemoveWatchlist={() => removeWatchlist.mutate()}
+                onRemoveCurrentList={() =>
+                  removeCurrentList.mutate(status as "watching" | "paused" | "dropped")
+                }
+                onViewWatchHistory={() => setMovieHistoryMode("view")}
+                onChangeWatchDate={() => setMovieHistoryMode("edit")}
+                showBulkAction={target.mediaType === "tv" ? showBulkAction : null}
+                onShowBulkAction={() => {
+                  if (showBulkAction === "watch") openShowWatchModal();
+                  else if (showBulkAction === "unwatch") openShowActionModal("unwatch");
+                }}
+                showBulkPending={markEpisodesWatched.isPending || removeEpisodesWatched.isPending}
+                pending={
+                  markMovieWatched.isPending ||
+                  removeMovieWatches.isPending ||
+                  removeWatchlist.isPending ||
+                  removeCurrentList.isPending
+                }
+              />
+            )}
+          </div>
         </div>
       </section>
       {updateNotifications.isError && (
@@ -1235,7 +1251,12 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
             <Stack gap="xs">
               {Array.from({ length: 4 }).map((_, i) => (
                 <Paper key={i} className="episode-row" withBorder p={0}>
-                  <Group className="episode-row-layout" justify="space-between" wrap="nowrap" gap={0}>
+                  <Group
+                    className="episode-row-layout"
+                    justify="space-between"
+                    wrap="nowrap"
+                    gap={0}
+                  >
                     <Group className="episode-row-main" wrap="nowrap" gap={0}>
                       <div className="episode-art">
                         <Skeleton height="100%" width="100%" radius={0} />
