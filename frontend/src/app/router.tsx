@@ -7,12 +7,14 @@ import {
 import { z } from "zod";
 import { Dashboard, type DashboardPage } from "../features/navigation/Dashboard";
 import { LogoutPage } from "../features/auth/LogoutPage";
-import type { Theme, User } from "../types";
+import type { Tab, Theme, User } from "../types";
 import type { LibraryMediaFilter } from "../features/library/mediaFilter";
 import { readLibraryFilter } from "../features/library/libraryPreferences";
 import { api } from "../lib/api";
 
 export type RouterContext = { user: User; theme: Theme; setTheme: (theme: Theme) => void };
+
+const tabSchema: z.ZodType<Tab> = z.enum(["watch", "search", "feed", "library"]);
 
 const rootRoute = createRootRouteWithContext<RouterContext>()();
 const dashboardRoute = createRoute({
@@ -51,7 +53,8 @@ const userProfileRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/users/$userID",
   component: UserProfileRoute,
-  validateSearch: (search) => z.object({ from: z.string().max(2048).optional() }).parse(search),
+  validateSearch: (search) =>
+    z.object({ from: z.string().max(2048).optional(), tab: tabSchema.optional() }).parse(search),
 });
 const logoutRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -73,6 +76,7 @@ const profileLibraryListRoute = createRoute({
 });
 const mediaSearchSchema = z.object({
   from: z.string().max(2048).optional(),
+  tab: tabSchema.optional(),
   media: z.string().optional(),
   episode: z.string().optional(),
   season: z.coerce.number().int().nonnegative().optional(),
@@ -98,7 +102,8 @@ const personRoute = createRoute({
     parse: (params) => ({ tmdbID: z.coerce.number().int().positive().parse(params.tmdbID) }),
     stringify: (params) => ({ tmdbID: String(params.tmdbID) }),
   },
-  validateSearch: (search) => z.object({ from: z.string().max(2048).optional() }).parse(search),
+  validateSearch: (search) =>
+    z.object({ from: z.string().max(2048).optional(), tab: tabSchema.optional() }).parse(search),
 });
 const routeTree = rootRoute.addChildren([
   dashboardRoute,

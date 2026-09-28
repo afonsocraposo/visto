@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate, useRouter, useRouterState } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { Alert, AppShell, Button, Center, Group, Loader, Modal, Tabs, Text } from "@mantine/core";
 import {
   IconCalendar,
@@ -17,7 +17,7 @@ import { clearSignedInCache, endCurrentSession } from "../auth/logout";
 import { readStoredChoice, writeStoredChoice } from "../../lib/browserStorage";
 import { ImportData } from "../library/ImportData";
 import { useUserQueryKey } from "../auth/SessionContext";
-import { activeTabForLocation } from "./activeTab";
+import { useAppNavigation } from "./useAppNavigation";
 
 const SearchPanel = lazy(async () => ({
   default: (await import("../search/SearchPanel")).SearchPanel,
@@ -68,12 +68,6 @@ export function Dashboard({
     onSuccess: () => queryClient.setQueryData(userQueryKey("import-welcome"), { pending: false }),
   });
   const navigate = useNavigate();
-  const router = useRouter();
-  const currentHref = useRouterState({ select: (state) => state.location.href });
-  const openedInApp = useRouterState({
-    select: (state) => state.location.state.vistoOpenedInApp === true,
-  });
-  const currentURL = new URL(currentHref, window.location.origin);
   const detail = page.kind === "media" ? page.target : null;
   const personID = page.kind === "person" ? page.personID : undefined;
   const profileUserID = page.kind === "user-profile" ? page.userID : undefined;
@@ -82,43 +76,7 @@ export function Dashboard({
     page.kind === "media" || page.kind === "person" || page.kind === "user-profile"
       ? page.returnTo
       : undefined;
-  const tab: Tab =
-    page.kind === "user-profile"
-      ? "feed"
-      : activeTabForLocation(currentURL.pathname, currentURL.search, currentURL.origin);
-  const openDetail = (target: MediaDetailTarget, options?: { from?: string; replace?: boolean }) =>
-    void navigate({
-      to: `/media/${target.mediaType}/${target.tmdbID}`,
-      search: {
-        from: options?.from ?? currentHref,
-        ...(target.mediaID ? { media: target.mediaID } : {}),
-        ...(target.episodeID ? { episode: target.episodeID } : {}),
-        ...(target.seasonNumber !== undefined ? { season: target.seasonNumber } : {}),
-      },
-      replace: options?.replace,
-      state: { vistoOpenedInApp: options?.replace ? openedInApp : true },
-    });
-  const openPerson = (tmdbID: number) =>
-    void navigate({
-      to: `/people/${tmdbID}`,
-      search: { from: currentHref },
-      state: { vistoOpenedInApp: true },
-    });
-  const openUser = (userID: string) =>
-    void navigate(
-      userID === user.id
-        ? { to: "/profile" }
-        : {
-            to: "/users/$userID",
-            params: { userID },
-            search: { from: currentHref },
-            state: { vistoOpenedInApp: true },
-          },
-    );
-  const goBack = (fallback: string) => {
-    if (openedInApp && router.history.canGoBack()) router.history.back();
-    else void navigate({ to: safeReturnPath(returnTo, fallback) });
-  };
+  const { tab, openDetail, openPerson, openUser, goBack } = useAppNavigation(user, returnTo);
   const watchTabStorageKey = `visto:tab:${user.id}:watching`;
   const [view, setView] = useState(() =>
     readStoredChoice("session", watchTabStorageKey, ["now", "calendar"] as const, "now"),
@@ -265,7 +223,7 @@ export function Dashboard({
                   replace: true,
                 })
               }
-              onBack={() => void navigate({ to: "/profile" })}
+              onBack={() => goBack("/profile")}
               onOpenDetail={openDetail}
             />
           </Deferred>
@@ -351,16 +309,4 @@ function Deferred({ children }: { children: ReactNode }) {
       {children}
     </Suspense>
   );
-}
-
-function safeReturnPath(returnTo: string | null | undefined, fallback: string): string {
-  if (!returnTo) return fallback;
-  try {
-    const url = new URL(returnTo, window.location.origin);
-    return url.origin === window.location.origin
-      ? `${url.pathname}${url.search}${url.hash}`
-      : fallback;
-  } catch {
-    return fallback;
-  }
 }

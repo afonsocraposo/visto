@@ -1,24 +1,17 @@
 import type { Tab } from "../../types";
 
-export function activeTabForLocation(pathname: string, search: string, origin: string): Tab {
+const TABS: readonly Tab[] = ["watch", "search", "feed", "library"];
+
+export function activeTabForLocation(pathname: string, search: string): Tab {
   if (pathname.startsWith("/media/") || pathname.startsWith("/people/")) {
-    return tabFromReturnLocation(new URLSearchParams(search).get("from"), origin, 0);
+    const raw = new URLSearchParams(search).get("tab");
+    return isTab(raw) ? raw : "watch";
   }
   return tabForPath(pathname);
 }
 
-function tabFromReturnLocation(returnTo: string | null, origin: string, depth: number): Tab {
-  if (!returnTo || depth >= 12) return "watch";
-  try {
-    const url = new URL(returnTo, origin);
-    if (url.origin !== new URL(origin).origin) return "watch";
-    if (url.pathname.startsWith("/media/") || url.pathname.startsWith("/people/")) {
-      return tabFromReturnLocation(url.searchParams.get("from"), origin, depth + 1);
-    }
-    return tabForPath(url.pathname);
-  } catch {
-    return "watch";
-  }
+function isTab(value: string | null): value is Tab {
+  return value !== null && (TABS as readonly string[]).includes(value);
 }
 
 function tabForPath(pathname: string): Tab {
