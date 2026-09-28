@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Button, Group, Tabs, Text, Title } from "@mantine/core";
+import { ActionIcon, Group, Tabs, Text, Title, Tooltip } from "@mantine/core";
 import { IconUsers } from "@tabler/icons-react";
 import { UserDirectory } from "./UserDirectory";
 import { HistoryPanel } from "../library/HistoryPanel";
@@ -34,13 +34,15 @@ export function FeedArea({
             Your watch history and what others have shared.
           </Text>
         </div>
-        <Button
-          variant="light"
-          leftSection={<IconUsers size={18} />}
-          onClick={() => setDirectoryOpen(true)}
-        >
-          Users
-        </Button>
+        <Tooltip label="Users">
+          <ActionIcon
+            variant="light"
+            aria-label="Users"
+            onClick={() => setDirectoryOpen(true)}
+          >
+            <IconUsers size={18} />
+          </ActionIcon>
+        </Tooltip>
       </Group>
       <UserDirectory
         opened={directoryOpen}
