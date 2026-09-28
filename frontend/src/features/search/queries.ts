@@ -2,7 +2,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { postLibrary, postPlays, useGetSearch, useGetTrending } from "../../generated/api";
 import { retryTransientRequest } from "../../lib/api";
 import { api } from "../../lib/api";
-import { showActionFeedback } from "../../components/ActionFeedback";
+import { showActionFeedback } from "../../lib/actionFeedback";
 import { useInvalidateUserCache, userCache } from "../../lib/userCache";
 import { useUserQueryKey } from "../auth/SessionContext";
 import type { SearchMedia, LibraryEntry } from "../../types";

@@ -7,6 +7,7 @@ import { loadSession } from "../features/auth/session";
 import { forcedColorScheme } from "./theme";
 import { router } from "./router";
 import { RouterProvider } from "@tanstack/react-router";
+import { Notifications } from "@mantine/notifications";
 import type { Theme } from "../types";
 
 const AuthGate = lazy(async () => ({
@@ -67,6 +68,7 @@ export function App() {
       defaultColorScheme="auto"
       forceColorScheme={forcedColorScheme(theme)}
     >
+      <Notifications position="bottom-center" autoClose={8000} />
       {setup.isPending || session.isPending ? (
         <Group justify="center" mt="xl">
           <Loader />

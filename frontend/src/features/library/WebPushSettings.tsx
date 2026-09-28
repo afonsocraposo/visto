@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Alert, Button, Group, Text, Title } from "@mantine/core";
+import { showActionFeedback } from "../../lib/actionFeedback";
 
 const supported = () =>
   "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
@@ -72,7 +73,7 @@ export function WebPushSettings() {
       }
       setSubscription(current);
       setEnabled(true);
-      setMessage("Notifications enabled on this device.");
+      showActionFeedback("Notifications enabled on this device.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not enable notifications.");
     } finally {
@@ -98,7 +99,7 @@ export function WebPushSettings() {
       }
       setSubscription(null);
       setEnabled(false);
-      setMessage("Notifications disabled on this device.");
+      showActionFeedback("Notifications disabled on this device.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not disable notifications.");
     } finally {
@@ -122,7 +123,7 @@ export function WebPushSettings() {
         const result = await response.json().catch(() => ({}));
         throw new Error(result.error || "Could not send test notification.");
       }
-      setMessage("Test sent. Check this device for the notification.");
+      showActionFeedback("Test sent. Check this device for the notification.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not send test notification.");
     } finally {
@@ -152,7 +153,11 @@ export function WebPushSettings() {
           alerts.
         </Text>
       )}
-      {message && <Alert mt="md">{message}</Alert>}
+      {message && (
+        <Alert color="red" mt="md">
+          {message}
+        </Alert>
+      )}
       {available && (
         <Group mt="md">
           <Button

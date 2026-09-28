@@ -21,7 +21,7 @@ import { InfiniteScrollTrigger } from "../../components/InfiniteScrollTrigger";
 import { EmptyState } from "../../components/EmptyState";
 import { useUserQueryKey } from "../auth/SessionContext";
 import { api } from "../../lib/api";
-import { showActionFeedback } from "../../components/ActionFeedback";
+import { showActionFeedback } from "../../lib/actionFeedback";
 import type { Play } from "../../generated/models/play";
 import { useInvalidateUserCache, userCache } from "../../lib/userCache";
 import {

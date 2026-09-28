@@ -1,6 +1,5 @@
 import { InfiniteScrollTrigger } from "../../components/InfiniteScrollTrigger";
 import { BackupPanel } from "./BackupPanel";
-import { useState } from "react";
 import { useMutation, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "@mantine/form";
 import {
@@ -17,6 +16,7 @@ import {
 import { useUserQueryKey } from "../auth/SessionContext";
 import type { CursorPage, User } from "../../types";
 import { pageURL } from "../../lib/pagination";
+import { showActionFeedback } from "../../lib/actionFeedback";
 
 export function AdminPanel({ currentUser }: { currentUser: User }) {
   const queryClient = useQueryClient();
@@ -51,6 +51,7 @@ export function AdminPanel({ currentUser }: { currentUser: User }) {
     },
     onSuccess: async () => {
       form.reset();
+      showActionFeedback("Account created.");
       await queryClient.invalidateQueries({ queryKey: userQueryKey("admin-users") });
     },
   });
@@ -132,7 +133,7 @@ function AdminUserRow({ account, currentUser }: { account: User; currentUser: Us
     },
     onSuccess: async () => {
       form.setFieldValue("password", "");
-      setSaved(true);
+      showActionFeedback("Account updated.");
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: userQueryKey("admin-users") }),
         ...(account.id === currentUser.id
@@ -151,9 +152,11 @@ function AdminUserRow({ account, currentUser }: { account: User; currentUser: Us
           (await response.json().catch(() => ({}))).error || "Could not delete account.",
         );
     },
-    onSuccess: async () => queryClient.invalidateQueries({ queryKey: userQueryKey("admin-users") }),
+    onSuccess: async () => {
+      showActionFeedback("Account deleted.");
+      await queryClient.invalidateQueries({ queryKey: userQueryKey("admin-users") });
+    },
   });
-  const [saved, setSaved] = useState(false);
 
   return (
     <Paper withBorder p="md" radius="md">
@@ -187,7 +190,6 @@ function AdminUserRow({ account, currentUser }: { account: User; currentUser: Us
       </Group>
       <form
         onSubmit={form.onSubmit(() => {
-          setSaved(false);
           update.mutate();
         })}
       >
@@ -208,11 +210,6 @@ function AdminUserRow({ account, currentUser }: { account: User; currentUser: Us
         {(update.isError || remove.isError) && (
           <Alert color="red" mt="md">
             {update.error?.message || remove.error?.message}
-          </Alert>
-        )}
-        {saved && (
-          <Alert color="green" mt="md">
-            Account updated.
           </Alert>
         )}
         <Button type="submit" variant="default" mt="md" loading={update.isPending}>

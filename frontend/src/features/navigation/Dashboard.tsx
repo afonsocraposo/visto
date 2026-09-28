@@ -13,7 +13,6 @@ import { WatchNow, WatchCalendar } from "../watch/Watch";
 import type { LibraryStatus, MediaDetailTarget, Tab, Theme, User } from "../../types";
 import type { LibraryMediaFilter } from "../library/mediaFilter";
 import { api, connectionUnavailableEvent } from "../../lib/api";
-import { ActionFeedback } from "../../components/ActionFeedback";
 import { clearSignedInCache, endCurrentSession } from "../auth/logout";
 import { readStoredChoice, writeStoredChoice } from "../../lib/browserStorage";
 import { ImportData } from "../library/ImportData";
@@ -188,7 +187,6 @@ export function Dashboard({
           </Alert>
         )}
       </Modal>
-      <ActionFeedback />
       <AppShell.Main className="visto-main">
         {!online && (
           <Alert color="yellow" mb="md">

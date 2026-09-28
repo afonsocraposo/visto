@@ -24,6 +24,10 @@ select {
   background: #10141a;
 }
 
+.mantine-Notifications-root[data-position="bottom-center"] {
+  bottom: 88px;
+}
+
 .visto-shell {
   min-height: 100vh;
 }

@@ -20,6 +20,7 @@ import { ConnectedAppsPanel } from "./ConnectedAppsPanel";
 import { PlexSyncPanel } from "./PlexSyncPanel";
 import { WebPushSettings } from "./WebPushSettings";
 import { ImportData } from "./ImportData";
+import { showActionFeedback } from "../../lib/actionFeedback";
 
 export function ProfilePanel({
   theme,
@@ -79,11 +80,13 @@ export function ProfilePanel({
       });
       if (!response.ok) throw new Error("Could not save settings.");
     },
-    onSuccess: async () =>
-      Promise.all([
+    onSuccess: async () => {
+      showActionFeedback("Profile settings saved.");
+      await Promise.all([
         queryClient.invalidateQueries({ queryKey: userQueryKey("profile-settings") }),
         queryClient.invalidateQueries({ queryKey: userQueryKey("feed") }),
-      ]),
+      ]);
+    },
   });
   const savePushover = useMutation({
     mutationFn: async () => {
@@ -103,6 +106,7 @@ export function ProfilePanel({
     },
     onSuccess: async () => {
       form.setValues({ pushoverAppToken: "", pushoverUserKey: "" });
+      showActionFeedback("Pushover settings saved.");
       await queryClient.invalidateQueries({ queryKey: userQueryKey("profile-settings") });
     },
   });
@@ -124,6 +128,7 @@ export function ProfilePanel({
     },
     onSuccess: async () => {
       form.setValues({ pushoverAppToken: "", pushoverUserKey: "" });
+      showActionFeedback("Pushover settings updated.");
       await queryClient.invalidateQueries({ queryKey: userQueryKey("profile-settings") });
     },
   });
@@ -132,8 +137,10 @@ export function ProfilePanel({
       const response = await fetch("/api/v1/profile/pushover-credentials", { method: "DELETE" });
       if (!response.ok) throw new Error("Could not remove Pushover credentials.");
     },
-    onSuccess: async () =>
-      queryClient.invalidateQueries({ queryKey: userQueryKey("profile-settings") }),
+    onSuccess: async () => {
+      showActionFeedback("Pushover credentials removed.");
+      await queryClient.invalidateQueries({ queryKey: userQueryKey("profile-settings") });
+    },
   });
   const testPushover = useMutation({
     mutationFn: async () => {
@@ -143,6 +150,7 @@ export function ProfilePanel({
         throw new Error(result.error || "Could not send Pushover test notification.");
       }
     },
+    onSuccess: () => showActionFeedback("Test sent. Check Pushover on your device."),
   });
   const settingsUnavailable = settings.isPending || settings.isError;
 
@@ -297,11 +305,6 @@ export function ProfilePanel({
                 </Button>
               )}
             </Group>
-            {testPushover.isSuccess && (
-              <Text size="sm" mt="sm">
-                Test sent. Check Pushover on your device.
-              </Text>
-            )}
             {testPushover.isError && (
               <Alert color="red" mt="sm">
                 {testPushover.error.message}
