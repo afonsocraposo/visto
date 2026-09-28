@@ -132,8 +132,17 @@ defaults.
 | `VISTO_DATABASE_PATH`            | `/data/visto.db` | SQLite database path inside the persistent volume.                                                                                                                                                         |
 | `VISTO_BACKUP_DIR`               | `/data/backups`  | Directory for automatic SQLite backups.                                                                                                                                                                    |
 | `VISTO_BACKUP_INTERVAL`          | `24h`            | Time between automatic backups.                                                                                                                                                                            |
-| `VISTO_BACKUP_RETENTION`         | `720h`           | How long automatic backups are kept (30 days by default).                                                                                                                                                  |
-| `VISTO_BACKUP_SCOPE`             | `everything`     | `everything` keeps the full database; `user_data` excludes TMDB metadata while retaining user records and their media identifiers. Applies to scheduled and Admin manual backups.                         |
+| `VISTO_BACKUP_RETENTION`         | `720h`           | How long automatic local backups are kept (30 days by default).                                                                                                                                            |
+| `VISTO_BACKUP_SCOPE`             | `everything`     | `everything` keeps the full database; `user_data` excludes TMDB metadata while retaining user records and their media identifiers. Applies to scheduled and manual backups made with `visto backup`.      |
+| `VISTO_BACKUP_DESTINATION`       | `local`          | `local`, `s3`, or `both`. `s3`/`both` require the `VISTO_BACKUP_S3_*` variables below.                                                                                                                      |
+| `VISTO_BACKUP_S3_BUCKET`         | empty            | S3 bucket for backups.                                                                                                                                                                                      |
+| `VISTO_BACKUP_S3_REGION`         | empty            | S3 region for backups.                                                                                                                                                                                      |
+| `VISTO_BACKUP_S3_ENDPOINT`       | empty            | Optional HTTPS endpoint for an S3-compatible provider. Leave unset for AWS S3.                                                                                                                              |
+| `VISTO_BACKUP_S3_ACCESS_KEY_ID`  | empty            | S3 access key ID.                                                                                                                                                                                           |
+| `VISTO_BACKUP_S3_SECRET_ACCESS_KEY` | empty         | S3 secret access key.                                                                                                                                                                                       |
+| `VISTO_BACKUP_S3_PATH_STYLE`     | `false`          | Set to `true` for S3-compatible providers that need path-style addressing.                                                                                                                                 |
+| `VISTO_BACKUP_S3_PREFIX`         | `visto/`         | Object key prefix for uploaded backups.                                                                                                                                                                     |
+| `VISTO_BACKUP_S3_MAX_KEEP`       | `30`             | Number of scheduled S3 backups to retain. Visto deletes only older scheduled backups with its own filename pattern under the configured prefix; manual backups are not removed by this cleanup.           |
 | `VISTO_CATALOG_REFRESH_INTERVAL` | `6h`             | How often the backend checks tracked TV metadata for refresh.                                                                                                                                              |
 | `VISTO_CATALOG_ACTIVE_TTL`       | `24h`            | Minimum age of metadata for active shows before refresh.                                                                                                                                                   |
 | `VISTO_CATALOG_FINISHED_TTL`     | `720h`           | Minimum age of metadata for ended or cancelled shows before refresh (30 days).                                                                                                                             |
@@ -275,7 +284,27 @@ Visto also creates an online SQLite backup every 24 hours in
 `/data/backups` and removes its own backups after 30 days. Set
 `VISTO_BACKUP_DIR`, `VISTO_BACKUP_INTERVAL`, or `VISTO_BACKUP_RETENTION` to
 change the directory, interval, or retention duration (Go duration format,
-such as `12h` or `336h` for 14 days).
+such as `12h` or `336h` for 14 days). Set `VISTO_BACKUP_SCOPE=user_data` to
+omit TMDB metadata from these scheduled backups; the default, `everything`,
+retains the full database. User-data backups keep media and episode
+identifiers so user records can be restored, but TMDB details must be fetched
+again after restore. The separate `visto backup` command above always makes a
+full database copy regardless of this setting.
+
+To also (or instead) upload scheduled backups to S3 or an S3-compatible
+provider, set `VISTO_BACKUP_DESTINATION` to `s3` or `both`, along with
+`VISTO_BACKUP_S3_BUCKET`, `VISTO_BACKUP_S3_REGION`,
+`VISTO_BACKUP_S3_ACCESS_KEY_ID`, and `VISTO_BACKUP_S3_SECRET_ACCESS_KEY`. Set
+`VISTO_BACKUP_S3_ENDPOINT` (HTTPS only) and `VISTO_BACKUP_S3_PATH_STYLE=true`
+for providers that need them. `VISTO_BACKUP_S3_PREFIX` (default `visto/`) sets
+the object key prefix, and `VISTO_BACKUP_S3_MAX_KEEP` (default `30`) sets how
+many scheduled S3 backups are retained; Visto deletes only older scheduled
+backups with its own filename pattern under the configured prefix, so manual
+backups are not removed by this cleanup. All of these are read once at
+startup; restart Visto after changing them. To restore an S3 backup, download
+the `.db` object from your bucket, stop Visto, and follow the SQLite restore
+steps above, keeping a copy of the current database until the restored
+instance is verified.
 
 Tracked TV catalogs refresh in the background, independently of page views.
 Defaults are every 6 hours, with a 24-hour freshness window for active shows
@@ -497,33 +526,6 @@ behaviour. See [SPEC.md](SPEC.md) for the v0.1 product and engineering scope.
 Visto is source-available under the [PolyForm Noncommercial License 1.0.0](LICENSE).
 Personal and family self-hosting is permitted. Commercial use requires a
 separate licence from the copyright holder.
-
-### Admin-configured S3 backups
-
-Open **Library → Admin → Backups** to choose local, S3, or both destinations.
-Set `VISTO_BACKUP_SCOPE=user_data` in Compose to omit TMDB metadata from
-scheduled and Admin manual backups. The default, `everything`, retains the full
-database. User-data backups keep media and episode identifiers so user records
-can be restored; TMDB details must be fetched again after restore. The Admin
-screen shows the active scope. The separate `visto backup` command always makes
-a full database copy.
-For S3, set the bucket, region, access key ID, and secret access key. Set an
-HTTPS endpoint and path-style addressing when your S3-compatible provider needs
-them. Use **Test connection** before relying on remote backups. The screen also
-sets the automatic interval and the number of scheduled S3 backups to retain.
-Visto deletes only older scheduled backups with its own filename pattern under
-the configured prefix. Manual backups are not removed by this cleanup.
-
-Set `VISTO_SECRET_ENCRYPTION_KEY` before saving S3 credentials. It must be a
-base64-encoded 32-byte key. Keep this key outside the database and retain it
-for as long as S3 backups are configured. Visto encrypts the secret access key
-in SQLite and never returns it to the browser. Existing local backups continue
-to work without this key. The existing `VISTO_BACKUP_INTERVAL` value becomes the
-initial admin setting on upgrade.
-
-To restore an S3 backup, download the `.db` object from your bucket, stop Visto,
-and follow the SQLite restore steps above. Keep a copy of the current database
-until the restored instance is verified.
 
 ## Web Push alerts
 

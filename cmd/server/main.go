@@ -12,6 +12,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -91,6 +92,31 @@ func main() {
 	if backupScope != "everything" && backupScope != "user_data" {
 		log.Fatal("VISTO_BACKUP_SCOPE must be everything or user_data")
 	}
+	backupDestination := environment("VISTO_BACKUP_DESTINATION", "local")
+	if backupDestination != "local" && backupDestination != "s3" && backupDestination != "both" {
+		log.Fatal("VISTO_BACKUP_DESTINATION must be local, s3, or both")
+	}
+	backupS3 := backupjob.S3Config{
+		Bucket:      os.Getenv("VISTO_BACKUP_S3_BUCKET"),
+		Region:      os.Getenv("VISTO_BACKUP_S3_REGION"),
+		Endpoint:    os.Getenv("VISTO_BACKUP_S3_ENDPOINT"),
+		AccessKeyID: os.Getenv("VISTO_BACKUP_S3_ACCESS_KEY_ID"),
+		SecretKey:   os.Getenv("VISTO_BACKUP_S3_SECRET_ACCESS_KEY"),
+		PathStyle:   boolEnvironment("VISTO_BACKUP_S3_PATH_STYLE", false),
+		Prefix:      strings.Trim(environment("VISTO_BACKUP_S3_PREFIX", "visto/"), "/"),
+		MaxKeep:     intEnvironment("VISTO_BACKUP_S3_MAX_KEEP", 30),
+	}
+	if backupS3.Prefix != "" {
+		backupS3.Prefix += "/"
+	}
+	if backupDestination != "local" {
+		if backupS3.Endpoint != "" && !strings.HasPrefix(backupS3.Endpoint, "https://") {
+			log.Fatal("VISTO_BACKUP_S3_ENDPOINT must use HTTPS")
+		}
+		if backupS3.Bucket == "" || backupS3.Region == "" || backupS3.AccessKeyID == "" || backupS3.SecretKey == "" {
+			log.Fatal("VISTO_BACKUP_DESTINATION=s3 (or both) requires VISTO_BACKUP_S3_BUCKET, VISTO_BACKUP_S3_REGION, VISTO_BACKUP_S3_ACCESS_KEY_ID, and VISTO_BACKUP_S3_SECRET_ACCESS_KEY")
+		}
+	}
 
 	encryptionKey := os.Getenv("VISTO_SECRET_ENCRYPTION_KEY")
 	var profileConfig profile.PushoverConfig
@@ -104,7 +130,7 @@ func main() {
 		profileConfig.Cipher = cipher
 		profileConfig.Sender = pushover.NewClient(nil)
 	}
-	backupService := &backupjob.Service{Store: store, Cipher: secretCipher, DatabasePath: databasePath, Directory: backupDirectory, Scope: backupScope, DefaultInterval: backupInterval, LocalRetention: backupRetention}
+	backupService := &backupjob.Service{DatabasePath: databasePath, Directory: backupDirectory, Scope: backupScope, Destination: backupDestination, DefaultInterval: backupInterval, LocalRetention: backupRetention, S3Config: backupS3}
 	startWorker(func(ctx context.Context) { backupService.Run(ctx, log.Default()) })
 	profiles := profile.NewService(store, profileConfig)
 	var pushConfig *httpserver.WebPushConfig
@@ -174,7 +200,7 @@ func main() {
 	appHandler.Handle("/oauth/", mcpHandler)
 	appHandler.Handle("/.well-known/", mcpHandler)
 	appServer := httpserver.New(authService, metadataProvider, os.Getenv("VISTO_WEB_DIR"), library.NewService(store), tracking.NewService(store), profiles, feed.NewService(store), exportapp.NewService(store), watchService, pushConfig).
-		WithTrustedProxies(trustedProxies).WithOAuth(oauthService).WithGoogleOAuth(googleOAuth).WithBackups(backupService).
+		WithTrustedProxies(trustedProxies).WithOAuth(oauthService).WithGoogleOAuth(googleOAuth).
 		WithSeasonAlerts(seasonalerts.NewService(store))
 	var importResolver importer.TVDBResolver
 	if metadataProvider != nil {
@@ -252,6 +278,18 @@ func boolEnvironment(name string, fallback bool) bool {
 	parsed, err := strconv.ParseBool(value)
 	if err != nil {
 		log.Fatalf("%s must be true or false", name)
+	}
+	return parsed
+}
+
+func intEnvironment(name string, fallback int) int {
+	value := os.Getenv(name)
+	if value == "" {
+		return fallback
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		log.Fatalf("%s must be an integer", name)
 	}
 	return parsed
 }

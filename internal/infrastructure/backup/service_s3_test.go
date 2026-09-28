@@ -18,39 +18,6 @@ import (
 	"github.com/afonsocosta/visto/internal/infrastructure/sqlite"
 )
 
-type testCipher struct{}
-
-func (testCipher) Encrypt(s string) (string, error) { return "encrypted:" + s, nil }
-func (testCipher) Decrypt(s string) (string, error) { return strings.TrimPrefix(s, "encrypted:"), nil }
-func TestBackupSettingsEncryptSecretAndKeepItOnUpdate(t *testing.T) {
-	ctx := context.Background()
-	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "db.sqlite"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
-	service := &Service{Store: store, Cipher: testCipher{}, DefaultInterval: 24 * time.Hour}
-	b, _ := service.Settings(ctx)
-	b.Destination = "s3"
-	b.Bucket = "bucket"
-	b.Region = "us-east-1"
-	b.AccessKeyID = "key"
-	if err := service.Save(ctx, b, "secret"); err != nil {
-		t.Fatal(err)
-	}
-	saved, _ := service.Settings(ctx)
-	if saved.SecretCiphertext != "encrypted:secret" || !saved.HasSecret {
-		t.Fatalf("incorrect secret state: %+v", saved)
-	}
-	saved.IntervalSeconds = 3600
-	if err := service.Save(ctx, saved, ""); err != nil {
-		t.Fatal(err)
-	}
-	saved, _ = service.Settings(ctx)
-	if saved.SecretCiphertext != "encrypted:secret" {
-		t.Fatal("replacement erased saved secret")
-	}
-}
 func TestS3UploadAndPrefixRetention(t *testing.T) {
 	var mu sync.Mutex
 	objects := map[string][]byte{}
@@ -157,17 +124,7 @@ func TestS3OnlyBackupCanBeRestoredAndRemovesStagingFile(t *testing.T) {
 		handler.ServeHTTP(recorder, r)
 		return recorder.Result(), nil
 	})}}
-	service := &Service{Store: store, Cipher: testCipher{}, DatabasePath: source, Directory: filepath.Join(root, "local"), DefaultInterval: 24 * time.Hour, LocalRetention: 30 * 24 * time.Hour, S3: client}
-	settings, _ := service.Settings(ctx)
-	settings.Destination = "s3"
-	settings.Bucket = "bucket"
-	settings.Region = "us-east-1"
-	settings.Endpoint = "https://s3.test"
-	settings.PathStyle = true
-	settings.AccessKeyID = "id"
-	if err := service.Save(ctx, settings, "secret"); err != nil {
-		t.Fatal(err)
-	}
+	service := &Service{DatabasePath: source, Directory: filepath.Join(root, "local"), DefaultInterval: 24 * time.Hour, LocalRetention: 30 * 24 * time.Hour, Destination: "s3", S3Config: S3Config{Bucket: "bucket", Region: "us-east-1", Endpoint: "https://s3.test", PathStyle: true, AccessKeyID: "id", SecretKey: "secret", Prefix: "visto/", MaxKeep: 30}, S3: client}
 	if err := service.RunOnce(ctx, false); err != nil {
 		t.Fatal(err)
 	}
@@ -218,17 +175,7 @@ func TestS3OnlyUploadFailureRemovesStagingFile(t *testing.T) {
 		handler.ServeHTTP(recorder, r)
 		return recorder.Result(), nil
 	})}}
-	service := &Service{Store: store, Cipher: testCipher{}, DatabasePath: source, Directory: filepath.Join(root, "local"), DefaultInterval: 24 * time.Hour, LocalRetention: 30 * 24 * time.Hour, S3: client}
-	settings, _ := service.Settings(ctx)
-	settings.Destination = "s3"
-	settings.Bucket = "bucket"
-	settings.Region = "us-east-1"
-	settings.Endpoint = "https://s3.test"
-	settings.PathStyle = true
-	settings.AccessKeyID = "id"
-	if err := service.Save(ctx, settings, "secret"); err != nil {
-		t.Fatal(err)
-	}
+	service := &Service{DatabasePath: source, Directory: filepath.Join(root, "local"), DefaultInterval: 24 * time.Hour, LocalRetention: 30 * 24 * time.Hour, Destination: "s3", S3Config: S3Config{Bucket: "bucket", Region: "us-east-1", Endpoint: "https://s3.test", PathStyle: true, AccessKeyID: "id", SecretKey: "secret", Prefix: "visto/", MaxKeep: 30}, S3: client}
 	if err := service.RunOnce(ctx, false); err == nil {
 		t.Fatal("upload failure was ignored")
 	}
@@ -238,9 +185,5 @@ func TestS3OnlyUploadFailureRemovesStagingFile(t *testing.T) {
 	}
 	if len(matches) != 0 {
 		t.Fatalf("temporary backup left behind: %v", matches)
-	}
-	saved, _ := service.Settings(ctx)
-	if saved.LastError == "" {
-		t.Fatal("failure status was not saved")
 	}
 }

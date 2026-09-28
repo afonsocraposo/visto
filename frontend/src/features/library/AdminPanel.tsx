@@ -1,5 +1,4 @@
 import { InfiniteScrollTrigger } from "../../components/InfiniteScrollTrigger";
-import { BackupPanel } from "./BackupPanel";
 import { PlexAdminPanel } from "./PlexAdminPanel";
 import { useMutation, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "@mantine/form";
@@ -63,7 +62,6 @@ export function AdminPanel({ currentUser }: { currentUser: User }) {
   return (
     <Stack>
       <PlexAdminPanel />
-      <BackupPanel />
       <Paper withBorder p="md">
         <Title order={2}>Manage users</Title>
         <Text size="sm" c="dimmed" mt="xs">
