@@ -175,6 +175,100 @@ test("Given a signed-in user, When they navigate and manage appearance and accou
   await expect(page.getByRole("heading", { name: "Welcome to Visto" })).toBeVisible();
 });
 
+test("Given an Upcoming episode, When the user opens its season and selects another season, Then the show list stays open", async ({
+  page,
+}) => {
+  await mockSignedInSession(page);
+  await page.route("**/api/v1/shows/100", (route) =>
+    fulfillJSON(route, { error: "not saved" }, 404),
+  );
+  await page.route("**/api/v1/calendar**", (route) =>
+    fulfillJSON(route, {
+      items: [
+        {
+          show_id: "tv:100",
+          title: "The Example Show",
+          episode: {
+            id: "tv:100:episode:101",
+            show_id: "tv:100",
+            season_number: 1,
+            episode_number: 1,
+            air_date: "2026-09-29",
+          },
+          episode_name: "The Upcoming Episode",
+        },
+      ],
+      next_cursor: null,
+    }),
+  );
+  await page.route("**/api/v1/discover/shows/100", (route) =>
+    fulfillJSON(route, {
+      media: {
+        id: "tv:100",
+        tmdb_id: 100,
+        type: "tv",
+        title: "The Example Show",
+        original_title: "The Example Show",
+        overview: "A test show.",
+        release_date: "2024-01-01",
+        poster_path: "",
+        original_language: "en",
+      },
+      seasons: [1, 2].map((number) => ({
+        tmdb_id: number,
+        season_number: number,
+        name: `Season ${number}`,
+      })),
+      cast: [],
+    }),
+  );
+  await page.route("**/api/v1/discover/shows/100/seasons/*", (route) => {
+    const season = Number(new URL(route.request().url()).pathname.split("/").at(-1));
+    return fulfillJSON(route, {
+      tmdb_id: season,
+      season_number: season,
+      name: `Season ${season}`,
+      episodes: [
+        {
+          episode: {
+            id: `tv:100:episode:${season}01`,
+            show_id: "tv:100",
+            season_number: season,
+            episode_number: 1,
+            air_date: "2026-01-01",
+          },
+          name: `Season ${season} premiere`,
+          watched: false,
+        },
+      ],
+    });
+  });
+  await page.route("**/api/v1/discover/shows/100/seasons/1/episodes/1", (route) =>
+    fulfillJSON(route, { name: "The Upcoming Episode", overview: "Episode overview." }),
+  );
+
+  await page.goto("/");
+  await page.getByRole("tab", { name: "Upcoming" }).click();
+  await page.getByRole("button", { name: /Open The Example Show, season 1, episode 1/ }).click();
+  await expect(page.getByRole("heading", { name: "Season 1 premiere" })).toBeVisible();
+  await page.getByRole("button", { name: "The Example Show · Season 1" }).click();
+  await expect(page.getByRole("heading", { name: "Seasons & episodes" })).toBeVisible();
+  await page.getByRole("combobox", { name: "Season" }).click();
+  await page.getByRole("option", { name: "Season 2" }).click();
+  await expect(page.getByText("Episode 1 · Season 2 premiere")).toBeVisible();
+  await expect(page.getByText("Episode overview.")).toHaveCount(0);
+  await expect(page).toHaveURL(/season=2/);
+  await page.getByRole("button", { name: "Back" }).click();
+  await expect(page).toHaveURL("/");
+  await expect(page.getByRole("tab", { name: "Upcoming" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("heading", { name: "Upcoming episodes" })).toBeVisible();
+
+  await page.goto("/media/tv/100?from=%2F&media=tv%3A100&season=2");
+  await expect(page.getByText("Episode 1 · Season 2 premiere")).toBeVisible();
+  await page.getByText("Episode 1 · Season 2 premiere").click();
+  await expect(page.getByRole("heading", { name: "Season 2 premiere" })).toBeVisible();
+});
+
 test("Given a signed-in user, When they open /logout, Then their session ends and they return to sign in", async ({
   page,
 }) => {
@@ -529,6 +623,85 @@ test("TV details show the production status for saved and unsaved shows", async 
   );
   await page.goto("/media/movie/100");
   await expect(page.locator(".detail-hero .mantine-Badge-root")).toHaveCount(1);
+});
+
+test("Detail Back restores the show's scroll position and direct links use a fallback", async ({ page }) => {
+  await mockSignedInSession(page);
+  const show = {
+    id: "tv:100",
+    tmdb_id: 100,
+    type: "tv",
+    title: "Long Show",
+    original_title: "Long Show",
+    overview: "A long season.",
+    release_date: "2024-01-01",
+    poster_path: "",
+    original_language: "en",
+  };
+  await page.route("**/api/v1/shows/100", (route) =>
+    fulfillJSON(route, {
+      media: show,
+      item: { media_id: show.id, status: "watching", rating: null },
+      cast: [{ id: 7, name: "Actor Seven", character: "Lead" }],
+    }),
+  );
+  await page.route("**/api/v1/people/7", (route) =>
+    fulfillJSON(route, { tmdb_id: 7, name: "Actor Seven", biography: "", credits: [] }),
+  );
+  await page.route("**/api/v1/seasons/**/episodes", (route) =>
+    fulfillJSON(route, {
+      items: Array.from({ length: 30 }, (_, index) => ({
+        episode: {
+          id: `tv:100:episode:${index + 1}`,
+          season_number: 1,
+          episode_number: index + 1,
+          air_date: "2024-01-01",
+        },
+        name: `Episode ${index + 1}`,
+        watched: false,
+      })),
+      next_cursor: null,
+    }),
+  );
+
+  await page.goto("/media/tv/100");
+  const episode = page.locator(".episode-row").nth(19);
+  await expect(episode).toBeVisible();
+  await episode.scrollIntoViewIfNeeded();
+  const scrollY = await page.evaluate(() => window.scrollY);
+  expect(scrollY).toBeGreaterThan(0);
+  await episode.click();
+  await expect(page).toHaveURL(/episode=tv%3A100%3Aepisode%3A20/);
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await expect(page).toHaveURL(/\/media\/tv\/100$/);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(scrollY);
+
+  await episode.click();
+  await page.goBack();
+  await expect(page).toHaveURL(/\/media\/tv\/100$/);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(scrollY);
+
+  await page.getByRole("button", { name: "View Actor Seven" }).scrollIntoViewIfNeeded();
+  const castScrollY = await page.evaluate(() => window.scrollY);
+  await page.getByRole("button", { name: "View Actor Seven" }).click();
+  await expect(page).toHaveURL(/\/people\/7\?/);
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await expect(page).toHaveURL(/\/media\/tv\/100$/);
+  await expect
+    .poll(() => page.evaluate((previous) => Math.abs(window.scrollY - previous), castScrollY))
+    .toBeLessThan(40);
+
+  await page.goto("/media/tv/100?episode=tv%3A100%3Aepisode%3A20");
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await expect(page).toHaveURL(/\/profile$/);
+
+  await page.goto("/people/7");
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await expect(page).toHaveURL(/\/discover$/);
+
+  await page.goto("/users/other-user");
+  await page.getByRole("button", { name: "Back to activity" }).click();
+  await expect(page).toHaveURL(/\/feed$/);
 });
 
 test("Given a TV show detail, When the user uses compact watch controls, Then show and season actions stay clear", async ({

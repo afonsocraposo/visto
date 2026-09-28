@@ -62,8 +62,9 @@ import type { EpisodeRating, MediaDetailTarget, ShowEpisodeEntry } from "../../t
 
 type Props = {
   target: MediaDetailTarget;
+  returnTo?: string;
   onBack: () => void;
-  onOpenDetail: (target: MediaDetailTarget) => void;
+  onOpenDetail: (target: MediaDetailTarget, options?: { from?: string; replace?: boolean }) => void;
   onOpenPerson: (personID: number) => void;
 };
 type PendingWatch = {
@@ -86,11 +87,10 @@ function showStatusLabel(status: string | undefined): string | null {
   return status ? (labels[status] ?? status) : null;
 }
 
-export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: Props) {
+export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpenPerson }: Props) {
   const userQueryKey = useUserQueryKey();
   const queryClient = useQueryClient();
   const invalidate = useInvalidateUserCache();
-  const [season, setSeason] = useState<string | null>(null);
   const [pendingWatch, setPendingWatch] = useState<PendingWatch | null>(null);
   const [showWatchModal, setShowWatchModal] = useState(false);
   const [movieHistoryMode, setMovieHistoryMode] = useState<"view" | "edit" | null>(null);
@@ -129,12 +129,11 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
     ? (savedSeasons.data?.map((item) => item.season_number) ?? [])
     : (temporary.data?.seasons.map((item) => item.season_number) ?? []);
   const selectedSeason =
-    season ??
-    (target.seasonNumber !== undefined
+    target.seasonNumber !== undefined
       ? String(target.seasonNumber)
       : availableSeasonNumbers.length
         ? String(availableSeasonNumbers.find((number) => number > 0) ?? availableSeasonNumbers[0])
-        : null);
+        : null;
   const selectedSeasonID = savedSeasons.data?.find(
     (item) => String(item.season_number) === selectedSeason,
   )?.id;
@@ -953,12 +952,15 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
               className="detail-season-link"
               variant="subtle"
               onClick={() =>
-                onOpenDetail({
-                  mediaType: "tv",
-                  tmdbID: media.tmdb_id,
-                  mediaID: showID,
-                  seasonNumber: selectedEpisode.episode.season_number,
-                })
+                onOpenDetail(
+                  {
+                    mediaType: "tv",
+                    tmdbID: media.tmdb_id,
+                    mediaID: showID,
+                    seasonNumber: selectedEpisode.episode.season_number,
+                  },
+                  { from: returnTo, replace: true },
+                )
               }
             >{`${media.title} · Season ${selectedEpisode.episode.season_number}`}</Button>
           ) : (
@@ -1109,7 +1111,19 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
                   <Select
                     aria-label="Season"
                     value={selectedSeason}
-                    onChange={setSeason}
+                    onChange={(value) => {
+                      if (value !== null) {
+                        onOpenDetail(
+                          {
+                            mediaType: "tv",
+                            tmdbID: media.tmdb_id,
+                            mediaID: showID,
+                            seasonNumber: Number(value),
+                          },
+                          { from: returnTo, replace: true },
+                        );
+                      }
+                    }}
                     data={seasons.map((number) => ({
                       value: String(number),
                       label: number === 0 ? "Specials" : `Season ${number}`,

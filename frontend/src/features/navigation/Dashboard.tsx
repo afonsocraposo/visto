@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate, useRouterState } from "@tanstack/react-router";
+import { useNavigate, useRouter, useRouterState } from "@tanstack/react-router";
 import { Alert, AppShell, Button, Center, Group, Loader, Modal, Tabs, Text } from "@mantine/core";
 import {
   IconCalendar,
@@ -68,7 +68,11 @@ export function Dashboard({
     onSuccess: () => queryClient.setQueryData(userQueryKey("import-welcome"), { pending: false }),
   });
   const navigate = useNavigate();
+  const router = useRouter();
   const currentHref = useRouterState({ select: (state) => state.location.href });
+  const openedInApp = useRouterState({
+    select: (state) => state.location.state.vistoOpenedInApp === true,
+  });
   const currentURL = new URL(currentHref, window.location.origin);
   const detail = page.kind === "media" ? page.target : null;
   const personID = page.kind === "person" ? page.personID : undefined;
@@ -82,24 +86,39 @@ export function Dashboard({
     page.kind === "user-profile"
       ? "feed"
       : activeTabForLocation(currentURL.pathname, currentURL.search, currentURL.origin);
-  const openDetail = (target: MediaDetailTarget) =>
+  const openDetail = (target: MediaDetailTarget, options?: { from?: string; replace?: boolean }) =>
     void navigate({
       to: `/media/${target.mediaType}/${target.tmdbID}`,
       search: {
-        from: currentHref,
+        from: options?.from ?? currentHref,
         ...(target.mediaID ? { media: target.mediaID } : {}),
         ...(target.episodeID ? { episode: target.episodeID } : {}),
         ...(target.seasonNumber !== undefined ? { season: target.seasonNumber } : {}),
       },
+      replace: options?.replace,
+      state: { vistoOpenedInApp: options?.replace ? openedInApp : true },
     });
   const openPerson = (tmdbID: number) =>
-    void navigate({ to: `/people/${tmdbID}`, search: { from: currentHref } });
+    void navigate({
+      to: `/people/${tmdbID}`,
+      search: { from: currentHref },
+      state: { vistoOpenedInApp: true },
+    });
   const openUser = (userID: string) =>
     void navigate(
       userID === user.id
         ? { to: "/profile" }
-        : { to: "/users/$userID", params: { userID }, search: { from: currentHref } },
+        : {
+            to: "/users/$userID",
+            params: { userID },
+            search: { from: currentHref },
+            state: { vistoOpenedInApp: true },
+          },
     );
+  const goBack = (fallback: string) => {
+    if (openedInApp && router.history.canGoBack()) router.history.back();
+    else void navigate({ to: safeReturnPath(returnTo, fallback) });
+  };
   const watchTabStorageKey = `visto:tab:${user.id}:watching`;
   const [view, setView] = useState(() =>
     readStoredChoice("session", watchTabStorageKey, ["now", "calendar"] as const, "now"),
@@ -211,7 +230,7 @@ export function Dashboard({
           <Deferred>
             <UserProfilePage
               userID={profileUserID}
-              onBack={() => void navigate({ to: safeReturnPath(returnTo, "/feed") })}
+              onBack={() => goBack("/feed")}
               onOpenDetail={openDetail}
             />
           </Deferred>
@@ -219,7 +238,7 @@ export function Dashboard({
           <Deferred>
             <PersonDetailPage
               personID={personID}
-              onBack={() => void navigate({ to: safeReturnPath(returnTo, "/discover") })}
+              onBack={() => goBack("/discover")}
               onOpenDetail={openDetail}
             />
           </Deferred>
@@ -227,14 +246,8 @@ export function Dashboard({
           <Deferred>
             <MediaDetailPage
               target={detail}
-              onBack={() =>
-                void navigate({
-                  to: safeReturnPath(
-                    returnTo,
-                    detail.mediaType === "tv" ? "/profile" : "/discover",
-                  ),
-                })
-              }
+              returnTo={returnTo}
+              onBack={() => goBack(detail.mediaType === "tv" ? "/profile" : "/discover")}
               onOpenDetail={openDetail}
               onOpenPerson={openPerson}
             />
