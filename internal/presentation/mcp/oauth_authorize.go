@@ -164,12 +164,24 @@ func (server *Server) renderAuthorizationForm(w http.ResponseWriter, r *http.Req
 		requested[scope] = true
 	}
 	data.Read, data.Write, data.Offline = requested[oauth.ReadScope], requested[oauth.WriteScope], requested[oauth.OfflineScope]
+	formAction := "'self'"
+	if origin := redirectOrigin(request.RedirectURI); origin != "" {
+		formAction += " " + origin
+	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Set("Content-Security-Policy", "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'")
+	w.Header().Set("Content-Security-Policy", "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; form-action "+formAction+"; base-uri 'none'; frame-ancestors 'none'")
 	w.Header().Set("Referrer-Policy", "no-referrer")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	_ = template.Must(template.New("authorize").Parse(oauthLoginPage)).Execute(w, data)
+}
+
+func redirectOrigin(redirectURI string) string {
+	parsed, err := url.Parse(redirectURI)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return ""
+	}
+	return parsed.Scheme + "://" + parsed.Host
 }
 
 func parseAuthorizeRequest(params url.Values) oauth.AuthorizeRequest {
