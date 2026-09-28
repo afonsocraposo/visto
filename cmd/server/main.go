@@ -185,7 +185,11 @@ func main() {
 	if metadataProvider != nil {
 		plexMetadataProvider = metadataProvider
 	}
-	appServer.WithPlexSync(plexsync.NewService(store, plexMetadataProvider, library.NewService(store), publicURL))
+	plexMode := environment("VISTO_PLEX_SYNC_MODE", "personal")
+	if plexMode != "personal" && plexMode != "managed" {
+		log.Fatalf("VISTO_PLEX_SYNC_MODE must be personal or managed")
+	}
+	appServer.WithPlexSync(plexsync.NewService(store, plexMetadataProvider, library.NewService(store), publicURL, plexMode))
 	appHandler.Handle("/", appServer.Handler())
 	server := &http.Server{
 		Addr:              environment("VISTO_LISTEN_ADDR", ":8080"),

@@ -6,8 +6,12 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { PlexWebhookEvent } from "./plexWebhookEvent";
+import type { PlexWebhookStatusMode } from "./plexWebhookStatusMode";
 
 export interface PlexWebhookStatus {
+  mode: PlexWebhookStatusMode;
+  managed_account_id?: string;
+  managed_webhook_enabled: boolean;
   enabled: boolean;
   /** Numeric Plex account ID allowed to sync */
   account_id?: string;

@@ -23,6 +23,7 @@ import type {
 
 import type {
   ActivitySettings,
+  AdminPlexSyncStatus,
   BackupSettings,
   BackupSettingsRequest,
   BadRequestResponse,
@@ -43,6 +44,7 @@ import type {
   EpisodesPage,
   ExportData,
   FeedPage,
+  ForbiddenResponse,
   GetAuthStatus200,
   GetCalendarDatesParams,
   GetCalendarParams,
@@ -72,6 +74,7 @@ import type {
   Play,
   PlaysPage,
   PlexWebhookStatus,
+  PostAdminPlexSyncWebhook201,
   PostImportsBingers200,
   PostLibraryLookupBody,
   PostPlaysBulkBody,
@@ -80,6 +83,7 @@ import type {
   PostProfileWebPushStatusBody,
   PostWebhooksPlexSecretBody,
   PushoverSettingsRequest,
+  PutAdminPlexSyncUsersUserIDBody,
   SaveLibraryRequest,
   Season,
   SeasonReadyAlert,
@@ -4010,12 +4014,488 @@ export const useDeleteProfilePlexWebhook = <TError = UnauthorizedResponse, TCont
   return useMutation(getDeleteProfilePlexWebhookMutationOptions(options), queryClient);
 };
 
+export const getGetAdminPlexSyncUrl = () => {
+  return `/admin/plex-sync`;
+};
+
+/**
+ * @summary Get admin Plex mode, shared webhook status, mappings, and recently observed accounts
+ */
+export const getAdminPlexSync = async (
+  options?: Parameters<typeof customFetch>[1],
+): Promise<AdminPlexSyncStatus> => {
+  return customFetch<AdminPlexSyncStatus>(getGetAdminPlexSyncUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetAdminPlexSyncQueryKey = () => {
+  return [`/admin/plex-sync`] as const;
+};
+
+export const getGetAdminPlexSyncQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAdminPlexSync>>,
+  TError = ForbiddenResponse,
+>(options?: {
+  query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminPlexSync>>, TError, TData>>;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetAdminPlexSyncQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getAdminPlexSync>>> = ({ signal }) =>
+    getAdminPlexSync({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAdminPlexSync>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetAdminPlexSyncQueryResult = NonNullable<Awaited<ReturnType<typeof getAdminPlexSync>>>;
+export type GetAdminPlexSyncQueryError = ForbiddenResponse;
+
+export function useGetAdminPlexSync<
+  TData = Awaited<ReturnType<typeof getAdminPlexSync>>,
+  TError = ForbiddenResponse,
+>(
+  options: {
+    query: Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminPlexSync>>, TError, TData>> &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getAdminPlexSync>>,
+          TError,
+          Awaited<ReturnType<typeof getAdminPlexSync>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetAdminPlexSync<
+  TData = Awaited<ReturnType<typeof getAdminPlexSync>>,
+  TError = ForbiddenResponse,
+>(
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminPlexSync>>, TError, TData>> &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getAdminPlexSync>>,
+          TError,
+          Awaited<ReturnType<typeof getAdminPlexSync>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetAdminPlexSync<
+  TData = Awaited<ReturnType<typeof getAdminPlexSync>>,
+  TError = ForbiddenResponse,
+>(
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminPlexSync>>, TError, TData>>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Get admin Plex mode, shared webhook status, mappings, and recently observed accounts
+ */
+
+export function useGetAdminPlexSync<
+  TData = Awaited<ReturnType<typeof getAdminPlexSync>>,
+  TError = ForbiddenResponse,
+>(
+  options?: {
+    query?: Partial<UseQueryOptions<Awaited<ReturnType<typeof getAdminPlexSync>>, TError, TData>>;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetAdminPlexSyncQueryOptions(options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export const getPostAdminPlexSyncWebhookUrl = () => {
+  return `/admin/plex-sync/webhook`;
+};
+
+/**
+ * @summary Create or rotate the shared Plex webhook URL
+ */
+export const postAdminPlexSyncWebhook = async (
+  options?: Parameters<typeof customFetch>[1],
+): Promise<PostAdminPlexSyncWebhook201> => {
+  return customFetch<PostAdminPlexSyncWebhook201>(getPostAdminPlexSyncWebhookUrl(), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getPostAdminPlexSyncWebhookMutationKey = () => ["postAdminPlexSyncWebhook"] as const;
+
+export const getPostAdminPlexSyncWebhookMutationOptions = <
+  TError = ForbiddenResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof postAdminPlexSyncWebhook>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof postAdminPlexSyncWebhook>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = getPostAdminPlexSyncWebhookMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof postAdminPlexSyncWebhook>>,
+    void
+  > = () => {
+    return postAdminPlexSyncWebhook(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PostAdminPlexSyncWebhookMutationResult = NonNullable<
+  Awaited<ReturnType<typeof postAdminPlexSyncWebhook>>
+>;
+
+export type PostAdminPlexSyncWebhookMutationError = ForbiddenResponse;
+
+/**
+ * @summary Create or rotate the shared Plex webhook URL
+ */
+export const usePostAdminPlexSyncWebhook = <TError = ForbiddenResponse, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof postAdminPlexSyncWebhook>>,
+      TError,
+      void,
+      TContext
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof postAdminPlexSyncWebhook>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getPostAdminPlexSyncWebhookMutationOptions(options), queryClient);
+};
+
+export const getDeleteAdminPlexSyncWebhookUrl = () => {
+  return `/admin/plex-sync/webhook`;
+};
+
+/**
+ * @summary Revoke the shared Plex webhook URL
+ */
+export const deleteAdminPlexSyncWebhook = async (
+  options?: Parameters<typeof customFetch>[1],
+): Promise<void> => {
+  return customFetch<void>(getDeleteAdminPlexSyncWebhookUrl(), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteAdminPlexSyncWebhookMutationKey = () =>
+  ["deleteAdminPlexSyncWebhook"] as const;
+
+export const getDeleteAdminPlexSyncWebhookMutationOptions = <
+  TError = ForbiddenResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteAdminPlexSyncWebhook>>,
+    TError,
+    void,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteAdminPlexSyncWebhook>>,
+  TError,
+  void,
+  TContext
+> => {
+  const mutationKey = getDeleteAdminPlexSyncWebhookMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteAdminPlexSyncWebhook>>,
+    void
+  > = () => {
+    return deleteAdminPlexSyncWebhook(requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteAdminPlexSyncWebhookMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteAdminPlexSyncWebhook>>
+>;
+
+export type DeleteAdminPlexSyncWebhookMutationError = ForbiddenResponse;
+
+/**
+ * @summary Revoke the shared Plex webhook URL
+ */
+export const useDeleteAdminPlexSyncWebhook = <TError = ForbiddenResponse, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof deleteAdminPlexSyncWebhook>>,
+      TError,
+      void,
+      TContext
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof deleteAdminPlexSyncWebhook>>,
+  TError,
+  void,
+  TContext
+> => {
+  return useMutation(getDeleteAdminPlexSyncWebhookMutationOptions(options), queryClient);
+};
+
+export const getPutAdminPlexSyncUsersUserIDUrl = (userID: string) => {
+  return `/admin/plex-sync/users/${userID}`;
+};
+
+/**
+ * @summary Map a numeric Plex account ID to one Visto user
+ */
+export const putAdminPlexSyncUsersUserID = async (
+  userID: string,
+  putAdminPlexSyncUsersUserIDBody: PutAdminPlexSyncUsersUserIDBody,
+  options?: Parameters<typeof customFetch>[1],
+): Promise<void> => {
+  const getHeaders = (
+    h?: NonNullable<RequestInit["headers"]>,
+  ): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(
+          h as Iterable<Iterable<string>>,
+          (entry) => Array.from(entry) as [string, string],
+        ),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+  return customFetch<void>(getPutAdminPlexSyncUsersUserIDUrl(userID), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...getHeaders(options?.headers) },
+    body: JSON.stringify(putAdminPlexSyncUsersUserIDBody),
+  });
+};
+
+export const getPutAdminPlexSyncUsersUserIDMutationKey = () =>
+  ["putAdminPlexSyncUsersUserID"] as const;
+
+export const getPutAdminPlexSyncUsersUserIDMutationOptions = <
+  TError = BadRequestResponse | ForbiddenResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof putAdminPlexSyncUsersUserID>>,
+    TError,
+    PutAdminPlexSyncUsersUserIDMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof putAdminPlexSyncUsersUserID>>,
+  TError,
+  PutAdminPlexSyncUsersUserIDMutationVariables,
+  TContext
+> => {
+  const mutationKey = getPutAdminPlexSyncUsersUserIDMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof putAdminPlexSyncUsersUserID>>,
+    PutAdminPlexSyncUsersUserIDMutationVariables
+  > = (props) => {
+    const { userID, data } = props ?? {};
+
+    return putAdminPlexSyncUsersUserID(userID, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PutAdminPlexSyncUsersUserIDMutationResult = NonNullable<
+  Awaited<ReturnType<typeof putAdminPlexSyncUsersUserID>>
+>;
+export type PutAdminPlexSyncUsersUserIDMutationBody = PutAdminPlexSyncUsersUserIDBody;
+export type PutAdminPlexSyncUsersUserIDMutationError = BadRequestResponse | ForbiddenResponse;
+export type PutAdminPlexSyncUsersUserIDMutationVariables = {
+  userID: string;
+  data: PutAdminPlexSyncUsersUserIDBody;
+};
+
+/**
+ * @summary Map a numeric Plex account ID to one Visto user
+ */
+export const usePutAdminPlexSyncUsersUserID = <
+  TError = BadRequestResponse | ForbiddenResponse,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof putAdminPlexSyncUsersUserID>>,
+      TError,
+      PutAdminPlexSyncUsersUserIDMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof putAdminPlexSyncUsersUserID>>,
+  TError,
+  PutAdminPlexSyncUsersUserIDMutationVariables,
+  TContext
+> => {
+  return useMutation(getPutAdminPlexSyncUsersUserIDMutationOptions(options), queryClient);
+};
+
+export const getDeleteAdminPlexSyncUsersUserIDUrl = (userID: string) => {
+  return `/admin/plex-sync/users/${userID}`;
+};
+
+/**
+ * @summary Remove a user's Plex account mapping
+ */
+export const deleteAdminPlexSyncUsersUserID = async (
+  userID: string,
+  options?: Parameters<typeof customFetch>[1],
+): Promise<void> => {
+  return customFetch<void>(getDeleteAdminPlexSyncUsersUserIDUrl(userID), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteAdminPlexSyncUsersUserIDMutationKey = () =>
+  ["deleteAdminPlexSyncUsersUserID"] as const;
+
+export const getDeleteAdminPlexSyncUsersUserIDMutationOptions = <
+  TError = ForbiddenResponse,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteAdminPlexSyncUsersUserID>>,
+    TError,
+    DeleteAdminPlexSyncUsersUserIDMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteAdminPlexSyncUsersUserID>>,
+  TError,
+  DeleteAdminPlexSyncUsersUserIDMutationVariables,
+  TContext
+> => {
+  const mutationKey = getDeleteAdminPlexSyncUsersUserIDMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteAdminPlexSyncUsersUserID>>,
+    DeleteAdminPlexSyncUsersUserIDMutationVariables
+  > = (props) => {
+    const { userID } = props ?? {};
+
+    return deleteAdminPlexSyncUsersUserID(userID, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteAdminPlexSyncUsersUserIDMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteAdminPlexSyncUsersUserID>>
+>;
+
+export type DeleteAdminPlexSyncUsersUserIDMutationError = ForbiddenResponse;
+export type DeleteAdminPlexSyncUsersUserIDMutationVariables = { userID: string };
+
+/**
+ * @summary Remove a user's Plex account mapping
+ */
+export const useDeleteAdminPlexSyncUsersUserID = <TError = ForbiddenResponse, TContext = unknown>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof deleteAdminPlexSyncUsersUserID>>,
+      TError,
+      DeleteAdminPlexSyncUsersUserIDMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof deleteAdminPlexSyncUsersUserID>>,
+  TError,
+  DeleteAdminPlexSyncUsersUserIDMutationVariables,
+  TContext
+> => {
+  return useMutation(getDeleteAdminPlexSyncUsersUserIDMutationOptions(options), queryClient);
+};
+
 export const getPostWebhooksPlexSecretUrl = (secret: string) => {
   return `/webhooks/plex/${secret}`;
 };
 
 /**
- * @summary Receive a Plex media.scrobble webhook
+ * @summary Receive Plex playback webhooks and synchronize media.scrobble events
  */
 export const postWebhooksPlexSecret = async (
   secret: string,
@@ -4081,7 +4561,7 @@ export type PostWebhooksPlexSecretMutationVariables = {
 };
 
 /**
- * @summary Receive a Plex media.scrobble webhook
+ * @summary Receive Plex playback webhooks and synchronize media.scrobble events
  */
 export const usePostWebhooksPlexSecret = <TError = void, TContext = unknown>(
   options?: {

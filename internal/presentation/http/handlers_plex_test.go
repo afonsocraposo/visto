@@ -16,9 +16,12 @@ import (
 )
 
 type plexWebhookRepository struct {
+	plexsync.Repository
 	validToken bool
 	logged     []plexsync.Event
 }
+
+func (*plexWebhookRepository) GetPlexMode(context.Context) (string, error) { return "personal", nil }
 
 func (*plexWebhookRepository) IssuePlexWebhook(context.Context, string, string, string, time.Time) error {
 	return nil

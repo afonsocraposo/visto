@@ -28,6 +28,9 @@ type PlexEvent = {
 };
 
 type PlexStatus = {
+  mode: "personal" | "managed";
+  managed_account_id?: string;
+  managed_webhook_enabled: boolean;
   enabled: boolean;
   account_id?: string;
   created_at?: string;
@@ -83,20 +86,32 @@ export function PlexSyncPanel() {
     <Paper withBorder p="md" mt="lg">
       <Title order={3}>Plex watch sync</Title>
       <Text size="sm" c="dimmed" mt="xs">
-        Sync new watched movies and episodes from your Plex account. Plex Pass and a public HTTPS
-        address for this Visto instance are required.
+        {status.data?.mode === "managed"
+          ? "Your administrator manages one Plex webhook for this instance. Your watches sync when your Plex account is assigned below."
+          : "Sync new watched movies and episodes from your Plex account. Plex Pass and a public HTTPS address for this Visto instance are required."}
       </Text>
-      <Text size="sm" c="dimmed" mt="xs">
-        After you create a webhook URL, add it in your{" "}
-        <Anchor
-          href="https://app.plex.tv/desktop/#!/settings/webhooks"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Plex webhook settings
-        </Anchor>
-        .
-      </Text>
+      {status.data?.mode === "personal" && (
+        <Text size="sm" c="dimmed" mt="xs">
+          After you create a webhook URL, add it in your{" "}
+          <Anchor
+            href="https://app.plex.tv/desktop/#!/settings/webhooks"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Plex webhook settings
+          </Anchor>
+          .
+        </Text>
+      )}
+      {status.data?.mode === "managed" && (
+        <Text size="sm" mt="md">
+          {status.data.managed_account_id && status.data.managed_webhook_enabled
+            ? `Plex account ID ${status.data.managed_account_id} is assigned to you and the shared webhook is active.`
+            : status.data.managed_account_id
+              ? `Plex account ID ${status.data.managed_account_id} is assigned to you. The shared webhook is not active.`
+              : "No Plex account is assigned to you yet. Ask an administrator to assign one."}
+        </Text>
+      )}
       {status.isError && (
         <Alert color="red" mt="md">
           {status.error.message}
@@ -112,7 +127,7 @@ export function PlexSyncPanel() {
           {revoke.error.message}
         </Alert>
       )}
-      {status.data?.enabled && (
+      {status.data?.mode === "personal" && status.data?.enabled && (
         <Text size="sm" mt="md">
           Webhook active
           {status.data.created_at && (
@@ -135,73 +150,83 @@ export function PlexSyncPanel() {
           )}
         </Text>
       )}
-      <TextInput
-        mt="md"
-        label="Plex account ID"
-        description="Enter your numeric Plex account ID. To find it, create a URL with this field empty, watch something in Plex, then check Recent sync activity for the skipped account ID. Enter that ID and rotate the URL."
-        placeholder={status.data?.account_id || "Plex account ID"}
-        value={accountID}
-        onChange={(event) => setAccountID(event.currentTarget.value)}
-        inputMode="numeric"
-      />
-      {issuedURL && (
-        <Stack gap="xs" mt="md">
-          <Alert color="yellow" title="Copy this URL into Plex now">
-            Visto only shows the secret URL once. If you leave this page, rotate the URL to get a
-            new one.
-          </Alert>
-          {copyError && <Alert color="red">{copyError}</Alert>}
-          <Group align="end" wrap="nowrap">
-            <Code style={{ flex: 1, overflowWrap: "anywhere", whiteSpace: "normal", padding: 10 }}>
-              {issuedURL}
-            </Code>
+      {status.data?.mode === "personal" && (
+        <>
+          <TextInput
+            mt="md"
+            label="Plex account ID"
+            description="Enter your numeric Plex account ID. To find it, create a URL with this field empty, watch something in Plex, then check Recent sync activity for the skipped account ID. Enter that ID and rotate the URL."
+            placeholder={status.data?.account_id || "Plex account ID"}
+            value={accountID}
+            onChange={(event) => setAccountID(event.currentTarget.value)}
+            inputMode="numeric"
+          />
+          {issuedURL && (
+            <Stack gap="xs" mt="md">
+              <Alert color="yellow" title="Copy this URL into Plex now">
+                Visto only shows the secret URL once. If you leave this page, rotate the URL to get
+                a new one.
+              </Alert>
+              {copyError && <Alert color="red">{copyError}</Alert>}
+              <Group align="end" wrap="nowrap">
+                <Code
+                  style={{ flex: 1, overflowWrap: "anywhere", whiteSpace: "normal", padding: 10 }}
+                >
+                  {issuedURL}
+                </Code>
+                <Button
+                  variant="default"
+                  leftSection={<IconCopy size={16} />}
+                  onClick={() => {
+                    navigator.clipboard
+                      .writeText(issuedURL)
+                      .then(() => setCopyError(""))
+                      .catch(() =>
+                        setCopyError("Could not copy the URL. Select and copy it instead."),
+                      );
+                  }}
+                >
+                  Copy URL
+                </Button>
+              </Group>
+            </Stack>
+          )}
+          <Group mt="md">
             <Button
-              variant="default"
-              leftSection={<IconCopy size={16} />}
+              loading={issue.isPending}
+              leftSection={status.data?.enabled ? <IconRefresh size={16} /> : undefined}
               onClick={() => {
-                navigator.clipboard
-                  .writeText(issuedURL)
-                  .then(() => setCopyError(""))
-                  .catch(() => setCopyError("Could not copy the URL. Select and copy it instead."));
+                if (
+                  status.data?.enabled &&
+                  !window.confirm("Rotate your Plex webhook URL? The old URL will stop working.")
+                )
+                  return;
+                issue.mutate();
               }}
             >
-              Copy URL
+              {status.data?.enabled ? "Rotate webhook URL" : "Create webhook URL"}
             </Button>
+            {status.data?.enabled && (
+              <Button
+                color="red"
+                variant="subtle"
+                loading={revoke.isPending}
+                leftSection={<IconTrash size={16} />}
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      "Revoke your Plex webhook? Plex will stop syncing watched content.",
+                    )
+                  )
+                    revoke.mutate();
+                }}
+              >
+                Revoke
+              </Button>
+            )}
           </Group>
-        </Stack>
+        </>
       )}
-      <Group mt="md">
-        <Button
-          loading={issue.isPending}
-          leftSection={status.data?.enabled ? <IconRefresh size={16} /> : undefined}
-          onClick={() => {
-            if (
-              status.data?.enabled &&
-              !window.confirm("Rotate your Plex webhook URL? The old URL will stop working.")
-            )
-              return;
-            issue.mutate();
-          }}
-        >
-          {status.data?.enabled ? "Rotate webhook URL" : "Create webhook URL"}
-        </Button>
-        {status.data?.enabled && (
-          <Button
-            color="red"
-            variant="subtle"
-            loading={revoke.isPending}
-            leftSection={<IconTrash size={16} />}
-            onClick={() => {
-              if (
-                window.confirm("Revoke your Plex webhook? Plex will stop syncing watched content.")
-              )
-                revoke.mutate();
-            }}
-          >
-            Revoke
-          </Button>
-        )}
-      </Group>
       {(status.data?.recent_events.length ?? 0) > 0 && (
         <>
           <Title order={4} mt="xl">

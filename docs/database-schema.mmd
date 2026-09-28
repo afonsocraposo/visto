@@ -158,11 +158,18 @@ erDiagram
   }
 
   plex_webhooks {
-    integer user_id PK, FK
+    integer id PK
+    integer user_id FK
     text token_hash
     text created_at
     text last_used_at
     text account_id
+  }
+
+  plex_observed_accounts {
+    text account_id PK
+    text title
+    text last_seen_at
   }
 
   schema_migrations {
@@ -226,6 +233,7 @@ erDiagram
     text updated_at
     text email
     text google_subject
+    text plex_account_id
   }
 
   web_push_deliveries {
