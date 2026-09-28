@@ -6,6 +6,7 @@ export type User = {
   email: string;
   name: string;
   role: "admin" | "user";
+  created_at: string;
 };
 
 export type PersonalAPIToken = {

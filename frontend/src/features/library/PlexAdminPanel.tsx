@@ -14,10 +14,9 @@ import {
   TextInput,
   Title,
 } from "@mantine/core";
-import type { User } from "../../types";
 import { ActivityTime } from "../../components/ActivityTime";
 import { useUserQueryKey } from "../auth/SessionContext";
-import { fetchAllPages } from "../../lib/pagination";
+import { useAdminUsers } from "./useAdminUsers";
 
 type PlexAdminStatus = {
   mode: "personal" | "managed";
@@ -50,10 +49,7 @@ export function PlexAdminPanel() {
   const queryClient = useQueryClient();
   const userQueryKey = useUserQueryKey();
   const key = userQueryKey("admin-plex-sync");
-  const usersQuery = useQuery({
-    queryKey: userQueryKey("plex-assignment-users"),
-    queryFn: () => fetchAllPages<User>("/api/v1/users", "Could not load users."),
-  });
+  const usersQuery = useAdminUsers();
   const users = usersQuery.data ?? [];
   const [issuedURL, setIssuedURL] = useState("");
   const [accountID, setAccountID] = useState("");
