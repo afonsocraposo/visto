@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.14.0](https://github.com/afonsocraposo/visto/compare/v0.13.0...v0.14.0) (2026-09-28)
+
+
+### Features
+
+* add undo for bulk episode changes and show completion ([34ac435](https://github.com/afonsocraposo/visto/commit/34ac4358e9b4cd61e53aaf58564c2a5d05da750a))
+* improve mobile bottom navigation ([e5c07d9](https://github.com/afonsocraposo/visto/commit/e5c07d9aac17849c77f659a252d1e1ba1cbc015e))
+* improve page navigation ([391973f](https://github.com/afonsocraposo/visto/commit/391973f52b0e8a858cd20f7c64ccdbf0aa03e317))
+* support admin-managed Plex webhooks ([9dd310c](https://github.com/afonsocraposo/visto/commit/9dd310c746d133d93919c93d11e9def384f48f0e))
+* support admin-managed Plex webhooks ([fe69d45](https://github.com/afonsocraposo/visto/commit/fe69d45d34920baf85bced8e22102c2f27a81d0f))
+* use icon for activity users action ([bb56150](https://github.com/afonsocraposo/visto/commit/bb56150edbd58f06fc7014d66748f305c18d91d7))
+
+
+### Bug Fixes
+
+* **feed:** persist selected tab across sessions ([a8b5295](https://github.com/afonsocraposo/visto/commit/a8b529500c3e5e3096e14d99266d020d22100002))
+* hide alerts for aired seasons ([690c4ff](https://github.com/afonsocraposo/visto/commit/690c4ffeebb9fd7dbc1b6f8f76e64b71701d7b2e))
+
 ## [0.13.0](https://github.com/afonsocraposo/visto/compare/v0.12.0...v0.13.0) (2026-09-28)
 
 
