@@ -33,6 +33,7 @@ async function mockSignedInSession(page: Page) {
   await page.route("**/api/v1/me", (route) =>
     signedIn ? fulfillJSON(route, user) : fulfillJSON(route, { error: "signed out" }, 401),
   );
+  await page.route("**/api/v1/imports/welcome", (route) => fulfillJSON(route, { pending: false }));
   await page.route("**/api/v1/auth/logout", (route) => {
     signedIn = false;
     return route.fulfill({ status: 204, body: "" });
@@ -84,7 +85,7 @@ test("Given a signed-in user, When they navigate and manage appearance and accou
   await page.getByRole("button", { name: "Discover" }).click();
   await expect(page.getByRole("textbox", { name: "Search TMDB" })).toBeVisible();
   await page.getByRole("button", { name: "Profile" }).click();
-  await expect(page.getByText("Your library is empty")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Start with your watch history" })).toBeVisible();
   await page.getByRole("tab", { name: "Settings" }).click();
   await expect(page.getByText("Choose who can see your activity")).toBeVisible();
   await expect

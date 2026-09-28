@@ -8,7 +8,7 @@ import {
   useGetMoviesTmdbID,
   useGetShowsTmdbID,
 } from "../../generated/api";
-import { api, retryTransientRequest } from "../../lib/api";
+import { APIRequestError, api, retryTransientRequest } from "../../lib/api";
 import { pageURL } from "../../lib/pagination";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import type { CursorPage, HistoryEntry, ShowEpisodeEntry } from "../../types";
@@ -42,7 +42,9 @@ export function useMediaDetailQueries(target: MediaDetailTarget) {
     query: {
       queryKey: userQueryKey("temporary-show-detail", target.tmdbID),
       enabled:
-        target.mediaType === "tv" && showLibrary.isSuccess && !showLibrary.data?.item.media_id,
+        target.mediaType === "tv" &&
+        ((showLibrary.isSuccess && !showLibrary.data?.item.media_id) ||
+          (showLibrary.error instanceof APIRequestError && showLibrary.error.status === 404)),
       staleTime: 12 * 60 * 60 * 1000,
       ...retryOptions,
     },
@@ -51,7 +53,9 @@ export function useMediaDetailQueries(target: MediaDetailTarget) {
     query: {
       queryKey: userQueryKey("temporary-movie-detail", target.tmdbID),
       enabled:
-        target.mediaType === "movie" && movieLibrary.isSuccess && !movieLibrary.data?.item.media_id,
+        target.mediaType === "movie" &&
+        ((movieLibrary.isSuccess && !movieLibrary.data?.item.media_id) ||
+          (movieLibrary.error instanceof APIRequestError && movieLibrary.error.status === 404)),
       staleTime: 12 * 60 * 60 * 1000,
       ...retryOptions,
     },

@@ -240,6 +240,8 @@ func TestSearch_GivenDifferentRequestsReceive429_WhenRetried_ThenTheInstancePaus
 	var mu sync.Mutex
 	callsByQuery := map[string]int{}
 	var limitedRequests atomic.Int32
+	var initialArrivals atomic.Int32
+	bothArrived := make(chan struct{})
 	bothLimited := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		query := r.URL.Query().Get("query")
@@ -248,6 +250,15 @@ func TestSearch_GivenDifferentRequestsReceive429_WhenRetried_ThenTheInstancePaus
 		callNumber := callsByQuery[query]
 		mu.Unlock()
 		if query != "third" && callNumber == 1 {
+			if initialArrivals.Add(1) == 2 {
+				close(bothArrived)
+			}
+			select {
+			case <-bothArrived:
+			case <-time.After(5 * time.Second):
+				http.Error(w, "second request did not arrive", http.StatusRequestTimeout)
+				return
+			}
 			w.Header().Set("Retry-After", "3")
 			w.WriteHeader(http.StatusTooManyRequests)
 			_, _ = w.Write([]byte(`{"status_code":25,"status_message":"rate limited"}`))
@@ -280,7 +291,7 @@ func TestSearch_GivenDifferentRequestsReceive429_WhenRetried_ThenTheInstancePaus
 	close(start)
 	select {
 	case <-bothLimited:
-	case <-time.After(2 * time.Second):
+	case <-time.After(5 * time.Second):
 		t.Fatal("both initial requests did not receive 429")
 	}
 	deadline := time.Now().Add(time.Second)
