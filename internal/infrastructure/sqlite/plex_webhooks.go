@@ -70,7 +70,7 @@ func (store *Store) GetPlexWebhookStatus(ctx context.Context, userID string) (pl
 
 func (store *Store) UserForPlexWebhook(ctx context.Context, tokenHash string, now time.Time) (string, string, error) {
 	var userID, accountID string
-	err := store.DB.QueryRowContext(ctx, `UPDATE plex_webhooks SET last_used_at=? WHERE token_hash=? RETURNING user_id,account_id`, now.UTC().Format(time.RFC3339Nano), tokenHash).Scan(&userID, &accountID)
+	err := store.DB.QueryRowContext(ctx, `UPDATE plex_webhooks SET last_used_at=? WHERE token_hash=? AND user_id IS NOT NULL RETURNING user_id,account_id`, now.UTC().Format(time.RFC3339Nano), tokenHash).Scan(&userID, &accountID)
 	if err != nil {
 		return "", "", fmt.Errorf("authenticate Plex webhook: %w", err)
 	}

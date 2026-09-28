@@ -314,9 +314,46 @@ paths:
       responses:
         '204': { description: Webhook URL revoked }
         '401': { $ref: '#/components/responses/Unauthorized' }
+  /admin/plex-sync:
+    get:
+      summary: Get admin Plex mode, shared webhook status, mappings, and recently observed accounts
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      responses:
+        '200': { description: Admin Plex sync status, content: { application/json: { schema: { $ref: '#/components/schemas/AdminPlexSyncStatus' } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /admin/plex-sync/webhook:
+    post:
+      summary: Create or rotate the shared Plex webhook URL
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      responses:
+        '201': { description: Secret URL returned once, content: { application/json: { schema: { type: object, required: [webhook_url], properties: { webhook_url: { type: string, format: uri } } } } } }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    delete:
+      summary: Revoke the shared Plex webhook URL
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      responses:
+        '204': { description: Shared URL revoked }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /admin/plex-sync/users/{userID}:
+    parameters:
+      - { name: userID, in: path, required: true, schema: { type: string } }
+    put:
+      summary: Map a numeric Plex account ID to one Visto user
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [account_id], properties: { account_id: { type: string, pattern: '^[0-9]{1,20}$' } } } } } }
+      responses:
+        '204': { description: Mapping saved }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    delete:
+      summary: Remove a user's Plex account mapping
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      responses:
+        '204': { description: Mapping removed }
+        '403': { $ref: '#/components/responses/Forbidden' }
   /webhooks/plex/{secret}:
     post:
-      summary: Receive a Plex media.scrobble webhook
+      summary: Receive Plex playback webhooks and synchronize media.scrobble events
       parameters:
         - { name: secret, in: path, required: true, schema: { type: string, minLength: 40, maxLength: 80 } }
       requestBody:
@@ -859,6 +896,11 @@ components:
       content:
         application/json:
           schema: { $ref: '#/components/schemas/ErrorResponse' }
+    Forbidden:
+      description: Administrator access required
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
   schemas:
     ErrorResponse:
       type: object
@@ -990,14 +1032,32 @@ components:
         occurred_at: { type: string, format: date-time }
     PlexWebhookStatus:
       type: object
-      required: [enabled, recent_events]
+      required: [enabled, mode, managed_webhook_enabled, recent_events]
       properties:
+        mode: { type: string, enum: [personal, managed] }
+        managed_account_id: { type: string }
+        managed_webhook_enabled: { type: boolean }
         enabled: { type: boolean }
         account_id: { type: string, description: Numeric Plex account ID allowed to sync }
         created_at: { type: string, format: date-time }
         last_used_at: { type: string, format: date-time }
         last_synced_at: { type: string, format: date-time }
         recent_events: { type: array, maxItems: 20, items: { $ref: '#/components/schemas/PlexWebhookEvent' } }
+    AdminPlexSyncStatus:
+      type: object
+      required: [mode, webhook_enabled, mappings, observed_accounts]
+      properties:
+        mode: { type: string, enum: [personal, managed] }
+        webhook_enabled: { type: boolean }
+        created_at: { type: string, format: date-time }
+        last_used_at: { type: string, format: date-time }
+        mappings:
+          type: array
+          items: { type: object, required: [user_id, account_id], properties: { user_id: { type: string }, account_id: { type: string } } }
+        observed_accounts:
+          type: array
+          maxItems: 100
+          items: { type: object, required: [account_id, title, last_seen_at], properties: { account_id: { type: string }, title: { type: string }, last_seen_at: { type: string, format: date-time }, user_id: { type: string } } }
     FeedItem:
       type: object
       required: [id, user_id, display_name, kind, title, occurred_at]

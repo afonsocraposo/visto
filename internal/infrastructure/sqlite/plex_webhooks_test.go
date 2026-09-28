@@ -2,6 +2,8 @@ package sqlite_test
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"path/filepath"
 	"testing"
 	"time"
@@ -9,6 +11,64 @@ import (
 	"github.com/afonsocosta/visto/internal/application/plexsync"
 	"github.com/afonsocosta/visto/internal/infrastructure/sqlite"
 )
+
+func TestSharedPlexWebhook_MapsObservedAccountsAndPreservesPersonalURLs(t *testing.T) {
+	ctx := context.Background()
+	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "visto.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	alice := insertTestUser(t, store.DB, "alice", "Alice", "private")
+	bob := insertTestUser(t, store.DB, "bob", "Bob", "private")
+	now := time.Now().UTC()
+	if err := store.IssuePlexWebhook(ctx, alice, "personal-hash", "123", now); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.IssueSharedPlexWebhook(ctx, "shared-hash", now); err != nil {
+		t.Fatal(err)
+	}
+	if valid, err := store.SharedPlexWebhookByToken(ctx, "shared-hash", now); err != nil || !valid {
+		t.Fatalf("shared token valid=%v err=%v", valid, err)
+	}
+	if userID, accountID, err := store.UserForPlexWebhook(ctx, "personal-hash", now); err != nil || userID != alice || accountID != "123" {
+		t.Fatalf("personal token user=%s account=%s err=%v", userID, accountID, err)
+	}
+	if err := store.ObservePlexAccount(ctx, "456", "Family", now); err != nil {
+		t.Fatal(err)
+	}
+	accounts, err := store.ListPlexAccounts(ctx)
+	if err != nil || len(accounts) != 1 || accounts[0].Title != "Family" {
+		t.Fatalf("observed accounts=%#v err=%v", accounts, err)
+	}
+	if _, err := store.PlexUserForAccount(ctx, "456"); !errors.Is(err, plexsync.ErrAccountUnmapped) {
+		t.Fatalf("unmapped account error=%v", err)
+	}
+	if err := store.SetPlexMapping(ctx, bob, "456"); err != nil {
+		t.Fatal(err)
+	}
+	if userID, err := store.PlexUserForAccount(ctx, "456"); err != nil || userID != bob {
+		t.Fatalf("mapped user=%s err=%v", userID, err)
+	}
+	if err := store.SetPlexMapping(ctx, alice, "456"); err == nil {
+		t.Fatal("duplicate Plex account mapping accepted")
+	}
+	if err := store.RevokeSharedPlexWebhook(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if valid, err := store.SharedPlexWebhookByToken(ctx, "shared-hash", now); err != nil || valid {
+		t.Fatalf("revoked shared token valid=%v err=%v", valid, err)
+	}
+	for i := 0; i < 101; i++ {
+		if err := store.ObservePlexAccount(ctx, fmt.Sprint(1000+i), "Family", now.Add(time.Duration(i+1)*time.Second)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	accounts, err = store.ListPlexAccounts(ctx)
+	if err != nil || len(accounts) != 100 {
+		t.Fatalf("retained accounts=%d err=%v; want 100", len(accounts), err)
+	}
+}
 
 func TestPlexWebhook_GivenASecretAndRepeatedScrobbles_WhenPersisted_ThenItDeduplicatesAndKeepsBoundedStatus(t *testing.T) {
 	ctx := context.Background()

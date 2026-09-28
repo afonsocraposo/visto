@@ -1,5 +1,6 @@
 import { InfiniteScrollTrigger } from "../../components/InfiniteScrollTrigger";
 import { BackupPanel } from "./BackupPanel";
+import { PlexAdminPanel } from "./PlexAdminPanel";
 import { useMutation, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "@mantine/form";
 import {
@@ -52,12 +53,16 @@ export function AdminPanel({ currentUser }: { currentUser: User }) {
     onSuccess: async () => {
       form.reset();
       showActionFeedback("Account created.");
-      await queryClient.invalidateQueries({ queryKey: userQueryKey("admin-users") });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: userQueryKey("admin-users") }),
+        queryClient.invalidateQueries({ queryKey: userQueryKey("plex-assignment-users") }),
+      ]);
     },
   });
 
   return (
     <Stack>
+      <PlexAdminPanel />
       <BackupPanel />
       <Paper withBorder p="md">
         <Title order={2}>Manage users</Title>
@@ -136,6 +141,7 @@ function AdminUserRow({ account, currentUser }: { account: User; currentUser: Us
       showActionFeedback("Account updated.");
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: userQueryKey("admin-users") }),
+        queryClient.invalidateQueries({ queryKey: userQueryKey("plex-assignment-users") }),
         ...(account.id === currentUser.id
           ? [queryClient.invalidateQueries({ queryKey: ["session"] })]
           : []),
@@ -154,7 +160,10 @@ function AdminUserRow({ account, currentUser }: { account: User; currentUser: Us
     },
     onSuccess: async () => {
       showActionFeedback("Account deleted.");
-      await queryClient.invalidateQueries({ queryKey: userQueryKey("admin-users") });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: userQueryKey("admin-users") }),
+        queryClient.invalidateQueries({ queryKey: userQueryKey("plex-assignment-users") }),
+      ]);
     },
   });
 

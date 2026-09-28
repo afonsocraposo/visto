@@ -27,8 +27,10 @@ const (
 )
 
 var (
-	ErrWebhookNotFound = errors.New("Plex webhook is not configured")
-	tmdbGUIDPattern    = regexp.MustCompile(`(?i)(?:tmdb://(?:movie/|tv/)?|themoviedb\.org/(?:movie|tv)/)([0-9]+)`)
+	ErrWebhookNotFound  = errors.New("Plex webhook is not configured")
+	ErrPersonalDisabled = errors.New("personal Plex webhooks are disabled")
+	ErrAccountUnmapped  = errors.New("Plex account is not mapped")
+	tmdbGUIDPattern     = regexp.MustCompile(`(?i)(?:tmdb://(?:movie/|tv/)?|themoviedb\.org/(?:movie|tv)/)([0-9]+)`)
 )
 
 type Event struct {
@@ -42,15 +44,50 @@ type Event struct {
 }
 
 type Status struct {
-	Enabled      bool      `json:"enabled"`
-	AccountID    string    `json:"account_id,omitempty"`
-	CreatedAt    time.Time `json:"created_at,omitempty"`
-	LastUsedAt   time.Time `json:"last_used_at,omitempty"`
-	LastSyncedAt time.Time `json:"last_synced_at,omitempty"`
-	RecentEvents []Event   `json:"recent_events"`
+	Mode                  string    `json:"mode"`
+	ManagedAccountID      string    `json:"managed_account_id,omitempty"`
+	ManagedWebhookEnabled bool      `json:"managed_webhook_enabled"`
+	Enabled               bool      `json:"enabled"`
+	AccountID             string    `json:"account_id,omitempty"`
+	CreatedAt             time.Time `json:"created_at,omitempty"`
+	LastUsedAt            time.Time `json:"last_used_at,omitempty"`
+	LastSyncedAt          time.Time `json:"last_synced_at,omitempty"`
+	RecentEvents          []Event   `json:"recent_events"`
+}
+
+type ObservedAccount struct {
+	AccountID  string    `json:"account_id"`
+	Title      string    `json:"title"`
+	LastSeenAt time.Time `json:"last_seen_at"`
+	UserID     string    `json:"user_id,omitempty"`
+}
+
+type Mapping struct {
+	UserID    string `json:"user_id"`
+	AccountID string `json:"account_id"`
+}
+
+type AdminStatus struct {
+	Mode             string            `json:"mode"`
+	WebhookEnabled   bool              `json:"webhook_enabled"`
+	CreatedAt        time.Time         `json:"created_at,omitempty"`
+	LastUsedAt       time.Time         `json:"last_used_at,omitempty"`
+	Mappings         []Mapping         `json:"mappings"`
+	ObservedAccounts []ObservedAccount `json:"observed_accounts"`
 }
 
 type Repository interface {
+	IssueSharedPlexWebhook(context.Context, string, time.Time) error
+	RevokeSharedPlexWebhook(context.Context) error
+	SharedPlexWebhookStatus(context.Context) (bool, time.Time, time.Time, error)
+	SharedPlexWebhookByToken(context.Context, string, time.Time) (bool, error)
+	PlexUserForAccount(context.Context, string) (string, error)
+	ObservePlexAccount(context.Context, string, string, time.Time) error
+	ListPlexAccounts(context.Context) ([]ObservedAccount, error)
+	ListPlexMappings(context.Context) ([]Mapping, error)
+	SetPlexMapping(context.Context, string, string) error
+	DeletePlexMapping(context.Context, string) error
+	PlexMappingForUser(context.Context, string) (string, error)
 	IssuePlexWebhook(context.Context, string, string, string, time.Time) error
 	RevokePlexWebhook(context.Context, string) error
 	GetPlexWebhookStatus(context.Context, string) (Status, error)
@@ -76,11 +113,16 @@ type Service struct {
 	metadata   MetadataProvider
 	library    Library
 	publicURL  string
+	mode       string
 	now        func() time.Time
 }
 
-func NewService(repository Repository, metadata MetadataProvider, libraryService Library, publicURL string) *Service {
-	return &Service{repository: repository, metadata: metadata, library: libraryService, publicURL: strings.TrimRight(publicURL, "/"), now: time.Now}
+func NewService(repository Repository, metadata MetadataProvider, libraryService Library, publicURL string, modes ...string) *Service {
+	mode := "personal"
+	if len(modes) > 0 {
+		mode = modes[0]
+	}
+	return &Service{repository: repository, metadata: metadata, library: libraryService, publicURL: strings.TrimRight(publicURL, "/"), mode: mode, now: time.Now}
 }
 
 func (service *Service) Status(ctx context.Context, userID string) (Status, error) {
@@ -91,34 +133,109 @@ func (service *Service) Status(ctx context.Context, userID string) (Status, erro
 	if status.RecentEvents == nil {
 		status.RecentEvents = []Event{}
 	}
+	status.Mode = service.mode
+	status.ManagedAccountID, err = service.repository.PlexMappingForUser(ctx, userID)
+	if err != nil {
+		return Status{}, err
+	}
+	status.ManagedWebhookEnabled, _, _, err = service.repository.SharedPlexWebhookStatus(ctx)
+	if err != nil {
+		return Status{}, err
+	}
 	return status, nil
 }
 
+func (service *Service) AdminStatus(ctx context.Context) (AdminStatus, error) {
+	var status AdminStatus
+	var err error
+	status.Mode = service.mode
+	status.WebhookEnabled, status.CreatedAt, status.LastUsedAt, err = service.repository.SharedPlexWebhookStatus(ctx)
+	if err != nil {
+		return status, err
+	}
+	status.Mappings, err = service.repository.ListPlexMappings(ctx)
+	if err != nil {
+		return status, err
+	}
+	status.ObservedAccounts, err = service.repository.ListPlexAccounts(ctx)
+	return status, err
+}
+
+func (service *Service) SetMapping(ctx context.Context, userID, accountID string) error {
+	if userID == "" || !validPlexAccountID(accountID) {
+		return errors.New("invalid Plex account mapping")
+	}
+	return service.repository.SetPlexMapping(ctx, userID, accountID)
+}
+
+func (service *Service) DeleteMapping(ctx context.Context, userID string) error {
+	return service.repository.DeletePlexMapping(ctx, userID)
+}
+
 func (service *Service) Issue(ctx context.Context, userID, accountID string) (string, error) {
+	if service.mode != "personal" {
+		return "", ErrPersonalDisabled
+	}
 	accountID = strings.TrimSpace(accountID)
 	if accountID != "" && !validPlexAccountID(accountID) {
 		return "", errors.New("Plex account ID must contain at most 20 digits")
 	}
-	if service.publicURL == "" {
-		return "", errors.New("VISTO_PUBLIC_URL must be configured to create a Plex webhook URL")
+	if err := service.validatePublicURL(); err != nil {
+		return "", err
 	}
-	publicURL, err := url.Parse(service.publicURL)
-	if err != nil || publicURL.Scheme != "https" || publicURL.Host == "" || publicURL.User != nil || (publicURL.Path != "" && publicURL.Path != "/") || publicURL.RawQuery != "" || publicURL.Fragment != "" {
-		return "", errors.New("VISTO_PUBLIC_URL must be a public HTTPS origin without a path")
+	secret, hash, err := newWebhookSecret()
+	if err != nil {
+		return "", err
 	}
-	secretBytesValue := make([]byte, secretBytes)
-	if _, err := rand.Read(secretBytesValue); err != nil {
-		return "", fmt.Errorf("generate Plex webhook secret: %w", err)
-	}
-	secret := base64.RawURLEncoding.EncodeToString(secretBytesValue)
-	hash := sha256.Sum256([]byte(secret))
-	if err := service.repository.IssuePlexWebhook(ctx, userID, hex.EncodeToString(hash[:]), accountID, service.now().UTC()); err != nil {
+	if err := service.repository.IssuePlexWebhook(ctx, userID, hash, accountID, service.now().UTC()); err != nil {
 		return "", err
 	}
 	return service.publicURL + "/api/v1/webhooks/plex/" + secret, nil
 }
 
+func (service *Service) IssueShared(ctx context.Context) (string, error) {
+	if err := service.validatePublicURL(); err != nil {
+		return "", err
+	}
+	secret, hash, err := newWebhookSecret()
+	if err != nil {
+		return "", err
+	}
+	if err := service.repository.IssueSharedPlexWebhook(ctx, hash, service.now().UTC()); err != nil {
+		return "", err
+	}
+	return service.publicURL + "/api/v1/webhooks/plex/" + secret, nil
+}
+
+func (service *Service) RevokeShared(ctx context.Context) error {
+	return service.repository.RevokeSharedPlexWebhook(ctx)
+}
+
+func (service *Service) validatePublicURL() error {
+	if service.publicURL == "" {
+		return errors.New("VISTO_PUBLIC_URL must be configured to create a Plex webhook URL")
+	}
+	u, err := url.Parse(service.publicURL)
+	if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || (u.Path != "" && u.Path != "/") || u.RawQuery != "" || u.Fragment != "" {
+		return errors.New("VISTO_PUBLIC_URL must be a public HTTPS origin without a path")
+	}
+	return nil
+}
+
+func newWebhookSecret() (string, string, error) {
+	value := make([]byte, secretBytes)
+	if _, err := rand.Read(value); err != nil {
+		return "", "", fmt.Errorf("generate Plex webhook secret: %w", err)
+	}
+	secret := base64.RawURLEncoding.EncodeToString(value)
+	hash := sha256.Sum256([]byte(secret))
+	return secret, hex.EncodeToString(hash[:]), nil
+}
+
 func (service *Service) Revoke(ctx context.Context, userID string) error {
+	if service.mode != "personal" {
+		return ErrPersonalDisabled
+	}
 	return service.repository.RevokePlexWebhook(ctx, userID)
 }
 
@@ -127,13 +244,47 @@ func (service *Service) Handle(ctx context.Context, secret, rawPayload string) e
 		return errors.New("invalid Plex webhook payload size")
 	}
 	hash := sha256.Sum256([]byte(secret))
-	userID, accountID, err := service.repository.UserForPlexWebhook(ctx, hex.EncodeToString(hash[:]), service.now().UTC())
-	if err != nil {
-		return ErrWebhookNotFound
+	mode := service.mode
+	var err error
+	var userID, accountID string
+	if mode == "managed" {
+		valid, lookupErr := service.repository.SharedPlexWebhookByToken(ctx, hex.EncodeToString(hash[:]), service.now().UTC())
+		if lookupErr != nil {
+			return lookupErr
+		}
+		if !valid {
+			return ErrWebhookNotFound
+		}
+	} else {
+		userID, accountID, err = service.repository.UserForPlexWebhook(ctx, hex.EncodeToString(hash[:]), service.now().UTC())
+		if err != nil {
+			return ErrWebhookNotFound
+		}
 	}
 	var payload plexPayload
 	if err := json.Unmarshal([]byte(rawPayload), &payload); err != nil {
+		if mode == "managed" {
+			return nil
+		}
 		return service.log(ctx, userID, service.rawFingerprint(rawPayload), Event{Status: "failed", Message: "Plex sent invalid event data", OccurredAt: service.now().UTC()})
+	}
+	if mode == "managed" {
+		accountID = payload.Account.ID.String()
+		if !validPlexAccountID(accountID) {
+			return nil
+		}
+		if strings.HasPrefix(payload.Event, "media.") {
+			if err := service.repository.ObservePlexAccount(ctx, accountID, payload.Account.Title, service.now().UTC()); err != nil {
+				return err
+			}
+		}
+		userID, err = service.repository.PlexUserForAccount(ctx, accountID)
+		if errors.Is(err, ErrAccountUnmapped) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
 	}
 	metadata := payload.Metadata
 	event := Event{Status: "skipped", Title: firstNonEmpty(metadata.Title, metadata.GrandparentTitle), MediaType: metadata.Type, OccurredAt: plexTime(metadata.LastViewedAt, service.now().UTC())}
@@ -209,7 +360,8 @@ type plexPayload struct {
 }
 
 type plexAccount struct {
-	ID json.Number `json:"id"`
+	ID    json.Number `json:"id"`
+	Title string      `json:"title"`
 }
 
 func validPlexAccountID(value string) bool {

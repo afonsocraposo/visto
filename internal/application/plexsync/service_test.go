@@ -11,13 +11,43 @@ import (
 )
 
 type fakeRepository struct {
-	issuedHash string
-	userID     string
-	accountID  string
-	logged     []Event
-	recorded   []Event
-	record     bool
+	issuedHash      string
+	userID          string
+	accountID       string
+	shared          bool
+	sharedUser      string
+	observed        []ObservedAccount
+	logged          []Event
+	recorded        []Event
+	recordedUserIDs []string
+	record          bool
 }
+
+func (*fakeRepository) GetPlexMode(context.Context) (string, error)                     { return "personal", nil }
+func (*fakeRepository) SetPlexMode(context.Context, string) error                       { return nil }
+func (*fakeRepository) IssueSharedPlexWebhook(context.Context, string, time.Time) error { return nil }
+func (*fakeRepository) RevokeSharedPlexWebhook(context.Context) error                   { return nil }
+func (*fakeRepository) SharedPlexWebhookStatus(context.Context) (bool, time.Time, time.Time, error) {
+	return false, time.Time{}, time.Time{}, nil
+}
+func (repository *fakeRepository) SharedPlexWebhookByToken(context.Context, string, time.Time) (bool, error) {
+	return repository.shared, nil
+}
+func (repository *fakeRepository) PlexUserForAccount(context.Context, string) (string, error) {
+	if repository.sharedUser == "" {
+		return "", ErrAccountUnmapped
+	}
+	return repository.sharedUser, nil
+}
+func (repository *fakeRepository) ObservePlexAccount(_ context.Context, id, title string, seen time.Time) error {
+	repository.observed = append(repository.observed, ObservedAccount{AccountID: id, Title: title, LastSeenAt: seen})
+	return nil
+}
+func (*fakeRepository) ListPlexAccounts(context.Context) ([]ObservedAccount, error) { return nil, nil }
+func (*fakeRepository) ListPlexMappings(context.Context) ([]Mapping, error)         { return nil, nil }
+func (*fakeRepository) SetPlexMapping(context.Context, string, string) error        { return nil }
+func (*fakeRepository) DeletePlexMapping(context.Context, string) error             { return nil }
+func (*fakeRepository) PlexMappingForUser(context.Context, string) (string, error)  { return "", nil }
 
 func (repository *fakeRepository) IssuePlexWebhook(_ context.Context, _, hash, _ string, _ time.Time) error {
 	repository.issuedHash = hash
@@ -37,8 +67,9 @@ func (repository *fakeRepository) LogPlexEvent(_ context.Context, _, _ string, e
 	repository.logged = append(repository.logged, event)
 	return nil
 }
-func (repository *fakeRepository) RecordPlexPlay(_ context.Context, _, _ string, event Event, _, _ *string, _ time.Time, _ time.Duration) (bool, error) {
+func (repository *fakeRepository) RecordPlexPlay(_ context.Context, userID, _ string, event Event, _, _ *string, _ time.Time, _ time.Duration) (bool, error) {
 	repository.recorded = append(repository.recorded, event)
+	repository.recordedUserIDs = append(repository.recordedUserIDs, userID)
 	return repository.record, nil
 }
 
@@ -96,6 +127,42 @@ func newTestService(t *testing.T, metadata *fakeMetadataProvider) (*Service, *fa
 	service := NewService(repository, metadata, catalog, "https://visto.example.com")
 	service.now = func() time.Time { return time.Date(2026, 9, 25, 12, 0, 0, 0, time.UTC) }
 	return service, repository, catalog
+}
+
+func TestManagedWebhook_ObservesPlaybackAndRoutesMappedScrobble(t *testing.T) {
+	service, repository, catalog := newTestService(t, &fakeMetadataProvider{movie: domain.MovieMetadata{TMDBID: 10, Title: "Example Movie"}})
+	service.mode = "managed"
+	repository.shared = true
+	playback := `{"event":"media.play","Account":{"id":456,"title":"Family"},"Metadata":{"type":"movie","title":"Example Movie"}}`
+	if err := service.Handle(context.Background(), "secret", playback); err != nil {
+		t.Fatal(err)
+	}
+	if len(repository.observed) != 1 || repository.observed[0].AccountID != "456" || repository.observed[0].Title != "Family" || len(repository.logged) != 0 {
+		t.Fatalf("observed=%#v logged=%#v; want only account discovery", repository.observed, repository.logged)
+	}
+	repository.sharedUser = "user-2"
+	scrobble := `{"event":"media.scrobble","Account":{"id":456,"title":"Family"},"Metadata":{"type":"movie","title":"Example Movie","guid":"tmdb://10"}}`
+	if err := service.Handle(context.Background(), "secret", scrobble); err != nil {
+		t.Fatal(err)
+	}
+	if len(catalog.saved) != 1 || len(repository.recorded) != 1 || repository.recordedUserIDs[0] != "user-2" {
+		t.Fatalf("saved=%d recorded=%d users=%v; want mapped watch", len(catalog.saved), len(repository.recorded), repository.recordedUserIDs)
+	}
+	repository.shared = false
+	if err := service.Handle(context.Background(), "secret", scrobble); !errors.Is(err, ErrWebhookNotFound) {
+		t.Fatalf("revoked shared URL error=%v", err)
+	}
+}
+
+func TestManagedWebhook_DisablesPersonalCreationAndRevocation(t *testing.T) {
+	service, _, _ := newTestService(t, nil)
+	service.mode = "managed"
+	if _, err := service.Issue(context.Background(), "user-1", "123"); !errors.Is(err, ErrPersonalDisabled) {
+		t.Fatalf("issue error=%v", err)
+	}
+	if err := service.Revoke(context.Background(), "user-1"); !errors.Is(err, ErrPersonalDisabled) {
+		t.Fatalf("revoke error=%v", err)
+	}
 }
 
 func TestHandle_GivenTMDBMovieGUID_WhenPlexScrobblesMovie_ThenItAddsAndRecordsTheMovie(t *testing.T) {

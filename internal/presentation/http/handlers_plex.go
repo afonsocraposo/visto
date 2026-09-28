@@ -10,6 +10,7 @@ import (
 
 	"github.com/afonsocosta/visto/internal/application/auth"
 	"github.com/afonsocosta/visto/internal/application/plexsync"
+	"github.com/afonsocosta/visto/internal/domain"
 )
 
 func plexWebhookStatus(authService *auth.Service, service *plexsync.Service) http.HandlerFunc {
@@ -42,6 +43,10 @@ func issuePlexWebhook(authService *auth.Service, service *plexsync.Service) http
 		}
 		webhookURL, err := service.Issue(r.Context(), user.ID, request.AccountID)
 		if err != nil {
+			if errors.Is(err, plexsync.ErrPersonalDisabled) {
+				writeError(w, http.StatusForbidden, err.Error())
+				return
+			}
 			if strings.Contains(err.Error(), "Plex account ID") {
 				writeError(w, http.StatusBadRequest, err.Error())
 				return
@@ -64,10 +69,72 @@ func revokePlexWebhook(authService *auth.Service, service *plexsync.Service) htt
 			return
 		}
 		if err := service.Revoke(r.Context(), user.ID); err != nil {
+			if errors.Is(err, plexsync.ErrPersonalDisabled) {
+				writeError(w, http.StatusForbidden, err.Error())
+				return
+			}
 			writeError(w, http.StatusInternalServerError, "Could not revoke the Plex webhook")
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+func adminPlexSync(authService *auth.Service, service *plexsync.Service, action string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		actor, ok := authenticatedUser(w, r, authService)
+		if !ok {
+			return
+		}
+		if actor.Role != domain.AdminRole {
+			writeError(w, http.StatusForbidden, "administrator access required")
+			return
+		}
+		switch action {
+		case "get":
+			status, err := service.AdminStatus(r.Context())
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "Could not load Plex sync settings")
+				return
+			}
+			writeJSON(w, http.StatusOK, status)
+		case "issue":
+			webhookURL, err := service.IssueShared(r.Context())
+			if err != nil {
+				if strings.Contains(err.Error(), "VISTO_PUBLIC_URL") {
+					writeError(w, http.StatusServiceUnavailable, err.Error())
+					return
+				}
+				writeError(w, http.StatusInternalServerError, "Could not create shared Plex webhook URL")
+				return
+			}
+			writeJSON(w, http.StatusCreated, map[string]string{"webhook_url": webhookURL})
+		case "revoke":
+			if err := service.RevokeShared(r.Context()); err != nil {
+				writeError(w, http.StatusInternalServerError, "Could not revoke shared Plex webhook URL")
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
+		case "mapping":
+			var body struct {
+				AccountID string `json:"account_id"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				writeError(w, http.StatusBadRequest, "Invalid Plex account mapping")
+				return
+			}
+			if err := service.SetMapping(r.Context(), r.PathValue("userID"), body.AccountID); err != nil {
+				writeError(w, http.StatusBadRequest, err.Error())
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
+		case "unmap":
+			if err := service.DeleteMapping(r.Context(), r.PathValue("userID")); err != nil {
+				writeError(w, http.StatusInternalServerError, "Could not remove Plex account mapping")
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
+		}
 	}
 }
 

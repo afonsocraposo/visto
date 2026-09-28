@@ -126,6 +126,7 @@ defaults.
 | `VISTO_GOOGLE_REDIRECT_URL`      | empty            | Exact callback URL registered in Google Cloud, such as `https://visto.example.com/api/v1/auth/google/callback`. All three Google variables are required; if any is missing, Google sign-in stays disabled. |
 | `VISTO_ALLOW_SIGNUPS`            | `true`           | Allow public account creation. Set to `false` to disable it. The first-admin setup and admin-created accounts remain available.                                                                            |
 | `VISTO_PUBLIC_URL`               | empty            | Public HTTPS origin, such as `https://visto.example.com`. Used for browser-origin checks and secure cookies when TLS ends at a proxy. Also required for ChatGPT MCP or Plex webhook URLs. Do not include a path such as `/mcp`. |
+| `VISTO_PLEX_SYNC_MODE`           | `personal`       | `personal` lets users create their own Plex webhook URLs. `managed` lets admins create one shared URL and assign Plex accounts to Visto users. Set it in Compose and restart Visto. |
 | `VISTO_TRUSTED_PROXY_CIDRS`      | empty            | Optional comma-separated IP ranges for trusted reverse proxies. Set this only when Visto should use forwarded headers to identify visitor IPs and proxy HTTPS. Use the direct proxy address seen by Visto.                         |
 | `VISTO_LISTEN_ADDR`              | `:8080`          | Address used by the server inside the container. Keep the default with the example port mapping.                                                                                                           |
 | `VISTO_DATABASE_PATH`            | `/data/visto.db` | SQLite database path inside the persistent volume.                                                                                                                                                         |
@@ -316,7 +317,7 @@ a later notification. Leaving Watching cancels pending season alerts.
 
 ## Plex watched-content sync
 
-Plex sync is configured separately by each Visto user under Profile →
+With the default `VISTO_PLEX_SYNC_MODE=personal`, Plex sync is configured separately by each Visto user under Profile →
 Settings → Plex watch sync. Plex Pass is required. Create a webhook URL in
 Visto, copy it when it is shown, then add it in Plex Web under your account's
 webhook settings. Visto shows the URL secret only once; rotate it in Profile if
@@ -331,9 +332,21 @@ event. Existing webhook URLs also skip events until rotated with an account ID.
 
 Plex must be able to reach Visto over HTTPS. Set `VISTO_PUBLIC_URL` to the
 public origin (for example, `https://visto.example.com`) and forward
-`/api/v1/webhooks/plex/` to Visto. Each URL is unique to one Visto user. The
+`/api/v1/webhooks/plex/` to Visto. In personal mode, each URL is unique to one Visto user. The
 server stores only a hash of its secret. Keep the URL private because it grants
 Plex permission to record watches for that account.
+
+For a Plex Pass owner whose family members do not have Plex Pass, set
+`VISTO_PLEX_SYNC_MODE=managed` in Compose and restart Visto. In the Admin panel,
+create the shared URL and add it to the owner's Plex webhook settings. Start
+playback on each family account. The Admin panel shows recently seen Plex
+account IDs, names, and last-seen times. Assign each ID to one Visto user. Only
+assigned accounts record watches; an account is discovered on playback but
+records a watch only after Plex sends `media.scrobble`. Admins can also enter
+an ID manually. The latest 100 distinct observed accounts are retained. Full
+Plex payloads are not stored for discovery. Existing personal URLs remain saved
+but stop syncing in managed mode. They work again if the mode returns to
+`personal`.
 
 Visto processes Plex `media.scrobble` events for the configured Plex account
 only, for movies and TV episodes. It

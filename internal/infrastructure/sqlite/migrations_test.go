@@ -19,8 +19,8 @@ func TestMigrator_GivenFreshDatabase_WhenAppliedTwice_ThenCurrentSchemaExistsAnd
 	if err != nil {
 		t.Fatalf("new migrator: %v", err)
 	}
-	if len(migrator.Migrations) != 10 || migrator.Migrations[0].Version != 1 || migrator.Migrations[1].Version != 2 || migrator.Migrations[2].Version != 3 || migrator.Migrations[3].Version != 4 || migrator.Migrations[4].Version != 5 || migrator.Migrations[5].Version != 6 || migrator.Migrations[6].Version != 7 || migrator.Migrations[7].Version != 8 || migrator.Migrations[8].Version != 9 || migrator.Migrations[9].Version != 10 {
-		t.Fatalf("loaded migrations = %#v, want versions 1 through 10", migrator.Migrations)
+	if len(migrator.Migrations) != 11 || migrator.Migrations[0].Version != 1 || migrator.Migrations[10].Version != 11 {
+		t.Fatalf("loaded migrations = %#v, want versions 1 through 11", migrator.Migrations)
 	}
 	migrator.Now = func() time.Time { return time.Date(2026, 9, 24, 0, 0, 0, 0, time.UTC) }
 
@@ -35,8 +35,8 @@ func TestMigrator_GivenFreshDatabase_WhenAppliedTwice_ThenCurrentSchemaExistsAnd
 	if err := db.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&count); err != nil {
 		t.Fatalf("count migrations: %v", err)
 	}
-	if count != 10 {
-		t.Fatalf("migration count = %d, want 10", count)
+	if count != 11 {
+		t.Fatalf("migration count = %d, want 11", count)
 	}
 	var version int
 	var name string
@@ -50,7 +50,7 @@ func TestMigrator_GivenFreshDatabase_WhenAppliedTwice_ThenCurrentSchemaExistsAnd
 	for _, table := range []string{
 		"users", "user_settings", "sessions", "media", "seasons", "episodes", "user_media", "plays",
 		"activity_events", "episode_ratings", "personal_api_tokens", "notification_deliveries", "oauth_clients",
-		"oauth_authorization_codes", "oauth_access_tokens", "oauth_refresh_tokens", "plex_webhooks", "plex_webhook_events", "backup_settings",
+		"oauth_authorization_codes", "oauth_access_tokens", "oauth_refresh_tokens", "plex_webhooks", "plex_webhook_events", "backup_settings", "plex_observed_accounts",
 	} {
 		var name string
 		if err := db.QueryRow(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?`, table).Scan(&name); err != nil {
@@ -129,6 +129,32 @@ func TestMigrator_GivenFreshDatabase_WhenAppliedTwice_ThenCurrentSchemaExistsAnd
 	}
 	if foreignKeyViolations != 0 {
 		t.Fatalf("schema produced %d foreign-key violations", foreignKeyViolations)
+	}
+}
+
+func TestMigrator_GivenExistingPersonalWebhook_WhenUpgraded_ThenItsTokenIsPreserved(t *testing.T) {
+	db := openTestDatabase(t)
+	migrator, err := sqlite.NewMigrator()
+	if err != nil {
+		t.Fatal(err)
+	}
+	legacy := &sqlite.Migrator{Migrations: migrator.Migrations[:10], Now: time.Now}
+	if err := legacy.Apply(context.Background(), db); err != nil {
+		t.Fatal(err)
+	}
+	userID := insertTestUser(t, db, "plex-owner", "Plex Owner", "private")
+	if _, err := db.Exec(`INSERT INTO plex_webhooks(user_id,token_hash,account_id,created_at) VALUES(?,?,?,?)`, userID, "old-hash", "123", testTimestamp); err != nil {
+		t.Fatal(err)
+	}
+	if err := migrator.Apply(context.Background(), db); err != nil {
+		t.Fatal(err)
+	}
+	var hash, accountID string
+	if err := db.QueryRow(`SELECT token_hash,account_id FROM plex_webhooks WHERE user_id=?`, userID).Scan(&hash, &accountID); err != nil {
+		t.Fatal(err)
+	}
+	if hash != "old-hash" || accountID != "123" {
+		t.Fatalf("preserved webhook hash=%q account=%q", hash, accountID)
 	}
 }
 

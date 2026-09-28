@@ -25,13 +25,15 @@ async function fulfillJSON(route: Route, value: unknown, status = 200) {
   await route.fulfill({ status, contentType: "application/json", body: JSON.stringify(value) });
 }
 
-async function mockSignedInSession(page: Page) {
+async function mockSignedInSession(page: Page, asAdmin = false) {
   let signedIn = true;
   await page.route("**/api/v1/auth/status", (route) =>
     fulfillJSON(route, { bootstrap_available: false, signup_enabled: true, google_enabled: false }),
   );
   await page.route("**/api/v1/me", (route) =>
-    signedIn ? fulfillJSON(route, user) : fulfillJSON(route, { error: "signed out" }, 401),
+    signedIn
+      ? fulfillJSON(route, { ...user, role: asAdmin ? "admin" : "user" })
+      : fulfillJSON(route, { error: "signed out" }, 401),
   );
   await page.route("**/api/v1/imports/welcome", (route) => fulfillJSON(route, { pending: false }));
   await page.route("**/api/v1/auth/logout", (route) => {
@@ -46,7 +48,12 @@ async function mockSignedInSession(page: Page) {
     fulfillJSON(route, { activity_visibility: "private", timezone: "Europe/Lisbon" }),
   );
   await page.route("**/api/v1/profile/plex-webhook", (route) =>
-    fulfillJSON(route, { enabled: false, recent_events: [] }),
+    fulfillJSON(route, {
+      mode: "personal",
+      enabled: false,
+      managed_webhook_enabled: false,
+      recent_events: [],
+    }),
   );
   await page.route(/\/api\/v1\/library(?:\?.*)?$/, (route) =>
     fulfillJSON(route, { items: [], next_cursor: null }),
@@ -172,7 +179,12 @@ test("Given Plex sync settings, When the user creates, rotates, and revokes a UR
     const method = route.request().method();
     requests.push(method);
     if (method === "GET") {
-      await fulfillJSON(route, { enabled, recent_events: [] });
+      await fulfillJSON(route, {
+        mode: "personal",
+        enabled,
+        managed_webhook_enabled: false,
+        recent_events: [],
+      });
     } else if (method === "POST") {
       enabled = true;
       issueCount++;
@@ -210,6 +222,58 @@ test("Given Plex sync settings, When the user creates, rotates, and revokes a UR
     page.getByText("https://visto.example.com/api/v1/webhooks/plex/secret-2"),
   ).toHaveCount(0);
   expect(requests).toContain("DELETE");
+});
+
+test("Given a discovered Plex account, When an admin assigns it, Then the mapping is shown", async ({
+  page,
+}) => {
+  await mockSignedInSession(page, true);
+  let assigned = false;
+  await page.route("**/api/v1/users**", (route) =>
+    fulfillJSON(
+      route,
+      route.request().url().includes("cursor=next")
+        ? {
+            items: [
+              { id: "user-2", name: "Family Member", email: "family@example.com", role: "user" },
+            ],
+            next_cursor: null,
+          }
+        : {
+            items: [{ id: user.id, name: "Afonso", email: "afonso@example.com", role: "admin" }],
+            next_cursor: "next",
+          },
+    ),
+  );
+  await page.route("**/api/v1/admin/plex-sync", (route) =>
+    fulfillJSON(route, {
+      mode: "managed",
+      webhook_enabled: true,
+      mappings: assigned ? [{ user_id: "user-2", account_id: "456" }] : [],
+      observed_accounts: [
+        {
+          account_id: "456",
+          title: "Family",
+          last_seen_at: "2026-09-28T12:00:00Z",
+          ...(assigned ? { user_id: "user-2" } : {}),
+        },
+      ],
+    }),
+  );
+  await page.route("**/api/v1/admin/plex-sync/users/user-2", async (route) => {
+    expect(route.request().postDataJSON()).toEqual({ account_id: "456" });
+    assigned = true;
+    await route.fulfill({ status: 204, body: "" });
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Profile" }).click();
+  await page.getByRole("tab", { name: "Admin" }).click();
+  await expect(page.getByRole("cell", { name: "Family", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Use ID" }).click();
+  await page.getByRole("combobox", { name: "Visto user" }).click();
+  await page.getByRole("option", { name: "Family Member" }).click();
+  await page.getByRole("button", { name: "Assign" }).click();
+  await expect(page.getByRole("button", { name: "Remove" })).toBeVisible();
 });
 
 test("Given an unsaved TV show, When the user adds it or chooses Watch later, Then the selected library status is saved", async ({
