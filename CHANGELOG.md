@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.15.0](https://github.com/afonsocraposo/visto/compare/v0.14.0...v0.15.0) (2026-09-28)
+
+
+### Features
+
+* show when an episode was last watched ([7b1ba8d](https://github.com/afonsocraposo/visto/commit/7b1ba8d074eae02bf31b39f45fe843e22e506ed3))
+
+
+### Bug Fixes
+
+* allow OAuth client redirect origin in consent page CSP form-action ([4942f8a](https://github.com/afonsocraposo/visto/commit/4942f8a0957f33e5d609d16a295810deba6f53d3))
+* remove native button chrome from bottom nav on iOS Safari ([b23e2d0](https://github.com/afonsocraposo/visto/commit/b23e2d0343ae9cefbca70714d5fc4ce220ee30cc))
+* simplify back-navigation and bound its from param to one hop ([ab5d22a](https://github.com/afonsocraposo/visto/commit/ab5d22a7b9285a92a5f1966a8d292359432b09a2))
+
 ## [0.14.0](https://github.com/afonsocraposo/visto/compare/v0.13.0...v0.14.0) (2026-09-28)
 
 
