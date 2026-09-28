@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.13.0](https://github.com/afonsocraposo/visto/compare/v0.12.0...v0.13.0) (2026-09-28)
+
+
+### Features
+
+* import Bingers data and backfill metadata ([48ecfae](https://github.com/afonsocraposo/visto/commit/48ecfae9987a20c75b1e8a47b3fe9d6fa4edfd03))
+
+
+### Bug Fixes
+
+* restore unsaved media details and stabilize CI ([a3ffe7c](https://github.com/afonsocraposo/visto/commit/a3ffe7c2e29cfb5e238a1e7adeef804eceb89937))
+
 ## [0.12.0](https://github.com/afonsocraposo/visto/compare/v0.11.2...v0.12.0) (2026-09-27)
 
 
