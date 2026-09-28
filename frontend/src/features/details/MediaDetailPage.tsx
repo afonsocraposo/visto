@@ -1121,7 +1121,8 @@ export function MediaDetailPage({ target, onBack, onOpenDetail, onOpenPerson }: 
                   selectedSeasonID &&
                   Number(selectedSeason) > 0 &&
                   library.data?.item.status === "watching" &&
-                  seasonAlert.data && (
+                  seasonAlert.data &&
+                  !seasonAlert.data.ready && (
                     <Tooltip
                       label={
                         seasonAlert.data.ready && !seasonAlert.data.subscribed
