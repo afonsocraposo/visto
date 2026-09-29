@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.3](https://github.com/afonsocraposo/visto/compare/v0.18.2...v0.18.3) (2026-09-29)
+
+
+### Bug Fixes
+
+* reconcile TMDB episodes and watch eligibility ([b5061fc](https://github.com/afonsocraposo/visto/commit/b5061fc2fb18fbd65bc4ab5c12658fe973af1842))
+
 ## [0.18.2](https://github.com/afonsocraposo/visto/compare/v0.18.1...v0.18.2) (2026-09-29)
 
 
