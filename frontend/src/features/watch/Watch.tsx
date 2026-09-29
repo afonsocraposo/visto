@@ -1,5 +1,11 @@
 import { useState } from "react";
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useMutationState,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import {
   ActionIcon,
   Alert,
@@ -36,12 +42,15 @@ import type { CalendarEntry, ContinueEntry, CursorPage, MediaDetailTarget } from
 import { backdropURL, posterURL } from "../../lib/artwork";
 import { pageURL } from "../../lib/pagination";
 
+const markWatchedMutationKey = ["continue-watching", "mark-watched"] as const;
+type MarkWatchedVariables = { episodeIDs: string[]; bulk: boolean; showID: string };
+
 export function WatchNow({ onOpenDetail }: { onOpenDetail?: (target: MediaDetailTarget) => void }) {
   const queryClient = useQueryClient();
   const userQueryKey = useUserQueryKey();
   const invalidate = useInvalidateUserCache();
   const [confirmation, setConfirmation] = useState<ContinueEntry | null>(null);
-  const [completedShowID, setCompletedShowID] = useState<string | null>(null);
+  const [completedShowIDs, setCompletedShowIDs] = useState<Set<string>>(() => new Set());
   const entries = useQuery({
     queryKey: userQueryKey("continue"),
     queryFn: () =>
@@ -51,15 +60,16 @@ export function WatchNow({ onOpenDetail }: { onOpenDetail?: (target: MediaDetail
       ),
   });
   const markWatched = useMutation({
-    mutationFn: ({ episodeIDs, bulk }: { episodeIDs: string[]; bulk: boolean; showID: string }) =>
+    mutationKey: markWatchedMutationKey,
+    mutationFn: ({ episodeIDs, bulk }: MarkWatchedVariables) =>
       api.post<Play | Play[]>(
         bulk ? "/api/v1/plays/bulk" : "/api/v1/plays",
         bulk ? { episode_ids: episodeIDs } : { episode_id: episodeIDs[0] },
         "Could not mark episode watched.",
       ),
     onSuccess: async (result, variables) => {
-      setConfirmation(null);
-      setCompletedShowID(variables.showID);
+      setConfirmation((current) => (current?.show_id === variables.showID ? null : current));
+      setCompletedShowIDs((current) => new Set(current).add(variables.showID));
       const plays = Array.isArray(result) ? result : [result];
       showActionFeedback(
         `${plays.length} ${plays.length === 1 ? "episode" : "episodes"} marked watched.`,
@@ -85,6 +95,13 @@ export function WatchNow({ onOpenDetail }: { onOpenDetail?: (target: MediaDetail
       );
     },
   });
+  const pendingWatchActions = useMutationState({
+    filters: { mutationKey: markWatchedMutationKey, status: "pending" },
+    select: (mutation) => mutation.state.variables as MarkWatchedVariables,
+  });
+  const confirmationActions = pendingWatchActions.filter(
+    (action) => action.showID === confirmation?.show_id,
+  );
 
   if (entries.isPending)
     return (
@@ -131,10 +148,13 @@ export function WatchNow({ onOpenDetail }: { onOpenDetail?: (target: MediaDetail
     );
 
   const finishWatchedAnimation = (showID: string) => {
-    if (completedShowID !== showID) return;
-    void queryClient
-      .invalidateQueries({ queryKey: userQueryKey("continue") })
-      .finally(() => setCompletedShowID(null));
+    setCompletedShowIDs((current) => {
+      if (!current.has(showID)) return current;
+      const next = new Set(current);
+      next.delete(showID);
+      return next;
+    });
+    void queryClient.invalidateQueries({ queryKey: userQueryKey("continue") });
   };
 
   return (
@@ -160,8 +180,8 @@ export function WatchNow({ onOpenDetail }: { onOpenDetail?: (target: MediaDetail
                 showID: confirmation.show_id,
               })
             }
-            loading={markWatched.isPending && markWatched.variables?.bulk === false}
-            disabled={markWatched.isPending}
+            loading={confirmationActions.some((action) => !action.bulk)}
+            disabled={confirmationActions.length > 0}
           >
             Only this episode
           </Button>
@@ -177,8 +197,8 @@ export function WatchNow({ onOpenDetail }: { onOpenDetail?: (target: MediaDetail
                 showID: confirmation.show_id,
               })
             }
-            loading={markWatched.isPending && markWatched.variables?.bulk === true}
-            disabled={markWatched.isPending}
+            loading={confirmationActions.some((action) => action.bulk)}
+            disabled={confirmationActions.length > 0}
           >
             Mark all as watched
           </Button>
@@ -193,7 +213,7 @@ export function WatchNow({ onOpenDetail }: { onOpenDetail?: (target: MediaDetail
           const art =
             backdropURL(entry.next_episode_still_path, "w780") ??
             posterURL(entry.poster_path, "w500");
-          const isCompleted = completedShowID === entry.show_id;
+          const isCompleted = completedShowIDs.has(entry.show_id);
           const openEpisode = () =>
             onOpenDetail?.({
               mediaType: "tv",
@@ -298,12 +318,9 @@ export function WatchNow({ onOpenDetail }: { onOpenDetail?: (target: MediaDetail
                       variant="light"
                       color="gray"
                       aria-label={`Mark ${entry.title} season ${entry.next_episode.season_number}, episode ${entry.next_episode.episode_number} watched`}
-                      loading={
-                        markWatched.isPending && markWatched.variables?.showID === entry.show_id
-                      }
-                      disabled={
-                        markWatched.isPending && markWatched.variables?.showID !== entry.show_id
-                      }
+                      loading={pendingWatchActions.some(
+                        (action) => action.showID === entry.show_id,
+                      )}
                       onClick={(event) => {
                         event.stopPropagation();
                         entry.missing_prior_episodes?.length

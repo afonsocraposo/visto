@@ -1160,6 +1160,64 @@ test("Given the ordinary next episode, When the user taps Watched, Then only tha
   expect(bulkPlayCount).toBe(0);
 });
 
+test("Given another show is being marked watched, When marking a second show, Then both rows stay active and show loading", async ({
+  page,
+}) => {
+  await mockSignedInSession(page);
+  const entries = [
+    continueEntry,
+    {
+      ...continueEntry,
+      show_id: "tv:43",
+      title: "Another Example Show",
+      next_episode: { ...continueEntry.next_episode!, id: "tv:43:episode:101" },
+    },
+  ];
+  let releaseFirst!: () => void;
+  let releaseSecond!: () => void;
+  let startFirst!: () => void;
+  let startSecond!: () => void;
+  const firstGate = new Promise<void>((resolve) => (releaseFirst = resolve));
+  const secondGate = new Promise<void>((resolve) => (releaseSecond = resolve));
+  const firstStarted = new Promise<void>((resolve) => (startFirst = resolve));
+  const secondStarted = new Promise<void>((resolve) => (startSecond = resolve));
+  await page.route("**/api/v1/continue-watching", (route) => fulfillJSON(route, entries));
+  await page.route("**/api/v1/plays", async (route) => {
+    const { episode_id } = route.request().postDataJSON() as { episode_id: string };
+    if (episode_id === "tv:42:episode:101") {
+      startFirst();
+      await firstGate;
+    } else {
+      startSecond();
+      await secondGate;
+    }
+    await fulfillJSON(route, { id: `play-${episode_id}` }, 201);
+  });
+  await page.goto("/");
+
+  const firstAction = page.getByRole("button", {
+    name: "Mark The Example Show season 1, episode 1 watched",
+    exact: true,
+  });
+  const secondAction = page.getByRole("button", {
+    name: "Mark Another Example Show season 1, episode 1 watched",
+    exact: true,
+  });
+  await firstAction.click();
+  await firstStarted;
+  await expect(firstAction).toHaveAttribute("aria-busy", "true");
+  await expect(secondAction).toBeEnabled();
+
+  await secondAction.click();
+  await secondStarted;
+  await expect(firstAction).toHaveAttribute("aria-busy", "true");
+  await expect(secondAction).toHaveAttribute("aria-busy", "true");
+
+  releaseFirst();
+  releaseSecond();
+  await expect(page.locator(".watch-row-complete-indicator")).toHaveCount(2);
+});
+
 test("Given the Visto server is unreachable, When the user retries after it recovers, Then the connection notice clears and data reloads", async ({
   page,
 }) => {
