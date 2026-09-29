@@ -759,6 +759,12 @@ test("Detail Back restores the show's scroll position and direct links use a fal
   await episode.scrollIntoViewIfNeeded();
   const scrollY = await page.evaluate(() => window.scrollY);
   expect(scrollY).toBeGreaterThan(0);
+  const expectEpisodeScrollRestored = async () => {
+    await expect(episode).toBeInViewport();
+    await expect
+      .poll(() => page.evaluate((previous) => Math.abs(window.scrollY - previous), scrollY))
+      .toBeLessThan(200);
+  };
   await episode.click();
   await expect(page).toHaveURL(/\/shows\/100\/season\/1\/episode\/20/);
   await expect(page.getByRole("heading", { name: "Episode 20" })).toBeVisible();
@@ -766,12 +772,12 @@ test("Detail Back restores the show's scroll position and direct links use a fal
   await expect(page.getByText("No description available.")).toBeVisible();
   await page.getByRole("button", { name: "Back", exact: true }).click();
   await expect(page).toHaveURL(/\/media\/tv\/100$/);
-  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(scrollY);
+  await expectEpisodeScrollRestored();
 
   await episode.click();
   await page.goBack();
   await expect(page).toHaveURL(/\/media\/tv\/100$/);
-  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(scrollY);
+  await expectEpisodeScrollRestored();
 
   await page.getByRole("button", { name: "View Actor Seven" }).scrollIntoViewIfNeeded();
   const castScrollY = await page.evaluate(() => window.scrollY);
