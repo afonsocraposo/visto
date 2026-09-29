@@ -80,6 +80,11 @@ test("Given a phone viewport, When switching destinations, Then the bottom navig
   for (const width of [320, 390]) {
     await page.setViewportSize({ width, height: 740 });
     await page.goto("/watch");
+    const navBounds = await nav.evaluate((element) => {
+      const { height, bottom } = element.getBoundingClientRect();
+      return { height, bottom };
+    });
+    expect(navBounds).toEqual({ height: 60, bottom: 740 });
     await expect(nav.getByRole("button", { name: "Watching" })).toHaveAttribute(
       "aria-current",
       "page",
@@ -102,6 +107,12 @@ test("Given a phone viewport, When switching destinations, Then the bottom navig
       "aria-current",
       "page",
     );
+    expect(
+      await nav.evaluate((element) => {
+        const { height, bottom } = element.getBoundingClientRect();
+        return { height, bottom };
+      }),
+    ).toEqual(navBounds);
   }
 });
 

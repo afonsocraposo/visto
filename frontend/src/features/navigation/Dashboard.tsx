@@ -141,7 +141,7 @@ export function Dashboard({
   return (
     <AppShell
       className="visto-shell"
-      footer={{ height: "calc(76px + env(safe-area-inset-bottom))" }}
+      footer={{ height: "var(--visto-footer-height)" }}
       padding={0}
     >
       <Modal

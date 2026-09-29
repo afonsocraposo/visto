@@ -30,6 +30,7 @@ select {
 
 .visto-shell {
   min-height: 100vh;
+  --visto-footer-height: calc(60px + env(safe-area-inset-bottom));
 }
 .visto-footer {
   padding-bottom: env(safe-area-inset-bottom);
@@ -40,7 +41,7 @@ select {
 .visto-main {
   width: min(100% - 32px, 1120px);
   margin: 0 auto;
-  padding: 32px 0 calc(112px + env(safe-area-inset-bottom));
+  padding: 32px 0 calc(96px + env(safe-area-inset-bottom));
 }
 .visto-main button,
 .visto-main [role="tab"] {
@@ -104,9 +105,9 @@ select {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 4px;
   width: min(100% - 24px, 600px);
-  height: 76px;
+  height: 60px;
   margin: 0 auto;
-  padding: 8px 0;
+  padding: 0;
 }
 .bottom-nav-button {
   display: flex;
@@ -143,6 +144,16 @@ select {
   color: #f2b544;
 }
 @media (min-width: 681px) {
+  .visto-shell {
+    --visto-footer-height: calc(76px + env(safe-area-inset-bottom));
+  }
+  .visto-main {
+    padding-bottom: calc(112px + env(safe-area-inset-bottom));
+  }
+  .bottom-nav {
+    height: 76px;
+    padding: 8px 0;
+  }
   .bottom-nav-button {
     flex-direction: row;
     gap: 8px;
