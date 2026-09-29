@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.17.0](https://github.com/afonsocraposo/visto/compare/v0.16.0...v0.17.0) (2026-09-29)
+
+
+### Features
+
+* add movie release notifications ([1ffb8a8](https://github.com/afonsocraposo/visto/commit/1ffb8a84869c78bb77fea78faf4cfec33503c448))
+* clarify season notification controls ([50a74db](https://github.com/afonsocraposo/visto/commit/50a74db09faae30a91a90a3df35f63e95710b64d))
+
+
+### Bug Fixes
+
+* improve upcoming episode date labels ([e06ba4d](https://github.com/afonsocraposo/visto/commit/e06ba4d3fe3928c8aa5e8234211b6dad9309cf2c))
+
 ## [0.16.0](https://github.com/afonsocraposo/visto/compare/v0.15.0...v0.16.0) (2026-09-28)
 
 
