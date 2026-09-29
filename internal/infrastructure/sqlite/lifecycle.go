@@ -16,10 +16,10 @@ import (
 func showIsComplete(ctx context.Context, tx *sql.Tx, userID, showID string) (bool, error) {
 	var complete bool
 	err := tx.QueryRowContext(ctx, `SELECT COALESCE(m.status IN ('Ended','Canceled','Cancelled'),0)
-		AND EXISTS(SELECT 1 FROM episodes e WHERE e.show_id=m.id AND e.season_number>0)
-		AND (SELECT COUNT(*) FROM episodes e WHERE e.show_id=m.id AND e.season_number>0) >=
+		AND EXISTS(SELECT 1 FROM episodes e WHERE e.show_id=m.id AND e.active=1 AND e.season_number>0)
+		AND (SELECT COUNT(*) FROM episodes e WHERE e.show_id=m.id AND e.active=1 AND e.season_number>0) >=
 			COALESCE((SELECT SUM(s.episode_count) FROM seasons s WHERE s.show_id=m.id AND s.season_number>0),0)
-		AND NOT EXISTS(SELECT 1 FROM episodes e WHERE e.show_id=m.id AND e.season_number>0
+		AND NOT EXISTS(SELECT 1 FROM episodes e WHERE e.show_id=m.id AND e.active=1 AND e.season_number>0
 			AND NOT EXISTS(SELECT 1 FROM plays p WHERE p.user_id=? AND p.episode_id=e.id))
 		FROM media m WHERE m.id=? AND m.media_type='tv'`, userID, showID).Scan(&complete)
 	if err != nil {
@@ -72,7 +72,7 @@ func (s *Store) CompleteMedia(ctx context.Context, userID, mediaID string, ratin
 			return library.Item{}, fmt.Errorf("only ended or canceled shows can be completed")
 		}
 		var catalogCount, expectedCount int
-		if err := tx.QueryRowContext(ctx, `SELECT (SELECT COUNT(*) FROM episodes WHERE show_id=? AND season_number>0),
+		if err := tx.QueryRowContext(ctx, `SELECT (SELECT COUNT(*) FROM episodes WHERE show_id=? AND active=1 AND season_number>0),
 			COALESCE((SELECT SUM(episode_count) FROM seasons WHERE show_id=? AND season_number>0),0)`, mediaID, mediaID).Scan(&catalogCount, &expectedCount); err != nil {
 			return library.Item{}, err
 		}
@@ -121,7 +121,7 @@ func (s *Store) CompleteMedia(ctx context.Context, userID, mediaID string, ratin
 			}
 		}
 	} else {
-		rows, err := tx.QueryContext(ctx, `SELECT e.id FROM episodes e WHERE e.show_id=? AND e.season_number>0
+		rows, err := tx.QueryContext(ctx, `SELECT e.id FROM episodes e WHERE e.show_id=? AND e.active=1 AND e.season_number>0
 			AND NOT EXISTS(SELECT 1 FROM plays p WHERE p.user_id=? AND p.episode_id=e.id) ORDER BY e.season_number,e.episode_number`, mediaID, userID)
 		if err != nil {
 			return library.Item{}, err

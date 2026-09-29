@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/afonsocosta/visto/internal/application/tracking"
 	"github.com/afonsocosta/visto/internal/domain"
 	"github.com/afonsocosta/visto/internal/infrastructure/sqlite"
 )
@@ -147,5 +148,81 @@ func TestListShowEpisodes_GivenTwoUsersAndOneWatchedEpisode_WhenRequested_ThenIt
 	}
 	if _, err := store.ListShowEpisodes(context.Background(), otherID, "tv:42"); err == nil {
 		t.Fatal("expected another user without the show in their library to be denied")
+	}
+}
+
+func TestImportShowMetadata_ReconcilesRemovedEpisodesAndKeepsHistory(t *testing.T) {
+	ctx := context.Background()
+	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "visto.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	userID := insertTestUser(t, store.DB, "viewer", "Viewer", "private")
+	if _, err := store.DB.Exec(`INSERT INTO media(id,media_type,tmdb_id,title,metadata_updated_at,created_at) VALUES('tv:42','tv',42,'Show','','2026-01-01')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.DB.Exec(`INSERT INTO user_media(id,user_id,media_id,status,added_at,updated_at) VALUES(?,?,'tv:42','watching','2026-01-01','2026-01-01')`, userID+":tv:42", userID); err != nil {
+		t.Fatal(err)
+	}
+	season := domain.TVSeasonMetadata{Number: 1, EpisodeCount: 4, Episodes: []domain.TVEpisodeMetadata{
+		{TMDBID: 101, SeasonNumber: 1, EpisodeNumber: 1, Name: "Released", AirDate: "2020-01-01"},
+		{TMDBID: 102, SeasonNumber: 1, EpisodeNumber: 2, Name: "Watched removal", AirDate: "2020-01-01"},
+		{TMDBID: 103, SeasonNumber: 1, EpisodeNumber: 3, Name: "Unwatched removal"},
+		{TMDBID: 104, SeasonNumber: 1, EpisodeNumber: 4, Name: "Unscheduled"},
+	}}
+	show := domain.TVShowMetadata{TMDBID: 42, Name: "Show", Seasons: []domain.TVSeasonMetadata{season}}
+	if err := store.ImportShowMetadata(ctx, "tv:42", show); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.DB.Exec(`INSERT INTO plays(user_id,episode_id,watched_at,created_at) VALUES(?,'tv:42:episode:102','2026-01-01T00:00:00Z','2026-01-01T00:00:00Z')`, userID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.DB.Exec(`INSERT INTO episodes(id,show_id,season_id,season_number,episode_number,name) VALUES('tv:42:episode:1:5','tv:42','tv:42:season:1',1,5,'Episode 5')`); err != nil {
+		t.Fatal(err)
+	}
+	show.Seasons[0].Episodes = []domain.TVEpisodeMetadata{season.Episodes[0], season.Episodes[3]}
+	if err := store.ImportShowMetadata(ctx, "tv:42", show); err != nil {
+		t.Fatal(err)
+	}
+	var count, active int
+	if err := store.DB.QueryRow(`SELECT episode_count FROM seasons WHERE id='tv:42:season:1'`).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 2 {
+		t.Fatalf("episode count=%d, want 2", count)
+	}
+	if err := store.DB.QueryRow(`SELECT active FROM episodes WHERE id='tv:42:episode:102'`).Scan(&active); err != nil || active != 0 {
+		t.Fatalf("watched removal active=%d, err=%v", active, err)
+	}
+	var plays int
+	if err := store.DB.QueryRow(`SELECT COUNT(*) FROM plays WHERE episode_id='tv:42:episode:102'`).Scan(&plays); err != nil || plays != 1 {
+		t.Fatalf("history=%d, err=%v", plays, err)
+	}
+	history, err := store.ListPlays(ctx, userID, 10)
+	if err != nil || len(history) != 1 || history[0].EpisodeLabel != "S01E02" {
+		t.Fatalf("removed episode history=%v, err=%v", history, err)
+	}
+	for _, id := range []string{"tv:42:episode:103", "tv:42:episode:1:5"} {
+		var exists bool
+		if err := store.DB.QueryRow(`SELECT EXISTS(SELECT 1 FROM episodes WHERE id=?)`, id).Scan(&exists); err != nil || exists {
+			t.Fatalf("obsolete %s still exists: %v", id, err)
+		}
+	}
+	entries, err := store.ListShowEpisodes(ctx, userID, "tv:42")
+	if err != nil || len(entries) != 2 {
+		t.Fatalf("active entries=%v, err=%v", entries, err)
+	}
+	unscheduled := "tv:42:episode:104"
+	if _, err := store.CreatePlay(ctx, tracking.Play{UserID: userID, EpisodeID: &unscheduled, WatchedAt: time.Now().UTC(), Source: "web"}); err != nil {
+		t.Fatalf("manually watch undated episode: %v", err)
+	}
+	show.Seasons[0].Episodes = append(show.Seasons[0].Episodes, domain.TVEpisodeMetadata{TMDBID: 105, SeasonNumber: 1, EpisodeNumber: 5, Name: "New", AirDate: "2030-01-01"})
+	if err := store.ImportShowMetadata(ctx, "tv:42", show); err != nil {
+		t.Fatal(err)
+	}
+	entries, err = store.ListShowEpisodes(ctx, userID, "tv:42")
+	if err != nil || len(entries) != 3 || entries[2].Episode.ID != "tv:42:episode:105" {
+		t.Fatalf("new episode=%v, err=%v", entries, err)
 	}
 }

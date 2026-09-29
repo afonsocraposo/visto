@@ -117,12 +117,17 @@ func (s *Store) ImportShowMetadata(ctx context.Context, showID string, show doma
 			seasonTMDB = season.TMDBID
 		}
 		episodeCount := season.EpisodeCount
-		if episodeCount < len(season.Episodes) {
+		if season.Episodes != nil {
 			episodeCount = len(season.Episodes)
 		}
 		if _, err := tx.ExecContext(ctx, `INSERT INTO seasons(id,show_id,tmdb_id,season_number,name,overview,poster_path,air_date,episode_count) VALUES(?,?,?,?,?,?,?,?,?)
 			ON CONFLICT(show_id,season_number) DO UPDATE SET tmdb_id=excluded.tmdb_id,name=excluded.name,overview=excluded.overview,poster_path=excluded.poster_path,air_date=excluded.air_date,episode_count=excluded.episode_count`, seasonID, showID, seasonTMDB, season.Number, season.Name, season.Overview, season.PosterPath, season.AirDate, episodeCount); err != nil {
 			return fmt.Errorf("upsert season %d: %w", season.Number, err)
+		}
+		if season.Episodes != nil {
+			if err := reconcileSeasonEpisodes(ctx, tx, seasonID, season.Episodes); err != nil {
+				return fmt.Errorf("reconcile season %d: %w", season.Number, err)
+			}
 		}
 		for _, episode := range season.Episodes {
 			episodeID := fmt.Sprintf("%s:episode:%d", showID, episode.TMDBID)
@@ -133,7 +138,7 @@ func (s *Store) ImportShowMetadata(ctx context.Context, showID string, show doma
 				episodeID = fmt.Sprintf("%s:episode:%d:%d", showID, episode.SeasonNumber, episode.EpisodeNumber)
 			}
 			if _, err := tx.ExecContext(ctx, `INSERT INTO episodes(id,show_id,season_id,tmdb_id,season_number,episode_number,name,overview,air_date,runtime,still_path,metadata_updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
-				ON CONFLICT(show_id,season_number,episode_number) DO UPDATE SET season_id=excluded.season_id,tmdb_id=excluded.tmdb_id,name=excluded.name,overview=excluded.overview,air_date=excluded.air_date,runtime=excluded.runtime,still_path=excluded.still_path,metadata_updated_at=excluded.metadata_updated_at`, episodeID, showID, seasonID, episodeTMDB, episode.SeasonNumber, episode.EpisodeNumber, episode.Name, episode.Overview, episode.AirDate, episode.Runtime, episode.StillPath, now); err != nil {
+				ON CONFLICT DO UPDATE SET season_id=excluded.season_id,tmdb_id=excluded.tmdb_id,season_number=excluded.season_number,episode_number=excluded.episode_number,name=excluded.name,overview=excluded.overview,air_date=excluded.air_date,runtime=excluded.runtime,still_path=excluded.still_path,metadata_updated_at=excluded.metadata_updated_at,active=1,original_episode_number=NULL`, episodeID, showID, seasonID, episodeTMDB, episode.SeasonNumber, episode.EpisodeNumber, episode.Name, episode.Overview, episode.AirDate, episode.Runtime, episode.StillPath, now); err != nil {
 				return fmt.Errorf("upsert S%02dE%02d: %w", episode.SeasonNumber, episode.EpisodeNumber, err)
 			}
 		}
@@ -163,6 +168,68 @@ func (s *Store) ImportShowMetadata(ctx context.Context, showID string, show doma
 		}
 	}
 	return tx.Commit()
+}
+
+// reconcileSeasonEpisodes runs only for fetched season payloads. A show summary
+// has a nil Episodes slice and cannot establish which episodes were removed.
+func reconcileSeasonEpisodes(ctx context.Context, tx *sql.Tx, seasonID string, incoming []domain.TVEpisodeMetadata) error {
+	byID := make(map[int64]int, len(incoming))
+	byNumber := make(map[int]int64, len(incoming))
+	for _, episode := range incoming {
+		byID[episode.TMDBID] = episode.EpisodeNumber
+		byNumber[episode.EpisodeNumber] = episode.TMDBID
+	}
+	rows, err := tx.QueryContext(ctx, `SELECT rowid,id,tmdb_id,episode_number FROM episodes WHERE season_id=? AND active=1`, seasonID)
+	if err != nil {
+		return err
+	}
+	type existingEpisode struct {
+		rowid  int64
+		id     string
+		tmdbID sql.NullInt64
+		number int
+	}
+	var existing []existingEpisode
+	for rows.Next() {
+		var item existingEpisode
+		if err := rows.Scan(&item.rowid, &item.id, &item.tmdbID, &item.number); err != nil {
+			rows.Close()
+			return err
+		}
+		existing = append(existing, item)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	rows.Close()
+	for _, item := range existing {
+		if item.tmdbID.Valid {
+			if number, ok := byID[item.tmdbID.Int64]; ok {
+				if number != item.number {
+					if _, err := tx.ExecContext(ctx, `UPDATE episodes SET episode_number=?,original_episode_number=episode_number WHERE rowid=?`, -item.rowid, item.rowid); err != nil {
+						return err
+					}
+				}
+				continue
+			}
+		} else if id, ok := byNumber[item.number]; ok && id > 0 {
+			// Imported watch history can use a synthetic ID until TMDB supplies the episode.
+			continue
+		}
+		var hasUserData bool
+		if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM plays WHERE episode_id=? UNION SELECT 1 FROM episode_ratings WHERE episode_id=? UNION SELECT 1 FROM activity_events WHERE episode_id=?)`, item.id, item.id, item.id).Scan(&hasUserData); err != nil {
+			return err
+		}
+		if hasUserData {
+			if _, err := tx.ExecContext(ctx, `UPDATE episodes SET active=0,episode_number=?,original_episode_number=episode_number WHERE rowid=?`, -item.rowid, item.rowid); err != nil {
+				return err
+			}
+		} else if _, err := tx.ExecContext(ctx, `DELETE FROM episodes WHERE rowid=?`, item.rowid); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Store) ShowMetadataNeedsRefresh(ctx context.Context, showID string, ttl time.Duration) (bool, error) {
@@ -344,7 +411,7 @@ func (s *Store) listItemsSorted(ctx context.Context, userID, sort string, select
 		LEFT JOIN (
 			SELECT s.show_id,(SELECT SUM(COALESCE(s2.episode_count,0)) FROM seasons s2 WHERE s2.show_id=s.show_id AND s2.season_number>0) AS total_episodes,COUNT(DISTINCT p.episode_id) AS watched_episodes
 			FROM seasons s
-			LEFT JOIN episodes e ON e.season_id=s.id AND e.season_number>0
+			LEFT JOIN episodes e ON e.season_id=s.id AND e.active=1 AND e.season_number>0
 			LEFT JOIN (SELECT DISTINCT episode_id FROM plays WHERE user_id=?) p ON p.episode_id=e.id
 			WHERE s.season_number>0`+progressFilter+` GROUP BY s.show_id
 		) progress ON progress.show_id=m.id

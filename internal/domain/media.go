@@ -37,7 +37,7 @@ func (episode Episode) IsRegular() bool {
 }
 
 func (episode Episode) IsReleasedAt(now time.Time) bool {
-	return episode.AirDate == nil || episode.AirDate.UTC().Format(time.DateOnly) <= now.In(now.Location()).Format(time.DateOnly)
+	return episode.AirDate != nil && episode.AirDate.UTC().Format(time.DateOnly) <= now.In(now.Location()).Format(time.DateOnly)
 }
 
 func (episode Episode) MarshalJSON() ([]byte, error) {

@@ -60,9 +60,7 @@ func (service *Service) RefreshCatalog(ctx context.Context, activeTTL, finishedT
 					replaced := false
 					for i := range metadata.Seasons {
 						if metadata.Seasons[i].Number == number {
-							if metadata.Seasons[i].EpisodeCount > season.EpisodeCount {
-								season.EpisodeCount = metadata.Seasons[i].EpisodeCount
-							}
+
 							metadata.Seasons[i] = season
 							replaced = true
 							break

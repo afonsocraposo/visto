@@ -103,9 +103,10 @@ func TestShowProgress_GivenASeasonFifteenPlay_WhenProgressIsRequested_ThenTheCur
 }
 
 func TestShowProgress_GivenOnlyLastEpisodeWatched_WhenProgressIsRequested_ThenEarlierGapIsVisible(t *testing.T) {
+	airDate := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
 	entries := []ShowEpisode{
-		{Episode: domain.Episode{ID: "s1e1", SeasonNumber: 1, EpisodeNumber: 1}},
-		{Episode: domain.Episode{ID: "s1e2", SeasonNumber: 1, EpisodeNumber: 2}, Watched: true},
+		{Episode: domain.Episode{ID: "s1e1", SeasonNumber: 1, EpisodeNumber: 1, AirDate: &airDate}},
+		{Episode: domain.Episode{ID: "s1e2", SeasonNumber: 1, EpisodeNumber: 2, AirDate: &airDate}, Watched: true},
 	}
 	service := NewService(repository{timezone: "UTC", episodes: entries})
 	progress, err := service.ShowProgress(context.Background(), "user-1", "tv:example")
@@ -181,7 +182,7 @@ func TestRemainingEpisodes_GivenLaterRegularEpisodes_WhenCountingAfterCurrent_Th
 		{ID: "next-season", SeasonNumber: 2, EpisodeNumber: 1, AirDate: &now},
 	}
 	plays := []domain.EpisodePlay{{ID: "p1", EpisodeID: "watched-later"}}
-	if got := remainingEpisodesAfter(episodes, plays, episodes[1]); got != 2 {
+	if got := remainingEpisodesAfter(episodes, plays, episodes[1], now); got != 2 {
 		t.Fatalf("remaining episodes=%d, want two later unwatched regular episodes", got)
 	}
 }

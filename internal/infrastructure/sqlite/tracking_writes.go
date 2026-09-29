@@ -277,7 +277,7 @@ func (store *Store) markEpisodesMatching(ctx context.Context, userID, showID str
 	localNow := now.In(zone)
 	rows, err := tx.QueryContext(ctx, `SELECT e.id,e.season_number,e.episode_number,e.air_date,
 		EXISTS(SELECT 1 FROM plays p WHERE p.user_id=? AND p.episode_id=e.id)
-		FROM episodes e WHERE e.show_id=? ORDER BY e.season_number,e.episode_number`, userID, showID)
+		FROM episodes e WHERE e.show_id=? AND e.active=1 ORDER BY e.season_number,e.episode_number`, userID, showID)
 	if err != nil {
 		return 0, fmt.Errorf("list show episodes: %w", err)
 	}

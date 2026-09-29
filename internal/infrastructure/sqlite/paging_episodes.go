@@ -54,7 +54,7 @@ func (store *Store) episodePage(ctx context.Context, userID, parentID string, se
 		args = append(args, seasonNumber, seasonNumber, episodeNumber, episodeNumber, keys[2])
 	}
 	args = append(args, request.Limit+1)
-	rows, err := store.DB.QueryContext(ctx, `SELECT e.id,e.show_id,e.season_number,e.episode_number,e.air_date,COALESCE(e.name,''),e.overview,e.runtime,e.still_path,(SELECT MAX(p.watched_at) FROM plays p WHERE p.user_id=? AND p.episode_id=e.id) FROM episodes e WHERE `+column+`=?`+where+` ORDER BY e.season_number,e.episode_number,e.id LIMIT ?`, args...)
+	rows, err := store.DB.QueryContext(ctx, `SELECT e.id,e.show_id,e.season_number,e.episode_number,e.air_date,COALESCE(e.name,''),e.overview,e.runtime,e.still_path,(SELECT MAX(p.watched_at) FROM plays p WHERE p.user_id=? AND p.episode_id=e.id) FROM episodes e WHERE `+column+`=? AND e.active=1`+where+` ORDER BY e.season_number,e.episode_number,e.id LIMIT ?`, args...)
 	if err != nil {
 		return pagination.Page[watch.ShowEpisode]{}, err
 	}

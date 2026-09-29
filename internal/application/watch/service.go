@@ -148,7 +148,7 @@ func (service *Service) Continue(ctx context.Context, userID string) ([]Continue
 			entry.NextEpisodeName = details.Name
 			entry.NextEpisodeStillPath = details.StillPath
 		}
-		entry.RemainingEpisodes = remainingEpisodesAfter(show.Episodes, show.Plays, *progress.NextEpisode)
+		entry.RemainingEpisodes = remainingEpisodesAfter(show.Episodes, show.Plays, *progress.NextEpisode, now)
 		entry.MissingPriorEpisodes = domain.MissingPriorEpisodes(show.Episodes, show.Plays, *progress.NextEpisode, now)
 		result = append(result, entry)
 	}
@@ -158,14 +158,14 @@ func (service *Service) Continue(ctx context.Context, userID string) ([]Continue
 	return result, nil
 }
 
-func remainingEpisodesAfter(episodes []domain.Episode, plays []domain.EpisodePlay, current domain.Episode) int {
+func remainingEpisodesAfter(episodes []domain.Episode, plays []domain.EpisodePlay, current domain.Episode, now time.Time) int {
 	played := make(map[string]struct{}, len(plays))
 	for _, play := range plays {
 		played[play.EpisodeID] = struct{}{}
 	}
 	remaining := 0
 	for _, episode := range episodes {
-		if !episode.IsRegular() || episode.SeasonNumber < current.SeasonNumber || episode.SeasonNumber == current.SeasonNumber && episode.EpisodeNumber <= current.EpisodeNumber {
+		if !episode.IsRegular() || !episode.IsReleasedAt(now) || episode.SeasonNumber < current.SeasonNumber || episode.SeasonNumber == current.SeasonNumber && episode.EpisodeNumber <= current.EpisodeNumber {
 			continue
 		}
 		if _, watched := played[episode.ID]; !watched {

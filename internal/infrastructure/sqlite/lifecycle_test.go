@@ -45,8 +45,12 @@ func TestShowLifecycle_CompletesAndReopensFromEpisodeHistory(t *testing.T) {
 	}}
 	partial := show
 	partial.Seasons = append([]domain.TVSeasonMetadata(nil), show.Seasons...)
-	partial.Seasons[1].Episodes = partial.Seasons[1].Episodes[:1]
+	partial.Seasons[1].Episodes = nil
 	if err := store.ImportShowMetadata(ctx, "tv:42", partial); err != nil {
+		t.Fatal(err)
+	}
+	// A summary only records the expected count; the catalog stays incomplete.
+	if _, err := store.DB.Exec(`INSERT INTO episodes(id,show_id,season_id,season_number,episode_number,name) VALUES('tv:42:episode:4201','tv:42','tv:42:season:1',1,1,'Pilot')`); err != nil {
 		t.Fatal(err)
 	}
 	status := func() string {

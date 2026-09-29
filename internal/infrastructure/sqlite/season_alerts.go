@@ -12,8 +12,8 @@ import (
 
 // seasonReady checks the imported regular episode catalog against its listed count.
 const seasonReady = `s.season_number>0 AND s.episode_count>0
-	AND (SELECT COUNT(*) FROM episodes e WHERE e.season_id=s.id AND e.season_number>0)>=s.episode_count
-	AND NOT EXISTS (SELECT 1 FROM episodes e WHERE e.season_id=s.id AND e.season_number>0
+	AND (SELECT COUNT(*) FROM episodes e WHERE e.season_id=s.id AND e.active=1 AND e.season_number>0)>=s.episode_count
+	AND NOT EXISTS (SELECT 1 FROM episodes e WHERE e.season_id=s.id AND e.active=1 AND e.season_number>0
 		AND (e.air_date IS NULL OR date(e.air_date) IS NULL OR date(e.air_date)>date(?)))`
 
 func (s *Store) SeasonAlertState(ctx context.Context, userID, seasonID string, now time.Time) (seasonalerts.State, error) {
@@ -99,7 +99,7 @@ func (s *Store) MarkReadySeasonAlerts(ctx context.Context, now time.Time, pushov
 	_, err := s.DB.ExecContext(ctx, `INSERT INTO season_ready_alerts(user_id,season_id,created_at)
 		SELECT um.user_id,s.id,? FROM user_media um JOIN seasons s ON s.show_id=um.media_id
 		WHERE um.status='watching' AND um.season_alerts_enabled=1 AND s.season_number>0
-		AND EXISTS(SELECT 1 FROM episodes e WHERE e.season_id=s.id
+		AND EXISTS(SELECT 1 FROM episodes e WHERE e.season_id=s.id AND e.active=1
 			AND (e.air_date IS NULL OR date(e.air_date)>=date(COALESCE(um.notifications_since,um.added_at))))
 		ON CONFLICT(user_id,season_id) DO NOTHING`, now.UTC().Format(time.RFC3339Nano))
 	if err != nil {

@@ -103,3 +103,21 @@ func date(value string) time.Time {
 	}
 	return parsed
 }
+
+func TestCalculateShowProgress_ExcludesUndatedAndFutureEpisodes(t *testing.T) {
+	now := date("2026-09-29")
+	episodes := []domain.Episode{
+		episode("watched", 1, 1, "2026-09-28"),
+		episode("today", 1, 2, "2026-09-29"),
+		{ID: "undated", SeasonNumber: 1, EpisodeNumber: 3},
+		episode("future", 1, 4, "2026-09-30"),
+	}
+	progress := domain.CalculateShowProgress(episodes, []domain.EpisodePlay{{EpisodeID: "watched"}}, now)
+	if progress.NextEpisode == nil || progress.NextEpisode.ID != "today" {
+		t.Fatalf("next=%+v, want today", progress.NextEpisode)
+	}
+	progress = domain.CalculateShowProgress(episodes, []domain.EpisodePlay{{EpisodeID: "watched"}, {EpisodeID: "today"}}, now)
+	if progress.NextEpisode != nil || !progress.IsCaughtUp {
+		t.Fatalf("progress=%+v, want caught up", progress)
+	}
+}

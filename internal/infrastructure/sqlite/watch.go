@@ -41,7 +41,7 @@ func (store *Store) WatchingShows(ctx context.Context, userID string) ([]watch.S
 	}
 	for index := range shows {
 		show := &shows[index]
-		episodeRows, err := store.DB.QueryContext(ctx, `SELECT id,season_number,episode_number,air_date,COALESCE(name,''),COALESCE(still_path,'') FROM episodes WHERE show_id=? ORDER BY season_number,episode_number`, show.ID)
+		episodeRows, err := store.DB.QueryContext(ctx, `SELECT id,season_number,episode_number,air_date,COALESCE(name,''),COALESCE(still_path,'') FROM episodes WHERE show_id=? AND active=1 ORDER BY season_number,episode_number`, show.ID)
 		if err != nil {
 			return nil, fmt.Errorf("list episodes for %s: %w", show.ID, err)
 		}
@@ -111,7 +111,7 @@ func (store *Store) ListShowEpisodes(ctx context.Context, userID, showID string)
 	}
 	rows, err := store.DB.QueryContext(ctx, `SELECT e.id,e.show_id,e.season_number,e.episode_number,e.air_date,e.name,e.overview,e.runtime,e.still_path,
 		(SELECT MAX(p.watched_at) FROM plays p WHERE p.user_id=? AND p.episode_id=e.id)
-		FROM episodes e WHERE e.show_id=? ORDER BY e.season_number,e.episode_number`, userID, showID)
+		FROM episodes e WHERE e.show_id=? AND e.active=1 ORDER BY e.season_number,e.episode_number`, userID, showID)
 	if err != nil {
 		return nil, fmt.Errorf("list show episodes: %w", err)
 	}
@@ -193,7 +193,7 @@ func (store *Store) ListSeasonEpisodes(ctx context.Context, userID, seasonID str
 	}
 	rows, err := store.DB.QueryContext(ctx, `SELECT e.id,e.show_id,e.season_number,e.episode_number,e.air_date,e.name,
 		(SELECT MAX(p.watched_at) FROM plays p WHERE p.user_id=? AND p.episode_id=e.id)
-		FROM episodes e WHERE e.season_id=? ORDER BY e.episode_number`, userID, seasonID)
+		FROM episodes e WHERE e.season_id=? AND e.active=1 ORDER BY e.episode_number`, userID, seasonID)
 	if err != nil {
 		return nil, fmt.Errorf("list season episodes: %w", err)
 	}

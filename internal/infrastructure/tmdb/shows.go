@@ -207,7 +207,7 @@ func (client *Client) fetchSeason(ctx context.Context, tmdbID int64, seasonNumbe
 	}); err != nil {
 		return domain.TVSeasonMetadata{}, err
 	}
-	season := domain.TVSeasonMetadata{TMDBID: seasonDetails.ID, Number: seasonDetails.SeasonNumber, Name: seasonDetails.Name, Overview: seasonDetails.Overview, PosterPath: seasonDetails.PosterPath, AirDate: seasonDetails.AirDate}
+	season := domain.TVSeasonMetadata{TMDBID: seasonDetails.ID, Number: seasonDetails.SeasonNumber, Name: seasonDetails.Name, Overview: seasonDetails.Overview, PosterPath: seasonDetails.PosterPath, AirDate: seasonDetails.AirDate, Episodes: []domain.TVEpisodeMetadata{}}
 	season.EpisodeCount = len(seasonDetails.Episodes)
 	for _, episode := range seasonDetails.Episodes {
 		season.Episodes = append(season.Episodes, domain.TVEpisodeMetadata{TMDBID: episode.ID, SeasonNumber: episode.SeasonNumber, EpisodeNumber: episode.EpisodeNumber, Name: episode.Name, Overview: episode.Overview, AirDate: episode.AirDate, Runtime: episode.Runtime, StillPath: episode.StillPath})

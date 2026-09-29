@@ -33,7 +33,7 @@ func (store *Store) listPlays(ctx context.Context, userID, mediaID string, limit
 		args = append(args, watchedAt, watchedAt, playID)
 	}
 	args = append(args, limit)
-	rows, err := store.DB.QueryContext(ctx, `SELECT p.id,p.user_id,p.media_id,p.episode_id,p.watched_at,p.source,COALESCE(movie.title,show.title,''),COALESCE(movie.tmdb_id,show.tmdb_id,0),episode.name,episode.season_number,episode.episode_number,COALESCE(episode.still_path,movie.poster_path,show.poster_path,'')
+	rows, err := store.DB.QueryContext(ctx, `SELECT p.id,p.user_id,p.media_id,p.episode_id,p.watched_at,p.source,COALESCE(movie.title,show.title,''),COALESCE(movie.tmdb_id,show.tmdb_id,0),episode.name,episode.season_number,COALESCE(episode.original_episode_number,episode.episode_number),COALESCE(episode.still_path,movie.poster_path,show.poster_path,'')
 		FROM plays p LEFT JOIN media movie ON movie.id=p.media_id LEFT JOIN episodes episode ON episode.id=p.episode_id LEFT JOIN media show ON show.id=episode.show_id
 		WHERE `+where+` ORDER BY p.watched_at DESC,p.id DESC LIMIT ?`, args...)
 	if err != nil {
