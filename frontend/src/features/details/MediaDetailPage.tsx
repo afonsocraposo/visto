@@ -977,7 +977,11 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
                 </Badge>
               )}
             </Group>
-            <Title order={1}>{selectedEpisode ? selectedEpisode.name : media.title}</Title>
+            <Title order={1}>
+              {selectedEpisode
+                ? `S${String(selectedEpisode.episode.season_number).padStart(2, "0")}E${String(selectedEpisode.episode.episode_number).padStart(2, "0")} · ${selectedEpisode.name}`
+                : media.title}
+            </Title>
             {selectedEpisode ? (
               <Button
                 className="detail-season-link"
