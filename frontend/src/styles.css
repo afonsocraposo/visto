@@ -415,6 +415,9 @@ select {
   font-size: 1.65rem;
   line-height: 1;
 }
+.calendar-card-countdown.is-today strong {
+  font-size: 1rem;
+}
 .calendar-card-countdown span {
   font-size: 0.8rem;
 }

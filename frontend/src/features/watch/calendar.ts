@@ -74,14 +74,14 @@ export function groupCalendarEntries(entries: CalendarEntry[]): CalendarGroup[] 
     }));
 }
 
-export function formatCalendarDate(date: string): string {
+export function formatCalendarDate(date: string, currentYear: string): string {
   // TMDB air dates are civil dates, not instants. Format in UTC to avoid
   // shifting the day when the browser and the user's Visto timezone differ.
   return new Date(`${date}T00:00:00.000Z`).toLocaleDateString(undefined, {
     weekday: "long",
     month: "long",
     day: "numeric",
-    year: "numeric",
+    ...(date.slice(0, 4) === currentYear ? {} : { year: "numeric" }),
     timeZone: "UTC",
   });
 }

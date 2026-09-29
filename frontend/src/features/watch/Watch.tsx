@@ -425,10 +425,10 @@ export function WatchCalendar({
             <section
               className="calendar-day"
               key={group.date}
-              aria-label={`Episodes airing ${formatCalendarDate(group.date)}`}
+              aria-label={`Episodes airing ${formatCalendarDate(group.date, today.slice(0, 4))}`}
             >
               <Text component="h2" className="calendar-date" fw={700}>
-                {formatCalendarDate(group.date)}
+                {formatCalendarDate(group.date, today.slice(0, 4))}
               </Text>
               <div className="calendar-day-entries">
                 {group.entries.map((item) => (
@@ -484,7 +484,7 @@ export function WatchCalendar({
         {selectedDate && (
           <div className="calendar-selected-day">
             <Text component="h2" fw={700} mb="sm">
-              {formatCalendarDate(selectedDate)}
+              {formatCalendarDate(selectedDate, today.slice(0, 4))}
             </Text>
             {dayEntries.isPending ? (
               <div className="calendar-day-entries">
@@ -598,9 +598,9 @@ function CalendarEpisodeCard({
           {item.episode_name || `Episode ${item.episode.episode_number}`}
         </Text>
       </div>
-      <div className="calendar-card-countdown">
-        <strong>{days}</strong>
-        <span>{days === 1 ? "day" : "days"}</span>
+      <div className={`calendar-card-countdown${days === 0 ? " is-today" : ""}`}>
+        <strong>{days === 0 ? "Today" : days}</strong>
+        {days !== 0 && <span>{days === 1 ? "day" : "days"}</span>}
       </div>
     </Paper>
   );
