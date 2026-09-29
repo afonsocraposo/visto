@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.18.0](https://github.com/afonsocraposo/visto/compare/v0.17.0...v0.18.0) (2026-09-29)
+
+
+### Features
+
+* add dedicated episode detail navigation ([abe2e1b](https://github.com/afonsocraposo/visto/commit/abe2e1be2ea5632081ddd022f8c39b0135a73e90))
+* add episode navigation ([2f420d4](https://github.com/afonsocraposo/visto/commit/2f420d43f23c9e338823c2ce91999a94b0c1c9b9))
+* add show-wide notification modes ([b8ddfa9](https://github.com/afonsocraposo/visto/commit/b8ddfa981e04ef5ec78f5eb12230c7e8e55045d9))
+* show episode badge by show title ([c64c69e](https://github.com/afonsocraposo/visto/commit/c64c69e829058da813f89f3553ff92bb5b77d214))
+* show episode number in detail heading ([95f421b](https://github.com/afonsocraposo/visto/commit/95f421b1b5a70e9a94d6faf0e1a15a86f48ef0b8))
+
+
+### Bug Fixes
+
+* guard episode production code while loading ([8982163](https://github.com/afonsocraposo/visto/commit/89821633f6933d9e558db3d2210c22d9dab226ea))
+* improve show notification settings ([12fd0f0](https://github.com/afonsocraposo/visto/commit/12fd0f003b62b0f8de11ca848dde9c8de554ba26))
+* preserve episode season and back navigation ([05d7098](https://github.com/afonsocraposo/visto/commit/05d7098be7ccf4e89132cf0db21c062cea1d4e69))
+* reduce mobile bottom navigation height ([aa6c6a0](https://github.com/afonsocraposo/visto/commit/aa6c6a009c2411f2872defd0307f40c7db6621bf))
+
 ## [0.17.0](https://github.com/afonsocraposo/visto/compare/v0.16.0...v0.17.0) (2026-09-29)
 
 
