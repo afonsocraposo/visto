@@ -1066,7 +1066,9 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
             </Group>
             <Title order={1}>
               {selectedEpisode
-                ? selectedEpisode.name || `Episode ${selectedEpisode.episode.episode_number}`
+                ? episodeDetails.data?.name ||
+                  selectedEpisode.name ||
+                  `Episode ${selectedEpisode.episode.episode_number}`
                 : media.title}
             </Title>
             {selectedEpisode ? (
@@ -1080,8 +1082,9 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
                         mediaType: "tv",
                         tmdbID: media.tmdb_id,
                         mediaID: showID,
+                        seasonNumber: selectedEpisode.episode.season_number,
                       },
-                      { from: returnTo, replace: true },
+                      { from: returnTo },
                     )
                   }
                 >{media.title}</Button>

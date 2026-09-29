@@ -261,22 +261,28 @@ test("Given an Upcoming episode, When the user opens its season and selects anot
   await page.goto("/");
   await page.getByRole("tab", { name: "Upcoming" }).click();
   await page.getByRole("button", { name: /Open The Example Show, season 1, episode 1/ }).click();
-  await expect(page.getByRole("heading", { name: "Season 1 premiere" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "The Upcoming Episode" })).toBeVisible();
+  await expect(page.locator(".detail-hero")).toContainText("S01E01");
   await page.getByRole("button", { name: "Go to next episode" }).click();
-  await expect(page).toHaveURL(/episode=tv%3A100%3Aepisode%3A201.*season=2/);
-  await expect(page.getByRole("heading", { name: "Season 2 premiere" })).toBeVisible();
+  await expect(page).toHaveURL(/\/shows\/100\/season\/2\/episode\/1/);
+  await expect(page.getByRole("heading", { name: "S02E01 — Season 2 premiere" })).toBeVisible();
   await page.goBack();
   await expect(page).toHaveURL("http://127.0.0.1:4173/");
   await expect(page.getByRole("heading", { name: "Upcoming episodes" })).toBeVisible();
   await page.getByRole("button", { name: /Open The Example Show, season 1, episode 1/ }).click();
-  await expect(page.getByRole("heading", { name: "Season 1 premiere" })).toBeVisible();
-  await page.getByRole("button", { name: "The Example Show · Season 1" }).click();
+  await expect(page.getByRole("heading", { name: "The Upcoming Episode" })).toBeVisible();
+  await expect(page.locator(".detail-hero")).toContainText("S01E01");
+  await page.getByRole("button", { name: "The Example Show" }).click();
   await expect(page.getByRole("heading", { name: "Seasons & episodes" })).toBeVisible();
+  await expect(page.getByRole("combobox", { name: "Season" })).toHaveValue("Season 1");
   await page.getByRole("combobox", { name: "Season" }).click();
   await page.getByRole("option", { name: "Season 2" }).click();
-  await expect(page.getByText("Episode 1 · Season 2 premiere")).toBeVisible();
+  await expect(page.getByText("S02E01 — Season 2 premiere")).toBeVisible();
   await expect(page.getByText("Episode overview.")).toHaveCount(0);
   await expect(page).toHaveURL(/season=2/);
+  await page.getByRole("button", { name: "Back" }).click();
+  await expect(page).toHaveURL(/\/shows\/100\/season\/1\/episode\/1/);
+  await expect(page.getByRole("heading", { name: "S01E01 — The Upcoming Episode" })).toBeVisible();
   await page.getByRole("button", { name: "Back" }).click();
   await expect(page).toHaveURL("/");
   await expect(page.getByRole("tab", { name: "Upcoming" })).toHaveAttribute(
@@ -654,10 +660,11 @@ test("TV details show the production status for saved and unsaved shows", async 
     fulfillJSON(route, { name: "Pilot episode", overview: "Pilot summary." }),
   );
   await page.goto("/shows/100/season/1/episode/1");
-  await expect(page.getByRole("heading", { name: "S01E01 — Pilot episode" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Pilot episode" })).toBeVisible();
+  await expect(page.locator(".detail-hero")).toContainText("S01E01");
   await expect(page.getByText("Pilot summary.")).toBeVisible();
   await page.reload();
-  await expect(page.getByRole("heading", { name: "S01E01 — Pilot episode" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Pilot episode" })).toBeVisible();
   await expect(
     page.locator(".detail-hero .mantine-Badge-root", { hasText: "Ongoing" }),
   ).toBeVisible();
@@ -751,7 +758,8 @@ test("Detail Back restores the show's scroll position and direct links use a fal
   expect(scrollY).toBeGreaterThan(0);
   await episode.click();
   await expect(page).toHaveURL(/\/shows\/100\/season\/1\/episode\/20/);
-  await expect(page.getByRole("heading", { name: "S01E20 — Episode 20" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Episode 20" })).toBeVisible();
+  await expect(page.locator(".detail-hero")).toContainText("S01E20");
   await expect(page.getByText("No description available.")).toBeVisible();
   await page.getByRole("button", { name: "Back", exact: true }).click();
   await expect(page).toHaveURL(/\/media\/tv\/100$/);
