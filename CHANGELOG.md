@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.1](https://github.com/afonsocraposo/visto/compare/v0.18.0...v0.18.1) (2026-09-29)
+
+
+### Bug Fixes
+
+* scope loading indicators to active actions ([502b476](https://github.com/afonsocraposo/visto/commit/502b47656e1130023175150ec176d616c2b60bc1))
+
 ## [0.18.0](https://github.com/afonsocraposo/visto/compare/v0.17.0...v0.18.0) (2026-09-29)
 
 
