@@ -265,7 +265,8 @@ test("Given an Upcoming episode, When the user opens its season and selects anot
   await expect(page.locator(".detail-hero")).toContainText("S01E01");
   await page.getByRole("button", { name: "Go to next episode" }).click();
   await expect(page).toHaveURL(/\/shows\/100\/season\/2\/episode\/1/);
-  await expect(page.getByRole("heading", { name: "S02E01 — Season 2 premiere" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Season 2 premiere" })).toBeVisible();
+  await expect(page.locator(".detail-hero")).toContainText("S02E01");
   await page.goBack();
   await expect(page).toHaveURL("http://127.0.0.1:4173/");
   await expect(page.getByRole("heading", { name: "Upcoming episodes" })).toBeVisible();
@@ -282,7 +283,8 @@ test("Given an Upcoming episode, When the user opens its season and selects anot
   await expect(page).toHaveURL(/season=2/);
   await page.getByRole("button", { name: "Back" }).click();
   await expect(page).toHaveURL(/\/shows\/100\/season\/1\/episode\/1/);
-  await expect(page.getByRole("heading", { name: "S01E01 — The Upcoming Episode" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "The Upcoming Episode" })).toBeVisible();
+  await expect(page.locator(".detail-hero")).toContainText("S01E01");
   await page.getByRole("button", { name: "Back" }).click();
   await expect(page).toHaveURL("/");
   await expect(page.getByRole("tab", { name: "Upcoming" })).toHaveAttribute(
@@ -292,8 +294,8 @@ test("Given an Upcoming episode, When the user opens its season and selects anot
   await expect(page.getByRole("heading", { name: "Upcoming episodes" })).toBeVisible();
 
   await page.goto("/media/tv/100?from=%2F&media=tv%3A100&season=2");
-  await expect(page.getByText("Episode 1 · Season 2 premiere")).toBeVisible();
-  await page.getByText("Episode 1 · Season 2 premiere").click();
+  await expect(page.getByText("S02E01 — Season 2 premiere")).toBeVisible();
+  await page.getByRole("button", { name: /S02E01 — Season 2 premiere/ }).click();
   await expect(page.getByRole("heading", { name: "Season 2 premiere" })).toBeVisible();
 });
 
@@ -674,7 +676,7 @@ test("TV details show the production status for saved and unsaved shows", async 
     .poll(() => page.evaluate(() => new URL(location.href).searchParams.has("episode_number")))
     .toBe(false);
 
-  await page.route("**/api/v1/shows/100/seasons", (route) =>
+  await page.route("**/api/v1/shows/tv%3A100/seasons", (route) =>
     fulfillJSON(route, [{ id: "tv:100:season:2", season_number: 2, episode_count: 4 }]),
   );
   await page.route("**/api/v1/seasons/tv%3A100%3Aseason%3A2/episodes", (route) =>
@@ -699,8 +701,9 @@ test("TV details show the production status for saved and unsaved shows", async 
   );
   await page.goto("/shows/100/season/2/episode/4");
   await expect(
-    page.getByRole("heading", { name: "S02E04 — Second season episode" }),
+    page.getByRole("heading", { name: "Second season episode" }),
   ).toBeVisible();
+  await expect(page.locator(".detail-hero")).toContainText("S02E04");
 
   await page.route("**/api/v1/movies/100", (route) =>
     fulfillJSON(route, { media: media("Ended", "movie"), item: {} }),
@@ -830,6 +833,7 @@ test("Given a TV show detail, When the user uses compact watch controls, Then sh
   }));
   let savedStatus: "watching" | "watchlist" | "completed" | null = null;
   let allWatched = false;
+  let showNotificationsEnabled = true;
   await page.route("**/api/v1/shows/**/progress", (route) =>
     fulfillJSON(route, { is_fully_watched: allWatched, watched_episodes: allWatched ? 2 : 0 }),
   );
@@ -841,11 +845,15 @@ test("Given a TV show detail, When the user uses compact watch controls, Then sh
             media_id: show.id,
             status: savedStatus,
             rating: null,
-            notifications_enabled: true,
+            notifications_enabled: showNotificationsEnabled,
           },
         })
       : fulfillJSON(route, { error: "not saved" }, 404),
   );
+  await page.route("**/api/v1/library/tv%3A100/notifications", async (route) => {
+    showNotificationsEnabled = (route.request().postDataJSON() as { enabled: boolean }).enabled;
+    await fulfillJSON(route, {});
+  });
   await page.route(/\/api\/v1\/library(?:\?.*)?$/, async (route) => {
     if (route.request().method() === "POST") {
       savedStatus = (route.request().postDataJSON() as { status: "watching" | "watchlist" }).status;
@@ -936,10 +944,10 @@ test("Given a TV show detail, When the user uses compact watch controls, Then sh
   await page.getByRole("button", { name: "Add The Example Show to Watching" }).click();
   await expect.poll(() => savedStatus).toBe("watching");
   await expect(page.getByRole("combobox", { name: "Current list" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Turn off episode alerts" })).toHaveAttribute(
-    "aria-pressed",
-    "true",
-  );
+  await expect(page.getByRole("button", { name: "Notifications · Every episode" })).toBeVisible();
+  await page.getByRole("button", { name: "Notifications · Every episode" }).click();
+  await page.getByRole("radio", { name: "Turn off alerts" }).click();
+  await expect(page.getByRole("button", { name: "Notifications off" })).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByRole("button", { name: "Mark The Example Show watched" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Mark season 1 watched" })).toBeVisible();
@@ -1006,28 +1014,32 @@ test("A full-season alert can be switched back to episode alerts", async ({ page
     poster_path: "",
     original_language: "en",
   };
-  let subscribed = true;
-  let deletes = 0;
+  let notificationMode: "episode" | "season" = "season";
+  let updatedMode: string | undefined;
   await page.route("**/api/v1/shows/100", (route) =>
     fulfillJSON(route, {
       media: show,
-      item: { media_id: show.id, status: "watching", rating: null, notifications_enabled: true },
+      item: {
+        media_id: show.id,
+        status: "watching",
+        rating: null,
+        notifications_enabled: notificationMode === "episode",
+        season_alerts_enabled: notificationMode === "season",
+      },
     }),
   );
+  await page.route("**/api/v1/library/tv%3A100/notifications", async (route) => {
+    const body = route.request().postDataJSON() as { mode: "episode" | "season" };
+    updatedMode = body.mode;
+    notificationMode = body.mode;
+    await fulfillJSON(route, {});
+  });
   await page.route("**/api/v1/shows/**/progress", (route) =>
     fulfillJSON(route, { is_fully_watched: false, watched_episodes: 0 }),
   );
   await page.route("**/api/v1/shows/**/episodes", (route) =>
     fulfillJSON(route, { items: [], next_cursor: null }),
   );
-  await page.route("**/api/v1/seasons/**/ready-alert", (route) => {
-    if (route.request().method() === "DELETE") {
-      deletes++;
-      subscribed = false;
-      return fulfillJSON(route, {});
-    }
-    return fulfillJSON(route, { ready: false, subscribed });
-  });
   await page.route("**/api/v1/discover/shows/100", (route) =>
     fulfillJSON(route, {
       media: show,
@@ -1038,12 +1050,12 @@ test("A full-season alert can be switched back to episode alerts", async ({ page
   await page.route("**/api/v1/discover/tv/100/related", (route) => fulfillJSON(route, []));
   await page.goto("/media/tv/100");
   await expect(
-    page.getByRole("button", { name: "Notify when full season is available" }),
+    page.getByRole("button", { name: "Notifications · Every full season" }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Notify when full season is available" }).click();
+  await page.getByRole("button", { name: "Notifications · Every full season" }).click();
   await page.getByRole("radio", { name: "Every new episode" }).click();
-  await expect.poll(() => deletes).toBe(1);
-  await expect(page.getByRole("button", { name: "Notify for each episode" })).toBeVisible();
+  await expect.poll(() => updatedMode).toBe("episode");
+  await expect(page.getByRole("button", { name: "Notifications · Every episode" })).toBeVisible();
 });
 
 test("Given a movie in Watchlist, When it is marked watched from search, Then Undo restores Watchlist", async ({
