@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.2](https://github.com/afonsocraposo/visto/compare/v0.18.1...v0.18.2) (2026-09-29)
+
+
+### Bug Fixes
+
+* allow concurrent watch actions ([fb90499](https://github.com/afonsocraposo/visto/commit/fb9049985a6063055fff37211e46840e9dfbac6b))
+
 ## [0.18.1](https://github.com/afonsocraposo/visto/compare/v0.18.0...v0.18.1) (2026-09-29)
 
 
