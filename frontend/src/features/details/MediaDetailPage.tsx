@@ -1115,7 +1115,7 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
             {selectedEpisode && (episodeDetails.data?.air_date || selectedEpisode.episode.air_date) ? (
               <Text className="detail-runtime" mt="sm">
                 Aired {episodeDetails.data?.air_date || selectedEpisode.episode.air_date}
-                {episodeDetails.data.production_code
+                {episodeDetails.data?.production_code
                   ? ` · ${episodeDetails.data.production_code}`
                   : ""}
               </Text>
