@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useMediaQuery } from "@mantine/hooks";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ActionIcon,
@@ -100,6 +101,7 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
   const [pendingWatch, setPendingWatch] = useState<PendingWatch | null>(null);
   const [showWatchModal, setShowWatchModal] = useState(false);
   const [showNotificationsOpen, setShowNotificationsOpen] = useState(false);
+  const isMobile = useMediaQuery("(max-width: 680px)");
   const [movieHistoryMode, setMovieHistoryMode] = useState<"view" | "edit" | null>(null);
   const [showWatchAction, setShowWatchAction] = useState<"watch" | "unwatch">("watch");
   const [selectedShowSeasons, setSelectedShowSeasons] = useState<Record<number, boolean>>({});
@@ -150,7 +152,9 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
     ? "season"
     : library.data?.item.notifications_enabled
       ? "episode"
-      : "";
+      : library.data
+        ? "off"
+        : "";
   const updateShowNotificationMode = useMutation({
     mutationFn: (mode: "episode" | "season") =>
       api.patch(
@@ -325,7 +329,13 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
         { enabled },
         "Could not update show notifications.",
       ),
-    onSuccess: () => invalidate(userCache.library, detailScope),
+    onSuccess: (_result, enabled) => {
+      if (target.mediaType === "tv") {
+        setShowNotificationsOpen(false);
+        if (!enabled) showActionFeedback("Show notifications turned off.");
+      }
+      void invalidate(userCache.library, detailScope);
+    },
   });
   const add = useMutation({
     mutationFn: (status: "watching" | "watchlist" | "paused" | "dropped" | "completed") =>
@@ -869,6 +879,58 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
   const hasPreviousSeasons =
     pendingWatch?.seasonNumber !== undefined &&
     seasonGroups.some((group) => group.number > 0 && group.number < pendingWatch.seasonNumber!);
+  const notificationSettings = (
+    <>
+      <Text className="show-notifications-intro" size="sm" c="dimmed">
+        Choose when Visto should alert you about this show.
+      </Text>
+      {(updateShowNotificationMode.isError || updateNotifications.isError) && (
+        <Alert color="red" mb="sm" mt="md">
+          {updateShowNotificationMode.isError
+            ? updateShowNotificationMode.error.message
+            : updateNotifications.error?.message}
+        </Alert>
+      )}
+      <Radio.Group
+        value={showNotificationMode}
+        onChange={(value) => {
+          if (value !== showNotificationMode) {
+            if (value === "off") updateNotifications.mutate(false);
+            else if (value === "episode" || value === "season") {
+              updateShowNotificationMode.mutate(value);
+            }
+          }
+        }}
+      >
+        <Stack className="show-notification-options" gap="xs">
+          <Radio
+            value="episode"
+            label="Every new episode"
+            description="Get an alert when a new episode is available."
+            disabled={updateShowNotificationMode.isPending || updateNotifications.isPending}
+            labelPosition="left"
+            className={`show-notification-option ${showNotificationMode === "episode" ? "is-selected" : ""}`}
+          />
+          <Radio
+            value="season"
+            label="Every full season"
+            description="Get one alert when all episodes in a season are available."
+            disabled={updateShowNotificationMode.isPending || updateNotifications.isPending}
+            labelPosition="left"
+            className={`show-notification-option ${showNotificationMode === "season" ? "is-selected" : ""}`}
+          />
+          <Radio
+            value="off"
+            label="Turn off alerts"
+            description="Stop episode and full-season alerts for this show."
+            disabled={updateShowNotificationMode.isPending || updateNotifications.isPending}
+            labelPosition="left"
+            className={`show-notification-option ${showNotificationMode === "off" ? "is-selected" : ""}`}
+          />
+        </Stack>
+      </Radio.Group>
+    </>
+  );
 
   return (
     <div className="detail-page">
@@ -1182,42 +1244,33 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
           </div>
         </div>
       </section>
-      <Drawer
-        opened={showNotificationsOpen}
-        onClose={() => setShowNotificationsOpen(false)}
-        position="bottom"
-        title="Show notifications"
-      >
-        {updateShowNotificationMode.isError && (
-          <Alert color="red" mb="sm">
-            {updateShowNotificationMode.error.message}
-          </Alert>
-        )}
-        <Radio.Group
-          value={showNotificationMode}
-          onChange={(value) => {
-            if (value !== showNotificationMode) {
-              updateShowNotificationMode.mutate(value as "episode" | "season");
-            }
+      {isMobile ? (
+        <Drawer
+          opened={showNotificationsOpen}
+          onClose={() => setShowNotificationsOpen(false)}
+          position="bottom"
+          title="Episode alerts"
+          radius="lg"
+          classNames={{
+            content: "show-notifications-drawer",
+            header: "show-notifications-header",
+            body: "show-notifications-body",
           }}
         >
-          <Stack gap="md">
-            <Radio
-              value="episode"
-              label="Every new episode"
-              description="Notify me as new episodes of this show become available."
-              disabled={updateShowNotificationMode.isPending}
-            />
-            <Radio
-              value="season"
-              label="Every full season"
-              description="Notify me each time a season of this show is fully available."
-              disabled={updateShowNotificationMode.isPending}
-            />
-          </Stack>
-        </Radio.Group>
-      </Drawer>
-      {updateNotifications.isError && (
+          {notificationSettings}
+        </Drawer>
+      ) : (
+        <Modal
+          opened={showNotificationsOpen}
+          onClose={() => setShowNotificationsOpen(false)}
+          title="Episode alerts"
+          size="md"
+          centered
+        >
+          {notificationSettings}
+        </Modal>
+      )}
+      {updateNotifications.isError && target.mediaType !== "tv" && (
         <Alert color="red" mt="sm">
           {updateNotifications.error.message}
         </Alert>

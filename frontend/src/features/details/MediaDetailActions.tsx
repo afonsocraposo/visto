@@ -98,7 +98,7 @@ type MediaActionsProps = {
   add: ActionMutation<"watching" | "watchlist" | "paused" | "dropped" | "completed">;
   update: ActionMutation<{ status: string; rating: number | null; confirm_all_episodes?: boolean }>;
   updateNotifications: ActionMutation<boolean>;
-  notificationMode: "episode" | "season" | "";
+  notificationMode: "episode" | "season" | "off" | "";
   onOpenNotifications: () => void;
   watched: boolean;
   onWatch: () => void;
@@ -330,13 +330,17 @@ export function MediaActions({
         <Button
           variant="default"
           onClick={onOpenNotifications}
-          leftSection={<IconBell size={20} />}
+          leftSection={
+            notificationMode === "off" ? <IconBellOff size={20} /> : <IconBell size={20} />
+          }
         >
           {notificationMode === "season"
             ? "Notifications · Every full season"
             : notificationMode === "episode"
               ? "Notifications · Every episode"
-              : "Choose notifications"}
+              : notificationMode === "off"
+                ? "Notifications off"
+                : "Choose notifications"}
         </Button>
       )}
     </Group>
