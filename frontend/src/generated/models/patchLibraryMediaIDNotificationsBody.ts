@@ -5,7 +5,11 @@
  * Self-hosted movie and TV tracking API.
  * OpenAPI spec version: 0.1.0
  */
+import type { PatchLibraryMediaIDNotificationsBodyMode } from "./patchLibraryMediaIDNotificationsBodyMode";
 
 export type PatchLibraryMediaIDNotificationsBody = {
-  enabled: boolean;
+  /** Legacy show or watchlist movie alert toggle. */
+  enabled?: boolean;
+  /** Show-wide notification choice. */
+  mode?: PatchLibraryMediaIDNotificationsBodyMode;
 };

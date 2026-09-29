@@ -96,6 +96,15 @@ func (s *Store) PendingSeasonNumbers(ctx context.Context, showID string) ([]int,
 }
 
 func (s *Store) MarkReadySeasonAlerts(ctx context.Context, now time.Time, pushover, web bool, limit int) error {
+	_, err := s.DB.ExecContext(ctx, `INSERT INTO season_ready_alerts(user_id,season_id,created_at)
+		SELECT um.user_id,s.id,? FROM user_media um JOIN seasons s ON s.show_id=um.media_id
+		WHERE um.status='watching' AND um.season_alerts_enabled=1 AND s.season_number>0
+		AND EXISTS(SELECT 1 FROM episodes e WHERE e.season_id=s.id
+			AND (e.air_date IS NULL OR date(e.air_date)>=date(COALESCE(um.notifications_since,um.added_at))))
+		ON CONFLICT(user_id,season_id) DO NOTHING`, now.UTC().Format(time.RFC3339Nano))
+	if err != nil {
+		return fmt.Errorf("register show season alerts: %w", err)
+	}
 	rows, err := s.DB.QueryContext(ctx, `SELECT a.user_id,a.season_id FROM season_ready_alerts a
 		JOIN seasons s ON s.id=a.season_id JOIN user_media um ON um.user_id=a.user_id AND um.media_id=s.show_id
 		WHERE a.ready_at IS NULL AND um.status='watching' AND `+seasonReady+`

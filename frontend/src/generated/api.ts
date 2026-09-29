@@ -7335,7 +7335,7 @@ export const getPatchLibraryMediaIDNotificationsUrl = (mediaID: string) => {
 };
 
 /**
- * @summary Enable or disable alerts for a tracked show or watchlist movie
+ * @summary Choose episode or full-season alerts for a tracked show, or toggle watchlist movie alerts
  */
 export const patchLibraryMediaIDNotifications = async (
   mediaID: string,
@@ -7420,7 +7420,7 @@ export type PatchLibraryMediaIDNotificationsMutationVariables = {
 };
 
 /**
- * @summary Enable or disable alerts for a tracked show or watchlist movie
+ * @summary Choose episode or full-season alerts for a tracked show, or toggle watchlist movie alerts
  */
 export const usePatchLibraryMediaIDNotifications = <
   TError = BadRequestResponse | UnauthorizedResponse | void,

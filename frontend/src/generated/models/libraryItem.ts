@@ -20,6 +20,8 @@ export interface LibraryItem {
   rating?: number | null;
   /** Per-show episode alerts or per-watchlist movie release alerts. */
   notifications_enabled: boolean;
+  /** Notify when each season of a tracked show is fully available. */
+  season_alerts_enabled: boolean;
   added_at: string;
   updated_at: string;
   /** Episodes first marked watched by a confirmed show completion; present only in that response. */

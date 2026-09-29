@@ -98,6 +98,8 @@ type MediaActionsProps = {
   add: ActionMutation<"watching" | "watchlist" | "paused" | "dropped" | "completed">;
   update: ActionMutation<{ status: string; rating: number | null; confirm_all_episodes?: boolean }>;
   updateNotifications: ActionMutation<boolean>;
+  notificationMode: "episode" | "season" | "";
+  onOpenNotifications: () => void;
   watched: boolean;
   onWatch: () => void;
   onUnwatch: () => void;
@@ -120,6 +122,8 @@ export function MediaActions({
   add,
   update,
   updateNotifications,
+  notificationMode,
+  onOpenNotifications,
   watched,
   onWatch,
   onUnwatch,
@@ -194,7 +198,11 @@ export function MediaActions({
           />
         )}
         {isSaved &&
-          showMovieReleaseAlert(status, media.release_date, new Date().toISOString().slice(0, 10)) && (
+          showMovieReleaseAlert(
+            status,
+            media.release_date,
+            new Date().toISOString().slice(0, 10),
+          ) && (
             <Button
               variant={notificationsEnabled ? "filled" : "default"}
               color={notificationsEnabled ? "yellow" : undefined}
@@ -202,7 +210,9 @@ export function MediaActions({
               aria-pressed={notificationsEnabled}
               loading={updateNotifications.isPending}
               onClick={() => updateNotifications.mutate(!notificationsEnabled)}
-              leftSection={notificationsEnabled ? <IconBell size={20} /> : <IconBellOff size={20} />}
+              leftSection={
+                notificationsEnabled ? <IconBell size={20} /> : <IconBellOff size={20} />
+              }
             >
               {movieReleaseAlertLabel(notificationsEnabled)}
             </Button>
@@ -316,17 +326,17 @@ export function MediaActions({
         disabled={pending}
         size="md"
       />
-      {media.type === "tv" && status === "watching" && (
+      {status === "watching" && (
         <Button
-          variant={notificationsEnabled ? "filled" : "default"}
-          color={notificationsEnabled ? "yellow" : undefined}
-          aria-label={notificationsEnabled ? "Turn off episode alerts" : "Turn on episode alerts"}
-          aria-pressed={notificationsEnabled}
-          loading={updateNotifications.isPending}
-          onClick={() => updateNotifications.mutate(!notificationsEnabled)}
-          leftSection={notificationsEnabled ? <IconBell size={20} /> : <IconBellOff size={20} />}
+          variant="default"
+          onClick={onOpenNotifications}
+          leftSection={<IconBell size={20} />}
         >
-          Episode alerts · {notificationsEnabled ? "On" : "Off"}
+          {notificationMode === "season"
+            ? "Notifications · Every full season"
+            : notificationMode === "episode"
+              ? "Notifications · Every episode"
+              : "Choose notifications"}
         </Button>
       )}
     </Group>

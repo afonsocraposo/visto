@@ -18,6 +18,7 @@ type Item struct {
 	Status               domain.LibraryStatus `json:"status"`
 	Rating               *int                 `json:"rating"`
 	NotificationsEnabled bool                 `json:"notifications_enabled"`
+	SeasonAlertsEnabled  bool                 `json:"season_alerts_enabled"`
 	AddedAt              time.Time            `json:"added_at"`
 	UpdatedAt            time.Time            `json:"updated_at"`
 	CreatedEpisodeIDs    []string             `json:"created_episode_ids,omitempty"`
@@ -98,8 +99,16 @@ type notificationPreferenceRepository interface {
 	SetNotificationsEnabled(context.Context, string, string, bool) error
 }
 
+type showNotificationModeRepository interface {
+	SetShowNotificationMode(context.Context, string, string, string) error
+}
+
 type notificationPreferenceReader interface {
 	GetNotificationsEnabled(context.Context, string, string) (bool, error)
+}
+
+type seasonAlertPreferenceReader interface {
+	GetSeasonAlertsEnabled(context.Context, string, string) (bool, error)
 }
 
 type itemStatusReader interface {
@@ -167,6 +176,13 @@ func (s *Service) Save(ctx context.Context, userID, mediaID string, status domai
 			return Item{}, err
 		}
 		item.NotificationsEnabled = enabled
+	}
+	if reader, ok := s.repository.(seasonAlertPreferenceReader); ok {
+		enabled, err := reader.GetSeasonAlertsEnabled(ctx, userID, mediaID)
+		if err != nil {
+			return Item{}, err
+		}
+		item.SeasonAlertsEnabled = enabled
 	}
 	return item, nil
 }
@@ -262,6 +278,17 @@ func (s *Service) SetNotificationsEnabled(ctx context.Context, userID, mediaID s
 		return fmt.Errorf("notification preferences are not configured")
 	}
 	return repository.SetNotificationsEnabled(ctx, userID, mediaID, enabled)
+}
+
+func (s *Service) SetShowNotificationMode(ctx context.Context, userID, mediaID, mode string) error {
+	if userID == "" || !strings.HasPrefix(mediaID, "tv:") || (mode != "episode" && mode != "season") {
+		return fmt.Errorf("invalid show notification mode")
+	}
+	repository, ok := s.repository.(showNotificationModeRepository)
+	if !ok {
+		return fmt.Errorf("notification preferences are not configured")
+	}
+	return repository.SetShowNotificationMode(ctx, userID, mediaID, mode)
 }
 
 func (s *Service) GetByTMDBID(ctx context.Context, userID string, mediaType domain.MediaType, tmdbID int64) (Entry, error) {

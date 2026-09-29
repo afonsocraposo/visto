@@ -338,7 +338,7 @@ func (s *Store) listItemsSorted(ctx context.Context, userID, sort string, select
 			args = append(args, id)
 		}
 	}
-	rows, err := s.DB.QueryContext(ctx, `SELECT um.user_id,um.media_id,um.status,um.rating,um.added_at,um.updated_at,um.notifications_enabled,m.media_type,m.tmdb_id,m.title,COALESCE(m.original_title,''),COALESCE(m.overview,''),COALESCE(m.release_date,''),COALESCE(m.poster_path,''),COALESCE(m.backdrop_path,''),COALESCE(m.original_language,''),COALESCE(m.status,''),m.metadata_updated_at<>'',m.raw_metadata,
+	rows, err := s.DB.QueryContext(ctx, `SELECT um.user_id,um.media_id,um.status,um.rating,um.added_at,um.updated_at,um.notifications_enabled,um.season_alerts_enabled,m.media_type,m.tmdb_id,m.title,COALESCE(m.original_title,''),COALESCE(m.overview,''),COALESCE(m.release_date,''),COALESCE(m.poster_path,''),COALESCE(m.backdrop_path,''),COALESCE(m.original_language,''),COALESCE(m.status,''),m.metadata_updated_at<>'',m.raw_metadata,
 		progress.watched_episodes,progress.total_episodes
 		FROM user_media um JOIN media m ON m.id=um.media_id
 		LEFT JOIN (
@@ -359,7 +359,7 @@ func (s *Store) listItemsSorted(ctx context.Context, userID, sort string, select
 		var rating, watchedEpisodes, totalEpisodes sql.NullInt64
 		var raw sql.NullString
 		var addedAt, updatedAt string
-		if err := rows.Scan(&entry.Item.UserID, &entry.Item.MediaID, &entry.Item.Status, &rating, &addedAt, &updatedAt, &entry.Item.NotificationsEnabled, &entry.Media.Type, &entry.Media.TMDBID, &entry.Media.Title, &entry.Media.OriginalTitle, &entry.Media.Overview, &entry.Media.ReleaseDate, &entry.Media.PosterPath, &entry.Media.BackdropPath, &entry.Media.OriginalLanguage, &entry.Media.Status, &entry.MetadataReady, &raw, &watchedEpisodes, &totalEpisodes); err != nil {
+		if err := rows.Scan(&entry.Item.UserID, &entry.Item.MediaID, &entry.Item.Status, &rating, &addedAt, &updatedAt, &entry.Item.NotificationsEnabled, &entry.Item.SeasonAlertsEnabled, &entry.Media.Type, &entry.Media.TMDBID, &entry.Media.Title, &entry.Media.OriginalTitle, &entry.Media.Overview, &entry.Media.ReleaseDate, &entry.Media.PosterPath, &entry.Media.BackdropPath, &entry.Media.OriginalLanguage, &entry.Media.Status, &entry.MetadataReady, &raw, &watchedEpisodes, &totalEpisodes); err != nil {
 			return nil, fmt.Errorf("scan library item: %w", err)
 		}
 		if err := applyMediaExtras(&entry, raw); err != nil {
@@ -394,11 +394,11 @@ func (s *Store) GetMediaByTMDBID(ctx context.Context, userID string, mediaType d
 	var rating sql.NullInt64
 	var raw sql.NullString
 	var addedAt, updatedAt string
-	err := s.DB.QueryRowContext(ctx, `SELECT um.user_id,um.media_id,um.status,um.rating,um.added_at,um.updated_at,um.notifications_enabled,
+	err := s.DB.QueryRowContext(ctx, `SELECT um.user_id,um.media_id,um.status,um.rating,um.added_at,um.updated_at,um.notifications_enabled,um.season_alerts_enabled,
 		m.media_type,m.tmdb_id,m.title,COALESCE(m.original_title,''),COALESCE(m.overview,''),COALESCE(m.release_date,''),COALESCE(m.poster_path,''),COALESCE(m.backdrop_path,''),COALESCE(m.original_language,''),COALESCE(m.status,''),m.metadata_updated_at<>'',m.raw_metadata,m.catalog_updated_at IS NOT NULL
 		FROM user_media um JOIN media m ON m.id=um.media_id
 		WHERE um.user_id=? AND m.media_type=? AND m.tmdb_id=?`, userID, mediaType, tmdbID).Scan(
-		&entry.Item.UserID, &entry.Item.MediaID, &entry.Item.Status, &rating, &addedAt, &updatedAt, &entry.Item.NotificationsEnabled,
+		&entry.Item.UserID, &entry.Item.MediaID, &entry.Item.Status, &rating, &addedAt, &updatedAt, &entry.Item.NotificationsEnabled, &entry.Item.SeasonAlertsEnabled,
 		&entry.Media.Type, &entry.Media.TMDBID, &entry.Media.Title, &entry.Media.OriginalTitle,
 		&entry.Media.Overview, &entry.Media.ReleaseDate, &entry.Media.PosterPath, &entry.Media.BackdropPath, &entry.Media.OriginalLanguage, &entry.Media.Status, &entry.MetadataReady, &raw, &entry.CatalogReady,
 	)
@@ -443,9 +443,17 @@ func (s *Store) SetNotificationsEnabled(ctx context.Context, userID, mediaID str
 	if err != nil {
 		return fmt.Errorf("read media notification preference: %w", err)
 	}
-	_, err = tx.ExecContext(ctx, `UPDATE user_media SET notifications_enabled=? WHERE user_id=? AND media_id=?`, enabled, userID, mediaID)
+	_, err = tx.ExecContext(ctx, `UPDATE user_media SET notifications_enabled=?,season_alerts_enabled=CASE WHEN ?='tv' THEN 0 ELSE season_alerts_enabled END WHERE user_id=? AND media_id=?`, enabled, mediaType, userID, mediaID)
 	if err != nil {
 		return fmt.Errorf("set media notification preference: %w", err)
+	}
+	if mediaType == "tv" {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM season_ready_alerts WHERE user_id=? AND ready_at IS NULL AND season_id IN (SELECT id FROM seasons WHERE show_id=?)`, userID, mediaID); err != nil {
+			return fmt.Errorf("clear season alerts: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM season_ready_deliveries WHERE user_id=? AND state IN ('pending','failed') AND season_id IN (SELECT id FROM seasons WHERE show_id=?)`, userID, mediaID); err != nil {
+			return fmt.Errorf("clear queued season alerts: %w", err)
+		}
 	}
 	if mediaType == "tv" && status == "watching" && enabled && !wasEnabled {
 		if _, err := tx.ExecContext(ctx, `UPDATE user_media SET notifications_since=? WHERE user_id=? AND media_id=?`, time.Now().UTC().Format(time.RFC3339Nano), userID, mediaID); err != nil {
@@ -453,6 +461,51 @@ func (s *Store) SetNotificationsEnabled(ctx context.Context, userID, mediaID str
 		}
 	}
 	return tx.Commit()
+}
+
+func (s *Store) SetShowNotificationMode(ctx context.Context, userID, mediaID, mode string) error {
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin show notification update: %w", err)
+	}
+	defer tx.Rollback()
+	var status string
+	err = tx.QueryRowContext(ctx, `SELECT um.status FROM user_media um JOIN media m ON m.id=um.media_id
+		WHERE um.user_id=? AND um.media_id=? AND m.media_type='tv'`, userID, mediaID).Scan(&status)
+	if errors.Is(err, sql.ErrNoRows) {
+		return library.ErrMediaNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("read show notification preference: %w", err)
+	}
+	if status != "watching" {
+		return library.ErrMediaNotFound
+	}
+	episode, season := mode == "episode", mode == "season"
+	_, err = tx.ExecContext(ctx, `UPDATE user_media SET notifications_since=CASE
+		WHEN notifications_enabled<>? OR season_alerts_enabled<>? THEN ? ELSE notifications_since END,
+		notifications_enabled=?,season_alerts_enabled=? WHERE user_id=? AND media_id=?`,
+		episode, season, time.Now().UTC().Format(time.RFC3339Nano), episode, season, userID, mediaID)
+	if err != nil {
+		return fmt.Errorf("set show notification mode: %w", err)
+	}
+	if episode {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM season_ready_alerts WHERE user_id=? AND ready_at IS NULL AND season_id IN (SELECT id FROM seasons WHERE show_id=?)`, userID, mediaID); err != nil {
+			return fmt.Errorf("clear season alerts: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM season_ready_deliveries WHERE user_id=? AND state IN ('pending','failed') AND season_id IN (SELECT id FROM seasons WHERE show_id=?)`, userID, mediaID); err != nil {
+			return fmt.Errorf("clear queued season alerts: %w", err)
+		}
+	}
+	return tx.Commit()
+}
+
+func (s *Store) GetSeasonAlertsEnabled(ctx context.Context, userID, mediaID string) (bool, error) {
+	var enabled bool
+	if err := s.DB.QueryRowContext(ctx, `SELECT season_alerts_enabled FROM user_media WHERE user_id=? AND media_id=?`, userID, mediaID).Scan(&enabled); err != nil {
+		return false, fmt.Errorf("get season notification preference: %w", err)
+	}
+	return enabled, nil
 }
 
 func (s *Store) GetNotificationsEnabled(ctx context.Context, userID, mediaID string) (bool, error) {

@@ -119,13 +119,23 @@ func setLibraryNotifications(authService *auth.Service, service *library.Service
 			return
 		}
 		var request struct {
-			Enabled bool `json:"enabled"`
+			Enabled *bool  `json:"enabled"`
+			Mode    string `json:"mode"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			writeError(w, http.StatusBadRequest, "invalid JSON")
 			return
 		}
-		if err := service.SetNotificationsEnabled(r.Context(), user.ID, r.PathValue("mediaID"), request.Enabled); err != nil {
+		var err error
+		if request.Mode != "" && request.Enabled == nil {
+			err = service.SetShowNotificationMode(r.Context(), user.ID, r.PathValue("mediaID"), request.Mode)
+		} else if request.Enabled != nil && request.Mode == "" {
+			err = service.SetNotificationsEnabled(r.Context(), user.ID, r.PathValue("mediaID"), *request.Enabled)
+		} else {
+			writeError(w, http.StatusBadRequest, "provide a notification mode or enabled state")
+			return
+		}
+		if err != nil {
 			if errors.Is(err, library.ErrMediaNotFound) {
 				writeError(w, http.StatusNotFound, err.Error())
 				return

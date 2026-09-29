@@ -88,6 +88,7 @@ export * from "./mediaSearchResultType";
 export * from "./mediaSnapshot";
 export * from "./mediaSnapshotType";
 export * from "./patchLibraryMediaIDNotificationsBody";
+export * from "./patchLibraryMediaIDNotificationsBodyMode";
 export * from "./patchUsersUserIDBody";
 export * from "./personalAPIToken";
 export * from "./personCredit";

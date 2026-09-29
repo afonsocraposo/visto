@@ -625,11 +625,11 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
   /library/{mediaID}/notifications:
     patch:
-      summary: Enable or disable alerts for a tracked show or watchlist movie
+      summary: Choose episode or full-season alerts for a tracked show, or toggle watchlist movie alerts
       security: [{ sessionCookie: [] }, { bearerToken: [] }]
       parameters:
         - { name: mediaID, in: path, required: true, schema: { type: string } }
-      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [enabled], properties: { enabled: { type: boolean } } } } } }
+      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { enabled: { type: boolean, description: Legacy show or watchlist movie alert toggle. }, mode: { type: string, enum: [episode, season], description: Show-wide notification choice. } } } } } }
       responses:
         '204': { description: Media notification preference updated }
         '400': { $ref: '#/components/responses/BadRequest' }
@@ -1244,13 +1244,14 @@ components:
         rating: { type: [integer, 'null'], minimum: 1, maximum: 5 }
     LibraryItem:
       type: object
-      required: [user_id, media_id, status, notifications_enabled, added_at, updated_at]
+      required: [user_id, media_id, status, notifications_enabled, season_alerts_enabled, added_at, updated_at]
       properties:
         user_id: { type: string }
         media_id: { type: string }
         status: { type: string, enum: ['', watchlist, watching, paused, dropped, completed], description: Empty only in an unsaved movie or show detail response. }
         rating: { type: [integer, 'null'], minimum: 1, maximum: 5 }
         notifications_enabled: { type: boolean, description: Per-show episode alerts or per-watchlist movie release alerts. }
+        season_alerts_enabled: { type: boolean, description: Notify when each season of a tracked show is fully available. }
         added_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
         created_episode_ids: { type: array, items: { type: string }, description: Episodes first marked watched by a confirmed show completion; present only in that response. }

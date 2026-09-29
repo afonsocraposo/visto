@@ -46,6 +46,7 @@ export type LibraryEntry = {
     status: string;
     rating: number | null;
     notifications_enabled: boolean;
+    season_alerts_enabled: boolean;
     updated_at: string;
   };
   media: SearchMedia & { id: string };
