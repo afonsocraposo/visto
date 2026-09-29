@@ -189,9 +189,25 @@ export function SearchPanel({
                 canMarkSavedWatched={
                   item.type === "movie" && savedEntry?.item.status === "watchlist"
                 }
-                busy={
-                  library.isPending ||
-                  library.isError ||
+                loadingAction={
+                  (addToLibrary.isPending &&
+                    addToLibrary.variables?.media.type === item.type &&
+                    addToLibrary.variables?.media.tmdb_id === item.tmdb_id &&
+                    addToLibrary.variables.status === "watching") ||
+                  (addMovieAsWatched.isPending &&
+                    addMovieAsWatched.variables?.tmdb_id === item.tmdb_id)
+                    ? "watch"
+                    : addToLibrary.isPending &&
+                        addToLibrary.variables?.media.type === item.type &&
+                        addToLibrary.variables?.media.tmdb_id === item.tmdb_id &&
+                        addToLibrary.variables.status === "watchlist"
+                      ? "watchlist"
+                      : markWatchlistMovieWatched.isPending &&
+                          markWatchlistMovieWatched.variables?.media.tmdb_id === item.tmdb_id
+                        ? "mark-watched"
+                        : undefined
+                }
+                disabled={
                   addToLibrary.isPending ||
                   addMovieAsWatched.isPending ||
                   markWatchlistMovieWatched.isPending

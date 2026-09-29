@@ -15,7 +15,7 @@ import { RatingStars } from "../../components/RatingStars";
 import type { SearchMedia, ShowEpisodeEntry } from "../../types";
 import { movieReleaseAlertLabel, showMovieReleaseAlert } from "./movieReleaseAlert";
 
-type ActionMutation<T> = { isPending: boolean; mutate: (value: T) => void };
+type ActionMutation<T> = { isPending: boolean; variables?: T; mutate: (value: T) => void };
 const completionQuestion =
   "Have you watched every regular episode, including future-dated episodes? Specials are excluded.";
 
@@ -27,7 +27,8 @@ type EpisodeActionsProps = {
   onWatch: () => void;
   onRewatch: () => void;
   onUnwatch: () => void;
-  pending: boolean;
+  actionPending: boolean;
+  ratingPending: boolean;
 };
 
 export function EpisodeActions({
@@ -38,7 +39,8 @@ export function EpisodeActions({
   onWatch,
   onRewatch,
   onUnwatch,
-  pending,
+  actionPending,
+  ratingPending,
 }: EpisodeActionsProps) {
   return (
     <Group className="detail-actions detail-icon-actions" mt="lg" gap="xs">
@@ -49,7 +51,8 @@ export function EpisodeActions({
           variant="filled"
           aria-label={`Mark episode ${entry.episode.episode_number} ${entry.watched ? "unwatched" : "watched"}`}
           onClick={entry.watched ? onUnwatch : onWatch}
-          loading={pending}
+          loading={actionPending}
+          disabled={actionPending || ratingPending}
         >
           {entry.watched ? <IconCheck size={18} /> : <IconEye size={18} />}
         </ActionIcon>
@@ -61,7 +64,7 @@ export function EpisodeActions({
               size="lg"
               variant="default"
               aria-label="More episode actions"
-              disabled={pending}
+              disabled={actionPending || ratingPending}
             >
               <IconChevronDown size={18} />
             </ActionIcon>
@@ -77,7 +80,7 @@ export function EpisodeActions({
         value={rating}
         onChange={onRate}
         label="Episode rating"
-        disabled={!canRate || pending}
+        disabled={!canRate || actionPending || ratingPending}
         size="md"
       />
       {!canRate && (
@@ -110,7 +113,10 @@ type MediaActionsProps = {
   showBulkAction?: "watch" | "unwatch" | null;
   onShowBulkAction: () => void;
   showBulkPending: boolean;
-  pending: boolean;
+  watchPending: boolean;
+  watchlistPending: boolean;
+  removePending: boolean;
+  disabled: boolean;
 };
 
 export function MediaActions({
@@ -134,7 +140,10 @@ export function MediaActions({
   showBulkAction,
   onShowBulkAction,
   showBulkPending,
-  pending,
+  watchPending,
+  watchlistPending,
+  removePending,
+  disabled,
 }: MediaActionsProps) {
   if (media.type === "movie")
     return (
@@ -146,7 +155,8 @@ export function MediaActions({
             variant="filled"
             aria-label={`Mark ${media.title} ${watched ? "unwatched" : "watched"}`}
             onClick={watched ? onUnwatch : onWatch}
-            loading={pending}
+            loading={watched ? removePending : watchPending}
+            disabled={disabled}
           >
             {watched ? <IconCheck size={18} /> : <IconEye size={18} />}
           </ActionIcon>
@@ -158,7 +168,7 @@ export function MediaActions({
                 size="lg"
                 variant="default"
                 aria-label={`More actions for ${media.title}`}
-                disabled={pending}
+                disabled={disabled}
               >
                 <IconChevronDown size={18} />
               </ActionIcon>
@@ -182,7 +192,12 @@ export function MediaActions({
               variant={isSaved ? "light" : "default"}
               aria-label={`${isSaved ? "Remove" : "Save"} ${media.title} ${isSaved ? "from Watchlist" : "for later"}`}
               onClick={isSaved ? onRemoveWatchlist : () => add.mutate("watchlist")}
-              loading={pending || add.isPending}
+              loading={
+                isSaved
+                  ? watchlistPending
+                  : watchlistPending || (add.isPending && add.variables === "watchlist")
+              }
+              disabled={disabled}
             >
               <IconBookmark size={18} />
             </ActionIcon>
@@ -193,7 +208,7 @@ export function MediaActions({
             value={rating}
             onChange={(value) => update.mutate({ status: status!, rating: value })}
             label="Media rating"
-            disabled={pending}
+            disabled={disabled}
             size="md"
           />
         )}
@@ -232,7 +247,7 @@ export function MediaActions({
         aria-label={`Mark ${media.title} ${showBulkAction === "watch" ? "watched" : "unwatched"}`}
         onClick={onShowBulkAction}
         loading={showBulkPending}
-        disabled={pending || add.isPending}
+        disabled={disabled || add.isPending}
       >
         {showBulkAction === "watch" ? <IconEye size={20} /> : <IconCheck size={20} />}
       </ActionIcon>
@@ -246,8 +261,8 @@ export function MediaActions({
             size={44}
             color="yellow"
             variant="filled"
-            loading={add.isPending}
-            disabled={pending}
+            loading={add.isPending && add.variables === "watching"}
+            disabled={disabled || add.isPending}
             aria-label={`Add ${media.title} to Watching`}
             onClick={() => add.mutate("watching")}
           >
@@ -258,8 +273,8 @@ export function MediaActions({
           <ActionIcon
             size={44}
             variant="default"
-            loading={add.isPending}
-            disabled={pending}
+            loading={add.isPending && add.variables === "watchlist"}
+            disabled={disabled || add.isPending}
             aria-label={`Save ${media.title} for later`}
             onClick={() => add.mutate("watchlist")}
           >
@@ -284,7 +299,7 @@ export function MediaActions({
               ? [{ value: "completed", label: "Completed" }]
               : []),
           ]}
-          disabled={pending || add.isPending}
+          disabled={disabled || add.isPending}
           w={150}
         />
         {showWatchAction}
@@ -315,7 +330,7 @@ export function MediaActions({
           else onRemoveCurrentList();
         }}
         data={status === "completed" ? [{ value: "completed", label: "Completed" }] : statusOptions}
-        disabled={pending || update.isPending}
+        disabled={disabled || update.isPending}
         w={150}
       />
       {showWatchAction}
@@ -323,7 +338,7 @@ export function MediaActions({
         value={rating}
         onChange={(value) => update.mutate({ status: status!, rating: value })}
         label="Media rating"
-        disabled={pending}
+        disabled={disabled || update.isPending}
         size="md"
       />
       {status === "watching" && (

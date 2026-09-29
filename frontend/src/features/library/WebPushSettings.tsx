@@ -13,7 +13,7 @@ function decodeKey(value: string): Uint8Array<ArrayBuffer> {
 export function WebPushSettings() {
   const [enabled, setEnabled] = useState(false);
   const [available, setAvailable] = useState<boolean | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [busyAction, setBusyAction] = useState<"toggle" | "test" | null>(null);
   const [message, setMessage] = useState("");
   const [registration, setRegistration] = useState<ServiceWorkerRegistration | null>(null);
   const [subscription, setSubscription] = useState<PushSubscription | null>(null);
@@ -51,7 +51,7 @@ export function WebPushSettings() {
   }, []);
   const enable = async () => {
     if (!registration || !publicKey) return;
-    setBusy(true);
+    setBusyAction("toggle");
     setMessage("");
     // Start subscribe directly from the tap. iOS requires this user gesture.
     try {
@@ -78,11 +78,11 @@ export function WebPushSettings() {
       setMessage(error instanceof Error ? error.message : "Could not enable notifications.");
     } finally {
       setPermission(Notification.permission);
-      setBusy(false);
+      setBusyAction(null);
     }
   };
   const disable = async () => {
-    setBusy(true);
+    setBusyAction("toggle");
     setMessage("");
     try {
       const subscription = await (
@@ -103,11 +103,11 @@ export function WebPushSettings() {
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not disable notifications.");
     } finally {
-      setBusy(false);
+      setBusyAction(null);
     }
   };
   const test = async () => {
-    setBusy(true);
+    setBusyAction("test");
     setMessage("");
     try {
       const subscription = await (
@@ -127,7 +127,7 @@ export function WebPushSettings() {
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not send test notification.");
     } finally {
-      setBusy(false);
+      setBusyAction(null);
     }
   };
   return (
@@ -161,14 +161,19 @@ export function WebPushSettings() {
       {available && (
         <Group mt="md">
           <Button
-            loading={busy}
-            disabled={!enabled && permission === "denied"}
+            loading={busyAction === "toggle"}
+            disabled={(!enabled && permission === "denied") || busyAction !== null}
             onClick={enabled ? disable : enable}
           >
             {enabled ? "Turn off on this device" : "Enable notifications on this device"}
           </Button>
           {enabled && (
-            <Button variant="default" loading={busy} onClick={test}>
+            <Button
+              variant="default"
+              loading={busyAction === "test"}
+              disabled={busyAction !== null}
+              onClick={test}
+            >
               Send test notification
             </Button>
           )}

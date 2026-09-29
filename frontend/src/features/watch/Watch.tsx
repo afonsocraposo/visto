@@ -160,7 +160,8 @@ export function WatchNow({ onOpenDetail }: { onOpenDetail?: (target: MediaDetail
                 showID: confirmation.show_id,
               })
             }
-            loading={markWatched.isPending}
+            loading={markWatched.isPending && markWatched.variables?.bulk === false}
+            disabled={markWatched.isPending}
           >
             Only this episode
           </Button>
@@ -176,7 +177,8 @@ export function WatchNow({ onOpenDetail }: { onOpenDetail?: (target: MediaDetail
                 showID: confirmation.show_id,
               })
             }
-            loading={markWatched.isPending}
+            loading={markWatched.isPending && markWatched.variables?.bulk === true}
+            disabled={markWatched.isPending}
           >
             Mark all as watched
           </Button>
@@ -296,7 +298,12 @@ export function WatchNow({ onOpenDetail }: { onOpenDetail?: (target: MediaDetail
                       variant="light"
                       color="gray"
                       aria-label={`Mark ${entry.title} season ${entry.next_episode.season_number}, episode ${entry.next_episode.episode_number} watched`}
-                      loading={markWatched.isPending}
+                      loading={
+                        markWatched.isPending && markWatched.variables?.showID === entry.show_id
+                      }
+                      disabled={
+                        markWatched.isPending && markWatched.variables?.showID !== entry.show_id
+                      }
                       onClick={(event) => {
                         event.stopPropagation();
                         entry.missing_prior_episodes?.length

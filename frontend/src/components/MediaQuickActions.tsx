@@ -7,7 +7,8 @@ type Props = {
   saved?: boolean;
   savedLabel?: string;
   canMarkSavedWatched?: boolean;
-  busy?: boolean;
+  loadingAction?: "watch" | "watchlist" | "mark-watched";
+  disabled?: boolean;
   onWatch: () => void;
   onWatchlist: () => void;
   onMarkSavedWatched?: () => void;
@@ -18,7 +19,8 @@ export function MediaQuickActions({
   saved = false,
   savedLabel = "In your library",
   canMarkSavedWatched = false,
-  busy = false,
+  loadingAction,
+  disabled = false,
   onWatch,
   onWatchlist,
   onMarkSavedWatched,
@@ -43,7 +45,8 @@ export function MediaQuickActions({
                 variant="light"
                 aria-label={`Mark ${media.title} watched`}
                 onClick={onMarkSavedWatched}
-                loading={busy}
+                loading={loadingAction === "mark-watched"}
+                disabled={disabled}
               >
                 <IconEye size={18} />
               </ActionIcon>
@@ -63,7 +66,8 @@ export function MediaQuickActions({
                   : `Mark ${media.title} watched`
               }
               onClick={onWatch}
-              loading={busy}
+              loading={loadingAction === "watch"}
+              disabled={disabled}
             >
               <IconEye size={18} />
             </ActionIcon>
@@ -74,7 +78,8 @@ export function MediaQuickActions({
               variant="default"
               aria-label={`Save ${media.title} for later`}
               onClick={onWatchlist}
-              loading={busy}
+              loading={loadingAction === "watchlist"}
+              disabled={disabled}
             >
               <IconBookmark size={18} />
             </ActionIcon>

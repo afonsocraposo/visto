@@ -172,7 +172,11 @@ export function EpisodeBrowser({
                           : `Mark episode ${entry.episode.episode_number} watched`
                       }
                       disabled={entry.watched || recordPlays.isPending}
-                      loading={!entry.watched && recordPlays.isPending}
+                      loading={
+                        !entry.watched &&
+                        recordPlays.isPending &&
+                        recordPlays.variables?.episodeIDs.includes(entry.episode.id) === true
+                      }
                       onClick={() => void selectEpisode(entry)}
                     >
                       {entry.watched ? <IconEyeCheck size={18} /> : <IconEye size={18} />}
@@ -217,7 +221,8 @@ export function EpisodeBrowser({
               confirmation &&
               recordPlays.mutate({ episodeIDs: [confirmation.target.episode.id], bulk: false })
             }
-            loading={recordPlays.isPending}
+            loading={recordPlays.isPending && recordPlays.variables?.bulk === false}
+            disabled={recordPlays.isPending}
           >
             Only this episode
           </Button>
@@ -232,7 +237,8 @@ export function EpisodeBrowser({
                 bulk: true,
               })
             }
-            loading={recordPlays.isPending}
+            loading={recordPlays.isPending && recordPlays.variables?.bulk === true}
+            disabled={recordPlays.isPending}
           >
             Mark all as watched
           </Button>

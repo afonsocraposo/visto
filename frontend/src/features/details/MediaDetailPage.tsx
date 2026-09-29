@@ -80,6 +80,7 @@ type PendingWatch = {
   seasonNumber?: number;
   action?: "watch" | "unwatch";
 };
+type PendingWatchChoice = "single" | "all" | "previous" | "season" | "unwatch" | null;
 
 function showStatusLabel(status: string | undefined): string | null {
   const labels: Record<string, string> = {
@@ -99,6 +100,7 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
   const queryClient = useQueryClient();
   const invalidate = useInvalidateUserCache();
   const [pendingWatch, setPendingWatch] = useState<PendingWatch | null>(null);
+  const [pendingWatchChoice, setPendingWatchChoice] = useState<PendingWatchChoice>(null);
   const [showWatchModal, setShowWatchModal] = useState(false);
   const [showNotificationsOpen, setShowNotificationsOpen] = useState(false);
   const isMobile = useMediaQuery("(max-width: 680px)");
@@ -478,6 +480,7 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
       });
       return invalidateEpisodeData();
     },
+    onSettled: () => setPendingWatchChoice(null),
   });
   const markEpisodesWatched = useMutation({
     mutationFn: async ({
@@ -512,6 +515,7 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
         );
       return invalidateEpisodeData();
     },
+    onSettled: () => setPendingWatchChoice(null),
   });
   const removeEpisodesWatched = useMutation({
     mutationFn: async (selection: string[] | { selectedSeasons: number[] }) => {
@@ -560,6 +564,7 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
       );
       return invalidateEpisodeData();
     },
+    onSettled: () => setPendingWatchChoice(null),
   });
   const removeMovieWatches = useMutation({
     mutationFn: () =>
@@ -815,6 +820,15 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
   const requestEpisodeWatch = (entry: ShowEpisodeEntry) => prepareEpisodeWatch.mutate(entry);
   const confirmWatch = (includeTarget: boolean, includePreviousSeasons = false) => {
     if (!pendingWatch) return;
+    setPendingWatchChoice(
+      pendingWatch.action === "unwatch"
+        ? "unwatch"
+        : includePreviousSeasons
+          ? "previous"
+          : includeTarget
+            ? "all"
+            : "season",
+    );
     if (pendingWatch.seasonNumber !== undefined) {
       const seasonNumbers = includePreviousSeasons
         ? regularSeasonsThrough(
@@ -848,6 +862,7 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
       action,
     });
   const confirmShowAction = () => {
+    setPendingWatchChoice(showWatchAction === "unwatch" ? "unwatch" : "season");
     const seasonNumbers = Object.entries(selectedShowSeasons)
       .filter(([, selected]) => selected)
       .map(([number]) => Number(number));
@@ -998,8 +1013,11 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
           {pendingWatch?.target && (
             <Button
               variant="default"
-              onClick={() => markEpisodeWatched.mutate(pendingWatch.target!.episode.id)}
-              loading={markEpisodeWatched.isPending || markEpisodesWatched.isPending}
+              onClick={() => {
+                setPendingWatchChoice("single");
+                markEpisodeWatched.mutate(pendingWatch.target!.episode.id);
+              }}
+              loading={pendingWatchChoice === "single"}
             >
               Only this episode
             </Button>
@@ -1007,9 +1025,9 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
           <Button
             onClick={() => confirmWatch(Boolean(pendingWatch?.target))}
             loading={
-              markEpisodeWatched.isPending ||
-              markEpisodesWatched.isPending ||
-              removeEpisodesWatched.isPending
+              pendingWatchChoice === "all" ||
+              pendingWatchChoice === "season" ||
+              pendingWatchChoice === "unwatch"
             }
           >
             {pendingWatch?.target
@@ -1023,7 +1041,7 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
           {hasPreviousSeasons && pendingWatch?.action !== "unwatch" && (
             <Button
               onClick={() => confirmWatch(false, true)}
-              loading={markEpisodesWatched.isPending}
+              loading={pendingWatchChoice === "previous"}
             >
               This and previous seasons
             </Button>
@@ -1087,7 +1105,7 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
           </Button>
           <Button
             disabled={!Object.values(selectedShowSeasons).some(Boolean)}
-            loading={markEpisodesWatched.isPending || removeEpisodesWatched.isPending}
+            loading={pendingWatchChoice === "season" || pendingWatchChoice === "unwatch"}
             onClick={confirmShowAction}
           >
             {isSaved
@@ -1199,12 +1217,12 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
                 onWatch={() => requestEpisodeWatch(selectedEpisode)}
                 onRewatch={() => markEpisodeWatched.mutate(selectedEpisode.episode.id)}
                 onUnwatch={() => removeEpisodesWatched.mutate([selectedEpisode.episode.id])}
-                pending={
+                actionPending={
                   prepareEpisodeWatch.isPending ||
                   markEpisodeWatched.isPending ||
-                  removeEpisodesWatched.isPending ||
-                  rateEpisode.isPending
+                  removeEpisodesWatched.isPending
                 }
+                ratingPending={rateEpisode.isPending}
               />
             ) : (
               <MediaActions
@@ -1233,11 +1251,15 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
                   else if (showBulkAction === "unwatch") openShowActionModal("unwatch");
                 }}
                 showBulkPending={markEpisodesWatched.isPending || removeEpisodesWatched.isPending}
-                pending={
+                watchPending={markMovieWatched.isPending}
+                watchlistPending={removeWatchlist.isPending}
+                removePending={removeMovieWatches.isPending || removeCurrentList.isPending}
+                disabled={
                   markMovieWatched.isPending ||
                   removeMovieWatches.isPending ||
                   removeWatchlist.isPending ||
-                  removeCurrentList.isPending
+                  removeCurrentList.isPending ||
+                  update.isPending
                 }
               />
             )}
