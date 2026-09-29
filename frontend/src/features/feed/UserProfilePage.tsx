@@ -273,7 +273,18 @@ export function UserProfilePage({
                                     onOpenDetail?.({
                                       mediaType: item.media_type!,
                                       tmdbID: item.tmdb_id!,
+                                      ...(item.season_number !== undefined
+                                        ? { seasonNumber: item.season_number }
+                                        : {}),
+                                      ...(item.episode_number !== undefined
+                                        ? { episodeNumber: item.episode_number }
+                                        : {}),
                                     })
+                                : undefined
+                            }
+                            onOpenShow={
+                              item.media_type && item.tmdb_id
+                                ? () => onOpenDetail?.({ mediaType: item.media_type!, tmdbID: item.tmdb_id! })
                                 : undefined
                             }
                           />

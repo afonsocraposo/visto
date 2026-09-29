@@ -16,19 +16,31 @@ export function useAppNavigation(user: User, returnTo: string | undefined) {
   const openDetail = (
     target: MediaDetailTarget,
     options?: { from?: string; tab?: Tab; replace?: boolean },
-  ) =>
+  ) => {
+    const episodePath =
+      target.mediaType === "tv" &&
+      target.seasonNumber !== undefined &&
+      target.episodeNumber !== undefined;
     void navigate({
-      to: `/media/${target.mediaType}/${target.tmdbID}`,
+      to: episodePath
+        ? `/shows/${target.tmdbID}/season/${target.seasonNumber}/episode/${target.episodeNumber}`
+        : `/media/${target.mediaType}/${target.tmdbID}`,
       search: {
         from: options?.from ?? parentPath,
         tab: options?.tab ?? tab,
         ...(target.mediaID ? { media: target.mediaID } : {}),
         ...(target.episodeID ? { episode: target.episodeID } : {}),
-        ...(target.seasonNumber !== undefined ? { season: target.seasonNumber } : {}),
+        ...(!episodePath && target.seasonNumber !== undefined
+          ? { season: target.seasonNumber }
+          : {}),
+        ...(!episodePath && target.episodeNumber !== undefined
+          ? { episode_number: target.episodeNumber }
+          : {}),
       },
       replace: options?.replace,
       state: { vistoOpenedInApp: options?.replace ? openedInApp : true },
     });
+  };
   const openPerson = (tmdbID: number) =>
     void navigate({
       to: `/people/${tmdbID}`,

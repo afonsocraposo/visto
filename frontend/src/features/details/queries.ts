@@ -63,7 +63,7 @@ export function useMediaDetailQueries(target: MediaDetailTarget) {
   const related = useGetDiscoverMediaTypeTmdbIDRelated(target.mediaType, target.tmdbID, {
     query: {
       queryKey: userQueryKey("related-media", target.mediaType, target.tmdbID),
-      enabled: !target.episodeID,
+      enabled: !target.episodeID && target.episodeNumber === undefined,
       staleTime: 12 * 60 * 60 * 1000,
       ...retryOptions,
     },
@@ -158,7 +158,7 @@ export function useEpisodeDetailsQuery(
         ),
         enabled:
           target.mediaType === "tv" &&
-          Boolean(target.episodeID) &&
+          Boolean(target.episodeID || target.episodeNumber !== undefined) &&
           seasonNumber !== undefined &&
           episodeNumber !== undefined,
         ...retryOptions,

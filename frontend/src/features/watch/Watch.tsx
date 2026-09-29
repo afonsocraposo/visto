@@ -199,6 +199,8 @@ export function WatchNow({ onOpenDetail }: { onOpenDetail?: (target: MediaDetail
               mediaID: entry.show_id,
               episodeID: entry.next_episode?.id,
               episode: entry.next_episode,
+              seasonNumber: entry.next_episode?.season_number,
+              episodeNumber: entry.next_episode?.episode_number,
             });
           const openShow = () =>
             onOpenDetail?.({
@@ -561,6 +563,8 @@ function CalendarEpisodeCard({
       mediaID: item.show_id,
       episodeID: item.episode.id,
       episode: item.episode,
+      seasonNumber: item.episode.season_number,
+      episodeNumber: item.episode.episode_number,
     });
   return (
     <Paper
@@ -590,9 +594,21 @@ function CalendarEpisodeCard({
         )}
       </div>
       <div className="calendar-card-copy">
-        <Text className="calendar-card-show" lineClamp={1}>
+        <button
+          type="button"
+          className="calendar-card-show calendar-show-link"
+          disabled={!onOpenDetail}
+          onClick={(event) => {
+            event.stopPropagation();
+            onOpenDetail?.({
+              mediaType: "tv",
+              tmdbID: Number(item.show_id.split(":")[1]),
+              mediaID: item.show_id,
+            });
+          }}
+        >
           {item.title}
-        </Text>
+        </button>
         <Text className="calendar-card-number">{`S${String(item.episode.season_number).padStart(2, "0")} E${String(item.episode.episode_number).padStart(2, "0")}`}</Text>
         <Text className="calendar-card-episode" lineClamp={1}>
           {item.episode_name || `Episode ${item.episode.episode_number}`}

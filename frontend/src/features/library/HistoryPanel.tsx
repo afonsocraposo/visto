@@ -224,6 +224,18 @@ function HistoryCard({
                 mediaType,
                 tmdbID: entry.tmdb_id!,
                 mediaID: entry.play.media_id ?? undefined,
+                ...(entry.play.episode_id ? { episodeID: entry.play.episode_id } : {}),
+                ...episodePosition(entry.episode_label),
+              })
+          : undefined
+      }
+      onOpenShow={
+        entry.tmdb_id
+          ? () =>
+              onOpenDetail?.({
+                mediaType,
+                tmdbID: entry.tmdb_id!,
+                mediaID: entry.play.media_id ?? undefined,
               })
           : undefined
       }
@@ -263,4 +275,9 @@ function HistoryCard({
       )}
     </ActivityRow>
   );
+}
+
+function episodePosition(label?: string): { seasonNumber?: number; episodeNumber?: number } {
+  const match = /^S(\d+)E(\d+)$/i.exec(label ?? "");
+  return match ? { seasonNumber: Number(match[1]), episodeNumber: Number(match[2]) } : {};
 }

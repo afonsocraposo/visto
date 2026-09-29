@@ -650,10 +650,49 @@ test("TV details show the production status for saved and unsaved shows", async 
       next_cursor: null,
     }),
   );
-  await page.goto("/media/tv/100?episode=tv%3A100%3Aepisode%3A1");
-  await expect(page.getByRole("heading", { name: "Pilot episode" })).toBeVisible();
+  await page.route("**/api/v1/discover/shows/100/seasons/1/episodes/1", (route) =>
+    fulfillJSON(route, { name: "Pilot episode", overview: "Pilot summary." }),
+  );
+  await page.goto("/shows/100/season/1/episode/1");
+  await expect(page.getByRole("heading", { name: "S01E01 — Pilot episode" })).toBeVisible();
+  await expect(page.getByText("Pilot summary.")).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "S01E01 — Pilot episode" })).toBeVisible();
   await expect(
     page.locator(".detail-hero .mantine-Badge-root", { hasText: "Ongoing" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Example Show" }).click();
+  await expect(page).toHaveURL(/\/media\/tv\/100\?/);
+  await expect
+    .poll(() => page.evaluate(() => new URL(location.href).searchParams.has("episode_number")))
+    .toBe(false);
+
+  await page.route("**/api/v1/shows/100/seasons", (route) =>
+    fulfillJSON(route, [{ id: "tv:100:season:2", season_number: 2, episode_count: 4 }]),
+  );
+  await page.route("**/api/v1/seasons/tv%3A100%3Aseason%3A2/episodes", (route) =>
+    fulfillJSON(route, {
+      items: [
+        {
+          episode: {
+            id: "tv:100:episode:204",
+            season_number: 2,
+            episode_number: 4,
+            air_date: "2025-01-01",
+          },
+          name: "Second season episode",
+          watched: false,
+        },
+      ],
+      next_cursor: null,
+    }),
+  );
+  await page.route("**/api/v1/discover/shows/100/seasons/2/episodes/4", (route) =>
+    fulfillJSON(route, { name: "Second season episode", overview: "Season two summary." }),
+  );
+  await page.goto("/shows/100/season/2/episode/4");
+  await expect(
+    page.getByRole("heading", { name: "S02E04 — Second season episode" }),
   ).toBeVisible();
 
   await page.route("**/api/v1/movies/100", (route) =>
@@ -711,7 +750,9 @@ test("Detail Back restores the show's scroll position and direct links use a fal
   const scrollY = await page.evaluate(() => window.scrollY);
   expect(scrollY).toBeGreaterThan(0);
   await episode.click();
-  await expect(page).toHaveURL(/episode=tv%3A100%3Aepisode%3A20/);
+  await expect(page).toHaveURL(/\/shows\/100\/season\/1\/episode\/20/);
+  await expect(page.getByRole("heading", { name: "S01E20 — Episode 20" })).toBeVisible();
+  await expect(page.getByText("No description available.")).toBeVisible();
   await page.getByRole("button", { name: "Back", exact: true }).click();
   await expect(page).toHaveURL(/\/media\/tv\/100$/);
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(scrollY);

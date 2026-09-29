@@ -186,14 +186,21 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
   );
   const allSavedEpisodes = useSavedShowEpisodesQuery(
     showID,
-    target.mediaType === "tv" && isSaved && Boolean(target.episodeID),
+    target.mediaType === "tv" &&
+      isSaved &&
+      Boolean(target.episodeID || target.episodeNumber !== undefined),
   );
   const loadedSelectedEpisode = episodes.data?.pages.some((page) =>
-    page.items.some((entry) => entry.episode.id === target.episodeID),
+    page.items.some(
+      (entry) =>
+        entry.episode.id === target.episodeID ||
+        (target.episodeNumber !== undefined &&
+          entry.episode.episode_number === target.episodeNumber),
+    ),
   );
   useEffect(() => {
     if (
-      target.episodeID &&
+      (target.episodeID || target.episodeNumber !== undefined) &&
       isSaved &&
       episodes.hasNextPage &&
       !episodes.isFetchingNextPage &&
@@ -203,6 +210,7 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
     }
   }, [
     target.episodeID,
+    target.episodeNumber,
     isSaved,
     episodes.hasNextPage,
     episodes.isFetchingNextPage,
@@ -569,9 +577,10 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
   const candidateEpisodes = isSaved
     ? (episodes.data?.pages.flatMap((page) => page.items) ?? [])
     : (temporaryEpisodes.data?.episodes ?? []);
-  const candidateEpisode = target.episodeID
-    ? candidateEpisodes.find((entry) => entry.episode.id === target.episodeID)
-    : null;
+  const candidateEpisode =
+    candidateEpisodes.find((entry) => entry.episode.id === target.episodeID) ??
+    candidateEpisodes.find((entry) => entry.episode.episode_number === target.episodeNumber) ??
+    null;
   const navigationEpisode = candidateEpisode?.episode ?? target.episode;
   const navigationSeason = navigationEpisode?.season_number;
   const currentSeasonEpisodes = candidateEpisodes
@@ -604,16 +613,19 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
       : undefined;
   const previousTemporaryEpisodes = useTemporarySeasonEpisodesQuery(
     target,
-    !isSaved && Boolean(target.episodeID && previousTemporarySeason !== undefined),
+    !isSaved &&
+      Boolean((target.episodeID || target.episodeNumber !== undefined) && previousTemporarySeason !== undefined),
     previousTemporarySeason ?? -1,
   );
   const nextTemporaryEpisodes = useTemporarySeasonEpisodesQuery(
     target,
-    !isSaved && Boolean(target.episodeID && nextTemporarySeason !== undefined),
+    !isSaved &&
+      Boolean((target.episodeID || target.episodeNumber !== undefined) && nextTemporarySeason !== undefined),
     nextTemporarySeason ?? -1,
   );
   const episodeSeasonNumber = candidateEpisode?.episode.season_number ?? target.seasonNumber;
-  const episodeNumber = candidateEpisode?.episode.episode_number ?? target.episode?.episode_number;
+  const episodeNumber =
+    candidateEpisode?.episode.episode_number ?? target.episode?.episode_number ?? target.episodeNumber;
   const episodeDetails = useEpisodeDetailsQuery(target, episodeSeasonNumber, episodeNumber);
   const episodeRating = useEpisodeRatingQuery(target.episodeID);
   const rateEpisode = useMutation({
@@ -690,8 +702,9 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
   const visibleEpisodes = episodeEntries.filter(
     (entry) => String(entry.episode.season_number) === selectedSeason,
   );
-  const selectedEpisode = target.episodeID
+  const selectedEpisode = target.episodeID || target.episodeNumber !== undefined
     ? (episodeEntries.find((entry) => entry.episode.id === target.episodeID) ??
+      episodeEntries.find((entry) => entry.episode.episode_number === target.episodeNumber) ??
       (target.episode
         ? {
             episode: target.episode,
@@ -711,12 +724,26 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
           ...candidateEpisodes,
           ...(previousTemporaryEpisodes.data?.episodes ?? []),
           ...(nextTemporaryEpisodes.data?.episodes ?? []),
-        ],
+      ],
   );
+  const episodeListLoaded = isSaved
+    ? episodes.isSuccess && !episodes.hasNextPage
+    : temporaryEpisodes.isSuccess;
+  if (
+    (target.episodeID || target.episodeNumber !== undefined) &&
+    episodeListLoaded &&
+    !selectedEpisode
+  ) {
+    return (
+      <Alert color="yellow" mt="md" title="Episode not found">
+        This episode could not be found.
+      </Alert>
+    );
+  }
   const episodeStill = episodeDetails.data?.still_path || selectedEpisode?.still_path;
   const episodeArtwork = episodeStill ? backdropURL(episodeStill, "w780") : null;
   const episodeArtworkPending =
-    Boolean(target.episodeID) &&
+    Boolean(target.episodeID || target.episodeNumber !== undefined) &&
     !episodeArtwork &&
     (episodeDetails.isFetching || (isSaved ? episodes.isFetching : temporaryEpisodes.isFetching));
   const mediaArtwork = resolveMediaArtwork(
@@ -725,7 +752,7 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
     !isSaved && fallbackDetails.isPending,
   );
   const artLayers = heroArtworkLayers(
-    Boolean(target.episodeID),
+    Boolean(target.episodeID || target.episodeNumber !== undefined),
     episodeArtwork,
     episodeArtworkPending,
     mediaArtwork,
@@ -1039,7 +1066,7 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
             </Group>
             <Title order={1}>
               {selectedEpisode
-                ? `S${String(selectedEpisode.episode.season_number).padStart(2, "0")}E${String(selectedEpisode.episode.episode_number).padStart(2, "0")} · ${selectedEpisode.name}`
+                ? `S${String(selectedEpisode.episode.season_number).padStart(2, "0")}E${String(selectedEpisode.episode.episode_number).padStart(2, "0")} — ${selectedEpisode.name || `Episode ${selectedEpisode.episode.episode_number}`}`
                 : media.title}
             </Title>
             {selectedEpisode ? (
@@ -1052,12 +1079,11 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
                       mediaType: "tv",
                       tmdbID: media.tmdb_id,
                       mediaID: showID,
-                      seasonNumber: selectedEpisode.episode.season_number,
                     },
                     { from: returnTo, replace: true },
                   )
                 }
-              >{`${media.title} · Season ${selectedEpisode.episode.season_number}`}</Button>
+              >{media.title}</Button>
             ) : (
               <Text className="detail-subtitle">{`${media.release_date ? media.release_date.slice(0, 4) : ""}${media.original_language ? ` · ${media.original_language.toUpperCase()}` : ""}`}</Text>
             )}
@@ -1065,7 +1091,7 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
               {selectedEpisode
                 ? episodeDetails.data?.overview ||
                   selectedEpisode.overview ||
-                  "Episode details are shown from your local catalog."
+                  "No description available."
                 : media.overview || "No description is available."}
             </Text>
             {(
@@ -1086,9 +1112,9 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
                 TMDB {episodeDetails.data.vote_average.toFixed(1)} / 10
               </Text>
             ) : null}
-            {selectedEpisode && episodeDetails.data?.air_date ? (
+            {selectedEpisode && (episodeDetails.data?.air_date || selectedEpisode.episode.air_date) ? (
               <Text className="detail-runtime" mt="sm">
-                Aired {episodeDetails.data.air_date}
+                Aired {episodeDetails.data?.air_date || selectedEpisode.episode.air_date}
                 {episodeDetails.data.production_code
                   ? ` · ${episodeDetails.data.production_code}`
                   : ""}
@@ -1359,6 +1385,7 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
                   episodeID: entry.episode.id,
                   episode: entry.episode,
                   seasonNumber: entry.episode.season_number,
+                  episodeNumber: entry.episode.episode_number,
                 });
               return (
                 <Paper
@@ -1396,7 +1423,7 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
                       <div className="episode-row-copy">
                         <Text
                           fw={650}
-                        >{`Episode ${entry.episode.episode_number}${entry.name ? ` · ${entry.name}` : ""}`}</Text>
+                        >{`S${String(entry.episode.season_number).padStart(2, "0")}E${String(entry.episode.episode_number).padStart(2, "0")} — ${entry.name || `Episode ${entry.episode.episode_number}`}`}</Text>
                         <Text size="xs" c="dimmed">
                           {entry.episode.air_date || "Air date not announced"}
                         </Text>
@@ -1499,6 +1526,7 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
                     episodeID: adjacentEpisodes.previousEpisode!.episode.id,
                     episode: adjacentEpisodes.previousEpisode!.episode,
                     seasonNumber: adjacentEpisodes.previousEpisode!.episode.season_number,
+                    episodeNumber: adjacentEpisodes.previousEpisode!.episode.episode_number,
                   },
                   { from: returnTo, replace: true },
                 )
@@ -1523,6 +1551,7 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
                     episodeID: adjacentEpisodes.nextEpisode!.episode.id,
                     episode: adjacentEpisodes.nextEpisode!.episode,
                     seasonNumber: adjacentEpisodes.nextEpisode!.episode.season_number,
+                    episodeNumber: adjacentEpisodes.nextEpisode!.episode.episode_number,
                   },
                   { from: returnTo, replace: true },
                 )
@@ -1549,7 +1578,7 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
           onOpenPerson={onOpenPerson}
         />
       )}
-      {!target.episodeID &&
+      {!target.episodeID && target.episodeNumber === undefined &&
         (related.isPending || related.isError || Boolean(related.data?.length)) && (
           <section className="detail-section">
             <Text className="section-kicker">More to explore</Text>

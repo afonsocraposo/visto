@@ -406,6 +406,17 @@ select {
 .calendar-card-show {
   font-size: 1.1rem;
 }
+.calendar-show-link,
+.activity-show-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 750;
+  text-align: left;
+  cursor: pointer;
+}
 .calendar-card-episode {
   color: var(--mantine-color-dimmed);
   font-size: 0.9rem;
@@ -1156,6 +1167,13 @@ select {
   max-width: 100%;
   font-size: 1.03rem;
   line-height: 1.35;
+}
+.activity-show-link {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .activity-row-episode {
   min-width: 0;

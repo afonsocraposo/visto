@@ -85,6 +85,7 @@ const mediaSearchSchema = z.object({
   media: z.string().optional(),
   episode: z.string().optional(),
   season: z.coerce.number().int().nonnegative().optional(),
+  episode_number: z.coerce.number().int().nonnegative().optional(),
 });
 const mediaRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -96,6 +97,24 @@ const mediaRoute = createRoute({
       tmdbID: z.coerce.number().int().positive().parse(params.tmdbID),
     }),
     stringify: (params) => ({ mediaType: params.mediaType, tmdbID: String(params.tmdbID) }),
+  },
+  validateSearch: (search) => mediaSearchSchema.parse(search),
+});
+const episodeRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/shows/$tmdbID/season/$seasonNumber/episode/$episodeNumber",
+  component: EpisodeRoute,
+  params: {
+    parse: (params) => ({
+      tmdbID: z.coerce.number().int().positive().parse(params.tmdbID),
+      seasonNumber: z.coerce.number().int().nonnegative().parse(params.seasonNumber),
+      episodeNumber: z.coerce.number().int().nonnegative().parse(params.episodeNumber),
+    }),
+    stringify: (params) => ({
+      tmdbID: String(params.tmdbID),
+      seasonNumber: String(params.seasonNumber),
+      episodeNumber: String(params.episodeNumber),
+    }),
   },
   validateSearch: (search) => mediaSearchSchema.parse(search),
 });
@@ -120,6 +139,7 @@ const routeTree = rootRoute.addChildren([
   logoutRoute,
   profileLibraryListRoute,
   mediaRoute,
+  episodeRoute,
   personRoute,
 ]);
 export const router = createRouter({ routeTree, context: undefined! });
@@ -169,6 +189,27 @@ function MediaRoute() {
           mediaID: search.media,
           episodeID: search.episode,
           seasonNumber: search.season,
+          episodeNumber: search.episode_number,
+        },
+        returnTo: search.from,
+      }}
+    />
+  );
+}
+function EpisodeRoute() {
+  const params = episodeRoute.useParams();
+  const search = episodeRoute.useSearch();
+  return (
+    <DashboardRoute
+      page={{
+        kind: "media",
+        target: {
+          mediaType: "tv",
+          tmdbID: params.tmdbID,
+          mediaID: search.media,
+          episodeID: search.episode,
+          seasonNumber: params.seasonNumber,
+          episodeNumber: params.episodeNumber,
         },
         returnTo: search.from,
       }}

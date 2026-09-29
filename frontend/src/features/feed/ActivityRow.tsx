@@ -20,6 +20,7 @@ type Props = {
   actions?: ReactNode;
   children?: ReactNode;
   onOpenDetail?: () => void;
+  onOpenShow?: () => void;
 };
 
 export function ActivityRow({
@@ -37,6 +38,7 @@ export function ActivityRow({
   actions,
   children,
   onOpenDetail,
+  onOpenShow,
 }: Props) {
   const art =
     episodeLabel && mediaType === "tv"
@@ -111,9 +113,22 @@ export function ActivityRow({
           </Group>
           {actions}
         </Group>
-        <Text className="activity-row-title" fw={750} lineClamp={1}>
-          {title}
-        </Text>
+        {onOpenShow ? (
+          <button
+            type="button"
+            className="activity-row-title activity-show-link"
+            onClick={(event) => {
+              event.stopPropagation();
+              onOpenShow();
+            }}
+          >
+            {title}
+          </button>
+        ) : (
+          <Text className="activity-row-title" fw={750} lineClamp={1}>
+            {title}
+          </Text>
+        )}
         {(episodeLabel || episodeName) && (
           <Group className="activity-row-episode" gap="xs" wrap="wrap">
             {episodeLabel && <span className="activity-episode-badge">{episodeLabel}</span>}
