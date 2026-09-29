@@ -1066,24 +1066,29 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
             </Group>
             <Title order={1}>
               {selectedEpisode
-                ? `S${String(selectedEpisode.episode.season_number).padStart(2, "0")}E${String(selectedEpisode.episode.episode_number).padStart(2, "0")} — ${selectedEpisode.name || `Episode ${selectedEpisode.episode.episode_number}`}`
+                ? selectedEpisode.name || `Episode ${selectedEpisode.episode.episode_number}`
                 : media.title}
             </Title>
             {selectedEpisode ? (
-              <Button
-                className="detail-season-link"
-                variant="subtle"
-                onClick={() =>
-                  onOpenDetail(
-                    {
-                      mediaType: "tv",
-                      tmdbID: media.tmdb_id,
-                      mediaID: showID,
-                    },
-                    { from: returnTo, replace: true },
-                  )
-                }
-              >{media.title}</Button>
+              <Group gap="xs" align="center">
+                <Button
+                  className="detail-season-link"
+                  variant="subtle"
+                  onClick={() =>
+                    onOpenDetail(
+                      {
+                        mediaType: "tv",
+                        tmdbID: media.tmdb_id,
+                        mediaID: showID,
+                      },
+                      { from: returnTo, replace: true },
+                    )
+                  }
+                >{media.title}</Button>
+                <Badge variant="light" color="gray">
+                  {`S${String(selectedEpisode.episode.season_number).padStart(2, "0")}E${String(selectedEpisode.episode.episode_number).padStart(2, "0")}`}
+                </Badge>
+              </Group>
             ) : (
               <Text className="detail-subtitle">{`${media.release_date ? media.release_date.slice(0, 4) : ""}${media.original_language ? ` · ${media.original_language.toUpperCase()}` : ""}`}</Text>
             )}
