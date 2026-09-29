@@ -925,6 +925,59 @@ test("Given a TV show detail, When the user uses compact watch controls, Then sh
   await expect(page.getByRole("combobox", { name: "Current list" })).toHaveValue("Watchlist");
 });
 
+test("A full-season alert can be switched back to episode alerts", async ({ page }) => {
+  await mockSignedInSession(page);
+  const show = {
+    id: "tv:100",
+    tmdb_id: 100,
+    type: "tv",
+    title: "The Example Show",
+    original_title: "The Example Show",
+    overview: "",
+    release_date: "2024-01-01",
+    poster_path: "",
+    original_language: "en",
+  };
+  let subscribed = true;
+  let deletes = 0;
+  await page.route("**/api/v1/shows/100", (route) =>
+    fulfillJSON(route, {
+      media: show,
+      item: { media_id: show.id, status: "watching", rating: null, notifications_enabled: true },
+    }),
+  );
+  await page.route("**/api/v1/shows/**/progress", (route) =>
+    fulfillJSON(route, { is_fully_watched: false, watched_episodes: 0 }),
+  );
+  await page.route("**/api/v1/shows/**/episodes", (route) =>
+    fulfillJSON(route, { items: [], next_cursor: null }),
+  );
+  await page.route("**/api/v1/seasons/**/ready-alert", (route) => {
+    if (route.request().method() === "DELETE") {
+      deletes++;
+      subscribed = false;
+      return fulfillJSON(route, {});
+    }
+    return fulfillJSON(route, { ready: false, subscribed });
+  });
+  await page.route("**/api/v1/discover/shows/100", (route) =>
+    fulfillJSON(route, {
+      media: show,
+      seasons: [{ tmdb_id: 1, season_number: 1, name: "Season 1" }],
+      cast: [],
+    }),
+  );
+  await page.route("**/api/v1/discover/tv/100/related", (route) => fulfillJSON(route, []));
+  await page.goto("/media/tv/100");
+  await expect(
+    page.getByRole("button", { name: "Notify when full season is available" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Notify when full season is available" }).click();
+  await page.getByRole("radio", { name: "Every new episode" }).click();
+  await expect.poll(() => deletes).toBe(1);
+  await expect(page.getByRole("button", { name: "Notify for each episode" })).toBeVisible();
+});
+
 test("Given a movie in Watchlist, When it is marked watched from search, Then Undo restores Watchlist", async ({
   page,
 }) => {

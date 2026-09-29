@@ -6,11 +6,13 @@ import {
   Badge,
   Button,
   Checkbox,
+  Drawer,
   Group,
   Image,
   Menu,
   Modal,
   Paper,
+  Radio,
   Select,
   Skeleton,
   Stack,
@@ -94,6 +96,7 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
   const invalidate = useInvalidateUserCache();
   const [pendingWatch, setPendingWatch] = useState<PendingWatch | null>(null);
   const [showWatchModal, setShowWatchModal] = useState(false);
+  const [seasonNotificationsOpen, setSeasonNotificationsOpen] = useState(false);
   const [movieHistoryMode, setMovieHistoryMode] = useState<"view" | "edit" | null>(null);
   const [showWatchAction, setShowWatchAction] = useState<"watch" | "unwatch">("watch");
   const [selectedShowSeasons, setSelectedShowSeasons] = useState<Record<number, boolean>>({});
@@ -156,6 +159,7 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
         ? api.put(seasonAlertURL, undefined, "Could not subscribe to this season.")
         : api.delete(seasonAlertURL, "Could not cancel this season alert."),
     onSuccess: (_result, subscribe) => {
+      setSeasonNotificationsOpen(false);
       void queryClient.invalidateQueries({
         queryKey: userQueryKey("season-ready-alert", selectedSeasonID),
       });
@@ -1169,47 +1173,6 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
                     w={150}
                   />
                 )}
-                {isSaved &&
-                  selectedSeasonID &&
-                  Number(selectedSeason) > 0 &&
-                  library.data?.item.status === "watching" &&
-                  seasonAlert.data &&
-                  !seasonAlert.data.ready && (
-                    <Tooltip
-                      label={
-                        seasonAlert.data.ready && !seasonAlert.data.subscribed
-                          ? "All episodes in this season are available"
-                          : seasonAlert.data.subscribed
-                            ? "Cancel season-ready alert"
-                            : "Notify me when all episodes are available"
-                      }
-                      withArrow
-                    >
-                      <ActionIcon
-                        size={44}
-                        variant={seasonAlert.data.subscribed ? "filled" : "subtle"}
-                        color="yellow"
-                        aria-label={
-                          seasonAlert.data.ready && !seasonAlert.data.subscribed
-                            ? `Season ${selectedSeason} is ready`
-                            : seasonAlert.data.subscribed
-                              ? `Cancel season ${selectedSeason} ready alert`
-                              : `Notify me when season ${selectedSeason} is ready`
-                        }
-                        disabled={
-                          (seasonAlert.data.ready && !seasonAlert.data.subscribed) ||
-                          updateSeasonAlert.isPending
-                        }
-                        onClick={() => updateSeasonAlert.mutate(!seasonAlert.data!.subscribed)}
-                      >
-                        {seasonAlert.data.ready && !seasonAlert.data.subscribed ? (
-                          <IconCheck size={19} />
-                        ) : (
-                          <IconBell size={19} />
-                        )}
-                      </ActionIcon>
-                    </Tooltip>
-                  )}
                 {seasonBulkAction && (
                   <Tooltip
                     label={
@@ -1236,11 +1199,67 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
               </Group>
             </Group>
           </Group>
-          {updateSeasonAlert.isError && (
-            <Alert color="red" mb="sm">
-              {updateSeasonAlert.error.message}
-            </Alert>
-          )}
+          {isSaved &&
+            selectedSeasonID &&
+            Number(selectedSeason) > 0 &&
+            library.data?.item.status === "watching" &&
+            seasonAlert.data &&
+            !seasonAlert.data.ready && (
+              <Button
+                fullWidth
+                variant="default"
+                mb="sm"
+                leftSection={
+                  seasonAlert.data.subscribed ? <IconCheck size={19} /> : <IconBell size={19} />
+                }
+                onClick={() => setSeasonNotificationsOpen(true)}
+              >
+                {seasonAlert.data.subscribed
+                  ? "Notify when full season is available"
+                  : "Notify for each episode"}
+              </Button>
+            )}
+          <Drawer
+            opened={seasonNotificationsOpen}
+            onClose={() => setSeasonNotificationsOpen(false)}
+            position="bottom"
+            title={`Season ${selectedSeason} notifications`}
+          >
+            {updateSeasonAlert.isError && (
+              <Alert color="red" mb="sm">
+                {updateSeasonAlert.error.message}
+              </Alert>
+            )}
+            <Radio.Group
+              value={seasonAlert.data?.subscribed ? "season" : "episode"}
+              onChange={(value) => {
+                if (value !== (seasonAlert.data?.subscribed ? "season" : "episode")) {
+                  updateSeasonAlert.mutate(value === "season");
+                }
+              }}
+            >
+              <Stack gap="md">
+                <Radio
+                  value="episode"
+                  label="Every new episode"
+                  description={
+                    library.data?.item.notifications_enabled
+                      ? "Notify me as episodes become available. Uses this show's episode alert setting."
+                      : "Episode alerts are off for this show."
+                  }
+                  disabled={
+                    updateSeasonAlert.isPending || !library.data?.item.notifications_enabled
+                  }
+                />
+                <Radio
+                  value="season"
+                  label="Full season"
+                  description="Notify me once all episodes are available."
+                  disabled={updateSeasonAlert.isPending}
+                />
+              </Stack>
+            </Radio.Group>
+          </Drawer>
           {seasonAlert.isError && (
             <Alert color="red" mb="sm">
               Could not load this season's alert status.
