@@ -1,8 +1,9 @@
 # Notifications
 
-Visto can alert users about newly aired episodes over Pushover, Web Push, or
-both. Both channels share the `VISTO_PUSHOVER_INTERVAL` check interval
-(default `15m`) and require a persistent `VISTO_SECRET_ENCRYPTION_KEY` (see
+Visto can alert users about newly aired episodes and upcoming movie releases
+over Pushover, Web Push, or both. Both channels share the
+`VISTO_PUSHOVER_INTERVAL` check interval (default `15m`) and require a
+persistent `VISTO_SECRET_ENCRYPTION_KEY` (see
 [configuration.md](configuration.md)) so per-user credentials can be stored
 encrypted.
 
@@ -19,6 +20,10 @@ individual episode alerts for that season stop after subscription. The alert
 uses the user's enabled Pushover and Web Push channels — if neither is enabled
 when the season becomes ready, Visto shows it as ready without a later
 notification. Leaving Watching cancels pending season alerts.
+
+For an unreleased movie in Watchlist, **Release alert · On/Off** controls a
+one-time alert for its release date. Visto refreshes watchlisted unreleased
+movie metadata through the existing catalog refresh worker.
 
 ## Pushover
 

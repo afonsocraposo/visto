@@ -13,6 +13,7 @@ import {
 } from "@tabler/icons-react";
 import { RatingStars } from "../../components/RatingStars";
 import type { SearchMedia, ShowEpisodeEntry } from "../../types";
+import { movieReleaseAlertLabel, showMovieReleaseAlert } from "./movieReleaseAlert";
 
 type ActionMutation<T> = { isPending: boolean; mutate: (value: T) => void };
 const completionQuestion =
@@ -192,6 +193,20 @@ export function MediaActions({
             size="md"
           />
         )}
+        {isSaved &&
+          showMovieReleaseAlert(status, media.release_date, new Date().toISOString().slice(0, 10)) && (
+            <Button
+              variant={notificationsEnabled ? "filled" : "default"}
+              color={notificationsEnabled ? "yellow" : undefined}
+              aria-label={movieReleaseAlertLabel(notificationsEnabled)}
+              aria-pressed={notificationsEnabled}
+              loading={updateNotifications.isPending}
+              onClick={() => updateNotifications.mutate(!notificationsEnabled)}
+              leftSection={notificationsEnabled ? <IconBell size={20} /> : <IconBellOff size={20} />}
+            >
+              {movieReleaseAlertLabel(notificationsEnabled)}
+            </Button>
+          )}
       </Group>
     );
   const showWatchAction = showBulkAction && (

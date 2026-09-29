@@ -2,12 +2,78 @@ package sqlite_test
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/afonsocosta/visto/internal/application/library"
+	"github.com/afonsocosta/visto/internal/application/notifications"
 	"github.com/afonsocosta/visto/internal/infrastructure/sqlite"
 )
+
+type releaseNotificationSender struct{ sent int }
+
+func (s *releaseNotificationSender) Send(_ context.Context, _, _, title, body string) error {
+	s.sent++
+	if title != "Now available: Example Movie" || body != "Example Movie is out today." {
+		return fmt.Errorf("unexpected movie release notification: %q / %q", title, body)
+	}
+	return nil
+}
+
+type releaseNotificationDecryptor struct{}
+
+func (releaseNotificationDecryptor) Decrypt(value string) (string, error) { return value, nil }
+
+func TestMovieReleaseNotification_GivenWatchlistedUnreleasedMovie_WhenReleaseDateBecomesToday_ThenItSendsOnce(t *testing.T) {
+	ctx := context.Background()
+	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "visto.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	userID := insertTestUser(t, store.DB, "movie-alert-user", "Alex", "private")
+	if _, err := store.DB.Exec(`UPDATE user_settings SET pushover_user_key_encrypted='user-key',pushover_app_token_encrypted='app-token',pushover_notifications_enabled=1 WHERE user_id=?`, userID); err != nil {
+		t.Fatal(err)
+	}
+	_, err = store.DB.Exec(`INSERT INTO media(id,media_type,tmdb_id,title,release_date,metadata_updated_at,created_at)
+		VALUES('movie:42','movie',42,'Example Movie','2026-10-02','2026-09-01','2026-09-01');
+		INSERT INTO user_media(id,user_id,media_id,status,added_at,updated_at,notifications_enabled)
+		VALUES(?,?,'movie:42','watchlist','2026-09-01','2026-09-01',0);`, userID+":movie:42", userID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := library.NewService(store).SetNotificationsEnabled(ctx, userID, "movie:42", true); err != nil {
+		t.Fatalf("enable movie release alert: %v", err)
+	}
+	sender := &releaseNotificationSender{}
+	service := &notifications.MovieReleaseService{Repository: store, Pushover: sender, Decryptor: releaseNotificationDecryptor{}}
+	now := time.Date(2026, 9, 30, 12, 0, 0, 0, time.UTC)
+	service.Now = func() time.Time { return now }
+	if err := service.Dispatch(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if sender.sent != 0 {
+		t.Fatalf("future movie sent %d alerts", sender.sent)
+	}
+	if _, err := store.DB.Exec(`UPDATE media SET release_date='2026-10-01' WHERE id='movie:42'`); err != nil {
+		t.Fatal(err)
+	}
+	now = time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
+	for range 2 {
+		if err := service.Dispatch(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if sender.sent != 1 {
+		t.Fatalf("sent alerts = %d, want exactly one", sender.sent)
+	}
+	var deliveries int
+	if err := store.DB.QueryRow(`SELECT COUNT(*) FROM movie_release_deliveries WHERE user_id=? AND media_id='movie:42' AND channel='pushover' AND state='sent'`, userID).Scan(&deliveries); err != nil || deliveries != 1 {
+		t.Fatalf("sent deliveries=%d err=%v, want 1", deliveries, err)
+	}
+}
 
 func TestNotificationCandidates_GivenOptedInWatchingShow_WhenEpisodeHasAired_ThenOnlyUnwatchedRegularEpisodeIsReturned(t *testing.T) {
 	ctx := context.Background()

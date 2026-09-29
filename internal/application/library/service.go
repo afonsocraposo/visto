@@ -254,8 +254,8 @@ func (s *Service) SetNotificationsEnabled(ctx context.Context, userID, mediaID s
 	if userID == "" || mediaID == "" {
 		return fmt.Errorf("user and media are required")
 	}
-	if !strings.HasPrefix(mediaID, "tv:") {
-		return fmt.Errorf("episode notifications are only available for TV shows")
+	if !strings.HasPrefix(mediaID, "tv:") && !strings.HasPrefix(mediaID, "movie:") {
+		return fmt.Errorf("notifications are only available for saved TV shows and watchlist movies")
 	}
 	repository, ok := s.repository.(notificationPreferenceRepository)
 	if !ok {

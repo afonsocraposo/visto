@@ -82,6 +82,18 @@ erDiagram
     text next_attempt_at
   }
 
+  movie_release_deliveries {
+    integer user_id PK, FK
+    text media_id PK, FK
+    text channel PK
+    text subscription_id PK
+    text state
+    text attempted_at
+    text sent_at
+    integer attempt_count
+    text next_attempt_at
+  }
+
   oauth_access_tokens {
     text token_hash PK
     text client_id FK
@@ -261,6 +273,7 @@ erDiagram
   episodes ||--o{ web_push_deliveries : episode_id
   media ||--o{ activity_events : media_id
   media ||--o{ episodes : show_id
+  media ||--o{ movie_release_deliveries : media_id
   media ||--o{ plays : media_id
   media ||--o{ seasons : show_id
   media ||--o{ user_media : media_id
@@ -272,6 +285,7 @@ erDiagram
   users ||--o{ activity_events : user_id
   users ||--o{ episode_ratings : user_id
   users ||--o{ notification_deliveries : user_id
+  users ||--o{ movie_release_deliveries : user_id
   users ||--o{ oauth_access_tokens : user_id
   users ||--o{ oauth_authorization_codes : user_id
   users ||--o{ oauth_refresh_tokens : user_id

@@ -52,6 +52,15 @@ func (s *Store) SaveMovieMetadata(ctx context.Context, movie domain.MovieMetadat
 	return err
 }
 
+func (s *Store) RefreshMovieMetadata(ctx context.Context, movie domain.MovieMetadata) error {
+	raw, err := json.Marshal(mediaExtras{Cast: movie.Cast, Runtime: movie.Runtime, Genres: movie.Genres, VoteAverage: movie.VoteAverage})
+	if err != nil {
+		return err
+	}
+	_, err = s.DB.ExecContext(ctx, `UPDATE media SET title=?,original_title=?,overview=?,release_date=?,poster_path=?,backdrop_path=?,original_language=?,status=?,raw_metadata=?,metadata_updated_at=? WHERE media_type='movie' AND tmdb_id=?`, movie.Title, movie.OriginalTitle, movie.Overview, movie.ReleaseDate, movie.PosterPath, movie.BackdropPath, movie.OriginalLanguage, movie.Status, raw, time.Now().UTC().Format(time.RFC3339Nano), movie.TMDBID)
+	return err
+}
+
 func (s *Store) UpsertMedia(ctx context.Context, media library.Media) error {
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	_, err := s.DB.ExecContext(ctx, `INSERT INTO media(id,media_type,tmdb_id,title,original_title,overview,release_date,poster_path,backdrop_path,original_language,status,metadata_updated_at,created_at)
@@ -421,23 +430,24 @@ func (s *Store) GetMediaByTMDBID(ctx context.Context, userID string, mediaType d
 func (s *Store) SetNotificationsEnabled(ctx context.Context, userID, mediaID string, enabled bool) error {
 	tx, err := s.DB.BeginTx(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("begin show notification preference update: %w", err)
+		return fmt.Errorf("begin media notification preference update: %w", err)
 	}
 	defer tx.Rollback()
 	var wasEnabled bool
-	err = tx.QueryRowContext(ctx, `SELECT um.notifications_enabled FROM user_media um JOIN media m ON m.id=um.media_id
-		WHERE um.user_id=? AND um.media_id=? AND m.media_type='tv'`, userID, mediaID).Scan(&wasEnabled)
+	var mediaType, status string
+	err = tx.QueryRowContext(ctx, `SELECT um.notifications_enabled,m.media_type,um.status FROM user_media um JOIN media m ON m.id=um.media_id
+		WHERE um.user_id=? AND um.media_id=? AND ((m.media_type='tv' AND um.status='watching') OR (m.media_type='movie' AND um.status='watchlist'))`, userID, mediaID).Scan(&wasEnabled, &mediaType, &status)
 	if errors.Is(err, sql.ErrNoRows) {
 		return library.ErrMediaNotFound
 	}
 	if err != nil {
-		return fmt.Errorf("read show notification preference: %w", err)
+		return fmt.Errorf("read media notification preference: %w", err)
 	}
 	_, err = tx.ExecContext(ctx, `UPDATE user_media SET notifications_enabled=? WHERE user_id=? AND media_id=?`, enabled, userID, mediaID)
 	if err != nil {
-		return fmt.Errorf("set show notification preference: %w", err)
+		return fmt.Errorf("set media notification preference: %w", err)
 	}
-	if enabled && !wasEnabled {
+	if mediaType == "tv" && status == "watching" && enabled && !wasEnabled {
 		if _, err := tx.ExecContext(ctx, `UPDATE user_media SET notifications_since=? WHERE user_id=? AND media_id=?`, time.Now().UTC().Format(time.RFC3339Nano), userID, mediaID); err != nil {
 			return fmt.Errorf("set show notification baseline: %w", err)
 		}

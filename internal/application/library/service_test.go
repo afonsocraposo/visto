@@ -111,8 +111,12 @@ func TestSetNotificationsEnabled_GivenTrackedShow_WhenDisabled_ThenItStoresAnOwn
 	}
 }
 
-func TestSetNotificationsEnabled_GivenMovie_WhenRequested_ThenItRejectsThePreference(t *testing.T) {
-	if err := library.NewService(&repo{}).SetNotificationsEnabled(context.Background(), "owner", "movie:42", true); err == nil {
-		t.Fatal("expected movie alert preference to be rejected")
+func TestSetNotificationsEnabled_GivenWatchlistMovie_WhenRequested_ThenItStoresThePreference(t *testing.T) {
+	repository := &repo{}
+	if err := library.NewService(repository).SetNotificationsEnabled(context.Background(), "owner", "movie:42", true); err != nil {
+		t.Fatal(err)
+	}
+	if repository.notificationPreference.mediaID != "movie:42" || !repository.notificationPreference.enabled {
+		t.Fatalf("preference=%+v", repository.notificationPreference)
 	}
 }

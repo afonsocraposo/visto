@@ -21,7 +21,7 @@ The named volume `visto-data` holds the SQLite database and backups and survives
 
 ## Optional features
 
-- **[Pushover & Web Push alerts](docs/notifications.md)** — per-user notifications for newly aired episodes.
+- **[Pushover & Web Push alerts](docs/notifications.md)** — per-user notifications for new episodes and movie releases.
 - **[Plex watched-content sync](docs/plex-sync.md)** — import watches from Plex via webhook.
 - **[ChatGPT MCP connection](docs/mcp.md)** — connect Visto to ChatGPT as an MCP app.
 

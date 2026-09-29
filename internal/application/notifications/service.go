@@ -50,10 +50,16 @@ type Service struct {
 	now        func() time.Time
 	web        *WebService
 	season     *SeasonService
+	movies     *MovieReleaseService
 }
 
 func (service *Service) WithSeasonAlerts(season *SeasonService) *Service {
 	service.season = season
+	return service
+}
+
+func (service *Service) WithMovieReleases(movies *MovieReleaseService) *Service {
+	service.movies = movies
 	return service
 }
 
@@ -68,12 +74,13 @@ func NewService(repository Repository, sender Sender, decryptor Decryptor, web .
 func (service *Service) Dispatch(ctx context.Context) error {
 	now := service.now().UTC()
 	seasonError := service.season.Dispatch(ctx)
+	movieError := service.movies.Dispatch(ctx)
 	var webError error
 	if service.web != nil {
 		webError = service.web.Dispatch(ctx)
 	}
 	if service.repository == nil {
-		return errors.Join(seasonError, webError)
+		return errors.Join(seasonError, movieError, webError)
 	}
 	candidates, err := service.repository.NotificationCandidates(ctx, now, 50)
 	if err != nil {
@@ -116,7 +123,7 @@ func (service *Service) Dispatch(ctx context.Context) error {
 			firstError = fmt.Errorf("record sent notification for %s: %w", candidate.EpisodeID, err)
 		}
 	}
-	return errors.Join(seasonError, webError, firstError)
+	return errors.Join(seasonError, movieError, webError, firstError)
 }
 
 func (service *Service) Run(ctx context.Context, interval time.Duration, logger *log.Logger) {

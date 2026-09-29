@@ -268,6 +268,33 @@ func (store *Store) ShowsNeedingCatalogRefresh(ctx context.Context, activeTTL, f
 	return ids, nil
 }
 
+func (store *Store) MoviesNeedingReleaseRefresh(ctx context.Context, staleAfter time.Duration, limit int) ([]int64, error) {
+	if limit <= 0 {
+		return nil, fmt.Errorf("catalog refresh limit must be positive")
+	}
+	cutoff := time.Now().UTC().Add(-staleAfter).Format(time.RFC3339Nano)
+	rows, err := store.DB.QueryContext(ctx, `SELECT DISTINCT m.tmdb_id FROM media m
+		WHERE m.media_type='movie' AND (NULLIF(m.release_date,'') IS NULL OR date(m.release_date)>date('now'))
+		AND m.metadata_updated_at<? AND EXISTS(SELECT 1 FROM user_media um WHERE um.media_id=m.id AND um.status='watchlist')
+		ORDER BY m.metadata_updated_at,m.tmdb_id LIMIT ?`, cutoff, limit)
+	if err != nil {
+		return nil, fmt.Errorf("list movie release refresh IDs: %w", err)
+	}
+	defer rows.Close()
+	var ids []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan movie release refresh ID: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate movie release refresh IDs: %w", err)
+	}
+	return ids, nil
+}
+
 var _ watch.Repository = (*Store)(nil)
 var _ interface {
 	ListShowEpisodes(context.Context, string, string) ([]watch.ShowEpisode, error)
@@ -276,5 +303,6 @@ var _ interface {
 } = (*Store)(nil)
 var _ interface {
 	ShowsNeedingCatalogRefresh(context.Context, time.Duration, time.Duration, int) ([]int64, error)
+	MoviesNeedingReleaseRefresh(context.Context, time.Duration, int) ([]int64, error)
 	ImportShowMetadata(context.Context, string, domain.TVShowMetadata) error
 } = (*Store)(nil)

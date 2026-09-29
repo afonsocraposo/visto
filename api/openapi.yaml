@@ -625,16 +625,16 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
   /library/{mediaID}/notifications:
     patch:
-      summary: Enable or disable new-episode notifications for a tracked TV show
+      summary: Enable or disable alerts for a tracked show or watchlist movie
       security: [{ sessionCookie: [] }, { bearerToken: [] }]
       parameters:
         - { name: mediaID, in: path, required: true, schema: { type: string } }
       requestBody: { required: true, content: { application/json: { schema: { type: object, required: [enabled], properties: { enabled: { type: boolean } } } } } }
       responses:
-        '204': { description: Show notification preference updated }
+        '204': { description: Media notification preference updated }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
-        '404': { description: Show not found in this user's library }
+        '404': { description: Eligible media not found in this user's library }
   /plays:
     post:
       summary: Record one movie or episode watch
@@ -1250,7 +1250,7 @@ components:
         media_id: { type: string }
         status: { type: string, enum: ['', watchlist, watching, paused, dropped, completed], description: Empty only in an unsaved movie or show detail response. }
         rating: { type: [integer, 'null'], minimum: 1, maximum: 5 }
-        notifications_enabled: { type: boolean, description: Per-show new-episode notification preference. }
+        notifications_enabled: { type: boolean, description: Per-show episode alerts or per-watchlist movie release alerts. }
         added_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
         created_episode_ids: { type: array, items: { type: string }, description: Episodes first marked watched by a confirmed show completion; present only in that response. }

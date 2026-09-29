@@ -10,8 +10,7 @@ import (
 	"github.com/afonsocosta/visto/internal/domain"
 )
 
-// RefreshCatalog refreshes a bounded batch of TV catalogs. It is called by a
-// backend scheduler, not by a frontend request.
+// RefreshCatalog refreshes bounded tracked media catalogs from the backend scheduler.
 func (service *Service) RefreshCatalog(ctx context.Context, activeTTL, finishedTTL time.Duration) error {
 	if service.metadataProvider == nil {
 		return nil
@@ -79,6 +78,29 @@ func (service *Service) RefreshCatalog(ctx context.Context, activeTTL, finishedT
 			return err
 		}
 	}
+	if provider, ok := service.metadataProvider.(domain.MovieMetadataProvider); ok {
+		if repository, ok := service.repository.(interface {
+			MoviesNeedingReleaseRefresh(context.Context, time.Duration, int) ([]int64, error)
+			RefreshMovieMetadata(context.Context, domain.MovieMetadata) error
+		}); ok {
+			movieIDs, err := repository.MoviesNeedingReleaseRefresh(ctx, activeTTL, maxShowRefreshesPerRequest)
+			if err != nil {
+				return err
+			}
+			for _, tmdbID := range movieIDs {
+				movie, err := provider.Movie(ctx, tmdbID)
+				if err != nil {
+					return err
+				}
+				if movie.TMDBID != tmdbID || movie.Title == "" {
+					return fmt.Errorf("invalid movie metadata")
+				}
+				if err := repository.RefreshMovieMetadata(ctx, movie); err != nil {
+					return err
+				}
+			}
+		}
+	}
 	return nil
 }
 
@@ -87,7 +109,7 @@ func (service *Service) RefreshCatalog(ctx context.Context, activeTTL, finishedT
 func (service *Service) RunCatalogRefresher(ctx context.Context, interval, activeTTL, finishedTTL time.Duration) {
 	refresh := func() {
 		if err := service.RefreshCatalog(ctx, activeTTL, finishedTTL); err != nil && !errors.Is(err, context.Canceled) {
-			log.Printf("scheduled TV metadata refresh failed: %v", err)
+			log.Printf("scheduled catalog refresh failed: %v", err)
 		}
 	}
 	refresh()

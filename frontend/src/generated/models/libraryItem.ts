@@ -18,7 +18,7 @@ export interface LibraryItem {
    * @nullable
    */
   rating?: number | null;
-  /** Per-show new-episode notification preference. */
+  /** Per-show episode alerts or per-watchlist movie release alerts. */
   notifications_enabled: boolean;
   added_at: string;
   updated_at: string;

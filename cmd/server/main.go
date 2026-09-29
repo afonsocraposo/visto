@@ -160,11 +160,13 @@ func main() {
 	dispatchInterval := durationEnvironment("VISTO_PUSHOVER_INTERVAL", 15*time.Minute)
 	startWorker(func(ctx context.Context) {
 		seasonNotifications := &notifications.SeasonService{Repository: store, Pushover: pushoverClient, Decryptor: secretCipher}
+		movieNotifications := &notifications.MovieReleaseService{Repository: store, Pushover: pushoverClient, Decryptor: secretCipher}
 		if webService != nil {
 			seasonNotifications.Web = webService.Sender
+			movieNotifications.Web = webService.Sender
 		}
 		notifications.NewService(notificationStore, pushoverClient, secretCipher, webService).
-			WithSeasonAlerts(seasonNotifications).Run(ctx, dispatchInterval, log.Default())
+			WithSeasonAlerts(seasonNotifications).WithMovieReleases(movieNotifications).Run(ctx, dispatchInterval, log.Default())
 	})
 
 	appHandler := http.NewServeMux()

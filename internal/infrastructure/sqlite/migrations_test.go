@@ -19,8 +19,8 @@ func TestMigrator_GivenFreshDatabase_WhenAppliedTwice_ThenCurrentSchemaExistsAnd
 	if err != nil {
 		t.Fatalf("new migrator: %v", err)
 	}
-	if len(migrator.Migrations) != 12 || migrator.Migrations[0].Version != 1 || migrator.Migrations[11].Version != 12 {
-		t.Fatalf("loaded migrations = %#v, want versions 1 through 12", migrator.Migrations)
+	if len(migrator.Migrations) != 13 || migrator.Migrations[0].Version != 1 || migrator.Migrations[12].Version != 13 {
+		t.Fatalf("loaded migrations = %#v, want versions 1 through 13", migrator.Migrations)
 	}
 	migrator.Now = func() time.Time { return time.Date(2026, 9, 24, 0, 0, 0, 0, time.UTC) }
 
@@ -35,8 +35,8 @@ func TestMigrator_GivenFreshDatabase_WhenAppliedTwice_ThenCurrentSchemaExistsAnd
 	if err := db.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&count); err != nil {
 		t.Fatalf("count migrations: %v", err)
 	}
-	if count != 12 {
-		t.Fatalf("migration count = %d, want 12", count)
+	if count != 13 {
+		t.Fatalf("migration count = %d, want 13", count)
 	}
 	var version int
 	var name string
@@ -49,7 +49,7 @@ func TestMigrator_GivenFreshDatabase_WhenAppliedTwice_ThenCurrentSchemaExistsAnd
 
 	for _, table := range []string{
 		"users", "user_settings", "sessions", "media", "seasons", "episodes", "user_media", "plays",
-		"activity_events", "episode_ratings", "personal_api_tokens", "notification_deliveries", "oauth_clients",
+		"activity_events", "episode_ratings", "personal_api_tokens", "notification_deliveries", "movie_release_deliveries", "oauth_clients",
 		"oauth_authorization_codes", "oauth_access_tokens", "oauth_refresh_tokens", "plex_webhooks", "plex_webhook_events", "plex_observed_accounts",
 	} {
 		var name string
