@@ -25,6 +25,8 @@ import {
   IconArrowLeft,
   IconCheck,
   IconChevronDown,
+  IconChevronLeft,
+  IconChevronRight,
   IconClock,
   IconEye,
   IconRefresh,
@@ -57,9 +59,11 @@ import {
   useEpisodeDetailsQuery,
   useEpisodeRatingQuery,
   useMediaDetailQueries,
+  useSavedShowEpisodesQuery,
   useShowEpisodesQuery,
   useTemporarySeasonEpisodesQuery,
 } from "./queries";
+import { getAdjacentEpisodes } from "./episodeNavigation";
 import type { EpisodeRating, MediaDetailTarget, ShowEpisodeEntry } from "../../types";
 
 type Props = {
@@ -134,9 +138,11 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
   const selectedSeason =
     target.seasonNumber !== undefined
       ? String(target.seasonNumber)
-      : availableSeasonNumbers.length
-        ? String(availableSeasonNumbers.find((number) => number > 0) ?? availableSeasonNumbers[0])
-        : null;
+      : target.episode?.season_number !== undefined
+        ? String(target.episode.season_number)
+        : availableSeasonNumbers.length
+          ? String(availableSeasonNumbers.find((number) => number > 0) ?? availableSeasonNumbers[0])
+          : null;
   const selectedSeasonID = savedSeasons.data?.find(
     (item) => String(item.season_number) === selectedSeason,
   )?.id;
@@ -177,6 +183,10 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
     showID,
     selectedSeasonID,
     target.mediaType === "tv" && isSaved,
+  );
+  const allSavedEpisodes = useSavedShowEpisodesQuery(
+    showID,
+    target.mediaType === "tv" && isSaved && Boolean(target.episodeID),
   );
   const loadedSelectedEpisode = episodes.data?.pages.some((page) =>
     page.items.some((entry) => entry.episode.id === target.episodeID),
@@ -562,6 +572,46 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
   const candidateEpisode = target.episodeID
     ? candidateEpisodes.find((entry) => entry.episode.id === target.episodeID)
     : null;
+  const navigationEpisode = candidateEpisode?.episode ?? target.episode;
+  const navigationSeason = navigationEpisode?.season_number;
+  const currentSeasonEpisodes = candidateEpisodes
+    .filter((entry) =>
+      navigationSeason === 0
+        ? entry.episode.season_number === 0
+        : entry.episode.season_number === navigationSeason,
+    )
+    .sort((left, right) => left.episode.episode_number - right.episode.episode_number);
+  const currentSeasonIndex = currentSeasonEpisodes.findIndex(
+    (entry) =>
+      entry.episode.id === navigationEpisode?.id ||
+      entry.episode.episode_number === navigationEpisode?.episode_number,
+  );
+  const temporarySeasonDetails = temporary.data?.seasons ?? [];
+  const previousTemporarySeason =
+    navigationSeason !== undefined && navigationSeason > 0 && currentSeasonIndex === 0
+      ? temporarySeasonDetails
+          .filter((season) => season.season_number > 0 && season.season_number < navigationSeason)
+          .sort((left, right) => right.season_number - left.season_number)[0]?.season_number
+      : undefined;
+  const nextTemporarySeason =
+    navigationSeason !== undefined &&
+    navigationSeason > 0 &&
+    currentSeasonIndex === currentSeasonEpisodes.length - 1 &&
+    currentSeasonEpisodes.length > 0
+      ? temporarySeasonDetails
+          .filter((season) => season.season_number > navigationSeason)
+          .sort((left, right) => left.season_number - right.season_number)[0]?.season_number
+      : undefined;
+  const previousTemporaryEpisodes = useTemporarySeasonEpisodesQuery(
+    target,
+    !isSaved && Boolean(target.episodeID && previousTemporarySeason !== undefined),
+    previousTemporarySeason ?? -1,
+  );
+  const nextTemporaryEpisodes = useTemporarySeasonEpisodesQuery(
+    target,
+    !isSaved && Boolean(target.episodeID && nextTemporarySeason !== undefined),
+    nextTemporarySeason ?? -1,
+  );
   const episodeSeasonNumber = candidateEpisode?.episode.season_number ?? target.seasonNumber;
   const episodeNumber = candidateEpisode?.episode.episode_number ?? target.episode?.episode_number;
   const episodeDetails = useEpisodeDetailsQuery(target, episodeSeasonNumber, episodeNumber);
@@ -653,6 +703,16 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
           }
         : null))
     : null;
+  const adjacentEpisodes = getAdjacentEpisodes(
+    navigationEpisode,
+    isSaved
+      ? (allSavedEpisodes.data ?? [])
+      : [
+          ...candidateEpisodes,
+          ...(previousTemporaryEpisodes.data?.episodes ?? []),
+          ...(nextTemporaryEpisodes.data?.episodes ?? []),
+        ],
+  );
   const episodeStill = episodeDetails.data?.still_path || selectedEpisode?.still_path;
   const episodeArtwork = episodeStill ? backdropURL(episodeStill, "w780") : null;
   const episodeArtworkPending =
@@ -1422,6 +1482,56 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
             {movieScore ? <Badge variant="light">TMDB {movieScore.toFixed(1)} / 10</Badge> : null}
           </Group>
         </section>
+      ) : null}
+      {selectedEpisode && (adjacentEpisodes.previousEpisode || adjacentEpisodes.nextEpisode) ? (
+        <Group className="detail-section" justify="space-between" wrap="nowrap">
+          {adjacentEpisodes.previousEpisode ? (
+            <Button
+              variant="subtle"
+              leftSection={<IconChevronLeft size={16} />}
+              aria-label="Go to previous episode"
+              onClick={() =>
+                onOpenDetail(
+                  {
+                    mediaType: "tv",
+                    tmdbID: media.tmdb_id,
+                    mediaID: showID,
+                    episodeID: adjacentEpisodes.previousEpisode!.episode.id,
+                    episode: adjacentEpisodes.previousEpisode!.episode,
+                    seasonNumber: adjacentEpisodes.previousEpisode!.episode.season_number,
+                  },
+                  { from: returnTo, replace: true },
+                )
+              }
+            >
+              Previous
+            </Button>
+          ) : (
+            <span />
+          )}
+          {adjacentEpisodes.nextEpisode ? (
+            <Button
+              variant="subtle"
+              rightSection={<IconChevronRight size={16} />}
+              aria-label="Go to next episode"
+              onClick={() =>
+                onOpenDetail(
+                  {
+                    mediaType: "tv",
+                    tmdbID: media.tmdb_id,
+                    mediaID: showID,
+                    episodeID: adjacentEpisodes.nextEpisode!.episode.id,
+                    episode: adjacentEpisodes.nextEpisode!.episode,
+                    seasonNumber: adjacentEpisodes.nextEpisode!.episode.season_number,
+                  },
+                  { from: returnTo, replace: true },
+                )
+              }
+            >
+              Next
+            </Button>
+          ) : null}
+        </Group>
       ) : null}
       {!selectedEpisode && (
         <CastSection

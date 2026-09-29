@@ -262,6 +262,14 @@ test("Given an Upcoming episode, When the user opens its season and selects anot
   await page.getByRole("tab", { name: "Upcoming" }).click();
   await page.getByRole("button", { name: /Open The Example Show, season 1, episode 1/ }).click();
   await expect(page.getByRole("heading", { name: "Season 1 premiere" })).toBeVisible();
+  await page.getByRole("button", { name: "Go to next episode" }).click();
+  await expect(page).toHaveURL(/episode=tv%3A100%3Aepisode%3A201.*season=2/);
+  await expect(page.getByRole("heading", { name: "Season 2 premiere" })).toBeVisible();
+  await page.goBack();
+  await expect(page).toHaveURL("http://127.0.0.1:4173/");
+  await expect(page.getByRole("heading", { name: "Upcoming episodes" })).toBeVisible();
+  await page.getByRole("button", { name: /Open The Example Show, season 1, episode 1/ }).click();
+  await expect(page.getByRole("heading", { name: "Season 1 premiere" })).toBeVisible();
   await page.getByRole("button", { name: "The Example Show · Season 1" }).click();
   await expect(page.getByRole("heading", { name: "Seasons & episodes" })).toBeVisible();
   await page.getByRole("combobox", { name: "Season" }).click();

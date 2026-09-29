@@ -9,7 +9,7 @@ import {
   useGetShowsTmdbID,
 } from "../../generated/api";
 import { APIRequestError, api, retryTransientRequest } from "../../lib/api";
-import { pageURL } from "../../lib/pagination";
+import { fetchAllPages, pageURL } from "../../lib/pagination";
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import type { CursorPage, HistoryEntry, ShowEpisodeEntry } from "../../types";
 import { useUserQueryKey } from "../auth/SessionContext";
@@ -87,6 +87,20 @@ export function useShowEpisodesQuery(
         "Could not load episodes.",
       ),
     getNextPageParam: (page) => page.next_cursor ?? undefined,
+    ...retryOptions,
+  });
+}
+
+export function useSavedShowEpisodesQuery(showID: string | undefined, enabled: boolean) {
+  const userQueryKey = useUserQueryKey();
+  return useQuery({
+    queryKey: userQueryKey("detail-all-episodes", showID),
+    enabled: enabled && Boolean(showID),
+    queryFn: () =>
+      fetchAllPages<ShowEpisodeEntry>(
+        `/api/v1/shows/${encodeURIComponent(showID!)}/episodes`,
+        "Could not load episodes.",
+      ),
     ...retryOptions,
   });
 }
