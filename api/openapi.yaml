@@ -284,6 +284,17 @@ paths:
       responses:
         '204': { description: Webhook URL revoked }
         '401': { $ref: '#/components/responses/Unauthorized' }
+  /profile/plex-webhook/events/{id}:
+    get:
+      summary: Get the stored raw Plex payload of one of this user's recent sync events
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+      responses:
+        '200': { description: Raw payload; empty for events recorded before payloads were stored, content: { application/json: { schema: { type: object, required: [raw_payload], properties: { raw_payload: { type: string } } } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: Event not found }
   /admin/plex-sync:
     get:
       summary: Get admin Plex mode, shared webhook status, mappings, and recently observed accounts
@@ -973,6 +984,7 @@ components:
       properties:
         id: { type: integer, format: int64 }
         tmdb_id: { type: integer, format: int64 }
+        event_type: { type: string, description: Plex event name such as media.stop or media.scrobble }
         status: { type: string, enum: [synced, skipped, failed] }
         title: { type: string }
         media_type: { type: string }

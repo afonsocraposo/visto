@@ -54,6 +54,7 @@ import type {
   GetLibraryParams,
   GetPeopleTmdbID200,
   GetPlaysParams,
+  GetProfilePlexWebhookEventsId200,
   GetPublicTrendingParams,
   GetSearchParams,
   GetSeasonsSeasonIDEpisodesParams,
@@ -3627,6 +3628,144 @@ export const useDeleteProfilePlexWebhook = <TError = UnauthorizedResponse, TCont
 > => {
   return useMutation(getDeleteProfilePlexWebhookMutationOptions(options), queryClient);
 };
+
+export const getGetProfilePlexWebhookEventsIdUrl = (id: number) => {
+  return `/profile/plex-webhook/events/${id}`;
+};
+
+/**
+ * @summary Get the stored raw Plex payload of one of this user's recent sync events
+ */
+export const getProfilePlexWebhookEventsId = async (
+  id: number,
+  options?: Parameters<typeof customFetch>[1],
+): Promise<GetProfilePlexWebhookEventsId200> => {
+  return customFetch<GetProfilePlexWebhookEventsId200>(getGetProfilePlexWebhookEventsIdUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetProfilePlexWebhookEventsIdQueryKey = (id: number) => {
+  return [`/profile/plex-webhook/events/${id}`] as const;
+};
+
+export const getGetProfilePlexWebhookEventsIdQueryOptions = <
+  TData = Awaited<ReturnType<typeof getProfilePlexWebhookEventsId>>,
+  TError = BadRequestResponse | UnauthorizedResponse | void,
+>(
+  id: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getProfilePlexWebhookEventsId>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetProfilePlexWebhookEventsIdQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getProfilePlexWebhookEventsId>>> = ({
+    signal,
+  }) => getProfilePlexWebhookEventsId(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: id !== null && id !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof getProfilePlexWebhookEventsId>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+};
+
+export type GetProfilePlexWebhookEventsIdQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getProfilePlexWebhookEventsId>>
+>;
+export type GetProfilePlexWebhookEventsIdQueryError =
+  BadRequestResponse | UnauthorizedResponse | void;
+
+export function useGetProfilePlexWebhookEventsId<
+  TData = Awaited<ReturnType<typeof getProfilePlexWebhookEventsId>>,
+  TError = BadRequestResponse | UnauthorizedResponse | void,
+>(
+  id: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getProfilePlexWebhookEventsId>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getProfilePlexWebhookEventsId>>,
+          TError,
+          Awaited<ReturnType<typeof getProfilePlexWebhookEventsId>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetProfilePlexWebhookEventsId<
+  TData = Awaited<ReturnType<typeof getProfilePlexWebhookEventsId>>,
+  TError = BadRequestResponse | UnauthorizedResponse | void,
+>(
+  id: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getProfilePlexWebhookEventsId>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getProfilePlexWebhookEventsId>>,
+          TError,
+          Awaited<ReturnType<typeof getProfilePlexWebhookEventsId>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetProfilePlexWebhookEventsId<
+  TData = Awaited<ReturnType<typeof getProfilePlexWebhookEventsId>>,
+  TError = BadRequestResponse | UnauthorizedResponse | void,
+>(
+  id: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getProfilePlexWebhookEventsId>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Get the stored raw Plex payload of one of this user's recent sync events
+ */
+
+export function useGetProfilePlexWebhookEventsId<
+  TData = Awaited<ReturnType<typeof getProfilePlexWebhookEventsId>>,
+  TError = BadRequestResponse | UnauthorizedResponse | void,
+>(
+  id: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getProfilePlexWebhookEventsId>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetProfilePlexWebhookEventsIdQueryOptions(id, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
 
 export const getGetAdminPlexSyncUrl = () => {
   return `/admin/plex-sync`;

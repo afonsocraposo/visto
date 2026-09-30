@@ -29,6 +29,7 @@ const (
 var (
 	ErrWebhookNotFound  = errors.New("Plex webhook is not configured")
 	ErrPersonalDisabled = errors.New("personal Plex webhooks are disabled")
+	ErrEventNotFound    = errors.New("Plex event not found")
 	ErrAccountUnmapped  = errors.New("Plex account is not mapped")
 	tmdbGUIDPattern     = regexp.MustCompile(`(?i)(?:tmdb://(?:movie/|tv/)?|themoviedb\.org/(?:movie|tv)/)([0-9]+)`)
 )
@@ -36,6 +37,8 @@ var (
 type Event struct {
 	ID         int64     `json:"id"`
 	TMDBID     int64     `json:"tmdb_id,omitempty"`
+	EventType  string    `json:"event_type,omitempty"`
+	RawPayload string    `json:"-"`
 	Status     string    `json:"status"`
 	Title      string    `json:"title,omitempty"`
 	MediaType  string    `json:"media_type,omitempty"`
@@ -92,6 +95,7 @@ type Repository interface {
 	RevokePlexWebhook(context.Context, string) error
 	GetPlexWebhookStatus(context.Context, string) (Status, error)
 	UserForPlexWebhook(context.Context, string, time.Time) (string, string, error)
+	GetPlexEventPayload(context.Context, string, int64) (string, error)
 	LogPlexEvent(context.Context, string, string, Event) error
 	RecordPlexPlay(context.Context, string, string, Event, *string, *string, time.Time, time.Duration) (bool, error)
 }
@@ -143,6 +147,11 @@ func (service *Service) Status(ctx context.Context, userID string) (Status, erro
 		return Status{}, err
 	}
 	return status, nil
+}
+
+// EventPayload returns the stored raw webhook body of one of the user's events.
+func (service *Service) EventPayload(ctx context.Context, userID string, id int64) (string, error) {
+	return service.repository.GetPlexEventPayload(ctx, userID, id)
 }
 
 func (service *Service) AdminStatus(ctx context.Context) (AdminStatus, error) {
@@ -266,7 +275,7 @@ func (service *Service) Handle(ctx context.Context, secret, rawPayload string) e
 		if mode == "managed" {
 			return nil
 		}
-		return service.log(ctx, userID, service.rawFingerprint(rawPayload), Event{Status: "failed", Message: "Plex sent invalid event data", OccurredAt: service.now().UTC()})
+		return service.log(ctx, userID, service.rawFingerprint(rawPayload), Event{RawPayload: rawPayload, Status: "failed", Message: "Plex sent invalid event data", OccurredAt: service.now().UTC()})
 	}
 	if mode == "managed" {
 		accountID = payload.Account.ID.String()
@@ -287,7 +296,7 @@ func (service *Service) Handle(ctx context.Context, secret, rawPayload string) e
 		}
 	}
 	metadata := payload.Metadata
-	event := Event{Status: "skipped", Title: firstNonEmpty(metadata.Title, metadata.GrandparentTitle), MediaType: metadata.Type, OccurredAt: plexTime(metadata.LastViewedAt, service.now().UTC())}
+	event := Event{EventType: payload.Event, RawPayload: rawPayload, Status: "skipped", Title: firstNonEmpty(metadata.Title, metadata.GrandparentTitle), MediaType: metadata.Type, OccurredAt: plexTime(metadata.LastViewedAt, service.now().UTC())}
 	fingerprint := service.fingerprint(payload, rawPayload)
 	if accountID == "" || payload.Account.ID == "" || payload.Account.ID.String() != accountID {
 		event.Message = "Plex account does not match this webhook"

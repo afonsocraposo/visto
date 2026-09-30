@@ -19,8 +19,8 @@ func TestMigrator_GivenFreshDatabase_WhenAppliedTwice_ThenCurrentSchemaExistsAnd
 	if err != nil {
 		t.Fatalf("new migrator: %v", err)
 	}
-	if len(migrator.Migrations) != 15 || migrator.Migrations[0].Version != 1 || migrator.Migrations[14].Version != 15 {
-		t.Fatalf("loaded migrations = %#v, want versions 1 through 15", migrator.Migrations)
+	if len(migrator.Migrations) != 16 || migrator.Migrations[0].Version != 1 || migrator.Migrations[15].Version != 16 {
+		t.Fatalf("loaded migrations = %#v, want versions 1 through 16", migrator.Migrations)
 	}
 	migrator.Now = func() time.Time { return time.Date(2026, 9, 24, 0, 0, 0, 0, time.UTC) }
 
@@ -35,8 +35,8 @@ func TestMigrator_GivenFreshDatabase_WhenAppliedTwice_ThenCurrentSchemaExistsAnd
 	if err := db.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&count); err != nil {
 		t.Fatalf("count migrations: %v", err)
 	}
-	if count != 15 {
-		t.Fatalf("migration count = %d, want 15", count)
+	if count != 16 {
+		t.Fatalf("migration count = %d, want 16", count)
 	}
 	var version int
 	var name string

@@ -63,6 +63,9 @@ func (repository *fakeRepository) UserForPlexWebhook(context.Context, string, ti
 	}
 	return repository.userID, repository.accountID, nil
 }
+func (*fakeRepository) GetPlexEventPayload(context.Context, string, int64) (string, error) {
+	return "", ErrEventNotFound
+}
 func (repository *fakeRepository) LogPlexEvent(_ context.Context, _, _ string, event Event) error {
 	repository.logged = append(repository.logged, event)
 	return nil
@@ -296,5 +299,23 @@ func TestSearchID_GivenTitleAndYear_WhenOneExactResultExists_ThenItReturnsTheUni
 	id, err := service.searchID(context.Background(), domain.MovieMediaType, "A Movie", "", 2020)
 	if err != nil || id != 10 {
 		t.Fatalf("TMDB ID = %d, error = %v; want 10 without error", id, err)
+	}
+}
+
+func TestHandle_GivenPlexEvents_WhenHandled_ThenEventTypeAndRawPayloadAreCaptured(t *testing.T) {
+	service, repository, _ := newTestService(t, &fakeMetadataProvider{movie: domain.MovieMetadata{TMDBID: 10, Title: "Example Movie"}})
+	stop := `{"event":"media.stop","Account":{"id":123},"Metadata":{"type":"movie","title":"Example"}}`
+	if err := service.Handle(context.Background(), "secret", stop); err != nil {
+		t.Fatal(err)
+	}
+	if len(repository.logged) != 1 || repository.logged[0].EventType != "media.stop" || repository.logged[0].RawPayload != stop {
+		t.Fatalf("logged=%#v; want media.stop with raw payload", repository.logged)
+	}
+	scrobble := `{"event":"media.scrobble","Account":{"id":123},"Metadata":{"type":"movie","title":"Example Movie","guid":"tmdb://10"}}`
+	if err := service.Handle(context.Background(), "secret", scrobble); err != nil {
+		t.Fatal(err)
+	}
+	if len(repository.recorded) != 1 || repository.recorded[0].EventType != "media.scrobble" || repository.recorded[0].RawPayload != scrobble {
+		t.Fatalf("recorded=%#v; want media.scrobble with raw payload", repository.recorded)
 	}
 }

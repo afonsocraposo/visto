@@ -100,6 +100,7 @@ func (server *Server) WithPlexSync(service *plexsync.Service) *Server {
 		return server
 	}
 	server.mux.HandleFunc("GET /api/v1/profile/plex-webhook", plexWebhookStatus(server.authService, service))
+	server.mux.HandleFunc("GET /api/v1/profile/plex-webhook/events/{id}", plexWebhookEventPayload(server.authService, service))
 	server.mux.HandleFunc("POST /api/v1/profile/plex-webhook", issuePlexWebhook(server.authService, service))
 	server.mux.HandleFunc("DELETE /api/v1/profile/plex-webhook", revokePlexWebhook(server.authService, service))
 	server.mux.HandleFunc("GET /api/v1/admin/plex-sync", adminPlexSync(server.authService, service, "get"))

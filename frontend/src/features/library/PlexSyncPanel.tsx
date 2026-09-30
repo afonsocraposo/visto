@@ -7,7 +7,9 @@ import {
   Button,
   Code,
   Group,
+  Modal,
   Paper,
+  ScrollArea,
   Stack,
   Table,
   Text,
@@ -20,6 +22,7 @@ import { ActivityTime } from "../../components/ActivityTime";
 
 type PlexEvent = {
   id: number;
+  event_type?: string;
   status: "synced" | "skipped" | "failed";
   title?: string;
   media_type?: string;
@@ -39,7 +42,59 @@ type PlexStatus = {
   recent_events: PlexEvent[];
 };
 
+function PayloadModal({ eventId, onClose }: { eventId: number | null; onClose: () => void }) {
+  const payload = useQuery({
+    queryKey: ["plex-webhook-event", eventId],
+    enabled: eventId !== null,
+    queryFn: async () => {
+      const response = await fetch(`/api/v1/profile/plex-webhook/events/${eventId}`);
+      if (!response.ok) throw new Error("The Plex payload could not be loaded.");
+      const result = (await response.json()) as { raw_payload: string };
+      try {
+        return JSON.stringify(JSON.parse(result.raw_payload), null, 2);
+      } catch {
+        return result.raw_payload;
+      }
+    },
+  });
+  const [copyError, setCopyError] = useState("");
+  return (
+    <Modal opened={eventId !== null} onClose={onClose} title="Plex payload" size="lg">
+      {payload.isError && <Alert color="red">{payload.error.message}</Alert>}
+      {payload.isSuccess && !payload.data && (
+        <Text size="sm" c="dimmed">
+          No payload was stored for this event.
+        </Text>
+      )}
+      {payload.data && (
+        <Stack gap="xs">
+          {copyError && <Alert color="red">{copyError}</Alert>}
+          <Group justify="flex-end">
+            <Button
+              variant="default"
+              size="xs"
+              leftSection={<IconCopy size={14} />}
+              onClick={() =>
+                navigator.clipboard
+                  .writeText(payload.data)
+                  .then(() => setCopyError(""))
+                  .catch(() => setCopyError("Could not copy the payload. Select and copy it."))
+              }
+            >
+              Copy
+            </Button>
+          </Group>
+          <ScrollArea h={400}>
+            <Code block>{payload.data}</Code>
+          </ScrollArea>
+        </Stack>
+      )}
+    </Modal>
+  );
+}
+
 export function PlexSyncPanel() {
+  const [payloadEventId, setPayloadEventId] = useState<number | null>(null);
   const queryClient = useQueryClient();
   const userQueryKey = useUserQueryKey();
   const [issuedURL, setIssuedURL] = useState("");
@@ -236,15 +291,18 @@ export function PlexSyncPanel() {
             <Table.Thead>
               <Table.Tr>
                 <Table.Th>Media</Table.Th>
+                <Table.Th>Event</Table.Th>
                 <Table.Th>Status</Table.Th>
                 <Table.Th>Details</Table.Th>
                 <Table.Th>Time</Table.Th>
+                <Table.Th />
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
               {status.data!.recent_events.map((event) => (
                 <Table.Tr key={event.id}>
                   <Table.Td>{event.title || event.media_type || "Plex event"}</Table.Td>
+                  <Table.Td>{event.event_type || "—"}</Table.Td>
                   <Table.Td>
                     <Badge
                       color={
@@ -262,12 +320,22 @@ export function PlexSyncPanel() {
                   <Table.Td>
                     <ActivityTime value={event.occurred_at} />
                   </Table.Td>
+                  <Table.Td>
+                    <Button
+                      variant="subtle"
+                      size="compact-xs"
+                      onClick={() => setPayloadEventId(event.id)}
+                    >
+                      View payload
+                    </Button>
+                  </Table.Td>
                 </Table.Tr>
               ))}
             </Table.Tbody>
           </Table>
         </>
       )}
+      <PayloadModal eventId={payloadEventId} onClose={() => setPayloadEventId(null)} />
     </Paper>
   );
 }

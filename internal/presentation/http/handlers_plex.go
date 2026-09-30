@@ -6,6 +6,7 @@ import (
 	"io"
 	"mime"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/afonsocosta/visto/internal/application/auth"
@@ -25,6 +26,30 @@ func plexWebhookStatus(authService *auth.Service, service *plexsync.Service) htt
 			return
 		}
 		writeJSON(w, http.StatusOK, status)
+	}
+}
+
+func plexWebhookEventPayload(authService *auth.Service, service *plexsync.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := authenticatedUser(w, r, authService)
+		if !ok {
+			return
+		}
+		id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+		if err != nil || id <= 0 {
+			writeError(w, http.StatusBadRequest, "Invalid Plex event ID")
+			return
+		}
+		payload, err := service.EventPayload(r.Context(), user.ID, id)
+		if errors.Is(err, plexsync.ErrEventNotFound) {
+			writeError(w, http.StatusNotFound, "Plex event not found")
+			return
+		}
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Plex event payload is temporarily unavailable")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]string{"raw_payload": payload})
 	}
 }
 

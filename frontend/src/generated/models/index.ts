@@ -68,6 +68,7 @@ export * from "./getLibrarySort";
 export * from "./getLibraryStatus";
 export * from "./getPeopleTmdbID200";
 export * from "./getPlaysParams";
+export * from "./getProfilePlexWebhookEventsId200";
 export * from "./getPublicTrendingParams";
 export * from "./getPublicTrendingWindow";
 export * from "./getSearchParams";

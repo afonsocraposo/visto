@@ -148,3 +148,64 @@ func TestPlexWebhook_GivenASecretAndRepeatedScrobbles_WhenPersisted_ThenItDedupl
 		t.Fatal("revoked webhook token still authenticated")
 	}
 }
+
+func TestPlexEventPayloads_GivenStoredEvents_WhenReadBack_ThenPayloadsAreScopedTrimmedAndOptional(t *testing.T) {
+	ctx := context.Background()
+	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "visto.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	alice := insertTestUser(t, store.DB, "alice", "Alice", "instance")
+	bob := insertTestUser(t, store.DB, "bob", "Bob", "instance")
+	if _, err := store.DB.Exec(`INSERT INTO media(id,media_type,tmdb_id,title,metadata_updated_at,created_at) VALUES('movie:10','movie',10,'Example Movie',?,?)`, testTimestamp, testTimestamp); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	skipped := plexsync.Event{Status: "skipped", EventType: "media.stop", RawPayload: `{"event":"media.stop"}`, OccurredAt: now}
+	if err := store.LogPlexEvent(ctx, alice, "skip", skipped); err != nil {
+		t.Fatal(err)
+	}
+	movieID := "movie:10"
+	synced := plexsync.Event{Status: "synced", EventType: "media.scrobble", RawPayload: `{"event":"media.scrobble"}`, OccurredAt: now}
+	if recorded, err := store.RecordPlexPlay(ctx, alice, "sync", synced, &movieID, nil, now, time.Hour); err != nil || !recorded {
+		t.Fatalf("recorded=%v err=%v", recorded, err)
+	}
+	if _, err := store.DB.Exec(`INSERT INTO plex_webhook_events(user_id,fingerprint,status,occurred_at,created_at) VALUES(?,'legacy','skipped',?,?)`, alice, now.Format(time.RFC3339Nano), now.Add(-time.Hour).Format(time.RFC3339Nano)); err != nil {
+		t.Fatal(err)
+	}
+	status, err := store.GetPlexWebhookStatus(ctx, alice)
+	if err != nil || len(status.RecentEvents) != 3 {
+		t.Fatalf("status=%#v err=%v", status, err)
+	}
+	byType := map[string]int64{}
+	var legacyID int64
+	for _, event := range status.RecentEvents {
+		if event.EventType == "" {
+			legacyID = event.ID
+		}
+		byType[event.EventType] = event.ID
+	}
+	if payload, err := store.GetPlexEventPayload(ctx, alice, byType["media.stop"]); err != nil || payload != skipped.RawPayload {
+		t.Fatalf("skipped payload=%q err=%v", payload, err)
+	}
+	if payload, err := store.GetPlexEventPayload(ctx, alice, byType["media.scrobble"]); err != nil || payload != synced.RawPayload {
+		t.Fatalf("synced payload=%q err=%v", payload, err)
+	}
+	if payload, err := store.GetPlexEventPayload(ctx, alice, legacyID); err != nil || payload != "" {
+		t.Fatalf("legacy payload=%q err=%v; want empty", payload, err)
+	}
+	if _, err := store.GetPlexEventPayload(ctx, bob, byType["media.stop"]); !errors.Is(err, plexsync.ErrEventNotFound) {
+		t.Fatalf("other user's payload err=%v; want not found", err)
+	}
+	for i := 0; i < 110; i++ {
+		event := plexsync.Event{Status: "skipped", EventType: "media.play", RawPayload: "{}", OccurredAt: now}
+		if err := store.LogPlexEvent(ctx, alice, fmt.Sprintf("bulk-%d", i), event); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var count int
+	if err := store.DB.QueryRow(`SELECT COUNT(*) FROM plex_webhook_events WHERE user_id=?`, alice).Scan(&count); err != nil || count != 100 {
+		t.Fatalf("event count=%d err=%v; want 100", count, err)
+	}
+}

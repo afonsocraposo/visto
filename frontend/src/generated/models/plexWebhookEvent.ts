@@ -10,6 +10,8 @@ import type { PlexWebhookEventStatus } from "./plexWebhookEventStatus";
 export interface PlexWebhookEvent {
   id: number;
   tmdb_id?: number;
+  /** Plex event name such as media.stop or media.scrobble */
+  event_type?: string;
   status: PlexWebhookEventStatus;
   title?: string;
   media_type?: string;
