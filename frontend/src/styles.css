@@ -1602,6 +1602,23 @@ select {
   }
 }
 
+.watch-history-reveal {
+  position: relative;
+}
+.watch-history-hint {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  overflow: hidden;
+  color: var(--mantine-color-dimmed);
+  font-size: 0.8rem;
+  pointer-events: none;
+}
 .watch-history-reveal-header {
   display: flex;
   align-items: center;
@@ -1609,7 +1626,6 @@ select {
   min-height: 28px;
   margin-bottom: 8px;
   padding: 0;
-  overflow: hidden;
   border: 0;
   background: none;
   color: var(--mantine-color-dimmed);
@@ -1620,49 +1636,44 @@ select {
   outline: 2px solid var(--mantine-color-yellow-6);
   outline-offset: 2px;
 }
-.watch-history-section {
+.watch-history-block {
   display: grid;
-  gap: 10px;
-  margin-bottom: 18px;
-  padding-bottom: 18px;
-  border-bottom: 1px solid var(--mantine-color-default-border);
+  gap: 14px;
 }
-.watch-history-list {
-  display: grid;
-  gap: 10px;
+.watch-row-watched {
+  opacity: 0.78;
 }
-.watch-history-row {
+.watch-row-watched .watch-row-art {
+  filter: grayscale(0.35);
+}
+.watch-row-watched-meta {
   display: flex;
-  align-items: stretch;
-  gap: 12px;
-  min-height: 96px;
-  overflow: hidden;
-  background: var(--mantine-color-body);
-  cursor: pointer;
-}
-.watch-history-row:focus-visible {
-  border-color: var(--mantine-color-gray-5);
-  outline: none;
-}
-.watch-history-row-art {
-  width: 64px;
-  flex: 0 0 64px;
-  overflow: hidden;
-  background: #1b2430;
-}
-.watch-history-row-art .mantine-Image-root,
-.watch-history-row-art img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.watch-history-row-content {
-  display: flex;
+  flex: 0 0 auto;
   flex-direction: column;
-  justify-content: center;
-  gap: 4px;
-  min-width: 0;
+  align-items: center;
+  align-self: center;
+  gap: 2px;
+  margin-inline: 12px 22px;
+  color: var(--mantine-color-teal-6);
+}
+.watch-history-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--mantine-color-dimmed);
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.watch-history-divider::before,
+.watch-history-divider::after {
+  content: "";
   flex: 1;
-  padding-block: 10px;
-  padding-right: 12px;
+  border-top: 1px solid var(--mantine-color-default-border);
+}
+.watch-history-divider span {
+  order: 1;
+}
+.watch-history-divider::after {
+  order: 2;
 }

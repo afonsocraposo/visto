@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import {
   useInfiniteQuery,
   useMutation,
@@ -41,11 +41,18 @@ import {
 import type { CalendarEntry, ContinueEntry, CursorPage, MediaDetailTarget } from "../../types";
 import { backdropURL, posterURL } from "../../lib/artwork";
 import { pageURL } from "../../lib/pagination";
+import { WatchRowCard } from "./WatchRowCard";
 
 const markWatchedMutationKey = ["continue-watching", "mark-watched"] as const;
 type MarkWatchedVariables = { episodeIDs: string[]; bulk: boolean; showID: string };
 
-export function WatchNow({ onOpenDetail }: { onOpenDetail?: (target: MediaDetailTarget) => void }) {
+export function WatchNow({
+  onOpenDetail,
+  before,
+}: {
+  onOpenDetail?: (target: MediaDetailTarget) => void;
+  before?: ReactNode;
+}) {
   const queryClient = useQueryClient();
   const userQueryKey = useUserQueryKey();
   const invalidate = useInvalidateUserCache();
@@ -209,6 +216,7 @@ export function WatchNow({ onOpenDetail }: { onOpenDetail?: (target: MediaDetail
         <Title order={1}>Episodes to watch</Title>
       </div>
       <div className="watch-list">
+        {before}
         {entries.data.map((entry) => {
           const art =
             backdropURL(entry.next_episode_still_path, "w780") ??
@@ -232,112 +240,95 @@ export function WatchNow({ onOpenDetail }: { onOpenDetail?: (target: MediaDetail
               seasonNumber: entry.next_episode?.season_number,
             });
           return (
-            <Paper
+            <WatchRowCard
               key={entry.show_id}
-              className={`watch-row${isCompleted ? " watch-row-completed" : ""}`}
-              withBorder
-              p={0}
-              role={onOpenDetail && !isCompleted ? "button" : undefined}
-              tabIndex={onOpenDetail && !isCompleted ? 0 : undefined}
+              className={isCompleted ? "watch-row-completed" : ""}
+              title={entry.title}
+              art={art}
+              onOpen={onOpenDetail && !isCompleted ? openEpisode : undefined}
               onAnimationEnd={(event) => {
                 if (event.target === event.currentTarget) finishWatchedAnimation(entry.show_id);
               }}
-              onClick={isCompleted ? undefined : openEpisode}
-              onKeyDown={(event) => {
-                if (
-                  !isCompleted &&
-                  (event.key === "Enter" || event.key === " ") &&
-                  event.target === event.currentTarget
-                ) {
-                  event.preventDefault();
-                  openEpisode();
-                }
-              }}
-            >
-              <div className="watch-row-art">
-                {art ? (
-                  <Image src={art} alt="" />
-                ) : (
-                  <div className="artwork-fallback">{entry.title.slice(0, 1)}</div>
-                )}
-              </div>
-              <div className="watch-row-content">
-                <Badge
-                  component="button"
-                  type="button"
-                  className="watch-row-show"
-                  size="lg"
-                  variant="outline"
-                  color="gray"
-                  radius="xl"
-                  aria-label={`Open ${entry.title} at season ${entry.next_episode?.season_number ?? 1}`}
-                  disabled={!onOpenDetail || isCompleted}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    openShow();
-                  }}
-                >
-                  {entry.title}
-                </Badge>
-                <Group className="watch-row-meta" gap="xs" wrap="wrap">
-                  <Text className="watch-row-episode">
-                    {entry.next_episode
-                      ? `S${String(entry.next_episode.season_number).padStart(2, "0")} | E${String(entry.next_episode.episode_number).padStart(2, "0")}`
-                      : "Episode details are pending"}
-                  </Text>
-                  {entry.remaining_episodes > 0 && (
-                    <Badge size="sm" variant="light" color="gray">
-                      +{entry.remaining_episodes} left
-                    </Badge>
-                  )}
-                </Group>
-                {entry.next_episode && (
-                  <Text className="watch-row-name" lineClamp={1}>
-                    {entry.next_episode_name || `Episode ${entry.next_episode.episode_number}`}
-                  </Text>
-                )}
-              </div>
-              {isCompleted ? (
-                <ActionIcon
-                  className="watch-row-complete-indicator"
-                  size="xl"
-                  radius="xl"
-                  variant="light"
-                  color="teal"
-                  aria-label={`${entry.title} episode marked watched`}
-                >
-                  <IconCheck size={21} stroke={2.2} />
-                </ActionIcon>
-              ) : (
-                entry.next_episode && (
-                  <Tooltip label="Mark episode watched" withArrow>
+              trailing={
+                <>
+                  {isCompleted ? (
                     <ActionIcon
-                      className="watch-row-action"
+                      className="watch-row-complete-indicator"
                       size="xl"
                       radius="xl"
                       variant="light"
-                      color="gray"
-                      aria-label={`Mark ${entry.title} season ${entry.next_episode.season_number}, episode ${entry.next_episode.episode_number} watched`}
-                      loading={pendingWatchActions.some(
-                        (action) => action.showID === entry.show_id,
-                      )}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        entry.missing_prior_episodes?.length
-                          ? setConfirmation(entry)
-                          : markWatched.mutate({
-                              episodeIDs: [entry.next_episode!.id],
-                              bulk: false,
-                              showID: entry.show_id,
-                            });
-                      }}
+                      color="teal"
+                      aria-label={`${entry.title} episode marked watched`}
                     >
-                      <IconEye size={22} stroke={1.8} />
+                      <IconCheck size={21} stroke={2.2} />
                     </ActionIcon>
-                  </Tooltip>
-                )
+                  ) : (
+                    entry.next_episode && (
+                      <Tooltip label="Mark episode watched" withArrow>
+                        <ActionIcon
+                          className="watch-row-action"
+                          size="xl"
+                          radius="xl"
+                          variant="light"
+                          color="gray"
+                          aria-label={`Mark ${entry.title} season ${entry.next_episode.season_number}, episode ${entry.next_episode.episode_number} watched`}
+                          loading={pendingWatchActions.some(
+                            (action) => action.showID === entry.show_id,
+                          )}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            entry.missing_prior_episodes?.length
+                              ? setConfirmation(entry)
+                              : markWatched.mutate({
+                                  episodeIDs: [entry.next_episode!.id],
+                                  bulk: false,
+                                  showID: entry.show_id,
+                                });
+                          }}
+                        >
+                          <IconEye size={22} stroke={1.8} />
+                        </ActionIcon>
+                      </Tooltip>
+                    )
+                  )}
+                </>
+              }
+            >
+              <Badge
+                component="button"
+                type="button"
+                className="watch-row-show"
+                size="lg"
+                variant="outline"
+                color="gray"
+                radius="xl"
+                aria-label={`Open ${entry.title} at season ${entry.next_episode?.season_number ?? 1}`}
+                disabled={!onOpenDetail || isCompleted}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  openShow();
+                }}
+              >
+                {entry.title}
+              </Badge>
+              <Group className="watch-row-meta" gap="xs" wrap="wrap">
+                <Text className="watch-row-episode">
+                  {entry.next_episode
+                    ? `S${String(entry.next_episode.season_number).padStart(2, "0")} | E${String(entry.next_episode.episode_number).padStart(2, "0")}`
+                    : "Episode details are pending"}
+                </Text>
+                {entry.remaining_episodes > 0 && (
+                  <Badge size="sm" variant="light" color="gray">
+                    +{entry.remaining_episodes} left
+                  </Badge>
+                )}
+              </Group>
+              {entry.next_episode && (
+                <Text className="watch-row-name" lineClamp={1}>
+                  {entry.next_episode_name || `Episode ${entry.next_episode.episode_number}`}
+                </Text>
               )}
-            </Paper>
+            </WatchRowCard>
           );
         })}
       </div>

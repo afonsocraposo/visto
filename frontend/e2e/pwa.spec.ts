@@ -1697,6 +1697,16 @@ test.describe("touch devices", () => {
     page,
   }) => {
     await mockSignedInSession(page);
+    await page.route("**/api/v1/continue-watching", (route) =>
+      fulfillJSON(
+        route,
+        Array.from({ length: 6 }, (_, i) => ({
+          ...continueEntry,
+          show_id: `tv:${40 + i}`,
+          title: i === 0 ? "The Example Show" : `Another Show ${i}`,
+        })),
+      ),
+    );
     let historyRequests = 0;
     await page.route("**/api/v1/plays?limit=10", (route) => {
       historyRequests += 1;
@@ -1730,23 +1740,39 @@ test.describe("touch devices", () => {
     });
     await page.setViewportSize({ width: 390, height: 740 });
     await page.goto("/watch");
-    await expect(page.getByText("The Example Show")).toBeVisible();
+    const toWatch = page.locator(".watch-row", { hasText: "The Example Show" });
+    await expect(toWatch).toBeVisible();
+    // The history is fetched ahead of time, so the pull itself makes no request.
+    await expect.poll(() => historyRequests).toBe(1);
+    const top = async () => (await toWatch.boundingBox())!.y;
+    const before = await top();
 
     const pull = (distance: number) =>
       touchDrag(page, { x: 200, y: 150 }, { x: 200, y: 150 + distance });
     await pull(40);
     await expect(page.getByLabel("Recently watched")).toHaveCount(0);
-    expect(historyRequests).toBe(0);
 
     await pull(90);
     const section = page.getByLabel("Recently watched");
-    await expect(section.getByText("Silo")).toBeVisible();
-    await expect(section.getByText("S02E06 · Barricades")).toBeVisible();
-    await expect(section.getByText("Movie")).toBeVisible();
-    const rows = section.locator(".watch-history-row");
-    await expect(rows.nth(0)).toContainText("Silo");
-    await expect(rows.nth(1)).toContainText("Dune: Part Two");
-    await expect(page.getByText("The Example Show")).toBeVisible();
+    await expect(section).toBeVisible();
+    // Oldest first: the newest play sits right above the episodes still to watch.
+    const rows = section.locator(".watch-row");
+    await expect(rows).toHaveCount(2);
+    await expect(rows.nth(0)).toContainText("Dune: Part Two");
+    await expect(rows.nth(0)).toContainText("Movie");
+    await expect(rows.nth(1)).toContainText("Silo");
+    await expect(rows.nth(1)).toContainText("S02 | E06");
+    await expect(rows.nth(1)).toContainText("Barricades");
+    // The list extends upwards instead of jumping: the rows being read stay within a peek.
+    await expect.poll(async () => Math.abs((await top()) - before)).toBeLessThanOrEqual(110);
+    expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+    await expect(rows.nth(1)).toBeInViewport();
+    await expect(toWatch).toBeInViewport();
     expect(historyRequests).toBe(1);
+
+    // Scrolling further up goes back in time until the page header.
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await expect(page.getByRole("heading", { name: "Episodes to watch" })).toBeInViewport();
+    await expect(rows.nth(0)).toBeInViewport();
   });
 });

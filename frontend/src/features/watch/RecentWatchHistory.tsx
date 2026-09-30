@@ -1,66 +1,47 @@
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Image, Paper, Text } from "@mantine/core";
+import { Badge, Text } from "@mantine/core";
+import { IconCheck } from "@tabler/icons-react";
 import { ActivityTime } from "../../components/ActivityTime";
-import { ListSkeleton } from "../../components/ListSkeleton";
 import { useUserQueryKey } from "../auth/SessionContext";
 import { api } from "../../lib/api";
-import { posterURL } from "../../lib/artwork";
+import { backdropURL, posterURL } from "../../lib/artwork";
 import { episodePosition } from "../../lib/episodePosition";
 import type { CursorPage, HistoryEntry, MediaDetailTarget } from "../../types";
+import { WatchRowCard } from "./WatchRowCard";
 
-/** Mounted only once the user reveals it, so the request is made on demand. */
-export function RecentWatchHistory({
-  onOpenDetail,
-}: {
-  onOpenDetail?: (target: MediaDetailTarget) => void;
-}) {
+/** The 10 latest plays, fetched ahead of time so revealing them is instant. */
+export function useRecentWatches() {
   const userQueryKey = useUserQueryKey();
-  const history = useQuery({
+  return useQuery({
     queryKey: userQueryKey("history", "recent"),
     queryFn: () =>
       api.get<CursorPage<HistoryEntry>>(
         "/api/v1/plays?limit=10",
         "Watch history is temporarily unavailable.",
       ),
+    staleTime: 5 * 60_000,
+    select: (page) => page.items,
   });
+}
 
-  if (history.isPending)
-    return (
-      <div className="watch-history-list" aria-busy="true">
-        <ListSkeleton
-          count={3}
-          rowClassName="watch-history-row"
-          artClassName="watch-history-row-art"
-          contentClassName="watch-history-row-content"
-          lines={3}
-          padded={false}
-        />
-      </div>
-    );
-  if (history.isError)
-    return (
-      <Alert color="red" variant="light">
-        Watch history is temporarily unavailable.
-      </Alert>
-    );
-
-  const entries = history.data.items;
-  if (entries.length === 0)
-    return (
-      <Text size="sm" c="dimmed">
-        Movies and episodes you watch will appear here.
-      </Text>
-    );
+/** Oldest first, so the newest play sits right above the episodes still to watch. */
+export function RecentWatchRows({
+  entries,
+  onOpenDetail,
+}: {
+  entries: HistoryEntry[];
+  onOpenDetail?: (target: MediaDetailTarget) => void;
+}) {
   return (
-    <div className="watch-history-list">
-      {entries.map((entry) => (
-        <RecentWatchCard key={entry.play.id} entry={entry} onOpenDetail={onOpenDetail} />
+    <>
+      {[...entries].reverse().map((entry) => (
+        <RecentWatchRow key={entry.play.id} entry={entry} onOpenDetail={onOpenDetail} />
       ))}
-    </div>
+    </>
   );
 }
 
-function RecentWatchCard({
+function RecentWatchRow({
   entry,
   onOpenDetail,
 }: {
@@ -68,60 +49,68 @@ function RecentWatchCard({
   onOpenDetail?: (target: MediaDetailTarget) => void;
 }) {
   const isEpisode = !!entry.play.episode_id;
-  const art = posterURL(entry.artwork_path, "w185");
-  const open = () => {
-    if (!entry.tmdb_id) return;
-    onOpenDetail?.(
-      isEpisode
-        ? {
+  const show = entry.tmdb_id
+    ? () =>
+        onOpenDetail?.({
+          mediaType: isEpisode ? "tv" : "movie",
+          tmdbID: entry.tmdb_id!,
+          mediaID: entry.play.media_id ?? undefined,
+        })
+    : undefined;
+  const open = entry.tmdb_id
+    ? isEpisode
+      ? () =>
+          onOpenDetail?.({
             mediaType: "tv",
-            tmdbID: entry.tmdb_id,
+            tmdbID: entry.tmdb_id!,
             episodeID: entry.play.episode_id!,
             ...episodePosition(entry.episode_label),
-          }
-        : {
-            mediaType: "movie",
-            tmdbID: entry.tmdb_id,
-            mediaID: entry.play.media_id ?? undefined,
-          },
-    );
-  };
-  const subtitle = isEpisode
-    ? [entry.episode_label, entry.episode_name].filter(Boolean).join(" · ")
-    : "Movie";
+          })
+      : show
+    : undefined;
+  // Episodes carry a still (or the show poster as fallback), movies a poster.
+  const art = isEpisode
+    ? backdropURL(entry.artwork_path, "w780")
+    : posterURL(entry.artwork_path, "w500");
+  const position = entry.episode_label?.replace("E", " | E");
   return (
-    <Paper
-      className="watch-history-row"
-      withBorder
-      p={0}
-      role="button"
-      tabIndex={0}
-      onClick={open}
-      onKeyDown={(event) => {
-        if (event.key === "Enter" || event.key === " ") {
-          event.preventDefault();
-          open();
-        }
-      }}
+    <WatchRowCard
+      className="watch-row-watched"
+      title={entry.title}
+      art={art}
+      onOpen={onOpenDetail ? open : undefined}
+      trailing={
+        <div className="watch-row-watched-meta">
+          <IconCheck size={18} stroke={2.2} aria-hidden="true" />
+          <Text size="xs" c="dimmed">
+            <ActivityTime value={entry.play.watched_at} />
+          </Text>
+        </div>
+      }
     >
-      <div className="watch-history-row-art">
-        {art ? (
-          <Image src={art} alt="" />
-        ) : (
-          <div className="artwork-fallback">{entry.title.slice(0, 1)}</div>
-        )}
-      </div>
-      <div className="watch-history-row-content">
-        <Text fw={700} size="sm" lineClamp={1}>
-          {entry.title}
+      <Badge
+        component="button"
+        type="button"
+        className="watch-row-show"
+        size="lg"
+        variant="outline"
+        color="gray"
+        radius="xl"
+        aria-label={`Open ${entry.title}`}
+        disabled={!onOpenDetail || !show}
+        onClick={(event) => {
+          event.stopPropagation();
+          show?.();
+        }}
+      >
+        {entry.title}
+      </Badge>
+      <Text className="watch-row-episode">{isEpisode ? (position ?? "Episode") : "Movie"}</Text>
+      {isEpisode && entry.episode_name && (
+        <Text className="watch-row-name" lineClamp={1}>
+          {entry.episode_name}
         </Text>
-        <Text size="xs" c="dimmed" lineClamp={1}>
-          {subtitle}
-        </Text>
-        <Text size="xs" c="dimmed">
-          <ActivityTime value={entry.play.watched_at} />
-        </Text>
-      </div>
-    </Paper>
+      )}
+    </WatchRowCard>
   );
 }

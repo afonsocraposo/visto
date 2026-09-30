@@ -9,7 +9,7 @@ import {
   IconSearch,
   IconUserCircle,
 } from "@tabler/icons-react";
-import { WatchNow, WatchCalendar } from "../watch/Watch";
+import { WatchCalendar } from "../watch/Watch";
 import { WatchHistoryReveal } from "../watch/WatchHistoryReveal";
 import type { LibraryStatus, MediaDetailTarget, Tab, Theme, User } from "../../types";
 import type { LibraryMediaFilter } from "../library/mediaFilter";
@@ -140,11 +140,7 @@ export function Dashboard({
   );
 
   return (
-    <AppShell
-      className="visto-shell"
-      footer={{ height: "var(--visto-footer-height)" }}
-      padding={0}
-    >
+    <AppShell className="visto-shell" footer={{ height: "var(--visto-footer-height)" }} padding={0}>
       <Modal
         opened={importWelcome.data?.pending === true}
         onClose={() => dismissImport.mutate()}
@@ -266,9 +262,7 @@ export function Dashboard({
                 </Tabs.List>
               </Tabs>
               {view === "now" ? (
-                <WatchHistoryReveal onOpenDetail={openDetail}>
-                  <WatchNow onOpenDetail={openDetail} />
-                </WatchHistoryReveal>
+                <WatchHistoryReveal onOpenDetail={openDetail} />
               ) : (
                 <WatchCalendar onOpenDetail={openDetail} />
               )}
