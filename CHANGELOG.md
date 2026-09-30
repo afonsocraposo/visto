@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.20.1](https://github.com/afonsocraposo/visto/compare/v0.20.0...v0.20.1) (2026-09-30)
+
+
+### Bug Fixes
+
+* make the recent watch history part of the watching list ([b85e14d](https://github.com/afonsocraposo/visto/commit/b85e14d38a3e44123a017132d339a812e346fa39))
+
 ## [0.20.0](https://github.com/afonsocraposo/visto/compare/v0.19.1...v0.20.0) (2026-09-30)
 
 
