@@ -10,6 +10,7 @@ import {
   IconUserCircle,
 } from "@tabler/icons-react";
 import { WatchNow, WatchCalendar } from "../watch/Watch";
+import { WatchHistoryReveal } from "../watch/WatchHistoryReveal";
 import type { LibraryStatus, MediaDetailTarget, Tab, Theme, User } from "../../types";
 import type { LibraryMediaFilter } from "../library/mediaFilter";
 import { api, connectionUnavailableEvent } from "../../lib/api";
@@ -265,7 +266,9 @@ export function Dashboard({
                 </Tabs.List>
               </Tabs>
               {view === "now" ? (
-                <WatchNow onOpenDetail={openDetail} />
+                <WatchHistoryReveal onOpenDetail={openDetail}>
+                  <WatchNow onOpenDetail={openDetail} />
+                </WatchHistoryReveal>
               ) : (
                 <WatchCalendar onOpenDetail={openDetail} />
               )}

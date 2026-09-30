@@ -25,6 +25,21 @@ async function fulfillJSON(route: Route, value: unknown, status = 200) {
   await route.fulfill({ status, contentType: "application/json", body: JSON.stringify(value) });
 }
 
+async function touchDrag(page: Page, from: { x: number; y: number }, to: { x: number; y: number }) {
+  const cdp = await page.context().newCDPSession(page);
+  const send = (type: string, point?: { x: number; y: number }) =>
+    cdp.send("Input.dispatchTouchEvent", { type, touchPoints: point ? [point] : [] });
+  await send("touchStart", from);
+  const steps = 8;
+  for (let i = 1; i <= steps; i++)
+    await send("touchMove", {
+      x: from.x + ((to.x - from.x) * i) / steps,
+      y: from.y + ((to.y - from.y) * i) / steps,
+    });
+  await send("touchEnd");
+  await cdp.detach();
+}
+
 async function mockSignedInSession(page: Page, asAdmin = false) {
   let signedIn = true;
   await page.route("**/api/v1/auth/status", (route) =>
@@ -262,6 +277,14 @@ test("Given an Upcoming episode, When the user opens its season and selects anot
   await page.getByRole("tab", { name: "Upcoming" }).click();
   await page.getByRole("button", { name: /Open The Example Show, season 1, episode 1/ }).click();
   await expect(page.getByRole("heading", { name: "The Upcoming Episode" })).toBeVisible();
+  await expect(page.locator(".detail-hero")).toContainText("S01E01");
+  const swipe = (fromX: number, toX: number) =>
+    touchDrag(page, { x: fromX, y: 300 }, { x: toX, y: 300 });
+  await swipe(300, 120); // swipe left: next episode
+  await expect(page).toHaveURL(/\/shows\/100\/season\/2\/episode\/1/);
+  await expect(page.locator(".detail-hero")).toContainText("S02E01");
+  await swipe(120, 300); // swipe right: previous episode
+  await expect(page).toHaveURL(/\/shows\/100\/season\/1\/episode\/1/);
   await expect(page.locator(".detail-hero")).toContainText("S01E01");
   await page.getByRole("button", { name: "Go to next episode" }).click();
   await expect(page).toHaveURL(/\/shows\/100\/season\/2\/episode\/1/);
@@ -700,9 +723,7 @@ test("TV details show the production status for saved and unsaved shows", async 
     fulfillJSON(route, { name: "Second season episode", overview: "Season two summary." }),
   );
   await page.goto("/shows/100/season/2/episode/4");
-  await expect(
-    page.getByRole("heading", { name: "Second season episode" }),
-  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Second season episode" })).toBeVisible();
   await expect(page.locator(".detail-hero")).toContainText("S02E04");
 
   await page.route("**/api/v1/movies/100", (route) =>
@@ -1667,4 +1688,65 @@ test("Library previews show full filtered counts in the requested order and rest
   sections = page.locator(".library-section");
   await expect(sections.first().getByText("3 titles")).toBeVisible();
   await expect(page.getByRole("combobox", { name: "Sort library media" })).toHaveValue("Title");
+});
+
+test.describe("touch devices", () => {
+  test.use({ hasTouch: true });
+
+  test("Given the To watch tab, When pulling down from the top, Then recent watches are revealed", async ({
+    page,
+  }) => {
+    await mockSignedInSession(page);
+    let historyRequests = 0;
+    await page.route("**/api/v1/plays?limit=10", (route) => {
+      historyRequests += 1;
+      return fulfillJSON(route, {
+        items: [
+          {
+            play: {
+              id: "p1",
+              media_id: null,
+              episode_id: "e1",
+              watched_at: "2026-09-30T21:50:00Z",
+            },
+            title: "Silo",
+            tmdb_id: 1,
+            episode_label: "S02E06",
+            episode_name: "Barricades",
+          },
+          {
+            play: {
+              id: "p2",
+              media_id: "m1",
+              episode_id: null,
+              watched_at: "2026-09-29T21:50:00Z",
+            },
+            title: "Dune: Part Two",
+            tmdb_id: 2,
+          },
+        ],
+        next_cursor: null,
+      });
+    });
+    await page.setViewportSize({ width: 390, height: 740 });
+    await page.goto("/watch");
+    await expect(page.getByText("The Example Show")).toBeVisible();
+
+    const pull = (distance: number) =>
+      touchDrag(page, { x: 200, y: 150 }, { x: 200, y: 150 + distance });
+    await pull(40);
+    await expect(page.getByLabel("Recently watched")).toHaveCount(0);
+    expect(historyRequests).toBe(0);
+
+    await pull(90);
+    const section = page.getByLabel("Recently watched");
+    await expect(section.getByText("Silo")).toBeVisible();
+    await expect(section.getByText("S02E06 · Barricades")).toBeVisible();
+    await expect(section.getByText("Movie")).toBeVisible();
+    const rows = section.locator(".watch-history-row");
+    await expect(rows.nth(0)).toContainText("Silo");
+    await expect(rows.nth(1)).toContainText("Dune: Part Two");
+    await expect(page.getByText("The Example Show")).toBeVisible();
+    expect(historyRequests).toBe(1);
+  });
 });

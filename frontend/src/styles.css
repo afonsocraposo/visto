@@ -625,6 +625,8 @@ select {
   align-items: stretch;
 }
 .detail-page {
+  /* The episode swipe needs horizontal drags; keep vertical scroll and pinch-zoom native. */
+  touch-action: pan-y pinch-zoom;
   padding-bottom: 24px;
 }
 .detail-back {
@@ -1598,4 +1600,69 @@ select {
       transform: none;
     }
   }
+}
+
+.watch-history-reveal-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 28px;
+  margin-bottom: 8px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  background: none;
+  color: var(--mantine-color-dimmed);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.watch-history-reveal-header:focus-visible {
+  outline: 2px solid var(--mantine-color-yellow-6);
+  outline-offset: 2px;
+}
+.watch-history-section {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 18px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid var(--mantine-color-default-border);
+}
+.watch-history-list {
+  display: grid;
+  gap: 10px;
+}
+.watch-history-row {
+  display: flex;
+  align-items: stretch;
+  gap: 12px;
+  min-height: 96px;
+  overflow: hidden;
+  background: var(--mantine-color-body);
+  cursor: pointer;
+}
+.watch-history-row:focus-visible {
+  border-color: var(--mantine-color-gray-5);
+  outline: none;
+}
+.watch-history-row-art {
+  width: 64px;
+  flex: 0 0 64px;
+  overflow: hidden;
+  background: #1b2430;
+}
+.watch-history-row-art .mantine-Image-root,
+.watch-history-row-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.watch-history-row-content {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+  padding-block: 10px;
+  padding-right: 12px;
 }

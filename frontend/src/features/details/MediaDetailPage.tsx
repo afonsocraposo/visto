@@ -66,6 +66,8 @@ import {
   useTemporarySeasonEpisodesQuery,
 } from "./queries";
 import { getAdjacentEpisodes } from "./episodeNavigation";
+import { EpisodeSwipeArea } from "./episodeSwipe";
+import type { SwipeDirection } from "./episodeNavigation";
 import type { EpisodeRating, MediaDetailTarget, ShowEpisodeEntry } from "../../types";
 
 type Props = {
@@ -952,8 +954,29 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
     </>
   );
 
+  const openAdjacent = (direction: SwipeDirection) => {
+    const adjacent =
+      direction === "previous" ? adjacentEpisodes.previousEpisode : adjacentEpisodes.nextEpisode;
+    if (!adjacent || !media) return;
+    onOpenDetail(
+      {
+        mediaType: "tv",
+        tmdbID: media.tmdb_id,
+        mediaID: showID,
+        episodeID: adjacent.episode.id,
+        episode: adjacent.episode,
+        seasonNumber: adjacent.episode.season_number,
+        episodeNumber: adjacent.episode.episode_number,
+      },
+      { from: returnTo, replace: true },
+    );
+  };
+
   return (
-    <div className="detail-page">
+    <EpisodeSwipeArea
+      className="detail-page"
+      onSwipe={selectedEpisode ? openAdjacent : undefined}
+    >
       <Modal
         opened={movieHistoryMode !== null}
         onClose={() => setMovieHistoryMode(null)}
@@ -1616,20 +1639,7 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
               variant="subtle"
               leftSection={<IconChevronLeft size={16} />}
               aria-label="Go to previous episode"
-              onClick={() =>
-                onOpenDetail(
-                  {
-                    mediaType: "tv",
-                    tmdbID: media.tmdb_id,
-                    mediaID: showID,
-                    episodeID: adjacentEpisodes.previousEpisode!.episode.id,
-                    episode: adjacentEpisodes.previousEpisode!.episode,
-                    seasonNumber: adjacentEpisodes.previousEpisode!.episode.season_number,
-                    episodeNumber: adjacentEpisodes.previousEpisode!.episode.episode_number,
-                  },
-                  { from: returnTo, replace: true },
-                )
-              }
+              onClick={() => openAdjacent("previous")}
             >
               Previous
             </Button>
@@ -1641,20 +1651,7 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
               variant="subtle"
               rightSection={<IconChevronRight size={16} />}
               aria-label="Go to next episode"
-              onClick={() =>
-                onOpenDetail(
-                  {
-                    mediaType: "tv",
-                    tmdbID: media.tmdb_id,
-                    mediaID: showID,
-                    episodeID: adjacentEpisodes.nextEpisode!.episode.id,
-                    episode: adjacentEpisodes.nextEpisode!.episode,
-                    seasonNumber: adjacentEpisodes.nextEpisode!.episode.season_number,
-                    episodeNumber: adjacentEpisodes.nextEpisode!.episode.episode_number,
-                  },
-                  { from: returnTo, replace: true },
-                )
-              }
+              onClick={() => openAdjacent("next")}
             >
               Next
             </Button>
@@ -1732,6 +1729,6 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
           This is a temporary preview. Mark an episode watched to add the show to Watching.
         </Text>
       )}
-    </div>
+    </EpisodeSwipeArea>
   );
 }

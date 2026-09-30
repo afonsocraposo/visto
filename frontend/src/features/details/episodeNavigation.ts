@@ -29,3 +29,21 @@ export function getAdjacentEpisodes(
     nextEpisode: currentIndex >= 0 ? (sequence[currentIndex + 1] ?? null) : null,
   };
 }
+
+/** Touches starting this close to a screen edge belong to the OS (iOS back swipe, Android gestures). */
+const EDGE_GUARD = 32;
+const MIN_DISTANCE = 64;
+
+export type SwipeDirection = "previous" | "next";
+
+export function swipeDirection(
+  start: [number, number],
+  end: [number, number],
+  viewportWidth: number,
+): SwipeDirection | null {
+  if (start[0] < EDGE_GUARD || start[0] > viewportWidth - EDGE_GUARD) return null;
+  const dx = end[0] - start[0];
+  const dy = end[1] - start[1];
+  if (Math.abs(dx) < MIN_DISTANCE || Math.abs(dx) < Math.abs(dy) * 1.5) return null;
+  return dx > 0 ? "previous" : "next";
+}

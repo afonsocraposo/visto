@@ -10,6 +10,7 @@ import { ActivityRow } from "../feed/ActivityRow";
 import { useUserQueryKey } from "../auth/SessionContext";
 import { api } from "../../lib/api";
 import { pageURL } from "../../lib/pagination";
+import { episodePosition } from "../../lib/episodePosition";
 import type { CursorPage, HistoryEntry, MediaDetailTarget } from "../../types";
 
 export function HistoryPanel({
@@ -275,9 +276,4 @@ function HistoryCard({
       )}
     </ActivityRow>
   );
-}
-
-function episodePosition(label?: string): { seasonNumber?: number; episodeNumber?: number } {
-  const match = /^S(\d+)E(\d+)$/i.exec(label ?? "");
-  return match ? { seasonNumber: Number(match[1]), episodeNumber: Number(match[2]) } : {};
 }
