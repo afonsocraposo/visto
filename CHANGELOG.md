@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.20.0](https://github.com/afonsocraposo/visto/compare/v0.19.1...v0.20.0) (2026-09-30)
+
+
+### Features
+
+* add recent watch history pull-down and episode swipe navigation ([1c48288](https://github.com/afonsocraposo/visto/commit/1c482887880fb129135813a1704db7d6844b232e))
+
 ## [0.19.1](https://github.com/afonsocraposo/visto/compare/v0.19.0...v0.19.1) (2026-09-30)
 
 
