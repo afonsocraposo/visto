@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.19.0](https://github.com/afonsocraposo/visto/compare/v0.18.3...v0.19.0) (2026-09-30)
+
+
+### Features
+
+* show last watched time on detail pages ([6628bc3](https://github.com/afonsocraposo/visto/commit/6628bc38d86d05e255e3cd12b4c02b69e59a078b))
+* show relative air date for upcoming episodes ([58fd094](https://github.com/afonsocraposo/visto/commit/58fd09421a3e84fa00cb7f7ba8cb4c9d51a49dde))
+* store Plex event type and raw payload with on-demand viewer ([a2c0aa9](https://github.com/afonsocraposo/visto/commit/a2c0aa9aa3a05806b88af48d53c4dd7d3548912e))
+
 ## [0.18.3](https://github.com/afonsocraposo/visto/compare/v0.18.2...v0.18.3) (2026-09-29)
 
 
