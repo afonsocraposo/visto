@@ -55,6 +55,7 @@ import { resolveMediaID } from "./mediaIdentity";
 import { heroArtworkLayers, resolveMediaArtwork } from "./heroArtwork";
 import { EpisodeActions, MediaActions } from "./MediaDetailActions";
 import { chunk } from "./batch";
+import { formatEpisodeAirDate } from "../../lib/airDate";
 import {
   useDetailHistoryQuery,
   useEpisodeDetailsQuery,
@@ -1524,7 +1525,7 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
                           fw={650}
                         >{`S${String(entry.episode.season_number).padStart(2, "0")}E${String(entry.episode.episode_number).padStart(2, "0")} — ${entry.name || `Episode ${entry.episode.episode_number}`}`}</Text>
                         <Text size="xs" c="dimmed">
-                          {entry.episode.air_date || "Air date not announced"}
+                          {formatEpisodeAirDate(entry.episode.air_date)}
                         </Text>
                         {entry.overview && (
                           <Text className="episode-description" size="sm" c="dimmed" mt={5}>
