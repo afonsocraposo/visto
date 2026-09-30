@@ -8,8 +8,8 @@ import (
 	"time"
 )
 
-func (store *Store) ListPlaysPage(ctx context.Context, userID, mediaID, episodeID string, request pagination.Request) (pagination.Page[tracking.HistoryEntry], error) {
-	scope := "plays|" + userID + "|" + mediaID + "|" + episodeID
+func (store *Store) ListPlaysPage(ctx context.Context, userID, mediaID, episodeID, showID string, request pagination.Request) (pagination.Page[tracking.HistoryEntry], error) {
+	scope := "plays|" + userID + "|" + mediaID + "|" + episodeID + "|" + showID
 	keys, err := pagination.Decode(request.Cursor, scope, 2)
 	if err != nil {
 		return pagination.Page[tracking.HistoryEntry]{}, err
@@ -25,7 +25,7 @@ func (store *Store) ListPlaysPage(ctx context.Context, userID, mediaID, episodeI
 		}
 		playID = keys[1]
 	}
-	entries, err := store.listPlays(ctx, userID, mediaID, request.Limit+1, watchedAt, playID, episodeID)
+	entries, err := store.listPlays(ctx, userID, mediaID, request.Limit+1, watchedAt, playID, episodeID, showID)
 	if err != nil {
 		return pagination.Page[tracking.HistoryEntry]{}, err
 	}

@@ -663,6 +663,7 @@ paths:
         - { name: cursor, in: query, schema: { type: string } }
         - { name: media_id, in: query, schema: { type: string, description: Filter watches to one movie ID. } }
         - { name: episode_id, in: query, schema: { type: string, description: Filter watches to one episode ID. } }
+        - { name: show_id, in: query, schema: { type: string, description: Filter watches to any episode of one TV show ID. Cannot be combined with media_id or episode_id. } }
       responses:
         '200': { description: Play history page, content: { application/json: { schema: { $ref: '#/components/schemas/PlaysPage' } } } }
         '400': { $ref: '#/components/responses/BadRequest' }

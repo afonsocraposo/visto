@@ -105,14 +105,21 @@ export function useSavedShowEpisodesQuery(showID: string | undefined, enabled: b
   });
 }
 
-export function useDetailHistoryQuery(enabled: boolean, episodeID?: string, movieID?: string) {
+export function useDetailHistoryQuery(
+  enabled: boolean,
+  episodeID?: string,
+  movieID?: string,
+  showID?: string,
+) {
   const userQueryKey = useUserQueryKey();
   const filter = episodeID
     ? `episode_id=${encodeURIComponent(episodeID)}`
-    : `media_id=${encodeURIComponent(movieID ?? "")}`;
+    : movieID
+      ? `media_id=${encodeURIComponent(movieID)}`
+      : `show_id=${encodeURIComponent(showID ?? "")}`;
   return useQuery({
     queryKey: userQueryKey("detail-history", filter),
-    enabled: enabled && Boolean(episodeID || movieID),
+    enabled: enabled && Boolean(episodeID || movieID || showID),
     queryFn: () =>
       api.get<CursorPage<HistoryEntry>>(
         `/api/v1/plays?${filter}&limit=1`,

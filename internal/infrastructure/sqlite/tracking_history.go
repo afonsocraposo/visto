@@ -10,14 +10,14 @@ import (
 )
 
 func (store *Store) ListPlays(ctx context.Context, userID string, limit int) ([]tracking.HistoryEntry, error) {
-	return store.listPlays(ctx, userID, "", limit, "", "", "")
+	return store.listPlays(ctx, userID, "", limit, "", "", "", "")
 }
 
 func (store *Store) ListMediaPlays(ctx context.Context, userID, mediaID string, limit int) ([]tracking.HistoryEntry, error) {
-	return store.listPlays(ctx, userID, mediaID, limit, "", "", "")
+	return store.listPlays(ctx, userID, mediaID, limit, "", "", "", "")
 }
 
-func (store *Store) listPlays(ctx context.Context, userID, mediaID string, limit int, watchedAt, playID, episodeID string) ([]tracking.HistoryEntry, error) {
+func (store *Store) listPlays(ctx context.Context, userID, mediaID string, limit int, watchedAt, playID, episodeID, showID string) ([]tracking.HistoryEntry, error) {
 	where := "p.user_id=?"
 	args := []any{userID}
 	if mediaID != "" {
@@ -27,6 +27,10 @@ func (store *Store) listPlays(ctx context.Context, userID, mediaID string, limit
 	if episodeID != "" {
 		where += " AND p.episode_id=?"
 		args = append(args, episodeID)
+	}
+	if showID != "" {
+		where += " AND p.episode_id IN (SELECT id FROM episodes WHERE show_id=?)"
+		args = append(args, showID)
 	}
 	if watchedAt != "" {
 		where += " AND (p.watched_at<? OR (p.watched_at=? AND p.id<?))"

@@ -24,7 +24,7 @@ func playHistory(authService *auth.Service, service *tracking.Service) http.Hand
 			writeError(w, http.StatusBadRequest, err.Error())
 			return
 		}
-		page, err := service.HistoryPage(r.Context(), user.ID, r.URL.Query().Get("media_id"), r.URL.Query().Get("episode_id"), request)
+		page, err := service.HistoryPage(r.Context(), user.ID, r.URL.Query().Get("media_id"), r.URL.Query().Get("episode_id"), r.URL.Query().Get("show_id"), request)
 		if err != nil {
 			writePageError(w, err, "history is temporarily unavailable")
 			return

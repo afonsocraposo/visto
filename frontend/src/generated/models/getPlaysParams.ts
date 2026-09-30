@@ -21,4 +21,8 @@ export type GetPlaysParams = {
    * Filter watches to one episode ID.
    */
   episode_id?: string;
+  /**
+   * Filter watches to any episode of one TV show ID. Cannot be combined with media_id or episode_id.
+   */
+  show_id?: string;
 };

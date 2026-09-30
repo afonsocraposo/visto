@@ -165,11 +165,11 @@ func TestPagesTraverseLibraryPlaysAndUsers(t *testing.T) {
 		t.Fatalf("watchlist page after play: %v %v", remaining, err)
 	}
 	req = pagination.Request{Limit: 2}
-	first, err := store.ListPlaysPage(ctx, userID, "movie:1", "", req)
+	first, err := store.ListPlaysPage(ctx, userID, "movie:1", "", "", req)
 	if err != nil || len(first.Items) != 2 || first.NextCursor == nil {
 		t.Fatalf("first plays page: %v %v", first, err)
 	}
-	next, err := store.ListPlaysPage(ctx, userID, "movie:1", "", pagination.Request{Limit: 2, Cursor: *first.NextCursor})
+	next, err := store.ListPlaysPage(ctx, userID, "movie:1", "", "", pagination.Request{Limit: 2, Cursor: *first.NextCursor})
 	if err != nil || len(next.Items) != 1 || next.NextCursor != nil {
 		t.Fatalf("next plays page: %v %v", next, err)
 	}
@@ -216,11 +216,11 @@ func TestEpisodePagesRespectSeasonAndOwner(t *testing.T) {
 	if _, err := store.DB.Exec(`INSERT INTO plays(user_id,episode_id,watched_at,source,created_at) VALUES(?,'e1',?,'web',?)`, owner, testTimestamp, testTimestamp); err != nil {
 		t.Fatal(err)
 	}
-	episodeHistory, err := store.ListPlaysPage(ctx, owner, "", "e1", pagination.Request{Limit: 1})
+	episodeHistory, err := store.ListPlaysPage(ctx, owner, "", "e1", "", pagination.Request{Limit: 1})
 	if err != nil || len(episodeHistory.Items) != 1 || *episodeHistory.Items[0].Play.EpisodeID != "e1" {
 		t.Fatalf("episode history page: %v %v", episodeHistory, err)
 	}
-	otherHistory, err := store.ListPlaysPage(ctx, other, "", "e1", pagination.Request{Limit: 1})
+	otherHistory, err := store.ListPlaysPage(ctx, other, "", "e1", "", pagination.Request{Limit: 1})
 	if err != nil || len(otherHistory.Items) != 0 {
 		t.Fatalf("other user's episode history: %v %v", otherHistory, err)
 	}
@@ -256,5 +256,71 @@ func TestPagingQueryPlansUseBoundedIndexes(t *testing.T) {
 		if !strings.Contains(details, tc.index) {
 			t.Fatalf("plan %q does not use %s: %s", tc.query, tc.index, details)
 		}
+	}
+}
+
+func TestShowHistoryReturnsNewestEpisodePlayForOwnerAndShow(t *testing.T) {
+	ctx := context.Background()
+	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "visto.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	owner := insertTestUser(t, store.DB, "show-owner", "Owner", "private")
+	other := insertTestUser(t, store.DB, "show-other", "Other", "private")
+	for _, id := range []string{"42", "43", "44"} {
+		if _, err := store.DB.Exec(`INSERT INTO media(id,media_type,tmdb_id,title,metadata_updated_at,created_at) VALUES(?,'tv',?,'Show',?,?)`, "tv:"+id, id, testTimestamp, testTimestamp); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := store.DB.Exec(`INSERT INTO media(id,media_type,tmdb_id,title,metadata_updated_at,created_at) VALUES('movie:1','movie',1,'Movie',?,?)`, testTimestamp, testTimestamp); err != nil {
+		t.Fatal(err)
+	}
+	for _, show := range []string{"tv:42", "tv:43"} {
+		for season := 1; season <= 2; season++ {
+			seasonID := fmt.Sprintf("%s-s%d", show, season)
+			if _, err := store.DB.Exec(`INSERT INTO seasons(id,show_id,season_number,name) VALUES(?,?,?,'Season')`, seasonID, show, season); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := store.DB.Exec(`INSERT INTO episodes(id,show_id,season_id,season_number,episode_number,name) VALUES(?,?,?,?,1,'Episode')`, seasonID+"-e1", show, seasonID, season); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	play := func(user, episode string, day int) {
+		t.Helper()
+		at := time.Date(2026, 1, day, 12, 0, 0, 0, time.UTC).Format(time.RFC3339Nano)
+		if _, err := store.DB.Exec(`INSERT INTO plays(user_id,episode_id,watched_at,source,created_at) VALUES(?,?,?,'web',?)`, user, episode, at, testTimestamp); err != nil {
+			t.Fatal(err)
+		}
+	}
+	play(owner, "tv:42-s2-e1", 5)
+	play(owner, "tv:42-s1-e1", 3)
+	play(owner, "tv:42-s1-e1", 9) // rewatch is newest
+	play(owner, "tv:43-s2-e1", 20)
+	play(other, "tv:42-s2-e1", 25)
+	if _, err := store.DB.Exec(`INSERT INTO plays(user_id,media_id,watched_at,source,created_at) VALUES(?,'movie:1',?,'web',?)`, owner, time.Date(2026, 1, 30, 0, 0, 0, 0, time.UTC).Format(time.RFC3339Nano), testTimestamp); err != nil {
+		t.Fatal(err)
+	}
+
+	latest, err := store.ListPlaysPage(ctx, owner, "", "", "tv:42", pagination.Request{Limit: 1})
+	if err != nil || len(latest.Items) != 1 || *latest.Items[0].Play.EpisodeID != "tv:42-s1-e1" || latest.Items[0].Play.WatchedAt.Day() != 9 {
+		t.Fatalf("latest show play = %#v err=%v; want the day-9 rewatch", latest.Items, err)
+	}
+	all, err := store.ListPlaysPage(ctx, owner, "", "", "tv:42", pagination.Request{Limit: 10})
+	if err != nil || len(all.Items) != 3 {
+		t.Fatalf("show plays = %d err=%v; want 3 and none from another show, user or movie", len(all.Items), err)
+	}
+	none, err := store.ListPlaysPage(ctx, owner, "", "", "tv:44", pagination.Request{Limit: 1})
+	if err != nil || len(none.Items) != 0 {
+		t.Fatalf("unwatched show = %v err=%v; want empty", none.Items, err)
+	}
+	episode, err := store.ListPlaysPage(ctx, owner, "", "tv:42-s2-e1", "", pagination.Request{Limit: 10})
+	if err != nil || len(episode.Items) != 1 {
+		t.Fatalf("episode filter = %d err=%v; want 1", len(episode.Items), err)
+	}
+	movie, err := store.ListPlaysPage(ctx, owner, "movie:1", "", "", pagination.Request{Limit: 10})
+	if err != nil || len(movie.Items) != 1 {
+		t.Fatalf("movie filter = %d err=%v; want 1", len(movie.Items), err)
 	}
 }

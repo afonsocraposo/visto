@@ -227,6 +227,7 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
     Boolean(library.data),
     target.episodeID,
     target.mediaType === "movie" ? showID : undefined,
+    target.mediaType === "tv" ? showID : undefined,
   );
   const ensureTrackedEpisodes = async (): Promise<ShowEpisodeEntry[]> => {
     if (!media || !showID) throw new Error("This show is not available.");
@@ -777,7 +778,10 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
     "linear-gradient(90deg, rgba(9,13,18,.55) 0%, rgba(9,13,18,.2) 60%, rgba(9,13,18,.08) 100%)",
     ...artLayers.map((layer) => `url(${layer})`),
   ].join(", ");
-  const watchedPlay = history.data?.items.find((item) =>
+  const historyIsScoped = target.mediaType === "movie" || Boolean(target.episodeID);
+  const lastWatchedAt =
+    !selectedEpisode || target.episodeID ? history.data?.items[0]?.play.watched_at : undefined;
+  const watchedPlay = (historyIsScoped ? history.data?.items : undefined)?.find((item) =>
     selectedEpisode
       ? item.play.episode_id === selectedEpisode.episode.id
       : item.play.media_id === showID,
@@ -1206,6 +1210,18 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
                 {episodeDetails.data?.production_code
                   ? ` · ${episodeDetails.data.production_code}`
                   : ""}
+              </Text>
+            ) : null}
+            {lastWatchedAt ? (
+              <Text className="detail-runtime" mt="sm">
+                <IconEye size={15} /> Last watched{" "}
+                {new Date(lastWatchedAt).toLocaleString(undefined, {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
               </Text>
             ) : null}
             {selectedEpisode ? (
