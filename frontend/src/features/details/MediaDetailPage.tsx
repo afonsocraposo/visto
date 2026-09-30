@@ -1187,44 +1187,43 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
                   "No description available."
                 : media.overview || "No description is available."}
             </Text>
-            {(
-              selectedEpisode
-                ? episodeDetails.data?.runtime || selectedEpisode.runtime
-                : movieRuntime
-            ) ? (
-              <Text className="detail-runtime" mt="sm">
-                <IconClock size={15} />{" "}
-                {selectedEpisode
+            <div className="detail-meta">
+              {(
+                selectedEpisode
                   ? episodeDetails.data?.runtime || selectedEpisode.runtime
-                  : movieRuntime}{" "}
-                min
-              </Text>
-            ) : null}
-            {selectedEpisode && episodeDetails.data?.vote_average ? (
-              <Text className="detail-runtime" mt="sm">
-                TMDB {episodeDetails.data.vote_average.toFixed(1)} / 10
-              </Text>
-            ) : null}
-            {selectedEpisode && (episodeDetails.data?.air_date || selectedEpisode.episode.air_date) ? (
-              <Text className="detail-runtime" mt="sm">
-                Aired {episodeDetails.data?.air_date || selectedEpisode.episode.air_date}
-                {episodeDetails.data?.production_code
-                  ? ` · ${episodeDetails.data.production_code}`
-                  : ""}
-              </Text>
-            ) : null}
-            {lastWatchedAt ? (
-              <Text className="detail-runtime" mt="sm">
-                <IconEye size={15} /> Last watched{" "}
-                {new Date(lastWatchedAt).toLocaleString(undefined, {
-                  day: "numeric",
-                  month: "short",
-                  year: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </Text>
-            ) : null}
+                  : movieRuntime
+              ) ? (
+                <Text className="detail-runtime">
+                  <IconClock size={15} />{" "}
+                  {selectedEpisode
+                    ? episodeDetails.data?.runtime || selectedEpisode.runtime
+                    : movieRuntime}{" "}
+                  min
+                </Text>
+              ) : null}
+              {selectedEpisode && episodeDetails.data?.vote_average ? (
+                <Text className="detail-runtime">
+                  TMDB {episodeDetails.data.vote_average.toFixed(1)} / 10
+                </Text>
+              ) : null}
+              {selectedEpisode && (episodeDetails.data?.air_date || selectedEpisode.episode.air_date) ? (
+                <Text className="detail-runtime">
+                  Aired {episodeDetails.data?.air_date || selectedEpisode.episode.air_date}
+                  {episodeDetails.data?.production_code
+                    ? ` · ${episodeDetails.data.production_code}`
+                    : ""}
+                </Text>
+              ) : null}
+              {lastWatchedAt ? (
+                <Text className="detail-runtime">
+                  <IconEye size={15} /> Last watched{" "}
+                  {new Date(lastWatchedAt).toLocaleString(undefined, {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  })}
+                </Text>
+              ) : null}
+            </div>
             {selectedEpisode ? (
               <EpisodeActions
                 entry={selectedEpisode}
