@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.19.1](https://github.com/afonsocraposo/visto/compare/v0.19.0...v0.19.1) (2026-09-30)
+
+
+### Bug Fixes
+
+* make detail hero metadata readable ([2145032](https://github.com/afonsocraposo/visto/commit/2145032f42fbe17a7c9645f8c8f1152bf53f39f4))
+
 ## [0.19.0](https://github.com/afonsocraposo/visto/compare/v0.18.3...v0.19.0) (2026-09-30)
 
 
