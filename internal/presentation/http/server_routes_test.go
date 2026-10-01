@@ -92,6 +92,7 @@ func TestProtectedRoutes_GivenNoSession_WhenEveryUserScopedRouteIsCalled_ThenEac
 		{http.MethodGet, "/api/v1/discover/shows/42/seasons/1/episodes/1"},
 		{http.MethodGet, "/api/v1/movies/10"},
 		{http.MethodGet, "/api/v1/shows/42"},
+		{http.MethodPost, "/api/v1/media/tv/42/refresh"},
 		{http.MethodGet, "/api/v1/library"},
 		{http.MethodPost, "/api/v1/library"},
 		{http.MethodPatch, "/api/v1/library/tv%3A42"},

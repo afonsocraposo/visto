@@ -582,6 +582,21 @@ paths:
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { description: TV show is unavailable from both the library and metadata provider }
+  /media/{mediaType}/{tmdbID}/refresh:
+    post:
+      summary: Force-refresh a stored title's metadata from TMDB (administrators only)
+      description: Fetches fresh metadata and, for TV shows, the season and episode catalog. Stored metadata is only replaced after TMDB returns a valid response, so a failed refresh leaves the title untouched. Watch history, ratings, and library state are preserved.
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      parameters:
+        - { name: mediaType, in: path, required: true, schema: { type: string, enum: [movie, tv] } }
+        - { name: tmdbID, in: path, required: true, schema: { type: integer, format: int64, minimum: 1 } }
+      responses:
+        '204': { description: Metadata refreshed }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { description: The title is not stored in Visto }
+        '502': { description: TMDB refresh failed; stored metadata is unchanged }
   /library:
     get:
       summary: List the authenticated user's library

@@ -6905,6 +6905,104 @@ export function useGetShowsTmdbID<
   return withQueryKey(query, queryOptions.queryKey);
 }
 
+export const getPostMediaMediaTypeTmdbIDRefreshUrl = (
+  mediaType: "movie" | "tv",
+  tmdbID: number,
+) => {
+  return `/media/${mediaType}/${tmdbID}/refresh`;
+};
+
+/**
+ * Fetches fresh metadata and, for TV shows, the season and episode catalog. Stored metadata is only replaced after TMDB returns a valid response, so a failed refresh leaves the title untouched. Watch history, ratings, and library state are preserved.
+ * @summary Force-refresh a stored title's metadata from TMDB (administrators only)
+ */
+export const postMediaMediaTypeTmdbIDRefresh = async (
+  mediaType: "movie" | "tv",
+  tmdbID: number,
+  options?: Parameters<typeof customFetch>[1],
+): Promise<void> => {
+  return customFetch<void>(getPostMediaMediaTypeTmdbIDRefreshUrl(mediaType, tmdbID), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getPostMediaMediaTypeTmdbIDRefreshMutationKey = () =>
+  ["postMediaMediaTypeTmdbIDRefresh"] as const;
+
+export const getPostMediaMediaTypeTmdbIDRefreshMutationOptions = <
+  TError = BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof postMediaMediaTypeTmdbIDRefresh>>,
+    TError,
+    PostMediaMediaTypeTmdbIDRefreshMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof postMediaMediaTypeTmdbIDRefresh>>,
+  TError,
+  PostMediaMediaTypeTmdbIDRefreshMutationVariables,
+  TContext
+> => {
+  const mutationKey = getPostMediaMediaTypeTmdbIDRefreshMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof postMediaMediaTypeTmdbIDRefresh>>,
+    PostMediaMediaTypeTmdbIDRefreshMutationVariables
+  > = (props) => {
+    const { mediaType, tmdbID } = props ?? {};
+
+    return postMediaMediaTypeTmdbIDRefresh(mediaType, tmdbID, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PostMediaMediaTypeTmdbIDRefreshMutationResult = NonNullable<
+  Awaited<ReturnType<typeof postMediaMediaTypeTmdbIDRefresh>>
+>;
+
+export type PostMediaMediaTypeTmdbIDRefreshMutationError =
+  BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | void;
+export type PostMediaMediaTypeTmdbIDRefreshMutationVariables = {
+  mediaType: "movie" | "tv";
+  tmdbID: number;
+};
+
+/**
+ * @summary Force-refresh a stored title's metadata from TMDB (administrators only)
+ */
+export const usePostMediaMediaTypeTmdbIDRefresh = <
+  TError = BadRequestResponse | UnauthorizedResponse | ForbiddenResponse | void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof postMediaMediaTypeTmdbIDRefresh>>,
+      TError,
+      PostMediaMediaTypeTmdbIDRefreshMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof postMediaMediaTypeTmdbIDRefresh>>,
+  TError,
+  PostMediaMediaTypeTmdbIDRefreshMutationVariables,
+  TContext
+> => {
+  return useMutation(getPostMediaMediaTypeTmdbIDRefreshMutationOptions(options), queryClient);
+};
+
 export const getGetLibraryUrl = (params?: GetLibraryParams) => {
   const normalizedParams = new URLSearchParams();
 

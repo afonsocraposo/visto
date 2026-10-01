@@ -1996,3 +1996,118 @@ test.describe("touch devices", () => {
     await expect(page.getByRole("heading", { name: "Up next" })).toBeInViewport();
   });
 });
+
+test("Given an administrator on a saved title, When they refresh metadata, Then only that action is pending and the page updates", async ({
+  page,
+}) => {
+  await mockSignedInSession(page, true);
+  const media = {
+    id: "movie:10",
+    tmdb_id: 10,
+    type: "movie",
+    title: "Broken Movie",
+    original_title: "Broken Movie",
+    overview: "",
+    release_date: "2024-01-01",
+    poster_path: "",
+    original_language: "en",
+  };
+  let refreshed = false;
+  let refreshCalls = 0;
+  let releaseRefresh = () => {};
+  const refreshGate = new Promise<void>((resolve) => (releaseRefresh = resolve));
+  await page.route("**/api/v1/discover/movie/10/related", (route) => fulfillJSON(route, []));
+  await page.route("**/api/v1/plays**", (route) =>
+    fulfillJSON(route, { items: [], next_cursor: null }),
+  );
+  await page.route("**/api/v1/movies/10", (route) =>
+    fulfillJSON(route, {
+      media: refreshed ? { ...media, title: "Fixed Movie", overview: "Restored overview." } : media,
+      item: { media_id: media.id, status: "watchlist", rating: null },
+    }),
+  );
+  await page.route("**/api/v1/media/movie/10/refresh", async (route) => {
+    refreshCalls++;
+    await refreshGate;
+    refreshed = true;
+    await route.fulfill({ status: 204, body: "" });
+  });
+
+  await page.goto("/media/movie/10");
+  await expect(page.getByRole("heading", { name: "Broken Movie" })).toBeVisible();
+  // An unwatched movie has no other overflow actions; the admin action alone shows the menu.
+  await page.getByRole("button", { name: "More actions for Broken Movie" }).click();
+  await page.getByRole("menuitem", { name: "Refresh metadata" }).click();
+  const pending = page.getByRole("menuitem", { name: "Refreshing metadata…" });
+  await expect(pending).toBeDisabled();
+  await pending.click({ force: true });
+  await expect(page.getByRole("button", { name: "Mark Broken Movie watched" })).toBeEnabled();
+  releaseRefresh();
+
+  await expect(page.getByRole("heading", { name: "Fixed Movie" })).toBeVisible();
+  await expect(page.getByText("Restored overview.")).toBeVisible();
+  await expect(page.getByText("Metadata refreshed.")).toBeVisible();
+  expect(refreshCalls).toBe(1);
+});
+
+test("Given a refresh failure, Then existing metadata stays and an error is shown", async ({
+  page,
+}) => {
+  await mockSignedInSession(page, true);
+  const media = {
+    id: "tv:100",
+    tmdb_id: 100,
+    type: "tv",
+    title: "Example Show",
+    original_title: "Example Show",
+    overview: "Kept overview.",
+    release_date: "2024-01-01",
+    poster_path: "",
+    original_language: "en",
+    status: "Ended",
+  };
+  await page.route("**/api/v1/discover/tv/100/related", (route) => fulfillJSON(route, []));
+  await page.route("**/api/v1/shows/**/progress", (route) =>
+    fulfillJSON(route, { is_fully_watched: true, watched_episodes: 2 }),
+  );
+  await page.route("**/api/v1/shows/**/episodes**", (route) =>
+    fulfillJSON(route, { items: [], next_cursor: null }),
+  );
+  await page.route("**/api/v1/shows/100", (route) =>
+    fulfillJSON(route, { media, item: { media_id: media.id, status: "completed", rating: 5 } }),
+  );
+  await page.route("**/api/v1/media/tv/100/refresh", (route) =>
+    fulfillJSON(route, { error: "could not refresh metadata from TMDB" }, 502),
+  );
+
+  await page.goto("/media/tv/100");
+  await expect(page.getByRole("heading", { name: "Example Show" })).toBeVisible();
+  await page.getByRole("button", { name: "More actions for Example Show" }).click();
+  await page.getByRole("menuitem", { name: "Refresh metadata" }).click();
+  await expect(page.getByText("Could not refresh metadata from TMDB.")).toBeVisible();
+  await expect(page.getByText("Kept overview.")).toBeVisible();
+});
+
+test("Given a regular user on a saved title, Then Refresh metadata is not offered", async ({
+  page,
+}) => {
+  await mockSignedInSession(page);
+  const media = {
+    id: "movie:10",
+    tmdb_id: 10,
+    type: "movie",
+    title: "Example Movie",
+    original_title: "Example Movie",
+    overview: "",
+    release_date: "2024-01-01",
+    poster_path: "",
+    original_language: "en",
+  };
+  await page.route("**/api/v1/discover/movie/10/related", (route) => fulfillJSON(route, []));
+  await page.route("**/api/v1/movies/10", (route) =>
+    fulfillJSON(route, { media, item: { media_id: media.id, status: "watchlist", rating: null } }),
+  );
+  await page.goto("/media/movie/10");
+  await expect(page.getByRole("heading", { name: "Example Movie" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "More actions for Example Movie" })).toHaveCount(0);
+});

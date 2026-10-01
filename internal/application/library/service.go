@@ -12,6 +12,13 @@ import (
 
 var ErrMediaNotFound = errors.New("media not found in user's library")
 
+// ErrCatalogMediaNotFound means no account has stored this title in Visto.
+var ErrCatalogMediaNotFound = errors.New("media not found in Visto")
+
+// ErrMetadataProvider wraps failed or invalid responses from the metadata
+// provider so callers can tell them apart from storage failures.
+var ErrMetadataProvider = errors.New("metadata provider refresh failed")
+
 type Item struct {
 	UserID               string               `json:"user_id"`
 	MediaID              string               `json:"media_id"`
@@ -89,6 +96,12 @@ type watchingRemovalRepository interface {
 type showMetadataRepository interface {
 	ImportShowMetadata(context.Context, string, domain.TVShowMetadata) error
 	ShowMetadataNeedsRefresh(context.Context, string, time.Duration) (bool, error)
+}
+type movieMetadataRefreshRepository interface {
+	RefreshMovieMetadata(context.Context, domain.MovieMetadata) error
+}
+type catalogMediaRepository interface {
+	CatalogMediaExists(context.Context, domain.MediaType, int64) (bool, error)
 }
 type Service struct {
 	repository Repository
@@ -374,12 +387,60 @@ func (s *Service) importShow(ctx context.Context, tmdbID int64, provider domain.
 	}
 	metadata, err := provider.Show(ctx, tmdbID)
 	if err != nil {
-		return err
+		return fmt.Errorf("%w: %w", ErrMetadataProvider, err)
 	}
 	if metadata.TMDBID != tmdbID || metadata.Name == "" {
-		return fmt.Errorf("TMDB returned invalid show metadata")
+		return fmt.Errorf("%w: TMDB returned invalid show metadata", ErrMetadataProvider)
 	}
 	return repository.ImportShowMetadata(ctx, fmt.Sprintf("tv:%d", tmdbID), metadata)
+}
+
+// RefreshMovie force-replaces stored movie metadata. Existing metadata is only
+// overwritten after the provider returns a valid movie.
+func (s *Service) RefreshMovie(ctx context.Context, tmdbID int64, provider domain.MovieMetadataProvider) error {
+	if provider == nil {
+		return fmt.Errorf("movie metadata provider is not configured")
+	}
+	repository, ok := s.repository.(movieMetadataRefreshRepository)
+	if !ok {
+		return fmt.Errorf("movie metadata storage is not configured")
+	}
+	metadata, err := provider.Movie(ctx, tmdbID)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrMetadataProvider, err)
+	}
+	if metadata.TMDBID != tmdbID || metadata.Title == "" {
+		return fmt.Errorf("%w: TMDB returned invalid movie metadata", ErrMetadataProvider)
+	}
+	return repository.RefreshMovieMetadata(ctx, metadata)
+}
+
+// RefreshMetadata refreshes a title already stored in Visto. It never creates
+// media, so refreshing an unknown TMDB ID returns ErrCatalogMediaNotFound.
+func (s *Service) RefreshMetadata(ctx context.Context, mediaType domain.MediaType, tmdbID int64, provider domain.MetadataProvider) error {
+	if tmdbID <= 0 {
+		return fmt.Errorf("a valid TMDB ID is required")
+	}
+	if mediaType != domain.MovieMediaType && mediaType != domain.TVMediaType {
+		return fmt.Errorf("invalid media type")
+	}
+	repository, ok := s.repository.(catalogMediaRepository)
+	if !ok {
+		return fmt.Errorf("media catalog is not configured")
+	}
+	exists, err := repository.CatalogMediaExists(ctx, mediaType, tmdbID)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return ErrCatalogMediaNotFound
+	}
+	if mediaType == domain.TVMediaType {
+		tvProvider, _ := provider.(domain.TVShowMetadataProvider)
+		return s.RefreshShow(ctx, tmdbID, tvProvider)
+	}
+	movieProvider, _ := provider.(domain.MovieMetadataProvider)
+	return s.RefreshMovie(ctx, tmdbID, movieProvider)
 }
 
 // ImportShowSeason stores show-level metadata and one fetched season. It is

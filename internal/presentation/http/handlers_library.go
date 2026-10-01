@@ -315,3 +315,49 @@ func lookupLibrary(authService *auth.Service, service *library.Service) http.Han
 		writeJSON(w, http.StatusOK, entries)
 	}
 }
+
+// refreshMediaMetadata lets an administrator force-replace a stored title's
+// metadata from TMDB. Existing metadata stays untouched if the refresh fails.
+func refreshMediaMetadata(authService *auth.Service, service *library.Service, provider domain.MetadataProvider) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		actor, ok := authenticatedUser(w, r, authService)
+		if !ok {
+			return
+		}
+		if actor.Role != domain.AdminRole {
+			writeError(w, http.StatusForbidden, "administrator access required")
+			return
+		}
+		if service == nil {
+			writeError(w, http.StatusServiceUnavailable, "library is not configured")
+			return
+		}
+		var mediaType domain.MediaType
+		switch r.PathValue("mediaType") {
+		case "tv":
+			mediaType = domain.TVMediaType
+		case "movie":
+			mediaType = domain.MovieMediaType
+		default:
+			writeError(w, http.StatusBadRequest, "invalid media type")
+			return
+		}
+		tmdbID, err := strconv.ParseInt(r.PathValue("tmdbID"), 10, 64)
+		if err != nil || tmdbID <= 0 {
+			writeError(w, http.StatusBadRequest, "invalid TMDB ID")
+			return
+		}
+		if err := service.RefreshMetadata(r.Context(), mediaType, tmdbID, provider); err != nil {
+			switch {
+			case errors.Is(err, library.ErrCatalogMediaNotFound):
+				writeError(w, http.StatusNotFound, "media not found")
+			case errors.Is(err, library.ErrMetadataProvider):
+				writeError(w, http.StatusBadGateway, "could not refresh metadata from TMDB")
+			default:
+				writeError(w, http.StatusInternalServerError, "could not refresh metadata")
+			}
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
+}

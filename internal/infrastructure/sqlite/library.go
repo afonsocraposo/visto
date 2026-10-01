@@ -61,6 +61,12 @@ func (s *Store) RefreshMovieMetadata(ctx context.Context, movie domain.MovieMeta
 	return err
 }
 
+func (s *Store) CatalogMediaExists(ctx context.Context, mediaType domain.MediaType, tmdbID int64) (bool, error) {
+	var exists bool
+	err := s.DB.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM media WHERE media_type=? AND tmdb_id=?)`, mediaType, tmdbID).Scan(&exists)
+	return exists, err
+}
+
 func (s *Store) UpsertMedia(ctx context.Context, media library.Media) error {
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	_, err := s.DB.ExecContext(ctx, `INSERT INTO media(id,media_type,tmdb_id,title,original_title,overview,release_date,poster_path,backdrop_path,original_language,status,metadata_updated_at,created_at)

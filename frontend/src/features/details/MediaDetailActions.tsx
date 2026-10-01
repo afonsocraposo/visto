@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { ActionIcon, Button, Group, Menu, Switch, Text } from "@mantine/core";
+import { ActionIcon, Button, Group, Loader, Menu, Switch, Text } from "@mantine/core";
 import {
   IconBell,
   IconBookmark,
@@ -190,6 +190,8 @@ type MediaActionsProps = {
   watchlistPending: boolean;
   removePending: boolean;
   disabled: boolean;
+  /** Present only for administrators viewing a title stored in Visto. */
+  refreshMetadata?: { onRefresh: () => void; pending: boolean } | null;
 };
 
 /**
@@ -214,23 +216,48 @@ export function MediaActions({
   watchlistPending,
   removePending,
   disabled,
+  refreshMetadata,
 }: MediaActionsProps) {
-  const overflow = (items: ReactNode, label: string) => (
-    <Menu withinPortal position="bottom-end">
-      <Menu.Target>
-        <ActionIcon
-          className="detail-overflow-action"
-          size={42}
-          variant="default"
-          aria-label={label}
-          disabled={disabled}
-        >
-          <IconDots size={18} />
-        </ActionIcon>
-      </Menu.Target>
-      <Menu.Dropdown>{items}</Menu.Dropdown>
-    </Menu>
+  const label = `More actions for ${media.title}`;
+  // The admin action alone is enough to show the overflow menu, whatever the title's state.
+  // It keeps the menu open while pending so its own spinner stays visible, and never disables
+  // the watch, rating, or library actions.
+  const adminItems = refreshMetadata && (
+    <>
+      <Menu.Label>Administrator</Menu.Label>
+      <Menu.Item
+        leftSection={refreshMetadata.pending ? <Loader size={14} /> : <IconRefresh size={16} />}
+        closeMenuOnClick={false}
+        disabled={refreshMetadata.pending}
+        onClick={refreshMetadata.onRefresh}
+      >
+        {refreshMetadata.pending ? "Refreshing metadata…" : "Refresh metadata"}
+      </Menu.Item>
+    </>
   );
+  const overflow = (items: ReactNode) => {
+    if (!items && !adminItems) return null;
+    return (
+      <Menu withinPortal position="bottom-end">
+        <Menu.Target>
+          <ActionIcon
+            className="detail-overflow-action"
+            size={42}
+            variant="default"
+            aria-label={label}
+            disabled={disabled && !refreshMetadata}
+          >
+            <IconDots size={18} />
+          </ActionIcon>
+        </Menu.Target>
+        <Menu.Dropdown>
+          {items}
+          {items && adminItems && <Menu.Divider />}
+          {adminItems}
+        </Menu.Dropdown>
+      </Menu>
+    );
+  };
 
   if (media.type === "movie") {
     const inWatchlist = isSaved && status === "watchlist";
@@ -263,10 +290,14 @@ export function MediaActions({
             disabled={disabled}
           />
         )}
-        {watched &&
-          overflow(
+        {overflow(
+          watched && (
             <>
-              <Menu.Item leftSection={<IconRefresh size={16} />} onClick={onWatch}>
+              <Menu.Item
+                leftSection={<IconRefresh size={16} />}
+                onClick={onWatch}
+                disabled={disabled}
+              >
                 Mark rewatched
               </Menu.Item>
               <Menu.Item leftSection={<IconHistory size={16} />} onClick={onViewWatchHistory}>
@@ -276,12 +307,16 @@ export function MediaActions({
                 Change watch date
               </Menu.Item>
               <Menu.Divider />
-              <Menu.Item leftSection={<IconEyeOff size={16} />} onClick={onUnwatch}>
+              <Menu.Item
+                leftSection={<IconEyeOff size={16} />}
+                onClick={onUnwatch}
+                disabled={disabled}
+              >
                 Mark unwatched
               </Menu.Item>
-            </>,
-            `More actions for ${media.title}`,
-          )}
+            </>
+          ),
+        )}
       </Group>
     );
   }
@@ -301,7 +336,11 @@ export function MediaActions({
     </Button>
   );
   const bulkUnwatchItem = showBulkAction === "unwatch" && (
-    <Menu.Item leftSection={<IconEyeOff size={16} />} onClick={onShowBulkAction}>
+    <Menu.Item
+      leftSection={<IconEyeOff size={16} />}
+      onClick={onShowBulkAction}
+      disabled={disabled}
+    >
       Mark {media.title} unwatched
     </Menu.Item>
   );
@@ -355,7 +394,6 @@ export function MediaActions({
             )}
             {bulkUnwatchItem}
           </>,
-          `More actions for ${media.title}`,
         )}
         {/* Bulk marking stays reachable as a labelled button on wide screens. */}
         <span className="detail-actions-wide">{bulkWatch}</span>
@@ -366,7 +404,7 @@ export function MediaActions({
   return (
     <Group className="detail-actions" mt="lg" gap="xs">
       {bulkWatch}
-      {bulkUnwatchItem && overflow(bulkUnwatchItem, `More actions for ${media.title}`)}
+      {overflow(bulkUnwatchItem)}
     </Group>
   );
 }

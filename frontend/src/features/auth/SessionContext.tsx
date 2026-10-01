@@ -19,3 +19,9 @@ export function useSessionUserID(): string {
   if (!user) throw new Error("User-scoped views require an authenticated session.");
   return user.id;
 }
+
+export function useSessionUser(): User {
+  const user = useContext(SessionContext);
+  if (!user) throw new Error("User-scoped views require an authenticated session.");
+  return user;
+}

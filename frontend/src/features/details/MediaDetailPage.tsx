@@ -37,12 +37,13 @@ import { fetchAllPages } from "../../lib/pagination";
 import { InfiniteScrollTrigger } from "../../components/InfiniteScrollTrigger";
 import { PosterGridSkeleton } from "../../components/PosterGridSkeleton";
 import { api } from "../../lib/api";
-import { postPlaysBulk } from "../../generated/api";
+import { postMediaMediaTypeTmdbIDRefresh, postPlaysBulk } from "../../generated/api";
+import { notifications } from "@mantine/notifications";
 import { showActionFeedback } from "../../lib/actionFeedback";
 import type { Play } from "../../generated/models/play";
 import { useInvalidateUserCache, userCache } from "../../lib/userCache";
 import { backdropURL, posterURL } from "../../lib/artwork";
-import { useUserQueryKey } from "../auth/SessionContext";
+import { useSessionUser, useUserQueryKey } from "../auth/SessionContext";
 import { findMissingPriorEpisodes } from "../library/episodeSelection";
 import { CastSection } from "../../components/CastSection";
 import { HistoryPanel } from "../library/HistoryPanel";
@@ -55,6 +56,11 @@ import {
 } from "./watchSelection";
 import { resolveMediaID } from "./mediaIdentity";
 import { heroArtworkLayers, resolveMediaArtwork } from "./heroArtwork";
+import {
+  canRefreshMetadata,
+  metadataRefreshErrorMessage,
+  metadataRefreshScopes,
+} from "./metadataRefresh";
 import {
   EpisodeActions,
   MediaActions,
@@ -134,6 +140,7 @@ function showStatusLabel(status: string | undefined): string | null {
 
 export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpenPerson }: Props) {
   const userQueryKey = useUserQueryKey();
+  const sessionUser = useSessionUser();
   const queryClient = useQueryClient();
   const invalidate = useInvalidateUserCache();
   const [pendingWatch, setPendingWatch] = useState<PendingWatch | null>(null);
@@ -223,6 +230,20 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
     userCache.calendar,
   ];
   const invalidateEpisodeData = () => invalidate(...episodeScopes);
+  const canAdminRefresh = canRefreshMetadata(sessionUser.role, savedMediaID);
+  const refreshMetadata = useMutation({
+    mutationFn: () => postMediaMediaTypeTmdbIDRefresh(target.mediaType, target.tmdbID),
+    onSuccess: async () => {
+      await invalidate(...metadataRefreshScopes(target.mediaType, target.tmdbID, showID));
+      showActionFeedback("Metadata refreshed.");
+    },
+    onError: (error) =>
+      notifications.show({
+        color: "red",
+        message: metadataRefreshErrorMessage(error),
+        autoClose: 5000,
+      }),
+  });
   const episodes = useShowEpisodesQuery(
     showID,
     selectedSeasonID,
@@ -1336,6 +1357,16 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
                   removeWatchlist.isPending ||
                   removeCurrentList.isPending ||
                   update.isPending
+                }
+                refreshMetadata={
+                  canAdminRefresh
+                    ? {
+                        onRefresh: () => {
+                          if (!refreshMetadata.isPending) refreshMetadata.mutate();
+                        },
+                        pending: refreshMetadata.isPending,
+                      }
+                    : null
                 }
               />
             )}
