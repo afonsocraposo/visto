@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.1](https://github.com/afonsocraposo/visto/compare/v0.23.0...v0.23.1) (2026-10-01)
+
+
+### Reverts
+
+* remove outlined show badges from watching ([2d007cd](https://github.com/afonsocraposo/visto/commit/2d007cd3d1efe1b92b880b0180eca8b59fd9a1c1))
+
 ## [0.23.0](https://github.com/afonsocraposo/visto/compare/v0.22.2...v0.23.0) (2026-10-01)
 
 
