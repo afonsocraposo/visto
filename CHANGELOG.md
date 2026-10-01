@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.3](https://github.com/afonsocraposo/visto/compare/v0.23.2...v0.23.3) (2026-10-01)
+
+
+### Bug Fixes
+
+* preserve empty arrays in discover responses ([6c06e9a](https://github.com/afonsocraposo/visto/commit/6c06e9aad2b58216b4350ad328629d62af7cf52e))
+
 ## [0.23.2](https://github.com/afonsocraposo/visto/compare/v0.23.1...v0.23.2) (2026-10-01)
 
 
