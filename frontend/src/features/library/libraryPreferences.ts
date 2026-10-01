@@ -24,3 +24,24 @@ export function readLibrarySort(userID: string): LibrarySort {
 export function saveLibrarySort(userID: string, value: LibrarySort): void {
   writeStoredChoice("local", key(userID, "sort"), value);
 }
+
+/** Someone else's library remembers its filter and sort for this browser session only. */
+function communityKey(userID: string, preference: "filter" | "sort"): string {
+  return `visto:community-library:${userID}:${preference}`;
+}
+
+export function readCommunityLibraryFilter(userID: string): LibraryMediaFilter {
+  return readStoredChoice("session", communityKey(userID, "filter"), mediaFilters, "all");
+}
+
+export function saveCommunityLibraryFilter(userID: string, value: LibraryMediaFilter): void {
+  writeStoredChoice("session", communityKey(userID, "filter"), value);
+}
+
+export function readCommunityLibrarySort(userID: string): LibrarySort {
+  return readStoredChoice("session", communityKey(userID, "sort"), sorts, "updated");
+}
+
+export function saveCommunityLibrarySort(userID: string, value: LibrarySort): void {
+  writeStoredChoice("session", communityKey(userID, "sort"), value);
+}

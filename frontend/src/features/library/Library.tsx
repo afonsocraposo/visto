@@ -1,17 +1,7 @@
 import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import {
-  Alert,
-  Button,
-  Group,
-  Paper,
-  SegmentedControl,
-  Select,
-  Skeleton,
-  Text,
-  Title,
-} from "@mantine/core";
-import { IconArrowsSort, IconChevronRight, IconSearch } from "@tabler/icons-react";
+import { Button, Group, Paper, Skeleton, Text, Title } from "@mantine/core";
+import { IconSearch } from "@tabler/icons-react";
 import { QueryError } from "../../components/QueryError";
 import { useState, type ReactNode } from "react";
 import { EmptyState } from "../../components/EmptyState";
@@ -22,27 +12,25 @@ import { useSessionUserID, useUserQueryKey } from "../auth/SessionContext";
 import { api } from "../../lib/api";
 import { LibraryCard } from "./LibraryCard";
 import type { CursorPage, LibraryEntry, LibraryStatus, MediaDetailTarget } from "../../types";
-import { librarySortOptions, type LibrarySort } from "./librarySort";
-import { libraryMediaFilterOptions, type LibraryMediaFilter } from "./mediaFilter";
+import type { LibrarySort } from "./librarySort";
+import type { LibraryMediaFilter } from "./mediaFilter";
 import {
   readLibraryFilter,
   readLibrarySort,
   saveLibraryFilter,
   saveLibrarySort,
 } from "./libraryPreferences";
+import {
+  LIBRARY_PREVIEW_LIMIT,
+  LibraryControls,
+  LibraryMoreLists,
+  LibrarySection,
+  LibrarySectionHeading,
+  librarySections as sections,
+  primaryLibraryStatuses,
+} from "./LibraryLayout";
 export { HistoryPanel } from "./HistoryPanel";
 export { ProfilePanel } from "./ProfilePanel";
-
-const sections: Array<{ status: LibraryStatus; label: string }> = [
-  { status: "watching", label: "Watching" },
-  { status: "watchlist", label: "Watchlist" },
-  { status: "paused", label: "Paused" },
-  { status: "completed", label: "Completed" },
-  { status: "dropped", label: "Dropped" },
-];
-/** Shown as full poster rows; the others are compact links so the page stays short. */
-const primaryStatuses: LibraryStatus[] = ["watching", "watchlist", "completed"];
-const PREVIEW_LIMIT = 6;
 
 export function LibraryPanel({
   onOpenDetail,
@@ -65,7 +53,7 @@ export function LibraryPanel({
       queryKey: [...userQueryKey("library"), "preview", sort, section.status, mediaFilter],
       queryFn: () =>
         api.get<CursorPage<LibraryEntry>>(
-          `/api/v1/library?sort=${sort}&status=${section.status}&limit=${PREVIEW_LIMIT}${mediaFilter === "all" ? "" : `&media_type=${mediaFilter}`}`,
+          `/api/v1/library?sort=${sort}&status=${section.status}&limit=${LIBRARY_PREVIEW_LIMIT}${mediaFilter === "all" ? "" : `&media_type=${mediaFilter}`}`,
           "Your library is temporarily unavailable.",
         ),
       // Keep the current posters while a new filter/sort loads; the grid just dims briefly.
@@ -153,39 +141,21 @@ export function LibraryPanel({
   };
   const listHref = (status: LibraryStatus) =>
     `/profile/library/${status}${mediaFilter === "all" ? "" : `?media_type=${mediaFilter}`}`;
-  const secondary = sections.filter(
-    (section) => !primaryStatuses.includes(section.status) && countOf(section.status) > 0,
-  );
   return (
     <>
       {heading}
-      <Group className="library-controls" justify="space-between" align="center" wrap="nowrap">
-        <SegmentedControl
-          aria-label="Filter library by media type"
-          value={mediaFilter}
-          onChange={(value) => {
-            const next = value as LibraryMediaFilter;
-            setMediaFilter(next);
-            saveLibraryFilter(userID, next);
-          }}
-          data={libraryMediaFilterOptions}
-        />
-        <Select
-          className="library-sort"
-          aria-label="Sort library media"
-          leftSection={<IconArrowsSort size={16} />}
-          data={librarySortOptions}
-          value={sort}
-          onChange={(value) => {
-            if (!value) return;
-            const next = value as LibrarySort;
-            setSort(next);
-            saveLibrarySort(userID, next);
-          }}
-          allowDeselect={false}
-          comboboxProps={{ position: "bottom-end", width: 200 }}
-        />
-      </Group>
+      <LibraryControls
+        mediaFilter={mediaFilter}
+        onMediaFilterChange={(next) => {
+          setMediaFilter(next);
+          saveLibraryFilter(userID, next);
+        }}
+        sort={sort}
+        onSortChange={(next) => {
+          setSort(next);
+          saveLibrarySort(userID, next);
+        }}
+      />
       {libraries.every((library) => !library.data?.items.length) && (
         <EmptyState
           title={`No ${mediaFilter === "movie" ? "movies" : "TV shows"} yet`}
@@ -205,45 +175,23 @@ export function LibraryPanel({
       )}
       <div className="library-sections content-ready">
         {sections
-          .filter((section) => primaryStatuses.includes(section.status))
+          .filter((section) => primaryLibraryStatuses.includes(section.status))
           .map((section) => {
             const page = pages.get(section.status)!;
             const entries = page.items;
-            const totalCount = countOf(section.status);
             return (
-              <section
-                className="library-section"
+              <LibrarySection
                 key={section.status}
-                aria-labelledby={`library-section-${section.status}`}
+                status={section.status}
+                heading={
+                  <LibrarySectionHeading
+                    status={section.status}
+                    count={countOf(section.status)}
+                    showAllHref={page.next_cursor ? listHref(section.status) : undefined}
+                    onShowAll={() => onOpenList?.(section.status, mediaFilter)}
+                  />
+                }
               >
-                <Group
-                  className="library-section-heading"
-                  justify="space-between"
-                  align="baseline"
-                  gap="sm"
-                  wrap="nowrap"
-                >
-                  <Group gap={8} align="baseline" wrap="nowrap">
-                    <Title id={`library-section-${section.status}`} order={2}>
-                      {section.label}
-                    </Title>
-                    <Text size="sm" c="dimmed">
-                      {totalCount} {totalCount === 1 ? "title" : "titles"}
-                    </Text>
-                  </Group>
-                  {page.next_cursor && (
-                    <Button
-                      component={RouteLink}
-                      href={listHref(section.status)}
-                      variant="subtle"
-                      size="compact-sm"
-                      rightSection={<IconChevronRight size={15} />}
-                      onOpen={() => onOpenList?.(section.status, mediaFilter)}
-                    >
-                      Show all
-                    </Button>
-                  )}
-                </Group>
                 {entries.length ? (
                   <div className="poster-grid" data-refreshing={refreshing}>
                     {entries.map((entry, index) => (
@@ -283,28 +231,17 @@ export function LibraryPanel({
                     }
                   />
                 )}
-              </section>
+              </LibrarySection>
             );
           })}
       </div>
-      {secondary.length > 0 && (
-        <nav className="library-more-lists" aria-label="More lists">
-          {secondary.map((section) => (
-            <RouteLink
-              key={section.status}
-              href={listHref(section.status)}
-              className="library-list-link"
-              onOpen={() => onOpenList?.(section.status, mediaFilter)}
-            >
-              <span>{section.label}</span>
-              <span className="library-list-link-count">{countOf(section.status)}</span>
-              <IconChevronRight size={16} aria-hidden="true" />
-            </RouteLink>
-          ))}
-        </nav>
-      )}
+      <LibraryMoreLists
+        lists={sections
+          .filter((section) => !primaryLibraryStatuses.includes(section.status))
+          .map((section) => ({ status: section.status, count: countOf(section.status) }))}
+        hrefFor={listHref}
+        onOpen={(status) => onOpenList?.(status, mediaFilter)}
+      />
     </>
   );
 }
-
-export { sections as librarySections, PREVIEW_LIMIT };

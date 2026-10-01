@@ -1,18 +1,8 @@
 import { InfiniteScrollTrigger } from "../../components/InfiniteScrollTrigger";
 import { keepPreviousData, useInfiniteQuery } from "@tanstack/react-query";
 import { useDebouncedValue } from "@mantine/hooks";
-import {
-  Alert,
-  Button,
-  Group,
-  SegmentedControl,
-  Select,
-  Skeleton,
-  Text,
-  TextInput,
-  Title,
-} from "@mantine/core";
-import { IconArrowLeft, IconArrowsSort, IconSearch } from "@tabler/icons-react";
+import { Button, Group, Skeleton } from "@mantine/core";
+import { IconArrowLeft } from "@tabler/icons-react";
 import { QueryError } from "../../components/QueryError";
 import { EmptyState } from "../../components/EmptyState";
 import { useState } from "react";
@@ -22,17 +12,10 @@ import type { CursorPage, LibraryEntry, LibraryStatus, MediaDetailTarget } from 
 import { pageURL } from "../../lib/pagination";
 import { LibraryCard } from "./LibraryCard";
 import { PosterGridSkeleton } from "../../components/PosterGridSkeleton";
-import { librarySortOptions, type LibrarySort } from "./librarySort";
-import { libraryMediaFilterOptions, type LibraryMediaFilter } from "./mediaFilter";
+import type { LibrarySort } from "./librarySort";
+import type { LibraryMediaFilter } from "./mediaFilter";
 import { readLibrarySort, saveLibraryFilter, saveLibrarySort } from "./libraryPreferences";
-
-const labels: Record<LibraryStatus, string> = {
-  watching: "Watching",
-  completed: "Completed",
-  watchlist: "Watchlist",
-  paused: "Paused",
-  dropped: "Dropped",
-};
+import { LibraryControls, LibraryListHeading, LibrarySearchInput } from "./LibraryLayout";
 
 export function LibraryListPage({
   status,
@@ -72,14 +55,7 @@ export function LibraryListPage({
     getNextPageParam: (page) => page.next_cursor ?? undefined,
   });
   const searchInput = (
-    <TextInput
-      label="Search your library"
-      placeholder="Search titles"
-      value={query}
-      onChange={(event) => onQueryChange(event.currentTarget.value)}
-      leftSection={<IconSearch size={18} />}
-      mb="md"
-    />
+    <LibrarySearchInput label="Search your library" value={query} onChange={onQueryChange} />
   );
   if (library.isPending)
     return (
@@ -116,42 +92,24 @@ export function LibraryListPage({
       >
         Back to library
       </Button>
-      <div className="page-heading">
-        <Text className="section-kicker">Your collection</Text>
-        <Title order={1}>{labels[status]}</Title>
-        <Text c="dimmed" mt={6}>
-          {library.data.pages[0].total_count ?? entries.length}{" "}
-          {(library.data.pages[0].total_count ?? entries.length) === 1 ? "title" : "titles"}
-        </Text>
-      </div>
+      <LibraryListHeading
+        kicker="Your collection"
+        status={status}
+        count={library.data.pages[0].total_count ?? entries.length}
+      />
       {searchInput}
-      <Group className="library-controls" align="center" justify="space-between" wrap="nowrap">
-        <SegmentedControl
-          aria-label="Filter library by media type"
-          value={mediaFilter}
-          onChange={(value) => {
-            const next = value as LibraryMediaFilter;
-            saveLibraryFilter(userID, next);
-            onMediaFilterChange(next);
-          }}
-          data={libraryMediaFilterOptions}
-        />
-        <Select
-          className="library-sort"
-          aria-label="Sort library media"
-          leftSection={<IconArrowsSort size={16} />}
-          comboboxProps={{ position: "bottom-end", width: 200 }}
-          data={librarySortOptions}
-          value={sort}
-          onChange={(value) => {
-            if (!value) return;
-            const next = value as LibrarySort;
-            setSort(next);
-            saveLibrarySort(userID, next);
-          }}
-          allowDeselect={false}
-        />
-      </Group>
+      <LibraryControls
+        mediaFilter={mediaFilter}
+        onMediaFilterChange={(next) => {
+          saveLibraryFilter(userID, next);
+          onMediaFilterChange(next);
+        }}
+        sort={sort}
+        onSortChange={(next) => {
+          setSort(next);
+          saveLibrarySort(userID, next);
+        }}
+      />
       {entries.length === 0 ? (
         <EmptyState
           title={debouncedQuery ? "No titles match your search" : "This list is empty"}

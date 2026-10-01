@@ -9,7 +9,10 @@ import { Dashboard, type DashboardPage } from "../features/navigation/Dashboard"
 import { LogoutPage } from "../features/auth/LogoutPage";
 import type { Tab, Theme, User } from "../types";
 import type { LibraryMediaFilter } from "../features/library/mediaFilter";
-import { readLibraryFilter } from "../features/library/libraryPreferences";
+import {
+  readCommunityLibraryFilter,
+  readLibraryFilter,
+} from "../features/library/libraryPreferences";
 import { api } from "../lib/api";
 
 export type RouterContext = { user: User; theme: Theme; setTheme: (theme: Theme) => void };
@@ -90,6 +93,23 @@ const profileLibraryListRoute = createRoute({
       })
       .parse(search),
 });
+const userLibraryListRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/users/$userID/library/$status",
+  component: UserLibraryListRoute,
+  params: {
+    parse: (params) => ({ userID: params.userID, status: statusSchema.parse(params.status) }),
+    stringify: (params) => ({ userID: params.userID, status: params.status }),
+  },
+  validateSearch: (search) =>
+    z
+      .object({
+        media_type: z.enum(["movie", "tv"]).optional().catch(undefined),
+        q: z.string().optional().catch(undefined),
+        tab: tabSchema.optional().catch(undefined),
+      })
+      .parse(search),
+});
 const mediaSearchSchema = z.object({
   from: z.string().max(2048).optional(),
   tab: tabSchema.optional(),
@@ -150,6 +170,7 @@ const routeTree = rootRoute.addChildren([
   userProfileRoute,
   logoutRoute,
   profileLibraryListRoute,
+  userLibraryListRoute,
   mediaRoute,
   episodeRoute,
   personRoute,
@@ -169,6 +190,21 @@ function LibraryListRoute() {
         kind: "library-list",
         status: profileLibraryListRoute.useParams().status,
         mediaFilter,
+        query: search.q ?? "",
+      }}
+    />
+  );
+}
+function UserLibraryListRoute() {
+  const params = userLibraryListRoute.useParams();
+  const search = userLibraryListRoute.useSearch();
+  return (
+    <DashboardRoute
+      page={{
+        kind: "community-library-list",
+        userID: params.userID,
+        status: params.status,
+        mediaFilter: search.media_type ?? readCommunityLibraryFilter(params.userID),
         query: search.q ?? "",
       }}
     />

@@ -100,7 +100,7 @@ func communityUserLibrary(authService *auth.Service, profileService *profile.Ser
 			writePageError(w, err, "library is temporarily unavailable")
 			return
 		}
-		page, err := service.ListPage(r.Context(), person.ID, library.ListOptions{Sort: r.URL.Query().Get("sort"), Status: r.URL.Query().Get("status"), MediaType: r.URL.Query().Get("media_type")}, request)
+		page, err := service.ListPage(r.Context(), person.ID, library.ListOptions{Sort: r.URL.Query().Get("sort"), Status: r.URL.Query().Get("status"), MediaType: r.URL.Query().Get("media_type"), Query: r.URL.Query().Get("q")}, request)
 		if err != nil {
 			writePageError(w, err, "library is temporarily unavailable")
 			return

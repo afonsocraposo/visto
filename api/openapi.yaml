@@ -393,6 +393,7 @@ paths:
         - { name: sort, in: query, schema: { type: string, enum: [updated, title, released] } }
         - { name: status, in: query, schema: { type: string, enum: [watching, watchlist, paused, completed, dropped] } }
         - { name: media_type, in: query, schema: { type: string, enum: [movie, tv] } }
+        - { name: q, in: query, schema: { type: string }, description: 'Filter shared media by title or original title, case-insensitively.' }
       responses:
         '200': { description: Shared library page, content: { application/json: { schema: { $ref: '#/components/schemas/CommunityLibraryPage' } } } }
         '400': { $ref: '#/components/responses/BadRequest' }

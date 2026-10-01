@@ -964,7 +964,7 @@ a.watch-row-show {
 .library-section-heading {
   margin-bottom: 12px;
 }
-.library-section-heading h2 {
+.library-section-heading :is(h2, h3) {
   letter-spacing: -0.04em;
 }
 .media-poster-card {

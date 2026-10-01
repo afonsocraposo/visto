@@ -96,6 +96,12 @@ func TestCommunityProfiles_VisibilityAndPublicProjection(t *testing.T) {
 	if response := get("/api/v1/community/users/2/library"); response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "Example Movie") || strings.Contains(response.Body.String(), "notifications_enabled") || strings.Contains(response.Body.String(), "user_id") {
 		t.Fatalf("shared library = %d %s", response.Code, response.Body.String())
 	}
+	if response := get("/api/v1/community/users/2/library?q=example"); response.Code != http.StatusOK || !strings.Contains(response.Body.String(), "Example Movie") {
+		t.Fatalf("searched shared library = %d %s", response.Code, response.Body.String())
+	}
+	if response := get("/api/v1/community/users/2/library?q=nothing-matches"); response.Code != http.StatusOK || strings.Contains(response.Body.String(), "Example Movie") {
+		t.Fatalf("unmatched shared library = %d %s", response.Code, response.Body.String())
+	}
 	if response := get("/api/v1/community/users/2/activity"); response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"user_id":"2"`) || strings.Contains(response.Body.String(), `"user_id":"1"`) {
 		t.Fatalf("shared activity = %d %s", response.Code, response.Body.String())
 	}

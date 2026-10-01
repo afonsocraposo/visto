@@ -19,4 +19,8 @@ export type GetCommunityUsersUserIDLibraryParams = {
   sort?: GetCommunityUsersUserIDLibrarySort;
   status?: GetCommunityUsersUserIDLibraryStatus;
   media_type?: GetCommunityUsersUserIDLibraryMediaType;
+  /**
+   * Filter shared media by title or original title, case-insensitively.
+   */
+  q?: string;
 };
