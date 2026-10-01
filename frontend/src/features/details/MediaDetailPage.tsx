@@ -220,9 +220,13 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
     },
   });
   const detailScope = ["media-detail", target.mediaType, target.tmdbID];
+  // Episode plays can move the show between Watching and Completed on the
+  // server, so the detail record and progress must refetch alongside episodes.
   const episodeScopes = [
     ["detail-episodes", showID],
     ["detail-history"],
+    detailScope,
+    userCache.progress,
     userCache.library,
     userCache.continue,
     userCache.history,
