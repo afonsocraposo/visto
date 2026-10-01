@@ -9,6 +9,11 @@ type MetadataProvider interface {
 	Search(ctx context.Context, query, language string) ([]MediaSearchResult, error)
 }
 
+// TypedSearchMetadataProvider searches a single media type ("movie" or "tv").
+type TypedSearchMetadataProvider interface {
+	SearchType(ctx context.Context, mediaType MediaType, query, language string) ([]MediaSearchResult, error)
+}
+
 type TrendingMetadataProvider interface {
 	Trending(ctx context.Context, mediaType, timeWindow string) ([]MediaSearchResult, error)
 }

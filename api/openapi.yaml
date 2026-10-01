@@ -442,6 +442,7 @@ paths:
       parameters:
         - { name: q, in: query, required: true, schema: { type: string, minLength: 1 } }
         - { name: language, in: query, schema: { type: string, example: en-US } }
+        - { name: type, in: query, description: Restrict results to one media type, schema: { type: string, enum: [all, tv, movie], default: all } }
       responses:
         '200': { description: Search results, content: { application/json: { schema: { type: array, items: { $ref: '#/components/schemas/MediaSearchResult' } } } } }
         '400': { $ref: '#/components/responses/BadRequest' }

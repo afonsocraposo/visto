@@ -654,6 +654,79 @@ test("Discovery search survives reload and clears back to trending", async ({ pa
   await expect(page).toHaveURL(/\/watch$/);
 });
 
+test("Discover filters trending and search by media type and keeps the type in the URL", async ({
+  page,
+}) => {
+  await mockSignedInSession(page);
+  await page.route("**/api/v1/trending**", (route) =>
+    fulfillJSON(route, {
+      tv: [{ tmdb_id: 200, type: "tv", title: "Trending Show" }],
+      movies: [{ tmdb_id: 201, type: "movie", title: "Trending Film" }],
+    }),
+  );
+  const searches: string[] = [];
+  await page.route("**/api/v1/search**", async (route) => {
+    const url = new URL(route.request().url());
+    const type = url.searchParams.get("type");
+    searches.push(url.search);
+    if (url.searchParams.get("q") === "Nothing") return fulfillJSON(route, []);
+    // A slow Series response must never surface after the user moved on to Movies.
+    if (type === "tv") await new Promise((resolve) => setTimeout(resolve, 600));
+    // Mixed payloads double-check that the client never shows the other type.
+    const results = [
+      { tmdb_id: 100, type: "tv", title: "Example Show" },
+      { tmdb_id: 101, type: "movie", title: "Example Film" },
+    ];
+    return fulfillJSON(route, type === "tv" ? [results[0]] : results).catch(() => undefined);
+  });
+  await page.goto("/discover");
+  const filter = page.getByRole("radiogroup", { name: "Filter Discover by media type" });
+  await expect(filter.getByRole("radio", { name: "All" })).toBeChecked();
+  await expect(page.getByText("Trending Show")).toBeVisible();
+  await expect(page.getByText("Trending Film")).toBeVisible();
+
+  await filter.getByText("Series", { exact: true }).click();
+  await expect(page).toHaveURL(/\/discover\?type=tv$/);
+  await expect(page.getByText("Trending Show")).toBeVisible();
+  await expect(page.getByText("Trending Film")).toHaveCount(0);
+
+  const search = page.getByRole("textbox", { name: "Search TMDB" });
+  await search.fill("Example");
+  await expect(page).toHaveURL(/q=Example/);
+  await expect(page).toHaveURL(/type=tv/);
+  await expect(page.getByRole("link", { name: "Open details for Example Show" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Open details for Example Film" })).toHaveCount(0);
+  expect(searches).toContain("?q=Example&type=tv");
+
+  await page.reload();
+  await expect(filter.getByRole("radio", { name: "Series" })).toBeChecked();
+  await expect(search).toHaveValue("Example");
+
+  await filter.getByText("All", { exact: true }).click();
+  await filter.getByText("Series", { exact: true }).click();
+  await filter.getByText("Movies", { exact: true }).click();
+  await expect(page.getByRole("link", { name: "Open details for Example Film" })).toBeVisible();
+  await page.waitForTimeout(800);
+  await expect(page.getByRole("link", { name: "Open details for Example Show" })).toHaveCount(0);
+  expect(searches).toContain("?q=Example&type=movie");
+
+  await search.fill("Nothing");
+  await expect(page.getByText("No movies found for “Nothing”")).toBeVisible();
+  await filter.getByText("Series", { exact: true }).click();
+  await expect(page.getByText("No series found for “Nothing”")).toBeVisible();
+
+  await page.getByRole("button", { name: "Clear search" }).click();
+  await expect(page).toHaveURL(/\/discover\?type=tv$/);
+  await expect(filter.getByRole("radio", { name: "Series" })).toBeChecked();
+  await expect(page.getByText("Trending Film")).toHaveCount(0);
+
+  await page.setViewportSize({ width: 360, height: 740 });
+  const labels = await filter.locator(".mantine-SegmentedControl-label").all();
+  const tops = await Promise.all(labels.map(async (label) => (await label.boundingBox())!.y));
+  expect(new Set(tops).size).toBe(1);
+  expect((await filter.boundingBox())!.width).toBeLessThanOrEqual(360 - 32);
+});
+
 test("TV details show the production status for saved and unsaved shows", async ({ page }) => {
   await mockSignedInSession(page);
   const statuses = [

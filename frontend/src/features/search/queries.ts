@@ -7,14 +7,15 @@ import { useInvalidateUserCache, userCache } from "../../lib/userCache";
 import { useUserQueryKey } from "../auth/SessionContext";
 import type { SearchMedia, LibraryEntry } from "../../types";
 import type { Play } from "../../generated/models/play";
+import { filterByMediaType, type DiscoverMediaType } from "./discoverMediaType";
 
-export function useDiscoverQueries(query: string) {
+export function useDiscoverQueries(query: string, mediaType: DiscoverMediaType) {
   const userQueryKey = useUserQueryKey();
   const results = useGetSearch(
-    { q: query },
+    { q: query, ...(mediaType === "all" ? {} : { type: mediaType }) },
     {
       query: {
-        queryKey: userQueryKey("search", query),
+        queryKey: userQueryKey("search", query, mediaType),
         enabled: query.length > 1,
         retry: retryTransientRequest,
         retryDelay: (attempt) => Math.min(500 * 2 ** attempt, 3000),
@@ -33,8 +34,11 @@ export function useDiscoverQueries(query: string) {
     },
   );
   const visible = query
-    ? (results.data ?? [])
-    : [...(trending.data?.tv ?? []).slice(0, 10), ...(trending.data?.movies ?? []).slice(0, 10)];
+    ? filterByMediaType(results.data ?? [], mediaType)
+    : [
+        ...(mediaType === "movie" ? [] : (trending.data?.tv ?? []).slice(0, 10)),
+        ...(mediaType === "tv" ? [] : (trending.data?.movies ?? []).slice(0, 10)),
+      ];
   const mediaIDs = visible.map((item) => `${item.type}:${item.tmdb_id}`);
   const library = useQuery({
     queryKey: [...userQueryKey("library"), "lookup", mediaIDs.join(",")],

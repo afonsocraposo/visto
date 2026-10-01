@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 
@@ -144,5 +145,80 @@ func TestRelatedMedia_GivenAuthenticatedUser_WhenARecommendationIsRequested_Then
 	}
 	if !strings.Contains(response.Body.String(), `"tmdb_id":43`) || !strings.Contains(response.Body.String(), `"poster_path":"/related.jpg"`) {
 		t.Fatalf("response does not contain the related media card data: %s", response.Body.String())
+	}
+}
+
+type mixedSearchProvider struct{ publicTrendingProvider }
+
+func (mixedSearchProvider) Search(context.Context, string, string) ([]domain.MediaSearchResult, error) {
+	return []domain.MediaSearchResult{{TMDBID: 1, Type: domain.TVMediaType, Title: "Show"}, {TMDBID: 2, Type: domain.MovieMediaType, Title: "Film"}}, nil
+}
+
+type typedSearchProvider struct {
+	mixedSearchProvider
+	requested *domain.MediaType
+}
+
+func (provider typedSearchProvider) SearchType(_ context.Context, mediaType domain.MediaType, _, _ string) ([]domain.MediaSearchResult, error) {
+	*provider.requested = mediaType
+	return []domain.MediaSearchResult{{TMDBID: 3, Type: mediaType, Title: "Typed"}}, nil
+}
+
+func searchTypes(t *testing.T, provider domain.MetadataProvider, query string) (int, []domain.MediaType) {
+	t.Helper()
+	repository := &accountHTTPRepository{actor: domain.User{ID: "user-1", Role: domain.UserRole}}
+	handler := httpserver.New(auth.NewService(repository), provider, "", nil, nil, nil, nil, nil, nil).Handler()
+	request := httptest.NewRequest(http.MethodGet, "http://visto.local/api/v1/search?q=example"+query, nil)
+	request.AddCookie(&http.Cookie{Name: "visto_session", Value: "session-1"})
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		return response.Code, nil
+	}
+	var results []domain.MediaSearchResult
+	if err := json.Unmarshal(response.Body.Bytes(), &results); err != nil {
+		t.Fatal(err)
+	}
+	types := []domain.MediaType{}
+	for _, result := range results {
+		types = append(types, result.Type)
+	}
+	return response.Code, types
+}
+
+func TestSearch_GivenMediaTypeFilter_ReturnsOnlyThatType(t *testing.T) {
+	for _, test := range []struct {
+		query string
+		want  []domain.MediaType
+	}{
+		{query: "", want: []domain.MediaType{domain.TVMediaType, domain.MovieMediaType}},
+		{query: "&type=all", want: []domain.MediaType{domain.TVMediaType, domain.MovieMediaType}},
+		{query: "&type=tv", want: []domain.MediaType{domain.TVMediaType}},
+		{query: "&type=movie", want: []domain.MediaType{domain.MovieMediaType}},
+	} {
+		t.Run(test.query, func(t *testing.T) {
+			status, types := searchTypes(t, mixedSearchProvider{}, test.query)
+			if status != http.StatusOK || !slices.Equal(types, test.want) {
+				t.Fatalf("status=%d types=%v, want %v", status, types, test.want)
+			}
+		})
+	}
+}
+
+func TestSearch_GivenTypedProvider_WhenFiltered_ThenItSearchesThatTypeAtTheSource(t *testing.T) {
+	var requested domain.MediaType
+	status, types := searchTypes(t, typedSearchProvider{requested: &requested}, "&type=movie")
+	if status != http.StatusOK || requested != domain.MovieMediaType || !slices.Equal(types, []domain.MediaType{domain.MovieMediaType}) {
+		t.Fatalf("status=%d requested=%q types=%v", status, requested, types)
+	}
+	requested = ""
+	if status, _ := searchTypes(t, typedSearchProvider{requested: &requested}, ""); status != http.StatusOK || requested != "" {
+		t.Fatalf("status=%d requested=%q, want the mixed search for All", status, requested)
+	}
+}
+
+func TestSearch_GivenUnknownMediaType_ReturnsBadRequest(t *testing.T) {
+	if status, _ := searchTypes(t, mixedSearchProvider{}, "&type=person"); status != http.StatusBadRequest {
+		t.Fatalf("status=%d, want 400", status)
 	}
 }

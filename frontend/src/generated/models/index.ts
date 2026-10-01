@@ -72,6 +72,7 @@ export * from "./getProfilePlexWebhookEventsId200";
 export * from "./getPublicTrendingParams";
 export * from "./getPublicTrendingWindow";
 export * from "./getSearchParams";
+export * from "./getSearchType";
 export * from "./getSeasonsSeasonIDEpisodesParams";
 export * from "./getShowsShowIDEpisodesParams";
 export * from "./getTrendingParams";

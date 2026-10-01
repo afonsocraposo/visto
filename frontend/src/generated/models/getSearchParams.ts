@@ -5,6 +5,7 @@
  * Self-hosted movie and TV tracking API.
  * OpenAPI spec version: 0.1.0
  */
+import type { GetSearchType } from "./getSearchType";
 
 export type GetSearchParams = {
   /**
@@ -12,4 +13,8 @@ export type GetSearchParams = {
    */
   q: string;
   language?: string;
+  /**
+   * Restrict results to one media type
+   */
+  type?: GetSearchType;
 };

@@ -1131,6 +1131,13 @@ a.watch-row-show {
     min-width: var(--visto-touch-target);
     min-height: var(--visto-touch-target);
   }
+  /* 40px keeps the Discover header compact; the control's padding brings the hit area to 44px. */
+  .discover-type-filter .mantine-SegmentedControl-label {
+    display: flex;
+    min-height: 40px;
+    align-items: center;
+    padding-inline: 18px;
+  }
   .activity-row-heading .mantine-ActionIcon-root {
     margin: -8px -8px -8px 0;
   }
@@ -1175,6 +1182,11 @@ a.watch-row-show {
 }
 .search-input input {
   font-size: 1.05rem;
+}
+.discover-type-filter {
+  display: flex;
+  width: fit-content;
+  margin-top: 12px;
 }
 .search-results {
   display: grid;

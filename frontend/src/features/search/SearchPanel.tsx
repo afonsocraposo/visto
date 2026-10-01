@@ -1,7 +1,16 @@
 import { useDebouncedValue } from "@mantine/hooks";
 import { FadeImage } from "../../components/FadeImage";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { Alert, CloseButton, Group, Skeleton, Text, TextInput, Title } from "@mantine/core";
+import {
+  Alert,
+  CloseButton,
+  Group,
+  SegmentedControl,
+  Skeleton,
+  Text,
+  TextInput,
+  Title,
+} from "@mantine/core";
 import { IconSearch } from "@tabler/icons-react";
 import { MediaQuickActions } from "../../components/MediaQuickActions";
 import { MediaPosterCard } from "../../components/MediaPosterCard";
@@ -12,18 +21,27 @@ import { DetailLink } from "../../components/DetailLink";
 import { useDiscoverMutations, useDiscoverQueries } from "./queries";
 import type { MediaDetailTarget } from "../../types";
 import { posterURL } from "../../lib/artwork";
+import {
+  discoverMediaTypeOptions,
+  emptyResultsTitle,
+  filterByMediaType,
+  type DiscoverMediaType,
+} from "./discoverMediaType";
 
 export function SearchPanel({
   onOpenDetail,
 }: {
   onOpenDetail?: (target: MediaDetailTarget) => void;
 }) {
-  const query = useSearch({ from: "/discover" }).q ?? "";
+  const search = useSearch({ from: "/discover" });
+  const query = search.q ?? "";
+  const mediaType: DiscoverMediaType = search.type ?? "all";
   const navigate = useNavigate({ from: "/discover" });
   const trimmed = query.trim();
   const [debouncedQuery] = useDebouncedValue(trimmed, 350);
-  const { library, results, trending } = useDiscoverQueries(debouncedQuery);
-  const searchResults = results.data ?? [];
+  const { library, results, trending } = useDiscoverQueries(debouncedQuery, mediaType);
+  const searchResults = filterByMediaType(results.data ?? [], mediaType);
+  const type = mediaType === "all" ? undefined : mediaType;
   const { addToLibrary, addMovieAsWatched, markWatchlistMovieWatched } = useDiscoverMutations();
   const libraryEntries = new Map(library.data?.map((entry) => [entry.item.media_id, entry]) ?? []);
   // Trending leaves as soon as there is a query; results show a skeleton until they arrive.
@@ -48,7 +66,7 @@ export function SearchPanel({
         onChange={(event) =>
           void navigate({
             to: "/discover",
-            search: { q: event.currentTarget.value || undefined },
+            search: { q: event.currentTarget.value || undefined, type },
             replace: true,
             resetScroll: false,
           })
@@ -59,15 +77,35 @@ export function SearchPanel({
             <CloseButton
               aria-label="Clear search"
               onClick={() =>
-                void navigate({ to: "/discover", search: {}, replace: true, resetScroll: false })
+                void navigate({
+                  to: "/discover",
+                  search: { type },
+                  replace: true,
+                  resetScroll: false,
+                })
               }
             />
           ) : undefined
         }
       />
+      <SegmentedControl
+        className="discover-type-filter"
+        aria-label="Filter Discover by media type"
+        value={mediaType}
+        onChange={(value) => {
+          const next = value as DiscoverMediaType;
+          // A new type is a new result set, so it keeps the default scroll reset to the top.
+          void navigate({
+            to: "/discover",
+            search: { q: query || undefined, type: next === "all" ? undefined : next },
+            replace: true,
+          });
+        }}
+        data={discoverMediaTypeOptions}
+      />
       {!searching && trending.isPending && (
         <div className="trending-sections">
-          {[0, 1].map((i) => (
+          {(mediaType === "all" ? [0, 1] : [0]).map((i) => (
             <section className="trending-section" key={i}>
               <Group justify="space-between" mb="sm">
                 <Skeleton height={22} width={160} />
@@ -87,8 +125,8 @@ export function SearchPanel({
       {!searching && trending.data && (
         <div className="trending-sections content-ready">
           {[
-            { title: "Trending TV shows", items: trending.data.tv },
-            { title: "Trending movies", items: trending.data.movies },
+            { title: "Trending TV shows", items: mediaType === "movie" ? [] : trending.data.tv },
+            { title: "Trending movies", items: mediaType === "tv" ? [] : trending.data.movies },
           ].map(
             (section) =>
               section.items.length > 0 && (
@@ -148,7 +186,7 @@ export function SearchPanel({
       {searching && !waitingForResults && results.isSuccess && searchResults.length === 0 && (
         <EmptyState
           icon={<IconSearch size={20} />}
-          title={`No results for “${debouncedQuery}”`}
+          title={emptyResultsTitle(mediaType, debouncedQuery)}
           detail="Check the spelling or try the original title."
         />
       )}
@@ -173,7 +211,7 @@ export function SearchPanel({
         </Alert>
       )}
       {searching && !waitingForResults && (
-        <div key={debouncedQuery} className="search-results content-ready">
+        <div key={`${mediaType}:${debouncedQuery}`} className="search-results content-ready">
           {searchResults.map((item) => {
             const mediaID = `${item.type}:${item.tmdb_id}`;
             const savedEntry = libraryEntries.get(mediaID);

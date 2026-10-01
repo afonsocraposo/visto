@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -189,6 +190,12 @@ func TestEmptyTMDBLists_RemainNonNilAfterCaching(t *testing.T) {
 	for attempt := range 2 {
 		for name, fetch := range map[string]func() ([]domain.MediaSearchResult, error){
 			"search": func() ([]domain.MediaSearchResult, error) { return client.Search(context.Background(), "sopramos", "") },
+			"search tv": func() ([]domain.MediaSearchResult, error) {
+				return client.SearchType(context.Background(), domain.TVMediaType, "sopramos", "")
+			},
+			"search movie": func() ([]domain.MediaSearchResult, error) {
+				return client.SearchType(context.Background(), domain.MovieMediaType, "sopramos", "")
+			},
 			"related": func() ([]domain.MediaSearchResult, error) {
 				return client.Related(context.Background(), domain.TVMediaType, 42)
 			},
@@ -421,5 +428,49 @@ func TestShowCache_GivenMoreThanTheConfiguredLimit_WhenShowsAreCached_ThenMemory
 	}
 	if _, ok := client.showCache[maxShowCacheEntries+1]; !ok {
 		t.Fatal("newly cached show should be retained")
+	}
+}
+
+func TestSearchType_GivenAMediaType_ThenItUsesThatTMDBSearchAndCachesItSeparately(t *testing.T) {
+	var paths []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		paths = append(paths, r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/3/search/tv":
+			_, _ = w.Write([]byte(`{"page":1,"results":[{"id":1,"name":"Show","original_name":"Show","first_air_date":"2020-01-01"}]}`))
+		case "/3/search/movie":
+			_, _ = w.Write([]byte(`{"page":1,"results":[{"id":2,"title":"Film","original_title":"Film","release_date":"2021-01-01"}]}`))
+		default:
+			_, _ = w.Write([]byte(`{"page":1,"results":[{"id":1,"media_type":"tv","name":"Show"},{"id":2,"media_type":"movie","title":"Film"}]}`))
+		}
+	}))
+	defer server.Close()
+	client, err := New("test-key", server.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	previous := client.client.GetBaseURL()
+	client.client.SetCustomBaseURL(server.URL + "/3")
+	defer client.client.SetCustomBaseURL(previous)
+	for range 2 {
+		shows, err := client.SearchType(context.Background(), domain.TVMediaType, "same", "en-US")
+		if err != nil || len(shows) != 1 || shows[0].Type != domain.TVMediaType || shows[0].Title != "Show" || shows[0].ReleaseDate != "2020-01-01" {
+			t.Fatalf("shows=%v err=%v", shows, err)
+		}
+		movies, err := client.SearchType(context.Background(), domain.MovieMediaType, "same", "en-US")
+		if err != nil || len(movies) != 1 || movies[0].Type != domain.MovieMediaType || movies[0].Title != "Film" {
+			t.Fatalf("movies=%v err=%v", movies, err)
+		}
+		mixed, err := client.Search(context.Background(), "same", "en-US")
+		if err != nil || len(mixed) != 2 {
+			t.Fatalf("mixed=%v err=%v", mixed, err)
+		}
+	}
+	if want := []string{"/3/search/tv", "/3/search/movie", "/3/search/multi"}; !slices.Equal(paths, want) {
+		t.Fatalf("paths=%v, want %v (each type fetched once, then cached)", paths, want)
+	}
+	if _, err := client.SearchType(context.Background(), "person", "same", ""); err == nil {
+		t.Fatal("expected an error for an unsupported media type")
 	}
 }

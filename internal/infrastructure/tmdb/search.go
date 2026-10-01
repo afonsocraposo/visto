@@ -73,6 +73,23 @@ func (client *Client) FindEpisodeByExternalID(ctx context.Context, source, exter
 }
 
 func (client *Client) Search(ctx context.Context, query, language string) ([]domain.MediaSearchResult, error) {
+	return client.cachedSearch(ctx, "", query, language, client.search)
+}
+
+// SearchType searches a single media type, so a filtered Discover search returns a full
+// page of that type instead of whatever share of a mixed multi-search survives filtering.
+func (client *Client) SearchType(ctx context.Context, mediaType domain.MediaType, query, language string) ([]domain.MediaSearchResult, error) {
+	switch mediaType {
+	case domain.TVMediaType:
+		return client.cachedSearch(ctx, "tv", query, language, client.searchTV)
+	case domain.MovieMediaType:
+		return client.cachedSearch(ctx, "movie", query, language, client.searchMovies)
+	default:
+		return nil, fmt.Errorf("search media type must be movie or tv")
+	}
+}
+
+func (client *Client) cachedSearch(ctx context.Context, kind, query, language string, fetch func(context.Context, string, string) ([]domain.MediaSearchResult, error)) ([]domain.MediaSearchResult, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -82,6 +99,9 @@ func (client *Client) Search(ctx context.Context, query, language string) ([]dom
 		return []domain.MediaSearchResult{}, nil
 	}
 	cacheKey := language + "\x00" + query
+	if kind != "" {
+		cacheKey = kind + "\x00" + cacheKey
+	}
 	client.mu.Lock()
 	if cached, ok := client.searchCache[cacheKey]; ok && time.Now().Before(cached.expiresAt) {
 		client.mu.Unlock()
@@ -90,7 +110,7 @@ func (client *Client) Search(ctx context.Context, query, language string) ([]dom
 	client.mu.Unlock()
 
 	result, err := client.coalesce(ctx, "search:"+cacheKey, func() (any, error) {
-		results, err := client.search(ctx, query, language)
+		results, err := fetch(ctx, query, language)
 		if err != nil {
 			return nil, err
 		}
@@ -300,6 +320,74 @@ func (client *Client) search(ctx context.Context, query, language string) ([]dom
 			OriginalTitle:    originalTitle,
 			Overview:         item.Overview,
 			ReleaseDate:      releaseDate,
+			PosterPath:       item.PosterPath,
+			OriginalLanguage: item.OriginalLanguage,
+			BackdropPath:     item.BackdropPath,
+		})
+	}
+	return results, nil
+}
+
+func searchOptions(language string) map[string]string {
+	options := map[string]string{}
+	if language != "" {
+		options["language"] = language
+	}
+	return options
+}
+
+func (client *Client) searchTV(ctx context.Context, query, language string) ([]domain.MediaSearchResult, error) {
+	var response *tmdbapi.SearchTVShows
+	err := client.request(ctx, func() error {
+		var requestErr error
+		response, requestErr = client.client.GetSearchTVShow(query, searchOptions(language))
+		return requestErr
+	})
+	if err != nil {
+		return nil, err
+	}
+	results := []domain.MediaSearchResult{}
+	if response.SearchTVShowsResults == nil {
+		return results, nil
+	}
+	for _, item := range response.Results {
+		results = append(results, domain.MediaSearchResult{
+			TMDBID:           item.ID,
+			Type:             domain.TVMediaType,
+			Title:            item.Name,
+			OriginalTitle:    item.OriginalName,
+			Overview:         item.Overview,
+			ReleaseDate:      item.FirstAirDate,
+			PosterPath:       item.PosterPath,
+			OriginalLanguage: item.OriginalLanguage,
+			BackdropPath:     item.BackdropPath,
+		})
+	}
+	return results, nil
+}
+
+func (client *Client) searchMovies(ctx context.Context, query, language string) ([]domain.MediaSearchResult, error) {
+	var response *tmdbapi.SearchMovies
+	err := client.request(ctx, func() error {
+		var requestErr error
+		response, requestErr = client.client.GetSearchMovies(query, searchOptions(language))
+		return requestErr
+	})
+	if err != nil {
+		return nil, err
+	}
+	results := []domain.MediaSearchResult{}
+	if response.SearchMoviesResults == nil {
+		return results, nil
+	}
+	for _, item := range response.Results {
+		results = append(results, domain.MediaSearchResult{
+			TMDBID:           item.ID,
+			Type:             domain.MovieMediaType,
+			Title:            item.Title,
+			OriginalTitle:    item.OriginalTitle,
+			Overview:         item.Overview,
+			ReleaseDate:      item.ReleaseDate,
 			PosterPath:       item.PosterPath,
 			OriginalLanguage: item.OriginalLanguage,
 			BackdropPath:     item.BackdropPath,

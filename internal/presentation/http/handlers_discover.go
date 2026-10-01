@@ -2,6 +2,7 @@ package httpserver
 
 import "fmt"
 import "net/http"
+import "slices"
 import "strconv"
 import "time"
 import "github.com/afonsocosta/visto/internal/application/auth"
@@ -276,7 +277,26 @@ func search(authService *auth.Service, provider domain.MetadataProvider) http.Ha
 			writeError(w, http.StatusBadRequest, "q is required")
 			return
 		}
-		results, err := provider.Search(r.Context(), query, r.URL.Query().Get("language"))
+		mediaType := domain.MediaType(r.URL.Query().Get("type"))
+		if mediaType == "all" {
+			mediaType = ""
+		}
+		if mediaType != "" && mediaType != domain.MovieMediaType && mediaType != domain.TVMediaType {
+			writeError(w, http.StatusBadRequest, "type must be all, movie or tv")
+			return
+		}
+		language := r.URL.Query().Get("language")
+		var results []domain.MediaSearchResult
+		var err error
+		if typedProvider, ok := provider.(domain.TypedSearchMetadataProvider); ok && mediaType != "" {
+			results, err = typedProvider.SearchType(r.Context(), mediaType, query, language)
+		} else {
+			results, err = provider.Search(r.Context(), query, language)
+		}
+		if mediaType != "" {
+			// Providers without typed search fall back to a mixed search filtered here.
+			results = slices.DeleteFunc(results, func(result domain.MediaSearchResult) bool { return result.Type != mediaType })
+		}
 		if err != nil {
 			writeError(w, http.StatusBadGateway, "metadata search is temporarily unavailable")
 			return
