@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.26.1](https://github.com/afonsocraposo/visto/compare/v0.26.0...v0.26.1) (2026-10-01)
+
+
+### Bug Fixes
+
+* hide lists movies can't be in under the Movies library filter ([c02368e](https://github.com/afonsocraposo/visto/commit/c02368e22c6dde31ebd1541f5a35f98109425030))
+* paginate MCP history, episode, and calendar tools ([888db23](https://github.com/afonsocraposo/visto/commit/888db237864a3d378074e981e65304cd958337b8))
+
 ## [0.26.0](https://github.com/afonsocraposo/visto/compare/v0.25.0...v0.26.0) (2026-10-01)
 
 
