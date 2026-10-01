@@ -537,25 +537,10 @@ a.watch-row-show {
   padding-block: 12px 6px;
   cursor: pointer;
 }
-.watch-row-show-badge {
-  display: inline-block;
-  max-width: 100%;
-  overflow: hidden;
-  padding: 2px 8px;
-  border: 1px solid var(--visto-accent);
-  border-radius: 999px;
-  background: transparent;
-  color: inherit;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 @media (hover: hover) and (pointer: fine) {
-  a.watch-row-show:not(.has-badge):hover {
+  a.watch-row-show:hover {
     text-decoration: underline;
     text-underline-offset: 3px;
-  }
-  a.watch-row-show:hover .watch-row-show-badge {
-    border-color: var(--visto-accent-hover);
   }
 }
 .watch-row-show:focus-visible {

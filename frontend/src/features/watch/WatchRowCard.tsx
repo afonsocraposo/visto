@@ -12,7 +12,6 @@ export function WatchRowCard({
   className = "",
   show,
   showTarget,
-  showBadge = false,
   title,
   meta,
   art,
@@ -26,7 +25,6 @@ export function WatchRowCard({
   /** Context line: the show (or "Movie"). */
   show: string;
   showTarget?: MediaDetailTarget;
-  showBadge?: boolean;
   /** Main content: the episode title (or the movie title). */
   title: string;
   meta?: ReactNode;
@@ -37,7 +35,6 @@ export function WatchRowCard({
   onAnimationEnd?: (event: React.AnimationEvent<HTMLElement>) => void;
   trailing?: ReactNode;
 }) {
-  const showContent = showBadge ? <span className="watch-row-show-badge">{show}</span> : show;
   return (
     <article className={`watch-row ${className}`.trim()} onAnimationEnd={onAnimationEnd}>
       <div className="watch-row-art" aria-hidden="true">
@@ -49,15 +46,11 @@ export function WatchRowCard({
       </div>
       <div className="watch-row-content">
         {showTarget ? (
-          <DetailLink
-            to={showTarget}
-            onOpen={onOpenDetail}
-            className={showBadge ? "watch-row-show has-badge" : "watch-row-show"}
-          >
-            {showContent}
+          <DetailLink to={showTarget} onOpen={onOpenDetail} className="watch-row-show">
+            {show}
           </DetailLink>
         ) : (
-          <span className="watch-row-show">{showContent}</span>
+          <span className="watch-row-show">{show}</span>
         )}
         {titleTarget ? (
           <DetailLink

@@ -259,7 +259,6 @@ export function WatchNow({ onOpenDetail }: { onOpenDetail?: (target: MediaDetail
               key={entry.show_id}
               className={isCompleted ? "watch-row-completed" : ""}
               show={entry.title}
-              showBadge
               showTarget={!isCompleted ? showTarget : undefined}
               title={
                 next

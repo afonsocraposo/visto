@@ -71,7 +71,6 @@ function RecentWatchRow({
     <WatchRowCard
       className="watch-row-watched"
       show={entry.title}
-      showBadge={isEpisode}
       showTarget={showTarget}
       title={isEpisode ? entry.episode_name || "Episode" : "Movie"}
       openLabel={`Open ${entry.title}${isEpisode && entry.episode_label ? ` ${entry.episode_label}` : ""}`}
