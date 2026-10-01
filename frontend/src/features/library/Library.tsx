@@ -13,7 +13,7 @@ import { api } from "../../lib/api";
 import { LibraryCard } from "./LibraryCard";
 import type { CursorPage, LibraryEntry, LibraryStatus, MediaDetailTarget } from "../../types";
 import type { LibrarySort } from "./librarySort";
-import type { LibraryMediaFilter } from "./mediaFilter";
+import { statusAppliesToFilter, type LibraryMediaFilter } from "./mediaFilter";
 import {
   readLibraryFilter,
   readLibrarySort,
@@ -139,6 +139,9 @@ export function LibraryPanel({
     const page = pages.get(status)!;
     return page.total_count ?? page.items.length;
   };
+  const visibleSections = sections.filter((section) =>
+    statusAppliesToFilter(section.status, mediaFilter),
+  );
   const listHref = (status: LibraryStatus) =>
     `/profile/library/${status}${mediaFilter === "all" ? "" : `?media_type=${mediaFilter}`}`;
   return (
@@ -174,7 +177,7 @@ export function LibraryPanel({
         />
       )}
       <div className="library-sections content-ready">
-        {sections
+        {visibleSections
           .filter((section) => primaryLibraryStatuses.includes(section.status))
           .map((section) => {
             const page = pages.get(section.status)!;
@@ -236,7 +239,7 @@ export function LibraryPanel({
           })}
       </div>
       <LibraryMoreLists
-        lists={sections
+        lists={visibleSections
           .filter((section) => !primaryLibraryStatuses.includes(section.status))
           .map((section) => ({ status: section.status, count: countOf(section.status) }))}
         hrefFor={listHref}

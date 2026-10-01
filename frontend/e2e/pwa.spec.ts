@@ -1702,6 +1702,51 @@ test("Given another library page, When the user scrolls the list, Then more titl
   await expect(page.getByText("Library title 2")).toBeVisible();
 });
 
+test("Given the Movies filter, Then the library only shows lists a movie can be in", async ({
+  page,
+}) => {
+  await mockSignedInSession(page);
+  const movie = {
+    item: {
+      media_id: "movie:10",
+      status: "completed",
+      rating: null,
+      notifications_enabled: true,
+      updated_at: "2026-09-26T12:00:00Z",
+    },
+    media: {
+      id: "movie:10",
+      tmdb_id: 10,
+      type: "movie",
+      title: "Finished film",
+      original_title: "Finished film",
+      overview: "",
+      release_date: "2026-01-01",
+      poster_path: "",
+      original_language: "en",
+    },
+  };
+  await page.route(/\/api\/v1\/library(?:\?.*)?$/, (route) => {
+    const status = new URL(route.request().url()).searchParams.get("status");
+    return status && status !== "completed"
+      ? fulfillJSON(route, { items: [], next_cursor: null, total_count: 0 })
+      : fulfillJSON(route, { items: [movie], next_cursor: null, total_count: 1 });
+  });
+  await page.goto("/");
+  await page.getByRole("link", { name: "Library", exact: true }).click();
+  const watchingHeading = page.getByRole("heading", { name: /^Watching/ });
+  await expect(watchingHeading).toBeVisible();
+
+  await page.getByText("Movies", { exact: true }).click();
+  await expect(page.getByText("Finished film")).toBeVisible();
+  await expect(watchingHeading).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: /^Watchlist/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^Completed/ })).toBeVisible();
+
+  await page.getByText("TV", { exact: true }).click();
+  await expect(watchingHeading).toBeVisible();
+});
+
 test("Expanded library pages filter media before pagination and keep the selection in the URL", async ({
   page,
 }) => {
