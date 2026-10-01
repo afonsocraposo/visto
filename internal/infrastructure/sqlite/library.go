@@ -65,7 +65,7 @@ func (s *Store) UpsertMedia(ctx context.Context, media library.Media) error {
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	_, err := s.DB.ExecContext(ctx, `INSERT INTO media(id,media_type,tmdb_id,title,original_title,overview,release_date,poster_path,backdrop_path,original_language,status,metadata_updated_at,created_at)
 		VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)
-		ON CONFLICT(media_type,tmdb_id) DO UPDATE SET title=excluded.title,original_title=excluded.original_title,overview=excluded.overview,release_date=excluded.release_date,poster_path=excluded.poster_path,backdrop_path=excluded.backdrop_path,original_language=excluded.original_language,status=COALESCE(NULLIF(excluded.status,''),media.status),metadata_updated_at=excluded.metadata_updated_at`,
+		ON CONFLICT(media_type,tmdb_id) DO UPDATE SET title=excluded.title,original_title=COALESCE(NULLIF(excluded.original_title,''),media.original_title),overview=COALESCE(NULLIF(excluded.overview,''),media.overview),release_date=COALESCE(NULLIF(excluded.release_date,''),media.release_date),poster_path=COALESCE(NULLIF(excluded.poster_path,''),media.poster_path),backdrop_path=COALESCE(NULLIF(excluded.backdrop_path,''),media.backdrop_path),original_language=COALESCE(NULLIF(excluded.original_language,''),media.original_language),status=COALESCE(NULLIF(excluded.status,''),media.status),metadata_updated_at=excluded.metadata_updated_at`,
 		media.ID, media.Type, media.TMDBID, media.Title, media.OriginalTitle, media.Overview, media.ReleaseDate, media.PosterPath, media.BackdropPath, media.OriginalLanguage, media.Status, now, now)
 	if err != nil {
 		return fmt.Errorf("upsert media: %w", err)

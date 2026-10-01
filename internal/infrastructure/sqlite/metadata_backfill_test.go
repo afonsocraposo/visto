@@ -156,3 +156,50 @@ func TestImportedMetadataHydratesOnOpenAndBackfillsWithoutChangingWatches(t *tes
 }
 
 func itoa(id int64) string { return strconv.FormatInt(id, 10) }
+
+func TestUpsertMediaPreservesMetadataFromPartialSnapshots(t *testing.T) {
+	ctx := context.Background()
+	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "visto.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	complete := library.Media{ID: "tv:71912", Type: domain.TVMediaType, TMDBID: 71912, Title: "The Witcher", OriginalTitle: "Original", Overview: "Description", ReleaseDate: "2019-12-20", PosterPath: "/poster.jpg", BackdropPath: "/backdrop.jpg", OriginalLanguage: "en", Status: "In Production"}
+	if err := store.UpsertMedia(ctx, complete); err != nil {
+		t.Fatal(err)
+	}
+	partial := library.Media{ID: complete.ID, Type: complete.Type, TMDBID: complete.TMDBID, Title: complete.Title}
+	if err := store.UpsertMedia(ctx, partial); err != nil {
+		t.Fatal(err)
+	}
+	assertMetadata := func(want library.Media) {
+		t.Helper()
+		var got library.Media
+		err := store.DB.QueryRowContext(ctx, `SELECT original_title,overview,release_date,poster_path,backdrop_path,original_language,status FROM media WHERE media_type='tv' AND tmdb_id=71912`).Scan(&got.OriginalTitle, &got.Overview, &got.ReleaseDate, &got.PosterPath, &got.BackdropPath, &got.OriginalLanguage, &got.Status)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.OriginalTitle != want.OriginalTitle || got.Overview != want.Overview || got.ReleaseDate != want.ReleaseDate || got.PosterPath != want.PosterPath || got.BackdropPath != want.BackdropPath || got.OriginalLanguage != want.OriginalLanguage || got.Status != want.Status {
+			t.Fatalf("metadata after upsert = %+v; want %+v", got, want)
+		}
+	}
+	assertMetadata(complete)
+
+	if _, err := store.DB.ExecContext(ctx, `UPDATE media SET original_title='',overview='',release_date='',poster_path='',backdrop_path='',original_language='',status='' WHERE media_type='tv' AND tmdb_id=71912`); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.UpsertMedia(ctx, complete); err != nil {
+		t.Fatal(err)
+	}
+	assertMetadata(complete)
+
+	show := domain.TVShowMetadata{TMDBID: complete.TMDBID, Name: complete.Title, Overview: "Updated description", PosterPath: "/new-poster.jpg", BackdropPath: "/new-backdrop.jpg", Status: "Ended"}
+	if err := store.SaveShowSummary(ctx, show); err != nil {
+		t.Fatal(err)
+	}
+	complete.OriginalTitle, complete.Overview, complete.ReleaseDate = show.Name, show.Overview, show.FirstAirDate
+	complete.PosterPath, complete.BackdropPath = show.PosterPath, show.BackdropPath
+	complete.OriginalLanguage, complete.Status = show.OriginalLanguage, show.Status
+	assertMetadata(complete)
+}
