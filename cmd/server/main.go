@@ -30,6 +30,7 @@ import (
 	"github.com/afonsocosta/visto/internal/application/seasonalerts"
 	"github.com/afonsocosta/visto/internal/application/tracking"
 	"github.com/afonsocosta/visto/internal/application/watch"
+	"github.com/afonsocosta/visto/internal/domain"
 	backupjob "github.com/afonsocosta/visto/internal/infrastructure/backup"
 	"github.com/afonsocosta/visto/internal/infrastructure/pushover"
 	"github.com/afonsocosta/visto/internal/infrastructure/sqlite"
@@ -77,14 +78,15 @@ func main() {
 		}()
 	}
 
-	var metadataProvider *tmdb.Client
+	var tmdbClient *tmdb.Client
 	if apiKey := os.Getenv("VISTO_TMDB_API_KEY"); apiKey != "" {
-		metadataProvider, err = tmdb.New(apiKey, nil)
+		tmdbClient, err = tmdb.New(apiKey, nil)
 		if err != nil {
 			log.Fatalf("configure TMDB: %v", err)
 		}
 	}
-	watchService := watch.NewService(store, metadataProvider)
+	providers := newMetadataProviders(tmdbClient)
+	watchService := watch.NewService(store, providers.shows...)
 	refreshInterval := durationEnvironment("VISTO_CATALOG_REFRESH_INTERVAL", 6*time.Hour)
 	activeRefreshTTL := durationEnvironment("VISTO_CATALOG_ACTIVE_TTL", 24*time.Hour)
 	finishedRefreshTTL := durationEnvironment("VISTO_CATALOG_FINISHED_TTL", 30*24*time.Hour)
@@ -204,27 +206,19 @@ func main() {
 			log.Printf("activity retention cleanup removed %d events", removed)
 		})
 	})
-	mcpHandler := mcpserver.NewWithTrustedProxies(authService, oauthService, publicURL, metadataProvider, library.NewService(store), tracking.NewService(store), watchService, trustedProxies)
+	mcpHandler := mcpserver.NewWithTrustedProxies(authService, oauthService, publicURL, providers.metadata, library.NewService(store), tracking.NewService(store), watchService, trustedProxies)
 	appHandler.Handle("/mcp", mcpHandler)
 	appHandler.Handle("/oauth/", mcpHandler)
 	appHandler.Handle("/.well-known/", mcpHandler)
-	appServer := httpserver.New(authService, metadataProvider, os.Getenv("VISTO_WEB_DIR"), library.NewService(store), tracking.NewService(store), profiles, feed.NewService(store), exportapp.NewService(store), watchService, pushConfig).
+	appServer := httpserver.New(authService, providers.metadata, os.Getenv("VISTO_WEB_DIR"), library.NewService(store), tracking.NewService(store), profiles, feed.NewService(store), exportapp.NewService(store), watchService, pushConfig).
 		WithTrustedProxies(trustedProxies).WithOAuth(oauthService).WithGoogleOAuth(googleOAuth).
 		WithSeasonAlerts(seasonalerts.NewService(store))
-	var importResolver importer.TVDBResolver
-	if metadataProvider != nil {
-		importResolver = metadataProvider
-	}
-	appServer.WithImports(importer.NewService(store, importResolver, watchService.WakeMetadataBackfill))
-	var plexMetadataProvider plexsync.MetadataProvider
-	if metadataProvider != nil {
-		plexMetadataProvider = metadataProvider
-	}
+	appServer.WithImports(importer.NewService(store, providers.importResolver, watchService.WakeMetadataBackfill))
 	plexMode := environment("VISTO_PLEX_SYNC_MODE", "personal")
 	if plexMode != "personal" && plexMode != "managed" {
 		log.Fatalf("VISTO_PLEX_SYNC_MODE must be personal or managed")
 	}
-	appServer.WithPlexSync(plexsync.NewService(store, plexMetadataProvider, library.NewService(store), publicURL, plexMode))
+	appServer.WithPlexSync(plexsync.NewService(store, providers.plex, library.NewService(store), publicURL, plexMode))
 	appHandler.Handle("/", appServer.Handler())
 	server := &http.Server{
 		Addr:              environment("VISTO_LISTEN_ADDR", ":8080"),
@@ -320,4 +314,26 @@ func parseDuration(name, value string, fallback time.Duration) (time.Duration, e
 		return 0, fmt.Errorf("%s must be a positive duration", name)
 	}
 	return duration, nil
+}
+
+// metadataProviders holds the TMDB client behind each interface the services use.
+// Without a client every field stays a true nil interface: storing a nil *tmdb.Client
+// in an interface would make `provider == nil` checks pass and calls panic.
+type metadataProviders struct {
+	metadata       domain.MetadataProvider
+	shows          []domain.TVShowMetadataProvider
+	importResolver importer.TVDBResolver
+	plex           plexsync.MetadataProvider
+}
+
+func newMetadataProviders(client *tmdb.Client) metadataProviders {
+	if client == nil {
+		return metadataProviders{}
+	}
+	return metadataProviders{
+		metadata:       client,
+		shows:          []domain.TVShowMetadataProvider{client},
+		importResolver: client,
+		plex:           client,
+	}
 }
