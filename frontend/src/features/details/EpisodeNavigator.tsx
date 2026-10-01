@@ -1,12 +1,9 @@
 import { IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
 import type { Episode, ShowEpisodeEntry } from "../../types";
 import { useEpisodeNavigate } from "./EpisodeTransition";
+import { episodeCode } from "../../lib/episodePosition";
 
-export function episodeCode(episode: Pick<Episode, "season_number" | "episode_number">) {
-  return episode.season_number === 0
-    ? `Special ${episode.episode_number}`
-    : `S${episode.season_number} E${episode.episode_number}`;
-}
+export { episodeCode };
 
 /**
  * The current episode sits in the middle with previous/next chevrons around it. On wide screens

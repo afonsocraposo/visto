@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { Alert, AppShell, Button, Center, Group, Loader, Modal, Text } from "@mantine/core";
 import { IconCalendar } from "@tabler/icons-react";
-import { WatchCalendar } from "../watch/Watch";
+import { WatchCalendar, WatchNow } from "../watch/Watch";
 import { SectionTabs } from "../../components/SectionTabs";
 import { AccountAvatar } from "../../components/AccountAvatar";
 import { navItems } from "./navItems";
@@ -289,7 +289,9 @@ export function Dashboard({
           tab === "watch" &&
           !settingsOpen && (
             <>
+              {view === "now" && <WatchHistoryReveal key="history" onOpenDetail={openDetail} />}
               <SectionTabs
+                key="tabs"
                 label="Watching views"
                 value={view}
                 onChange={(next) => {
@@ -301,9 +303,9 @@ export function Dashboard({
                   { value: "calendar", label: "Upcoming", icon: <IconCalendar size={16} /> },
                 ]}
               />
-              <div key={view} className="section-panel">
+              <div key={view} className="section-panel watch-up-next">
                 {view === "now" ? (
-                  <WatchHistoryReveal onOpenDetail={openDetail} />
+                  <WatchNow onOpenDetail={openDetail} />
                 ) : (
                   <WatchCalendar onOpenDetail={openDetail} />
                 )}

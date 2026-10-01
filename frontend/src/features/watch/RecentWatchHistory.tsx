@@ -1,11 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import { Badge, Text } from "@mantine/core";
 import { IconCheck } from "@tabler/icons-react";
 import { ActivityTime } from "../../components/ActivityTime";
 import { useUserQueryKey } from "../auth/SessionContext";
 import { api } from "../../lib/api";
 import { backdropURL, posterURL } from "../../lib/artwork";
-import { episodePosition } from "../../lib/episodePosition";
+import { episodeLabelCode, episodePosition } from "../../lib/episodePosition";
 import type { CursorPage, HistoryEntry, MediaDetailTarget } from "../../types";
 import { WatchRowCard } from "./WatchRowCard";
 
@@ -72,45 +71,28 @@ function RecentWatchRow({
   const art = isEpisode
     ? backdropURL(entry.artwork_path, "w780")
     : posterURL(entry.artwork_path, "w500");
-  const position = entry.episode_label?.replace("E", " | E");
   return (
     <WatchRowCard
       className="watch-row-watched"
-      title={entry.title}
+      show={isEpisode ? entry.title : "Movie"}
+      onOpenShow={onOpenDetail && isEpisode ? show : undefined}
+      title={isEpisode ? entry.episode_name || "Episode" : entry.title}
+      openLabel={`Open ${entry.title}${isEpisode && entry.episode_label ? ` ${entry.episode_label}` : ""}`}
+      meta={
+        <>
+          {isEpisode && entry.episode_label && <span>{episodeLabelCode(entry.episode_label)}</span>}
+          <span>
+            <ActivityTime value={entry.play.watched_at} />
+          </span>
+        </>
+      }
       art={art}
       onOpen={onOpenDetail ? open : undefined}
       trailing={
-        <div className="watch-row-watched-meta">
-          <IconCheck size={18} stroke={2.2} aria-hidden="true" />
-          <Text size="xs" c="dimmed">
-            <ActivityTime value={entry.play.watched_at} />
-          </Text>
-        </div>
+        <span className="watch-row-watched-mark" aria-label="Watched">
+          <IconCheck size={18} stroke={2.4} aria-hidden="true" />
+        </span>
       }
-    >
-      <Badge
-        component="button"
-        type="button"
-        className="watch-row-show"
-        size="lg"
-        variant="outline"
-        color="gray"
-        radius="xl"
-        aria-label={`Open ${entry.title}`}
-        disabled={!onOpenDetail || !show}
-        onClick={(event) => {
-          event.stopPropagation();
-          show?.();
-        }}
-      >
-        {entry.title}
-      </Badge>
-      <Text className="watch-row-episode">{isEpisode ? (position ?? "Episode") : "Movie"}</Text>
-      {isEpisode && entry.episode_name && (
-        <Text className="watch-row-name" lineClamp={1}>
-          {entry.episode_name}
-        </Text>
-      )}
-    </WatchRowCard>
+    />
   );
 }

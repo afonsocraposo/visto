@@ -1675,7 +1675,7 @@ test("Library previews show full filtered counts in the requested order and rest
 test.describe("touch devices", () => {
   test.use({ hasTouch: true });
 
-  test("Given the To watch tab, When pulling down from the top, Then recent watches are revealed", async ({
+  test("Given the To watch tab, When it opens, Then it starts at Up next with recent watches above in the page scroll", async ({
     page,
   }) => {
     await mockSignedInSession(page);
@@ -1724,37 +1724,27 @@ test.describe("touch devices", () => {
     await page.goto("/watch");
     const toWatch = page.locator(".watch-row", { hasText: "The Example Show" });
     await expect(toWatch).toBeVisible();
-    // The history is fetched ahead of time, so the pull itself makes no request.
+    // The history is fetched ahead of time and always rendered above "Up next".
     await expect.poll(() => historyRequests).toBe(1);
-    const top = async () => (await toWatch.boundingBox())!.y;
-    const before = await top();
-
-    const pull = (distance: number) =>
-      touchDrag(page, { x: 200, y: 150 }, { x: 200, y: 150 + distance });
-    await pull(40);
-    await expect(page.getByLabel("Recently watched")).toHaveCount(0);
-
-    await pull(90);
     const section = page.getByLabel("Recently watched");
-    await expect(section).toBeVisible();
-    // Oldest first: the newest play sits right above the episodes still to watch.
     const rows = section.locator(".watch-row");
     await expect(rows).toHaveCount(2);
+    // Oldest first: the newest play sits right above the episodes still to watch.
     await expect(rows.nth(0)).toContainText("Dune: Part Two");
     await expect(rows.nth(0)).toContainText("Movie");
     await expect(rows.nth(1)).toContainText("Silo");
-    await expect(rows.nth(1)).toContainText("S02 | E06");
+    await expect(rows.nth(1)).toContainText("S2 E6");
     await expect(rows.nth(1)).toContainText("Barricades");
-    // The list extends upwards instead of jumping: the rows being read stay within a peek.
-    await expect.poll(async () => Math.abs((await top()) - before)).toBeLessThanOrEqual(110);
-    expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
-    await expect(rows.nth(1)).toBeInViewport();
-    await expect(toWatch).toBeInViewport();
-    expect(historyRequests).toBe(1);
 
-    // Scrolling further up goes back in time until the page header.
+    // The page opens at "Up next", with the history just above the viewport.
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+    await expect(page.getByRole("heading", { name: "Up next" })).toBeInViewport();
+    await expect(toWatch).toBeInViewport();
+    await expect(rows.nth(0)).not.toBeInViewport();
+
+    // Scrolling up is ordinary page scroll that goes back in time.
     await page.evaluate(() => window.scrollTo(0, 0));
-    await expect(page.getByRole("heading", { name: "Episodes to watch" })).toBeInViewport();
     await expect(rows.nth(0)).toBeInViewport();
+    expect(historyRequests).toBe(1);
   });
 });
