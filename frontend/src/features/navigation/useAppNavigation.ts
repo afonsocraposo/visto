@@ -15,7 +15,7 @@ export function useAppNavigation(user: User, returnTo: string | undefined) {
 
   const openDetail = (
     target: MediaDetailTarget,
-    options?: { from?: string; tab?: Tab; replace?: boolean },
+    options?: { from?: string; tab?: Tab; replace?: boolean; resetScroll?: boolean },
   ) => {
     const episodePath =
       target.mediaType === "tv" &&
@@ -38,6 +38,7 @@ export function useAppNavigation(user: User, returnTo: string | undefined) {
           : {}),
       },
       replace: options?.replace,
+      resetScroll: options?.resetScroll,
       state: { vistoOpenedInApp: options?.replace ? openedInApp : true },
     });
   };

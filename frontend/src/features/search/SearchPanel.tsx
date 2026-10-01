@@ -49,6 +49,7 @@ export function SearchPanel({
             to: "/discover",
             search: { q: event.currentTarget.value || undefined },
             replace: true,
+            resetScroll: false,
           })
         }
         leftSection={<IconSearch size={20} />}
@@ -56,7 +57,9 @@ export function SearchPanel({
           query ? (
             <CloseButton
               aria-label="Clear search"
-              onClick={() => void navigate({ to: "/discover", search: {}, replace: true })}
+              onClick={() =>
+                void navigate({ to: "/discover", search: {}, replace: true, resetScroll: false })
+              }
             />
           ) : undefined
         }

@@ -273,6 +273,7 @@ export function Dashboard({
                     q: query || undefined,
                   },
                   replace: true,
+                  resetScroll: false,
                 })
               }
               onMediaFilterChange={(mediaFilter) =>

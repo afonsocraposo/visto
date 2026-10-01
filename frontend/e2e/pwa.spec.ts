@@ -351,9 +351,15 @@ test("Given an Upcoming episode, When the user opens its season and selects anot
   await page.getByRole("link", { name: "The Example Show" }).click();
   await expect(page.getByRole("heading", { name: "Seasons & episodes" })).toBeVisible();
   await expect(page.getByRole("combobox", { name: "Season" })).toHaveValue("Season 1");
+  await page.setViewportSize({ width: 390, height: 300 });
+  await page.getByRole("combobox", { name: "Season" }).scrollIntoViewIfNeeded();
+  const seasonScrollY = await page.evaluate(() => window.scrollY);
+  expect(seasonScrollY).toBeGreaterThan(100);
   await page.getByRole("combobox", { name: "Season" }).click();
   await page.getByRole("option", { name: "Season 2" }).click();
   await expect(page.getByRole("link", { name: "1 · Season 2 premiere" })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(seasonScrollY - 80);
+  expect(await page.evaluate(() => window.scrollY)).toBeLessThan(seasonScrollY + 80);
   await expect(page.getByText("Episode overview.")).toHaveCount(0);
   await expect(page).toHaveURL(/season=2/);
   await page.getByRole("button", { name: "Back" }).click();
@@ -370,8 +376,11 @@ test("Given an Upcoming episode, When the user opens its season and selects anot
 
   await page.goto("/media/tv/100?from=%2F&media=tv%3A100&season=2");
   await expect(page.getByRole("link", { name: "1 · Season 2 premiere" })).toBeVisible();
+  await page.getByRole("link", { name: "1 · Season 2 premiere" }).scrollIntoViewIfNeeded();
+  expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
   await page.getByRole("link", { name: "1 · Season 2 premiere" }).click();
   await expect(page.getByRole("heading", { name: "Season 2 premiere" })).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeLessThan(80);
 });
 
 test("Given a signed-in user, When they open /logout, Then their session ends and they return to sign in", async ({

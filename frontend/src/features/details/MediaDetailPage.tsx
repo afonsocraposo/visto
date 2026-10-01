@@ -86,7 +86,10 @@ type Props = {
   target: MediaDetailTarget;
   returnTo?: string;
   onBack: () => void;
-  onOpenDetail: (target: MediaDetailTarget, options?: { from?: string; replace?: boolean }) => void;
+  onOpenDetail: (
+    target: MediaDetailTarget,
+    options?: { from?: string; replace?: boolean; resetScroll?: boolean },
+  ) => void;
   onOpenPerson: (personID: number) => void;
 };
 type PendingWatch = {
@@ -1484,7 +1487,7 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
                           mediaID: showID,
                           seasonNumber: Number(value),
                         },
-                        { from: returnTo, replace: true },
+                        { from: returnTo, replace: true, resetScroll: false },
                       );
                     }
                   }}
