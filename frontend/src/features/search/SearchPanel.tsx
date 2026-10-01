@@ -1,6 +1,7 @@
 import { useDebouncedValue } from "@mantine/hooks";
+import { FadeImage } from "../../components/FadeImage";
 import { useNavigate, useSearch } from "@tanstack/react-router";
-import { Alert, CloseButton, Group, Image, Skeleton, Text, TextInput, Title } from "@mantine/core";
+import { Alert, CloseButton, Group, Skeleton, Text, TextInput, Title } from "@mantine/core";
 import { IconSearch } from "@tabler/icons-react";
 import { MediaQuickActions } from "../../components/MediaQuickActions";
 import { MediaPosterCard } from "../../components/MediaPosterCard";
@@ -193,7 +194,7 @@ export function SearchPanel({
               <article className="search-result-card" key={`${item.type}-${item.tmdb_id}`}>
                 <div className="search-poster" aria-hidden="true">
                   {art ? (
-                    <Image src={art} alt="" loading="lazy" />
+                    <FadeImage src={art} alt="" />
                   ) : (
                     <div className="artwork-fallback">{item.title.slice(0, 1)}</div>
                   )}

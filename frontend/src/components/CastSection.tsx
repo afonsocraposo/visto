@@ -1,4 +1,5 @@
-import { Image, Paper, SimpleGrid, Text, Title } from "@mantine/core";
+import { Paper, SimpleGrid, Text, Title } from "@mantine/core";
+import { FadeImage } from "./FadeImage";
 import type { TVCastMember } from "../types";
 import { posterURL } from "../lib/artwork";
 
@@ -62,7 +63,7 @@ function CastMemberCard({
     >
       <div className="cast-member-photo">
         {art ? (
-          <Image src={art} alt="" loading="lazy" />
+          <FadeImage src={art} alt="" />
         ) : (
           <div className="cast-member-fallback" aria-hidden="true">
             {member.name.slice(0, 1)}

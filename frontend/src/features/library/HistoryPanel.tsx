@@ -89,7 +89,7 @@ export function HistoryPanel({
     );
   if (groupByDay)
     return (
-      <div className="activity-days">
+      <div className="activity-days content-ready">
         {groupByLocalDay(entries, (entry) => entry.play.watched_at).map((group) => (
           <section key={group.day} className="activity-day" aria-labelledby={`day-${group.day}`}>
             <h2 id={`day-${group.day}`} className="activity-day-heading">
@@ -102,7 +102,7 @@ export function HistoryPanel({
       </div>
     );
   return (
-    <div className="activity-list">
+    <div className="activity-list content-ready">
       {entries.map(card)}
       {more}
     </div>

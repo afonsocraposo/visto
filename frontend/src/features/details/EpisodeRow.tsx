@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { ActionIcon, Image, Menu } from "@mantine/core";
+import { FadeImage } from "../../components/FadeImage";
+import { ActionIcon, Menu } from "@mantine/core";
 import { IconCheck, IconDots, IconRefresh } from "@tabler/icons-react";
 import { backdropURL } from "../../lib/artwork";
 import { episodeCode } from "../../lib/episodePosition";
@@ -37,7 +38,7 @@ export function EpisodeRow({
     >
       <div className="episode-art" aria-hidden="true">
         {still ? (
-          <Image src={still} alt="" loading="lazy" />
+          <FadeImage src={still} alt="" />
         ) : (
           <div className="artwork-fallback">{episode.episode_number}</div>
         )}

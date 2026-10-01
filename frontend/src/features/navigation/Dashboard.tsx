@@ -1,10 +1,11 @@
 import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { Alert, AppShell, Button, Center, Group, Loader, Modal, Text } from "@mantine/core";
+import { Alert, AppShell, Button, Group, Modal, Text } from "@mantine/core";
 import { IconCalendar } from "@tabler/icons-react";
 import { WatchCalendar, WatchNow } from "../watch/Watch";
 import { SectionTabs } from "../../components/SectionTabs";
+import { PageLoadingShell } from "../../components/LoadingShell";
 import { AccountAvatar } from "../../components/AccountAvatar";
 import { navItems } from "./navItems";
 import { WatchHistoryReveal } from "../watch/WatchHistoryReveal";
@@ -350,15 +351,5 @@ export function Dashboard({
 }
 
 function Deferred({ children }: { children: ReactNode }) {
-  return (
-    <Suspense
-      fallback={
-        <Center py="xl">
-          <Loader size="sm" />
-        </Center>
-      }
-    >
-      {children}
-    </Suspense>
-  );
+  return <Suspense fallback={<PageLoadingShell />}>{children}</Suspense>;
 }

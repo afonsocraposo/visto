@@ -1576,7 +1576,7 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
               !visibleEpisodes.length && (
                 <Text c="dimmed">Episode details are not available yet.</Text>
               )}
-            <div className="episode-list">
+            <div className="episode-list content-ready">
               {visibleEpisodes.map((entry) => (
                 <EpisodeRow
                   key={entry.episode.id}

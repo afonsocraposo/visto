@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
-import { Avatar, Group, Image, Paper, Text } from "@mantine/core";
+import { FadeImage } from "../../components/FadeImage";
+import { Avatar, Group, Paper, Text } from "@mantine/core";
 import { IconDeviceTv, IconMovie } from "@tabler/icons-react";
 import { RatingStars } from "../../components/RatingStars";
 import { ActivityTime } from "../../components/ActivityTime";
@@ -68,7 +69,7 @@ export function ActivityRow({
     >
       <div className="activity-row-art" aria-hidden="true">
         {art ? (
-          <Image src={art} alt="" loading="lazy" />
+          <FadeImage src={art} alt="" />
         ) : mediaType === "tv" ? (
           <IconDeviceTv size={24} />
         ) : (

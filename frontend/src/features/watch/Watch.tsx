@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { FadeImage } from "../../components/FadeImage";
 import {
   useInfiniteQuery,
   useMutation,
@@ -12,7 +13,6 @@ import {
   Badge,
   Button,
   Group,
-  Image,
   Indicator,
   Modal,
   Paper,
@@ -226,7 +226,7 @@ export function WatchNow({ onOpenDetail }: { onOpenDetail?: (target: MediaDetail
         </Group>
       </Modal>
       {upNext}
-      <div className="watch-list">
+      <div className="watch-list content-ready">
         {entries.data.map((entry) => {
           const art =
             backdropURL(entry.next_episode_still_path, "w780") ??
@@ -425,7 +425,7 @@ export function WatchCalendar({
       ) : loaded.length === 0 ? (
         <EmptyState title="No upcoming episodes" detail="New release dates will appear here." />
       ) : (
-        <div className="calendar-list">
+        <div className="calendar-list content-ready">
           {groups.map((group) => (
             <section
               className="calendar-day"
@@ -591,7 +591,7 @@ function CalendarEpisodeCard({
     >
       <div className="calendar-card-art">
         {art ? (
-          <Image src={art} alt="" />
+          <FadeImage src={art} alt="" />
         ) : (
           <div className="artwork-fallback">{item.title.slice(0, 1)}</div>
         )}

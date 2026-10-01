@@ -198,7 +198,7 @@ export function LibraryPanel({
           }
         />
       )}
-      <div className="library-sections">
+      <div className="library-sections content-ready">
         {sections
           .filter((section) => primaryStatuses.includes(section.status))
           .map((section) => {

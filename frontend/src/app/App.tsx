@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Button, createTheme, Group, Loader, MantineProvider, Stack } from "@mantine/core";
+import { Alert, Button, createTheme, MantineProvider, Stack } from "@mantine/core";
+import { AppLoadingShell } from "../components/LoadingShell";
 import { oauthReturnLocation } from "../features/auth/oauthReturn";
 import { SessionProvider } from "../features/auth/SessionContext";
 import { loadSession } from "../features/auth/session";
@@ -98,14 +99,15 @@ export function App() {
     >
       <Notifications position="bottom-center" autoClose={5000} />
       {setup.isPending || session.isPending ? (
-        <Group justify="center" mt="xl">
-          <Loader />
-        </Group>
+        <AppLoadingShell />
       ) : setup.isError || (session.isError && !session.data) ? (
-        <Stack align="center" mt="xl">
-          <Alert color="red">Could not connect to Visto. Try again.</Alert>
+        <Stack className="app-loading" align="center">
+          <img className="app-loading-mark" src="/icon.svg?v=3" alt="" aria-hidden="true" />
+          <Alert color="red" variant="light">
+            Could not connect to Visto.
+          </Alert>
           <Button onClick={() => void Promise.all([setup.refetch(), session.refetch()])}>
-            Retry
+            Try again
           </Button>
         </Stack>
       ) : !setup.data?.bootstrap_available && session.data ? (
@@ -113,7 +115,7 @@ export function App() {
           <RouterProvider router={router} context={{ user: session.data, theme, setTheme }} />
         </SessionProvider>
       ) : (
-        <Suspense fallback={<Loader />}>
+        <Suspense fallback={<AppLoadingShell />}>
           <AuthGate />
         </Suspense>
       )}

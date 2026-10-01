@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Image } from "@mantine/core";
+import { FadeImage } from "../../components/FadeImage";
 
 /**
  * The card shared by "Up next" rows and the recent watch history rows. The episode title is the
@@ -35,7 +35,7 @@ export function WatchRowCard({
     <article className={`watch-row ${className}`.trim()} onAnimationEnd={onAnimationEnd}>
       <div className="watch-row-art" aria-hidden="true">
         {art ? (
-          <Image src={art} alt="" loading="lazy" />
+          <FadeImage src={art} alt="" />
         ) : (
           <div className="artwork-fallback">{show.slice(0, 1)}</div>
         )}

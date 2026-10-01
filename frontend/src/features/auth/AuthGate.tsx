@@ -63,6 +63,38 @@ function GoogleIcon() {
   );
 }
 
+/**
+ * The ambient trending backdrop. A new image fades in slowly over the previous one; this is
+ * atmosphere rather than feedback, so a long crossfade is appropriate here.
+ */
+function AuthBackdrop({ image }: { image: string | null }) {
+  const [layers, setLayers] = useState<{ previous: string | null; current: string | null }>({
+    previous: null,
+    current: image,
+  });
+  useEffect(() => {
+    if (image && image !== layers.current)
+      setLayers((value) => ({ previous: value.current, current: image }));
+  }, [image, layers.current]);
+  return (
+    <div className="auth-backdrop" aria-hidden="true">
+      {layers.previous && (
+        <div
+          className="auth-backdrop-layer"
+          style={{ backgroundImage: `url(${layers.previous})` }}
+        />
+      )}
+      {layers.current && (
+        <div
+          key={layers.current}
+          className="auth-backdrop-layer is-entering"
+          style={{ backgroundImage: `url(${layers.current})` }}
+        />
+      )}
+    </div>
+  );
+}
+
 export function AuthGate() {
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<"login" | "signup">("login");
@@ -194,17 +226,11 @@ export function AuthGate() {
       ? signUp.isPending
       : signIn.isPending;
 
+  const backdropImage = backdrop ? backdropURL(backdrop.backdrop_path, "w1280") : null;
+
   return (
     <div className="auth-screen">
-      <div
-        className="auth-backdrop"
-        style={
-          backdrop
-            ? { backgroundImage: `url(${backdropURL(backdrop.backdrop_path, "w1280")})` }
-            : undefined
-        }
-        aria-hidden="true"
-      />
+      <AuthBackdrop image={backdropImage} />
       <div className="auth-screen-inner">
         <Paper className="auth-card" withBorder radius="xl" p="xl">
           <img className="auth-mark" src="/icon.svg?v=3" alt="" aria-hidden="true" />
@@ -240,15 +266,22 @@ export function AuthGate() {
           )}
           {!setup.isPending && !setup.isError && (
             <form onSubmit={form.onSubmit(() => void submit())}>
-              {(isFirstRun || isSignup) && (
-                <TextInput
-                  required
-                  maxLength={80}
-                  label="Your name"
-                  mt="lg"
-                  {...form.getInputProps("name")}
-                />
-              )}
+              {/* The name field expands in when switching to account creation. */}
+              <div
+                className="expand is-quick"
+                data-open={isFirstRun || isSignup || undefined}
+                inert={!(isFirstRun || isSignup)}
+              >
+                <div className="expand-inner">
+                  <TextInput
+                    required={Boolean(isFirstRun || isSignup)}
+                    maxLength={80}
+                    label="Your name"
+                    pt="lg"
+                    {...form.getInputProps("name")}
+                  />
+                </div>
+              </div>
               <TextInput
                 required
                 type="email"

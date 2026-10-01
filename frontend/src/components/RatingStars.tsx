@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ActionIcon } from "@mantine/core";
 import { IconStarFilled } from "@tabler/icons-react";
 
@@ -26,6 +26,24 @@ export function RatingStars({
   size = "sm",
 }: Props) {
   const [hovered, setHovered] = useState<number | null>(null);
+  // After a change, the chosen star pops and newly filled stars fill one after another.
+  const [popped, setPopped] = useState<number | null>(null);
+  const [fillFrom, setFillFrom] = useState<number | null>(null);
+  const previous = useRef(value ?? 0);
+  useEffect(() => {
+    const before = previous.current;
+    previous.current = value ?? 0;
+    if ((value ?? 0) > before) {
+      setFillFrom(before);
+      const timer = window.setTimeout(() => setFillFrom(null), 260);
+      return () => window.clearTimeout(timer);
+    }
+  }, [value]);
+  useEffect(() => {
+    if (popped === null) return;
+    const timer = window.setTimeout(() => setPopped(null), 200);
+    return () => window.clearTimeout(timer);
+  }, [popped]);
   const shownValue = hovered ?? value ?? 0;
   const { button, icon } = dimensions[size];
 
@@ -62,7 +80,12 @@ export function RatingStars({
         return (
           <ActionIcon
             key={star}
-            className={`rating-star-button${filled ? " is-filled" : ""}`}
+            className={`rating-star-button${filled ? " is-filled" : ""}${popped === star ? " is-popping" : ""}`}
+            style={
+              fillFrom !== null && star > fillFrom
+                ? ({ "--fill-delay": `${(star - fillFrom - 1) * 22}ms` } as React.CSSProperties)
+                : undefined
+            }
             variant="subtle"
             size={button}
             aria-label={`${label}: ${star} ${star === 1 ? "star" : "stars"}${clearsRating ? ", clear rating" : ""}`}
@@ -80,6 +103,7 @@ export function RatingStars({
             onBlur={() => setHovered(null)}
             onClick={() => {
               setHovered(null);
+              if (!clearsRating) setPopped(star);
               onChange?.(clearsRating ? null : star);
             }}
           >

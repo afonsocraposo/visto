@@ -146,6 +146,36 @@ select {
 .visto-main [role="tab"] {
   scroll-margin-top: calc(24px + var(--visto-header-height));
 }
+.app-loading {
+  display: flex;
+  min-height: 100dvh;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 24px;
+  /* Only appears if loading actually takes a moment, so fast loads never flash. */
+  animation: app-loading-in 300ms var(--visto-ease-standard) 250ms both;
+}
+.app-loading-mark {
+  width: 52px;
+  height: 52px;
+  border-radius: 15px;
+  box-shadow: 0 8px 20px rgb(242 181 68 / 0.23);
+}
+.app-loading-name {
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+@keyframes app-loading-in {
+  from {
+    opacity: 0;
+  }
+}
+.page-loading {
+  animation: app-loading-in 200ms var(--visto-ease-standard) 150ms both;
+}
 .auth-mark {
   display: block;
   width: 44px;
@@ -1032,6 +1062,41 @@ button.watch-row-show {
   opacity: 1;
 }
 
+/*
+ * Touch press feedback: a tiny scale while pressed, only for coarse pointers so desktop hover
+ * states are untouched. Posters scale a little more than full-width rows.
+ */
+@media (pointer: coarse) {
+  .media-poster-card-link .media-poster-card-art,
+  .watch-row,
+  .episode-row,
+  .calendar-card,
+  .cast-member-card,
+  .activity-row,
+  .search-result-card,
+  .library-list-link,
+  .tracking-row {
+    transition-property: transform, border-color, box-shadow, background-color, opacity;
+    transition-duration: 90ms;
+    transition-timing-function: var(--visto-ease-standard);
+  }
+  .media-poster-card-link:active .media-poster-card-art,
+  .cast-member-card:active {
+    transform: scale(var(--visto-press-scale));
+  }
+  .watch-row:active:not(:has(.watch-row-action:active, .watch-row-show:active)),
+  .episode-row:active:not(:has(.episode-row-controls:active)),
+  .calendar-card:active:not(:has(.calendar-show-link:active)),
+  .activity-row:active:not(:has(button:active)),
+  .search-result-card:active:not(:has(.search-result-actions:active)),
+  .library-list-link:active {
+    transform: scale(var(--visto-press-scale-row));
+  }
+  .tracking-row:active {
+    background: var(--mantine-color-default-hover);
+  }
+}
+
 /* A short crossfade when skeletons are replaced by content. No stagger, no movement. */
 .content-ready {
   animation: content-ready 120ms var(--visto-ease-standard) both;
@@ -1600,6 +1665,15 @@ button.watch-row-show {
 }
 .rating-star-button.is-filled {
   color: var(--visto-accent);
+  transition-delay: var(--fill-delay, 0ms);
+}
+.rating-star-button.is-popping svg {
+  animation: star-pop 160ms var(--visto-ease-standard);
+}
+@keyframes star-pop {
+  50% {
+    transform: scale(1.18);
+  }
 }
 @media (hover: hover) and (pointer: fine) {
   .rating-star-button:not(:disabled):hover {
@@ -2347,6 +2421,9 @@ label.tracking-row {
     grid-template-rows 180ms var(--visto-ease-standard),
     opacity 180ms var(--visto-ease-standard);
 }
+.expand.is-quick {
+  transition-duration: var(--visto-motion-normal);
+}
 .expand[data-open] {
   grid-template-rows: 1fr;
   opacity: 1;
@@ -2387,8 +2464,20 @@ label.tracking-row {
   position: absolute;
   inset: 0;
   z-index: -2;
+}
+.auth-backdrop-layer {
+  position: absolute;
+  inset: 0;
   background-position: center;
   background-size: cover;
+}
+.auth-backdrop-layer.is-entering {
+  animation: auth-backdrop-in var(--visto-motion-ambient) ease-in-out both;
+}
+@keyframes auth-backdrop-in {
+  from {
+    opacity: 0;
+  }
 }
 .auth-screen::before {
   position: absolute;
