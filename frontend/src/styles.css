@@ -1,16 +1,97 @@
+/*
+ * Semantic tokens. Amber is brand/primary interaction, teal means watched/success/progress,
+ * neutrals carry hover and navigation, red is destructive/error.
+ */
 :root {
-  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  --visto-font: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  --visto-accent: #f2b544;
+  --visto-accent-hover: #ffd16a;
+  --visto-accent-strong: #925912;
+  --visto-accent-soft: color-mix(in srgb, var(--visto-accent) 18%, transparent);
+  --visto-success: #48b7ae;
+  --visto-success-strong: #2b8a82;
+  --visto-success-soft: color-mix(in srgb, var(--visto-success) 16%, transparent);
+  --visto-danger: var(--mantine-color-red-6);
+
+  --visto-page-bg: #f3f6f8;
+  --visto-surface: var(--mantine-color-body);
+  --visto-surface-raised: color-mix(
+    in srgb,
+    var(--mantine-color-body) 94%,
+    var(--mantine-color-gray-5)
+  );
+  --visto-surface-glass: color-mix(in srgb, var(--mantine-color-body) 90%, transparent);
+  --visto-border: var(--mantine-color-default-border);
+  --visto-border-strong: var(--mantine-color-gray-5);
+  --visto-text-muted: #6b7280;
+  --visto-focus: #b77316;
+  --visto-artwork-bg: #1b2430;
+  --visto-artwork-fallback: linear-gradient(135deg, #334155, #19212b);
+
+  --visto-radius-control: 8px;
+  --visto-radius-card: 12px;
+  --visto-radius-surface: 18px;
+  --visto-radius-sheet: 20px;
+
+  --visto-shadow-card: 0 1px 2px rgb(23 34 48 / 0.04);
+  --visto-shadow-hover: 0 10px 28px rgb(23 34 48 / 0.12);
+  --visto-shadow-raised: 0 18px 44px rgb(0 0 0 / 0.4);
+  --visto-shadow-bar: 0 6px 20px rgb(23 34 48 / 0.08);
+
+  --visto-motion-fast: 100ms;
+  --visto-motion-normal: 160ms;
+  --visto-motion-slow: 220ms;
+  --visto-motion-ambient: 600ms;
+  --visto-ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --visto-press-scale: 0.98;
+  --visto-press-scale-row: 0.995;
+
+  --visto-touch-target: 44px;
+  --visto-topbar-height: 60px;
+
+  font-family: var(--visto-font);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+:root[data-mantine-color-scheme="dark"] {
+  --visto-accent-strong: var(--visto-accent);
+  --visto-success-strong: var(--visto-success);
+  --visto-page-bg: #10141a;
+  --visto-text-muted: #aeb6c3;
+  --visto-focus: var(--visto-accent);
+  --visto-shadow-card: none;
+  --visto-shadow-hover: 0 12px 30px rgb(0 0 0 / 0.35);
+  --visto-shadow-bar: 0 6px 20px rgb(0 0 0 / 0.35);
+}
+
+/* Reduced motion: state changes happen immediately; nothing slides, scales or fades. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --visto-motion-fast: 1ms;
+    --visto-motion-normal: 1ms;
+    --visto-motion-slow: 1ms;
+    --visto-motion-ambient: 1ms;
+    --visto-press-scale: 1;
+    --visto-press-scale-row: 1;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 body {
   min-width: 320px;
   min-height: 100vh;
   margin: 0;
-  background: #f3f6f8;
+  background: var(--visto-page-bg);
   color: var(--mantine-color-text);
 }
 
@@ -20,12 +101,12 @@ select {
   font: inherit;
 }
 
-:root[data-mantine-color-scheme="dark"] body {
-  background: #10141a;
+:focus-visible {
+  outline-color: var(--visto-focus);
 }
 
 .mantine-Notifications-root[data-position="bottom-center"] {
-  bottom: 88px;
+  bottom: calc(var(--visto-footer-height, 0px) + 16px);
 }
 
 .visto-shell {
@@ -130,18 +211,18 @@ select {
   -webkit-tap-highlight-color: transparent;
 }
 .bottom-nav-button[aria-current="page"] {
-  background: color-mix(in srgb, #f2b544 18%, transparent);
-  color: #925912;
+  background: color-mix(in srgb, var(--visto-accent) 18%, transparent);
+  color: var(--visto-accent-strong);
 }
 .bottom-nav-button:focus-visible {
-  outline: 2px solid #b77316;
+  outline: 2px solid var(--visto-focus);
   outline-offset: -3px;
 }
 :root[data-mantine-color-scheme="dark"] .bottom-nav-button {
   color: #aeb6c3;
 }
 :root[data-mantine-color-scheme="dark"] .bottom-nav-button[aria-current="page"] {
-  color: #f2b544;
+  color: var(--visto-accent);
 }
 @media (min-width: 681px) {
   .visto-shell {
@@ -192,8 +273,8 @@ select {
   background: var(--mantine-color-body);
   cursor: pointer;
   transition:
-    border-color 150ms ease,
-    box-shadow 150ms ease;
+    border-color var(--visto-motion-normal) var(--visto-ease-standard),
+    box-shadow var(--visto-motion-normal) var(--visto-ease-standard);
 }
 .watch-row:focus-visible {
   border-color: var(--mantine-color-gray-5);
@@ -225,12 +306,12 @@ select {
   24% {
     opacity: 1;
     transform: translateX(0);
-    border-color: #48b7ae;
+    border-color: var(--visto-success);
   }
   100% {
     opacity: 0.12;
     transform: translateX(18px);
-    border-color: #48b7ae;
+    border-color: var(--visto-success);
   }
 }
 @keyframes watch-complete-pop {
@@ -256,7 +337,7 @@ select {
   height: 144px;
   flex: 0 0 240px;
   overflow: hidden;
-  background: #1b2430;
+  background: var(--visto-artwork-bg);
 }
 .watch-row-art .mantine-Image-root,
 .watch-row-art img {
@@ -325,8 +406,8 @@ select {
   place-items: center;
   height: 100%;
   min-height: 100%;
-  background: linear-gradient(135deg, #334155, #19212b);
-  color: #f2b544;
+  background: var(--visto-artwork-fallback);
+  color: var(--visto-accent);
   font-size: 2.5rem;
   font-weight: 800;
 }
@@ -359,8 +440,8 @@ select {
   background: color-mix(in srgb, var(--mantine-color-body) 94%, var(--mantine-color-gray-5));
   cursor: pointer;
   transition:
-    border-color 150ms ease,
-    box-shadow 150ms ease;
+    border-color var(--visto-motion-normal) var(--visto-ease-standard),
+    box-shadow var(--visto-motion-normal) var(--visto-ease-standard);
 }
 .calendar-card:focus-visible {
   border-color: var(--mantine-color-yellow-6);
@@ -373,14 +454,14 @@ select {
   }
 }
 .calendar-card:focus-visible {
-  outline: 2px solid #f2b544;
+  outline: 2px solid var(--visto-accent);
   outline-offset: 2px;
 }
 .calendar-card-art {
   width: 92px;
   flex: 0 0 92px;
   overflow: hidden;
-  background: #1b2430;
+  background: var(--visto-artwork-bg);
 }
 .calendar-card-art .mantine-Image-root,
 .calendar-card-art img {
@@ -475,7 +556,7 @@ select {
 .library-empty {
   max-width: 760px;
   padding: clamp(24px, 4vw, 40px);
-  background: color-mix(in srgb, var(--mantine-color-body) 96%, #f2b544);
+  background: color-mix(in srgb, var(--mantine-color-body) 96%, var(--visto-accent));
 }
 .library-empty h2 {
   font-size: clamp(1.5rem, 3vw, 2rem);
@@ -511,20 +592,20 @@ select {
   color: #fff;
   cursor: pointer;
   transition:
-    transform 150ms ease,
-    box-shadow 150ms ease,
-    border-color 150ms ease;
+    transform var(--visto-motion-normal) var(--visto-ease-standard),
+    box-shadow var(--visto-motion-normal) var(--visto-ease-standard),
+    border-color var(--visto-motion-normal) var(--visto-ease-standard);
 }
 .media-poster-card:focus-visible {
   transform: translateY(-3px);
-  border-color: #48b7ae;
+  border-color: var(--visto-border-strong);
   box-shadow: 0 12px 28px rgb(23 34 48 / 0.16);
   outline: none;
 }
 @media (hover: hover) and (pointer: fine) {
   .media-poster-card:hover {
     transform: translateY(-3px);
-    border-color: #48b7ae;
+    border-color: var(--visto-border-strong);
     box-shadow: 0 12px 28px rgb(23 34 48 / 0.16);
   }
 }
@@ -561,7 +642,7 @@ select {
 .media-poster-card-progress > span {
   display: block;
   height: 100%;
-  background: #48b7ae;
+  background: var(--visto-success);
   box-shadow: 0 0 8px rgb(72 183 174 / 0.55);
 }
 .library-list-page {
@@ -575,8 +656,8 @@ select {
 }
 .search-result-card {
   transition:
-    transform 150ms ease,
-    box-shadow 150ms ease;
+    transform var(--visto-motion-normal) var(--visto-ease-standard),
+    box-shadow var(--visto-motion-normal) var(--visto-ease-standard);
 }
 @media (hover: hover) and (pointer: fine) {
   .search-result-card:hover {
@@ -588,7 +669,7 @@ select {
   cursor: pointer;
 }
 .search-result-clickable:focus-visible {
-  outline: 2px solid #f2b544;
+  outline: 2px solid var(--visto-accent);
   outline-offset: 2px;
 }
 .search-poster {
@@ -597,7 +678,7 @@ select {
   flex: 0 0 54px;
   border-radius: 8px;
   overflow: hidden;
-  background: #1b2430;
+  background: var(--visto-artwork-bg);
 }
 .search-overview {
   display: -webkit-box;
@@ -678,7 +759,7 @@ select {
   aspect-ratio: 2 / 3;
   overflow: hidden;
   border-radius: 14px;
-  background: #1b2430;
+  background: var(--visto-artwork-bg);
   box-shadow: 0 18px 44px rgb(0 0 0 / 0.45);
 }
 .detail-poster .mantine-Image-root,
@@ -771,8 +852,8 @@ select {
   background: var(--mantine-color-default);
   cursor: pointer;
   transition:
-    border-color 140ms ease,
-    background-color 140ms ease;
+    border-color var(--visto-motion-normal) var(--visto-ease-standard),
+    background-color var(--visto-motion-normal) var(--visto-ease-standard);
 }
 .show-notification-option.is-selected {
   border-color: var(--mantine-primary-color-filled);
@@ -825,22 +906,22 @@ select {
 .rating-star-button {
   color: var(--mantine-color-gray-6);
   transition:
-    color 120ms ease,
-    transform 120ms ease,
-    background-color 120ms ease;
+    color var(--visto-motion-fast) var(--visto-ease-standard),
+    transform var(--visto-motion-fast) var(--visto-ease-standard),
+    background-color var(--visto-motion-fast) var(--visto-ease-standard);
 }
 .rating-star-button.is-filled {
-  color: #f2b544;
+  color: var(--visto-accent);
 }
 @media (hover: hover) and (pointer: fine) {
   .rating-star-button:not(:disabled):hover {
-    color: #ffd16a;
+    color: var(--visto-accent-hover);
     transform: translateY(-1px);
-    background: rgb(242 181 68 / 0.12);
+    background: color-mix(in srgb, var(--visto-accent) 12%, transparent);
   }
 }
 .rating-star-button:focus-visible {
-  outline: 2px solid #f2b544;
+  outline: 2px solid var(--visto-accent);
   outline-offset: 2px;
 }
 .rating-star-button:disabled {
@@ -855,7 +936,7 @@ select {
   color: var(--mantine-color-gray-6);
 }
 .rating-star.is-filled {
-  color: #f2b544;
+  color: var(--visto-accent);
 }
 .detail-actions .mantine-Select-input {
   background: rgb(255 255 255 / 0.12);
@@ -869,13 +950,13 @@ select {
   overflow: hidden;
   background: var(--mantine-color-body);
   transition:
-    transform 150ms ease,
-    border-color 150ms ease;
+    transform var(--visto-motion-normal) var(--visto-ease-standard),
+    border-color var(--visto-motion-normal) var(--visto-ease-standard);
 }
 @media (hover: hover) and (pointer: fine) {
   .episode-row:hover {
     transform: translateX(3px);
-    border-color: #48b7ae;
+    border-color: var(--visto-border-strong);
   }
 }
 .episode-row-layout {
@@ -892,7 +973,7 @@ select {
   min-height: 132px;
   flex: 0 0 220px;
   overflow: hidden;
-  background: #1b2430;
+  background: var(--visto-artwork-bg);
 }
 .episode-art .mantine-Image-root,
 .episode-art img {
@@ -915,7 +996,7 @@ select {
   padding: 8px;
 }
 .episode-row-controls .mantine-Checkbox-input:focus-visible {
-  outline: 2px solid #f2b544;
+  outline: 2px solid var(--visto-accent);
   outline-offset: 3px;
 }
 .episode-description {
@@ -934,12 +1015,12 @@ select {
   overflow: hidden;
   background: var(--mantine-color-body);
   transition:
-    border-color 150ms ease,
-    transform 150ms ease;
+    border-color var(--visto-motion-normal) var(--visto-ease-standard),
+    transform var(--visto-motion-normal) var(--visto-ease-standard);
 }
 @media (hover: hover) and (pointer: fine) {
   .cast-member-card:hover {
-    border-color: #48b7ae;
+    border-color: var(--visto-border-strong);
     transform: translateY(-2px);
   }
 }
@@ -951,13 +1032,13 @@ select {
   cursor: pointer;
 }
 .cast-member-clickable:focus-visible {
-  outline: 2px solid #f2b544;
+  outline: 2px solid var(--visto-accent);
   outline-offset: 3px;
 }
 .cast-member-photo {
   aspect-ratio: 3 / 4;
   overflow: hidden;
-  background: #1b2430;
+  background: var(--visto-artwork-bg);
 }
 .cast-member-photo .mantine-Image-root,
 .cast-member-photo img {
@@ -972,8 +1053,8 @@ select {
   place-items: center;
   width: 100%;
   height: 100%;
-  background: linear-gradient(135deg, #334155, #19212b);
-  color: #f2b544;
+  background: var(--visto-artwork-fallback);
+  color: var(--visto-accent);
   font-size: 2.5rem;
   font-weight: 800;
 }
@@ -1002,7 +1083,7 @@ select {
   border-radius: 22px;
   background: linear-gradient(
     135deg,
-    color-mix(in srgb, #48b7ae 12%, var(--mantine-color-body)),
+    color-mix(in srgb, var(--visto-accent) 8%, var(--mantine-color-body)),
     var(--mantine-color-body) 68%
   );
 }
@@ -1012,7 +1093,7 @@ select {
   aspect-ratio: 3 / 4;
   overflow: hidden;
   border-radius: 14px;
-  background: #1b2430;
+  background: var(--visto-artwork-bg);
   box-shadow: 0 18px 44px rgb(0 0 0 / 0.2);
 }
 .person-portrait .mantine-Image-root,
@@ -1027,8 +1108,8 @@ select {
   width: 100%;
   height: 100%;
   place-items: center;
-  background: linear-gradient(135deg, #334155, #19212b);
-  color: #f2b544;
+  background: var(--visto-artwork-fallback);
+  color: var(--visto-accent);
   font-size: 5rem;
   font-weight: 800;
 }
@@ -1103,14 +1184,14 @@ select {
   border-radius: 10px;
   color: var(--mantine-color-dimmed);
   transition:
-    background-color 140ms ease,
-    color 140ms ease;
+    background-color var(--visto-motion-normal) var(--visto-ease-standard),
+    color var(--visto-motion-normal) var(--visto-ease-standard);
 }
 .section-tabs .mantine-Tabs-tab::before {
   display: none;
 }
 .section-tabs .mantine-Tabs-tab[data-active] {
-  background: #f2b544;
+  background: var(--visto-accent);
   color: #10141a;
   font-weight: 700;
 }
@@ -1121,7 +1202,7 @@ select {
   }
 }
 .section-tabs .mantine-Tabs-tab:focus-visible {
-  outline: 2px solid #f2b544;
+  outline: 2px solid var(--visto-accent);
   outline-offset: 2px;
 }
 .activity-list {
@@ -1136,7 +1217,7 @@ select {
   padding: 12px;
   border-radius: 14px;
   background: var(--mantine-color-body);
-  transition: border-color 150ms ease;
+  transition: border-color var(--visto-motion-normal) var(--visto-ease-standard);
 }
 @media (hover: hover) and (pointer: fine) {
   .activity-row:hover {
@@ -1178,7 +1259,7 @@ select {
   cursor: pointer;
 }
 .activity-row-clickable:focus-visible {
-  outline: 2px solid #48b7ae;
+  outline: 2px solid var(--visto-focus);
   outline-offset: 2px;
 }
 .activity-row-art {
@@ -1188,7 +1269,7 @@ select {
   overflow: hidden;
   border-radius: 10px;
   background: color-mix(in srgb, var(--mantine-color-body) 78%, #152130);
-  color: #f2b544;
+  color: var(--visto-accent);
 }
 .activity-row-art .mantine-Image-root,
 .activity-row-art img {
@@ -1235,13 +1316,13 @@ select {
   }
 }
 .activity-actor-button:focus-visible {
-  outline: 2px solid #48b7ae;
+  outline: 2px solid var(--visto-focus);
   outline-offset: 3px;
   border-radius: 4px;
 }
 .activity-avatar {
   flex: 0 0 auto;
-  background: color-mix(in srgb, #f2b544 22%, var(--mantine-color-body));
+  background: color-mix(in srgb, var(--visto-accent) 22%, var(--mantine-color-body));
   color: var(--mantine-color-text);
   font-weight: 750;
 }
@@ -1266,7 +1347,7 @@ select {
 .activity-episode-badge {
   padding: 2px 7px;
   border-radius: 6px;
-  background: color-mix(in srgb, #f2b544 18%, var(--mantine-color-body));
+  background: color-mix(in srgb, var(--visto-accent) 18%, var(--mantine-color-body));
   color: var(--mantine-color-text);
   font-size: 0.72rem;
   font-weight: 750;
@@ -1293,7 +1374,7 @@ select {
 .empty-state {
   background: linear-gradient(
     135deg,
-    color-mix(in srgb, var(--mantine-color-body) 90%, #f2b544),
+    color-mix(in srgb, var(--mantine-color-body) 90%, var(--visto-accent)),
     var(--mantine-color-body)
   );
   border-style: dashed;
@@ -1359,18 +1440,18 @@ select {
   text-decoration-color: transparent;
   text-underline-offset: 3px;
   transition:
-    color 120ms ease,
-    text-decoration-color 120ms ease;
+    color var(--visto-motion-fast) var(--visto-ease-standard),
+    text-decoration-color var(--visto-motion-fast) var(--visto-ease-standard);
 }
 @media (hover: hover) and (pointer: fine) {
   .auth-feature-title:hover {
-    color: #ffd16a;
+    color: var(--visto-accent-hover);
     text-decoration-color: currentColor;
   }
 }
 .auth-feature-title:focus-visible {
   border-radius: 3px;
-  outline: 2px solid #f2b544;
+  outline: 2px solid var(--visto-accent);
   outline-offset: 3px;
 }
 

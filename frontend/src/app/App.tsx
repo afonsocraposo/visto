@@ -14,6 +14,10 @@ const AuthGate = lazy(async () => ({
   default: (await import("../features/auth/AuthGate")).AuthGate,
 }));
 
+// Local system fonts: fast and fitting for a self-hosted app; personality comes from layout.
+const systemFont =
+  'ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+
 const themeDefinition = createTheme({
   primaryColor: "amber",
   primaryShade: { light: 7, dark: 5 },
@@ -31,9 +35,33 @@ const themeDefinition = createTheme({
       "#77480f",
     ],
   },
-  fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif",
-  headings: { fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif", fontWeight: "750" },
-  defaultRadius: "md",
+  fontFamily: systemFont,
+  headings: { fontFamily: systemFont, fontWeight: "750" },
+  // Small controls ~8px, cards ~12px, large surfaces ~18px, sheets/modals ~20px.
+  radius: { xs: "6px", sm: "8px", md: "12px", lg: "18px", xl: "20px" },
+  defaultRadius: "sm",
+  shadows: {
+    xs: "0 1px 2px rgb(23 34 48 / 0.05)",
+    sm: "0 2px 8px rgb(23 34 48 / 0.06)",
+    md: "0 10px 28px rgb(23 34 48 / 0.12)",
+    lg: "0 18px 44px rgb(0 0 0 / 0.3)",
+    xl: "0 24px 70px rgb(0 0 0 / 0.35)",
+  },
+  focusRing: "auto",
+  cursorType: "pointer",
+  components: {
+    Modal: { defaultProps: { radius: "xl" } },
+    Drawer: { defaultProps: { radius: "xl" } },
+    Paper: { defaultProps: { radius: "md" } },
+    Tooltip: {
+      defaultProps: { openDelay: 300, events: { hover: true, focus: true, touch: false } },
+    },
+  },
+  other: {
+    success: "#48b7ae",
+    motion: { fast: 100, normal: 160, slow: 220 },
+    easeStandard: "cubic-bezier(.2, .8, .2, 1)",
+  },
 });
 
 export function App() {
