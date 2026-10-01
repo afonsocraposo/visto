@@ -1216,6 +1216,7 @@ test("Watching links keep native browser navigation and separate the watched act
   const show = row.locator("a.watch-row-show");
   const episode = row.locator("a.watch-row-title");
   await expect(show).toHaveAttribute("href", "/media/tv/42");
+  await expect(show.locator(".watch-row-show-badge")).toHaveText("The Example Show");
   await expect(episode).toHaveAttribute("href", "/shows/42/season/1/episode/1");
   expect(
     await show.evaluate((element) => element.getBoundingClientRect().height),
@@ -1239,6 +1240,65 @@ test("Watching links keep native browser navigation and separate the watched act
 
   await row.getByRole("button", { name: /Mark The Example Show.*watched/ }).click();
   await expect(page).toHaveURL(/\/watch$/);
+});
+
+test("A long show badge stays within a phone card and leaves the full link touch target", async ({
+  page,
+}) => {
+  await mockSignedInSession(page);
+  await page.route("**/api/v1/continue-watching", (route) =>
+    fulfillJSON(route, [
+      { ...continueEntry, title: "The Completely Made-Up Extremely Long Television Show" },
+    ]),
+  );
+  await page.setViewportSize({ width: 320, height: 740 });
+  await page.goto("/watch");
+  const show = page.locator(".watch-row-show");
+  const badge = show.locator(".watch-row-show-badge");
+  await expect(badge).toBeVisible();
+  const size = await show.evaluate((element) => {
+    const badge = element.querySelector(".watch-row-show-badge")!;
+    return {
+      touchHeight: element.getBoundingClientRect().height,
+      showRight: element.getBoundingClientRect().right,
+      badgeRight: badge.getBoundingClientRect().right,
+      truncated: badge.scrollWidth > badge.clientWidth,
+      background: getComputedStyle(badge).backgroundColor,
+    };
+  });
+  expect(size.touchHeight).toBeGreaterThanOrEqual(43.9);
+  expect(size.badgeRight).toBeLessThanOrEqual(size.showRight + 1);
+  expect(size.truncated).toBe(true);
+  expect(size.background).toBe("rgba(0, 0, 0, 0)");
+  await show.click({ position: { x: 10, y: 2 } });
+  await expect(page).toHaveURL(/\/media\/tv\/42/);
+});
+
+test("Show badge keeps its outline in both themes and shows hover and keyboard focus", async ({
+  page,
+}) => {
+  await mockSignedInSession(page);
+  await page.goto("/watch");
+  const show = page.locator("a.watch-row-show");
+  const badge = show.locator(".watch-row-show-badge");
+  for (const scheme of ["light", "dark"]) {
+    await page.locator("html").evaluate((element, value) => {
+      element.setAttribute("data-mantine-color-scheme", value);
+    }, scheme);
+    await expect(badge).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+    const border = await badge.evaluate((element) => getComputedStyle(element).borderTopColor);
+    expect(border).not.toBe("rgba(0, 0, 0, 0)");
+  }
+  const normalBorder = await badge.evaluate((element) => getComputedStyle(element).borderTopColor);
+  await show.hover();
+  await expect
+    .poll(() => badge.evaluate((element) => getComputedStyle(element).borderTopColor))
+    .not.toBe(normalBorder);
+  await show.focus();
+  await page.keyboard.press("Tab");
+  await page.keyboard.press("Shift+Tab");
+  await expect(show).toBeFocused();
+  expect(await show.evaluate((element) => element.matches(":focus-visible"))).toBe(true);
 });
 
 test("Given the ordinary next episode, When the user taps Watched, Then only that episode is recorded", async ({
@@ -1863,6 +1923,8 @@ test.describe("touch devices", () => {
     await expect(rows.nth(1)).toContainText("Silo");
     await expect(rows.nth(1)).toContainText("S2 E6");
     await expect(rows.nth(1)).toContainText("Barricades");
+    await expect(rows.nth(0).locator(".watch-row-show-badge")).toHaveCount(0);
+    await expect(rows.nth(1).locator(".watch-row-show-badge")).toHaveText("Silo");
     await expect(rows.nth(0).locator("a.watch-row-show")).toHaveAttribute("href", "/media/movie/2");
     await expect(rows.nth(0).locator("a.watch-row-title")).toHaveAttribute(
       "href",
