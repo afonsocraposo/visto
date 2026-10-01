@@ -138,7 +138,7 @@ test("Main navigation supports opening a destination in a new tab", async ({ pag
   const discover = page.locator(".bottom-nav-button", { hasText: "Discover" });
   await expect(discover).toHaveAttribute("href", "/discover");
   const popupPromise = page.context().waitForEvent("page");
-  await discover.click({ modifiers: ["Meta"] });
+  await discover.click({ modifiers: ["ControlOrMeta"] });
   const popup = await popupPromise;
   await expect(popup).toHaveURL(/\/discover$/);
   await popup.close();
@@ -1223,7 +1223,7 @@ test("Watching links keep native browser navigation and separate the watched act
   ).toBeGreaterThanOrEqual(43.9);
 
   const popupPromise = page.context().waitForEvent("page");
-  await episode.click({ modifiers: ["Meta"] });
+  await episode.click({ modifiers: ["ControlOrMeta"] });
   const popup = await popupPromise;
   await expect(popup).toHaveURL(/\/shows\/42\/season\/1\/episode\/1/);
   await popup.close();
