@@ -25,7 +25,8 @@ approve access. Visto uses the identity tied to that user's token, not a
 
 ## Tools
 
-- `get_show_episodes` lists episode IDs and watched state.
+- `get_show_episodes` lists episode IDs and watched state, optionally for one
+  `season_number`.
 - `mark_episodes_through` marks missing released episodes up to a chosen
   episode, even if that episode is already watched.
 - `mark_season_watched` and `mark_selected_episodes_watched` cover other bulk
@@ -34,12 +35,7 @@ approve access. Visto uses the identity tied to that user's token, not a
 - `get_show_progress` reports earlier gaps separately from `is_caught_up`,
   which only refers to episodes after the furthest watched episode.
 - `get_library` lists saved media, most recently updated first, with filters
-  by `status` and `media_type`. It is paginated like the REST library list:
-  it returns up to `limit` entries (1–100, default 30) as
-  `{ "items": [...], "next_cursor": "...", "total_count": 347 }`. When
-  `next_cursor` is not null, call `get_library` again with the same filters
-  and `cursor` set to that value to get the next page. A cursor only works
-  with the filters it came from.
+  by `status` and `media_type`. Its pages also include `total_count`.
 - `remove_media` (destructive) removes a movie or show from the authenticated
   user's library along with that user's plays, ratings, and activity for the
   title. Other users' records and shared catalog data are untouched.
@@ -47,6 +43,20 @@ approve access. Visto uses the identity tied to that user's token, not a
 The equivalent REST call for watch-through is
 `POST /api/v1/shows/{showID}/episodes/watch-through` with `season_number` and
 `episode_number`.
+
+## MCP pagination
+
+`get_library`, `get_watch_history`, `get_show_episodes`, and
+`get_upcoming_episodes` are paginated like the REST lists below. Each returns
+up to `limit` items (1–100, default 30) as
+`{ "items": [...], "next_cursor": "..." }`. When `next_cursor` is not null,
+call the tool again with the same arguments and `cursor` set to that value to
+get the next page. A cursor only works with the arguments it came from.
+
+> `get_watch_history`, `get_show_episodes`, and `get_upcoming_episodes` used
+> to return bare arrays, and `get_watch_history` accepted a `limit` of up to
+> 500. MCP clients that relied on either must read `items` and follow
+> `next_cursor` instead.
 
 ## REST pagination
 

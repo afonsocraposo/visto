@@ -50,14 +50,16 @@ type trackingUseCases interface {
 	MarkSeasonWatched(context.Context, string, string, int, time.Time, string) (int, error)
 	MarkSelectedEpisodes(context.Context, string, string, []string, time.Time, string) (int, error)
 	RemoveEpisodes(context.Context, string, []string) error
-	History(context.Context, string, int) ([]tracking.HistoryEntry, error)
+	HistoryPage(context.Context, string, string, string, string, pagination.Request) (pagination.Page[tracking.HistoryEntry], error)
 	RateEpisode(context.Context, string, string, *int) (tracking.EpisodeRating, error)
 }
 
 type watchUseCases interface {
 	Episodes(context.Context, string, string) ([]watch.ShowEpisode, error)
 	Continue(context.Context, string) ([]watch.ContinueEntry, error)
-	Calendar(context.Context, string, time.Time, time.Time) ([]watch.CalendarEntry, error)
+	EpisodesPage(context.Context, string, string, pagination.Request) (pagination.Page[watch.ShowEpisode], error)
+	SeasonEpisodesPage(context.Context, string, string, pagination.Request) (pagination.Page[watch.ShowEpisode], error)
+	CalendarPage(context.Context, string, time.Time, time.Time, pagination.Request) (pagination.Page[watch.CalendarEntry], error)
 	ShowProgress(context.Context, string, string) (watch.Progress, error)
 }
 

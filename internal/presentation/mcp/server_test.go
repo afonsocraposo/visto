@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/afonsocosta/visto/internal/application/auth"
+	"github.com/afonsocosta/visto/internal/application/pagination"
 	"github.com/afonsocosta/visto/internal/application/tracking"
 	"github.com/afonsocosta/visto/internal/application/watch"
 	"github.com/afonsocosta/visto/internal/domain"
@@ -27,11 +28,12 @@ func (authenticator testAuthenticator) AuthenticatePersonalToken(_ context.Conte
 type testTracking struct {
 	userID, showID  string
 	season, episode int
+	request         pagination.Request
 }
 
-func (service *testTracking) History(_ context.Context, userID string, _ int) ([]tracking.HistoryEntry, error) {
-	service.userID = userID
-	return []tracking.HistoryEntry{}, nil
+func (service *testTracking) HistoryPage(_ context.Context, userID, _, _, _ string, request pagination.Request) (pagination.Page[tracking.HistoryEntry], error) {
+	service.userID, service.request = userID, request
+	return pagination.Page[tracking.HistoryEntry]{Items: []tracking.HistoryEntry{}}, nil
 }
 
 func (*testTracking) Record(context.Context, string, *string, *string, time.Time, string) (tracking.Play, error) {
@@ -56,16 +58,36 @@ func (*testTracking) RemoveMediaAndHistory(_ context.Context, _ string, mediaID 
 	return tracking.RemovedMedia{MediaID: mediaID}, nil
 }
 
-type testWatch struct{ episodes []watch.ShowEpisode }
+type testWatch struct {
+	episodes      []watch.ShowEpisode
+	missingSeason bool
+	parentID      string
+	from, to      time.Time
+	request       pagination.Request
+}
 
 func (service *testWatch) Episodes(context.Context, string, string) ([]watch.ShowEpisode, error) {
 	return service.episodes, nil
 }
+
+func (service *testWatch) EpisodesPage(_ context.Context, _, showID string, request pagination.Request) (pagination.Page[watch.ShowEpisode], error) {
+	service.parentID, service.request = showID, request
+	return pagination.Page[watch.ShowEpisode]{Items: service.episodes}, nil
+}
+
+func (service *testWatch) SeasonEpisodesPage(_ context.Context, _, seasonID string, request pagination.Request) (pagination.Page[watch.ShowEpisode], error) {
+	service.parentID, service.request = seasonID, request
+	if service.missingSeason {
+		return pagination.Page[watch.ShowEpisode]{}, watch.ErrShowNotFound
+	}
+	return pagination.Page[watch.ShowEpisode]{Items: service.episodes}, nil
+}
 func (*testWatch) Continue(context.Context, string) ([]watch.ContinueEntry, error) {
 	return nil, nil
 }
-func (*testWatch) Calendar(context.Context, string, time.Time, time.Time) ([]watch.CalendarEntry, error) {
-	return nil, nil
+func (service *testWatch) CalendarPage(_ context.Context, _ string, from, to time.Time, request pagination.Request) (pagination.Page[watch.CalendarEntry], error) {
+	service.from, service.to, service.request = from, to, request
+	return pagination.Page[watch.CalendarEntry]{Items: []watch.CalendarEntry{}}, nil
 }
 func (*testWatch) ShowProgress(context.Context, string, string) (watch.Progress, error) {
 	return watch.Progress{WatchedEpisodes: 3, MissingPriorEpisodes: 0}, nil
@@ -155,7 +177,7 @@ func TestMCPTools_GivenTrackedShow_WhenListingAndMarkingThrough_ThenReturnProgre
 	}}
 	server := &Server{tracking: trackingService, watch: watchService}
 	listed, err := server.callTool(context.Background(), "user-123", "get_show_episodes", map[string]any{"show_id": "tv:42", "season_number": 1})
-	if err != nil || len(listed.([]watch.ShowEpisode)) != 2 {
+	if err != nil || len(listed.(pagination.Page[watch.ShowEpisode]).Items) != 2 {
 		t.Fatalf("listed=%v error=%v", listed, err)
 	}
 	result, err := server.callTool(context.Background(), "user-123", "mark_episodes_through", map[string]any{"show_id": "tv:42", "season_number": 1, "episode_number": 2})

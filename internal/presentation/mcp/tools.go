@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -34,14 +35,19 @@ func toolDefinitions() []toolDefinition {
 	deleteAction := map[string]any{"readOnlyHint": false, "destructiveHint": true, "openWorldHint": false}
 	readSecurity := []map[string]any{{"type": "oauth2", "scopes": []string{oauth.ReadScope}}}
 	writeSecurity := []map[string]any{{"type": "oauth2", "scopes": []string{oauth.WriteScope}}}
+	pageSchema := func(properties map[string]any) map[string]any {
+		properties["limit"] = map[string]any{"type": "integer", "minimum": 1, "maximum": pagination.MaxLimit, "default": pagination.DefaultLimit}
+		properties["cursor"] = map[string]string{"type": "string"}
+		return properties
+	}
 	return []toolDefinition{
 		{Name: "search_media", Description: "Search TMDB for movies and TV shows.", InputSchema: objectSchema(map[string]any{"query": map[string]string{"type": "string"}, "language": map[string]string{"type": "string"}}, "query"), Annotations: readOnly, SecuritySchemes: readSecurity},
-		{Name: "get_library", Description: "List saved movies and TV shows with their library status and progress, most recently updated first. Optionally filter by media type or status. Returns up to limit entries (default 30, maximum 100) with total_count; when next_cursor is not null, call again with the same filters and cursor set to next_cursor to get the next page.", InputSchema: objectSchema(map[string]any{"media_type": map[string]any{"type": "string", "enum": []string{"movie", "tv"}}, "status": statusSchema(), "limit": map[string]any{"type": "integer", "minimum": 1, "maximum": pagination.MaxLimit, "default": pagination.DefaultLimit}, "cursor": map[string]string{"type": "string"}}), Annotations: readOnly, SecuritySchemes: readSecurity},
+		{Name: "get_library", Description: "List saved movies and TV shows with their library status and progress, most recently updated first. Optionally filter by media type or status. Includes total_count." + pageHint, InputSchema: objectSchema(pageSchema(map[string]any{"media_type": map[string]any{"type": "string", "enum": []string{"movie", "tv"}}, "status": statusSchema()})), Annotations: readOnly, SecuritySchemes: readSecurity},
 		{Name: "get_currently_watching", Description: "List the next unwatched episode for each show the user is watching.", InputSchema: objectSchema(map[string]any{}), Annotations: readOnly, SecuritySchemes: readSecurity},
 		{Name: "get_show_progress", Description: "Get a tracked TV show's watched counts, earlier gaps, and next episode. is_caught_up only means no newer released episode follows the furthest watched episode; is_fully_watched means all released regular episodes are watched. Use a Visto show ID such as tv:123.", InputSchema: objectSchema(map[string]any{"show_id": map[string]string{"type": "string"}}, "show_id"), Annotations: readOnly, SecuritySchemes: readSecurity},
-		{Name: "get_show_episodes", Description: "List a tracked TV show's episodes, IDs, air dates, and watched state. Optionally filter by season number.", InputSchema: objectSchema(map[string]any{"show_id": map[string]string{"type": "string"}, "season_number": map[string]any{"type": "integer", "minimum": 0}}, "show_id"), Annotations: readOnly, SecuritySchemes: readSecurity},
-		{Name: "get_upcoming_episodes", Description: "List upcoming unwatched episodes for shows in the user's watching list.", InputSchema: objectSchema(map[string]any{"from": map[string]string{"type": "string", "format": "date"}, "to": map[string]string{"type": "string", "format": "date"}}), Annotations: readOnly, SecuritySchemes: readSecurity},
-		{Name: "get_watch_history", Description: "Read recent watch history for the authenticated user.", InputSchema: objectSchema(map[string]any{"limit": map[string]any{"type": "integer", "minimum": 1, "maximum": 500}}), Annotations: readOnly, SecuritySchemes: readSecurity},
+		{Name: "get_show_episodes", Description: "List a tracked TV show's episodes, IDs, air dates, and watched state in season and episode order. Optionally filter by season number." + pageHint, InputSchema: objectSchema(pageSchema(map[string]any{"show_id": map[string]string{"type": "string"}, "season_number": map[string]any{"type": "integer", "minimum": 0}}), "show_id"), Annotations: readOnly, SecuritySchemes: readSecurity},
+		{Name: "get_upcoming_episodes", Description: "List upcoming unwatched episodes for shows in the user's watching list, soonest first. Defaults to the next 30 days; from and to can span up to one year." + pageHint, InputSchema: objectSchema(pageSchema(map[string]any{"from": map[string]string{"type": "string", "format": "date"}, "to": map[string]string{"type": "string", "format": "date"}})), Annotations: readOnly, SecuritySchemes: readSecurity},
+		{Name: "get_watch_history", Description: "Read the authenticated user's watch history, newest first." + pageHint, InputSchema: objectSchema(pageSchema(map[string]any{})), Annotations: readOnly, SecuritySchemes: readSecurity},
 		{Name: "add_to_watchlist", Description: "Save a movie or TV show to the user's watchlist. Pass a media result returned by search_media.", InputSchema: objectSchema(map[string]any{"media": searchResultSchema()}, "media"), Annotations: writeAction, SecuritySchemes: writeSecurity},
 		{Name: "set_show_status", Description: "Change a tracked TV show's library status. Completing requires confirmation that every regular episode was watched.", InputSchema: objectSchema(map[string]any{"show_id": map[string]string{"type": "string"}, "status": statusSchema(), "confirm_all_episodes": map[string]any{"type": "boolean"}}, "show_id", "status"), Annotations: writeAction, SecuritySchemes: writeSecurity},
 		{Name: "mark_movie_watched", Description: "Mark a movie watched. Pass a media result returned by search_media.", InputSchema: objectSchema(map[string]any{"media": searchResultSchema(), "watched_at": map[string]string{"type": "string", "format": "date-time"}}, "media"), Annotations: writeAction, SecuritySchemes: writeSecurity},
@@ -54,6 +60,9 @@ func toolDefinitions() []toolDefinition {
 		{Name: "remove_media", Description: "Permanently remove a movie or TV show from the user's library, including its watch history, ratings, and activity. Use a Visto media ID such as movie:123 or tv:123. This cannot be undone.", InputSchema: objectSchema(map[string]any{"media_id": map[string]string{"type": "string"}}, "media_id"), Annotations: deleteAction, SecuritySchemes: writeSecurity},
 	}
 }
+
+// pageHint tells the model how to continue a paginated tool response.
+const pageHint = " Returns up to limit items (default 30, maximum 100) as {items, next_cursor}; when next_cursor is not null, call again with the same arguments and cursor set to next_cursor to get the next page."
 
 func searchResultSchema() map[string]any {
 	return objectSchema(map[string]any{
@@ -118,21 +127,24 @@ func (server *Server) callTool(ctx context.Context, userID, name string, args ma
 		if !strings.HasPrefix(showID, "tv:") {
 			return nil, fmt.Errorf("show_id must be a Visto TV ID such as tv:123")
 		}
-		entries, err := server.watch.Episodes(ctx, userID, showID)
+		request, err := paginationArgs(args)
 		if err != nil {
 			return nil, err
 		}
 		if args["season_number"] == nil {
-			return entries, nil
+			return server.watch.EpisodesPage(ctx, userID, showID, request)
 		}
-		season := intArg(args, "season_number")
-		filtered := make([]watch.ShowEpisode, 0)
-		for _, entry := range entries {
-			if entry.Episode.SeasonNumber == season {
-				filtered = append(filtered, entry)
-			}
+		seasonID := fmt.Sprintf("%s:season:%d", showID, intArg(args, "season_number"))
+		page, err := server.watch.SeasonEpisodesPage(ctx, userID, seasonID, request)
+		if !errors.Is(err, watch.ErrShowNotFound) {
+			return page, err
 		}
-		return filtered, nil
+		// A missing season and an untracked show look the same to the season
+		// query; only the latter is an error.
+		if _, err := server.watch.EpisodesPage(ctx, userID, showID, pagination.Request{Limit: 1}); err != nil {
+			return nil, err
+		}
+		return pagination.Page[watch.ShowEpisode]{Items: []watch.ShowEpisode{}}, nil
 	case "get_upcoming_episodes":
 		if server.watch == nil {
 			return nil, fmt.Errorf("watch calendar is not configured")
@@ -145,13 +157,20 @@ func (server *Server) callTool(ctx context.Context, userID, name string, args ma
 		if err != nil {
 			return nil, err
 		}
-		return server.watch.Calendar(ctx, userID, from, to)
+		request, err := paginationArgs(args)
+		if err != nil {
+			return nil, err
+		}
+		return server.watch.CalendarPage(ctx, userID, from, to, request)
 	case "get_watch_history":
 		if server.tracking == nil {
 			return nil, fmt.Errorf("watch history is not configured")
 		}
-		limit := intArg(args, "limit")
-		return server.tracking.History(ctx, userID, limit)
+		request, err := paginationArgs(args)
+		if err != nil {
+			return nil, err
+		}
+		return server.tracking.HistoryPage(ctx, userID, "", "", "", request)
 	case "add_to_watchlist":
 		media, err := mediaArg(args)
 		if err != nil {
