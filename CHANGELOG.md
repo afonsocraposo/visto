@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.26.2](https://github.com/afonsocraposo/visto/compare/v0.26.1...v0.26.2) (2026-10-01)
+
+
+### Bug Fixes
+
+* confirm show completion in a Mantine modal and refresh episodes after ([b3a320d](https://github.com/afonsocraposo/visto/commit/b3a320d7bfad681bc076c4a867e469d03b02e687))
+* refresh show status after marking episodes on the detail page ([51de3c5](https://github.com/afonsocraposo/visto/commit/51de3c527160b5bd6724158e2a288d39ee307296))
+
 ## [0.26.1](https://github.com/afonsocraposo/visto/compare/v0.26.0...v0.26.1) (2026-10-01)
 
 
