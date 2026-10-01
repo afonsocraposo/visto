@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.26.0](https://github.com/afonsocraposo/visto/compare/v0.25.0...v0.26.0) (2026-10-01)
+
+
+### Features
+
+* let administrators refresh a title's metadata from TMDB ([46024b4](https://github.com/afonsocraposo/visto/commit/46024b44fb072b00832b2c52ca2add4b0536924a))
+
+
+### Bug Fixes
+
+* repair stale season catalogs during refresh ([a4aae17](https://github.com/afonsocraposo/visto/commit/a4aae1715ba7a9d449fe1bac00511f88d8f63467))
+* show the whole series cast for TV shows ([6faf48a](https://github.com/afonsocraposo/visto/commit/6faf48acc06c669f2c1272a0ca057710e1bb865c))
+
 ## [0.25.0](https://github.com/afonsocraposo/visto/compare/v0.24.0...v0.25.0) (2026-10-01)
 
 
