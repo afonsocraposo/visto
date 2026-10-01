@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.25.0](https://github.com/afonsocraposo/visto/compare/v0.24.0...v0.25.0) (2026-10-01)
+
+
+### Features
+
+* browse shared profile libraries by status ([0930ac9](https://github.com/afonsocraposo/visto/commit/0930ac95f841b382aa79b230eca20b6f82805c6f))
+
+
+### Bug Fixes
+
+* don't crash at startup without a TMDB API key ([3ae5f29](https://github.com/afonsocraposo/visto/commit/3ae5f29318113027d0de677a0a9954b1c754967d))
+* stop underlining avatar initials on hover ([88624fa](https://github.com/afonsocraposo/visto/commit/88624fa688e78e551a878f369133fb65532334eb))
+
 ## [0.24.0](https://github.com/afonsocraposo/visto/compare/v0.23.3...v0.24.0) (2026-10-01)
 
 
