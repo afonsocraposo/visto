@@ -100,6 +100,12 @@ type catalogRefreshRepository interface {
 	ImportShowMetadata(context.Context, string, domain.TVShowMetadata) error
 }
 
+type SeasonCatalogState struct {
+	SeasonNumber          int
+	ActiveEpisodeCount    int
+	SyntheticEpisodeCount int
+}
+
 type Service struct {
 	repository       Repository
 	now              func() time.Time

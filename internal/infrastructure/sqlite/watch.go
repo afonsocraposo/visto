@@ -243,13 +243,19 @@ func (store *Store) ShowsNeedingCatalogRefresh(ctx context.Context, activeTTL, f
 	}
 	activeCutoff := time.Now().UTC().Add(-activeTTL).Format(time.RFC3339Nano)
 	finishedCutoff := time.Now().UTC().Add(-finishedTTL).Format(time.RFC3339Nano)
-	rows, err := store.DB.QueryContext(ctx, `SELECT DISTINCT m.tmdb_id FROM media m
-		WHERE m.media_type='tv' AND m.metadata_updated_at<>'' AND m.catalog_updated_at IS NOT NULL AND EXISTS(SELECT 1 FROM user_media um WHERE um.media_id=m.id) AND
-		((EXISTS(SELECT 1 FROM season_ready_alerts a JOIN seasons se ON se.id=a.season_id WHERE se.show_id=m.id AND a.ready_at IS NULL)
-			AND (m.catalog_updated_at IS NULL OR m.catalog_updated_at<?)) OR
-		(m.status IN ('Ended','Canceled','Cancelled') AND (m.catalog_updated_at IS NULL OR m.catalog_updated_at<?)) OR
-		(COALESCE(m.status,'') NOT IN ('Ended','Canceled','Cancelled') AND (m.catalog_updated_at IS NULL OR m.catalog_updated_at<?)))
-		ORDER BY m.catalog_updated_at IS NOT NULL, m.catalog_updated_at LIMIT ?`, activeCutoff, finishedCutoff, activeCutoff, limit)
+	rows, err := store.DB.QueryContext(ctx, `WITH candidates AS (
+		SELECT m.tmdb_id,m.status,m.catalog_updated_at,
+		EXISTS(SELECT 1 FROM seasons se WHERE se.show_id=m.id AND se.episode_count>0 AND
+			((SELECT COUNT(*) FROM episodes e WHERE e.season_id=se.id AND e.active=1)<>se.episode_count OR
+			EXISTS(SELECT 1 FROM episodes e WHERE e.season_id=se.id AND e.active=1 AND e.tmdb_id IS NULL))) AS needs_repair,
+		EXISTS(SELECT 1 FROM season_ready_alerts a JOIN seasons se ON se.id=a.season_id WHERE se.show_id=m.id AND a.ready_at IS NULL) AS has_pending
+		FROM media m WHERE m.media_type='tv' AND m.metadata_updated_at<>'' AND m.catalog_updated_at IS NOT NULL
+		AND EXISTS(SELECT 1 FROM user_media um WHERE um.media_id=m.id))
+		SELECT tmdb_id FROM candidates WHERE needs_repair OR
+		(has_pending AND catalog_updated_at<?) OR
+		(status IN ('Ended','Canceled','Cancelled') AND catalog_updated_at<?) OR
+		(COALESCE(status,'') NOT IN ('Ended','Canceled','Cancelled') AND catalog_updated_at<?)
+		ORDER BY needs_repair DESC,catalog_updated_at LIMIT ?`, activeCutoff, finishedCutoff, activeCutoff, limit)
 	if err != nil {
 		return nil, fmt.Errorf("list catalog refresh IDs: %w", err)
 	}
@@ -266,6 +272,26 @@ func (store *Store) ShowsNeedingCatalogRefresh(ctx context.Context, activeTTL, f
 		return nil, fmt.Errorf("iterate catalog refresh IDs: %w", err)
 	}
 	return ids, nil
+}
+
+func (store *Store) SeasonCatalogStates(ctx context.Context, showID string) ([]watch.SeasonCatalogState, error) {
+	rows, err := store.DB.QueryContext(ctx, `SELECT s.season_number,
+		COUNT(e.id), COALESCE(SUM(CASE WHEN e.id IS NOT NULL AND e.tmdb_id IS NULL THEN 1 ELSE 0 END),0)
+		FROM seasons s LEFT JOIN episodes e ON e.season_id=s.id AND e.active=1
+		WHERE s.show_id=? GROUP BY s.id ORDER BY s.season_number`, showID)
+	if err != nil {
+		return nil, fmt.Errorf("list season catalog states: %w", err)
+	}
+	defer rows.Close()
+	var states []watch.SeasonCatalogState
+	for rows.Next() {
+		var state watch.SeasonCatalogState
+		if err := rows.Scan(&state.SeasonNumber, &state.ActiveEpisodeCount, &state.SyntheticEpisodeCount); err != nil {
+			return nil, fmt.Errorf("scan season catalog state: %w", err)
+		}
+		states = append(states, state)
+	}
+	return states, rows.Err()
 }
 
 func (store *Store) MoviesNeedingReleaseRefresh(ctx context.Context, staleAfter time.Duration, limit int) ([]int64, error) {

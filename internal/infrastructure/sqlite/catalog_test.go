@@ -2,6 +2,7 @@ package sqlite_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"slices"
@@ -10,9 +11,111 @@ import (
 
 	"github.com/afonsocosta/visto/internal/application/library"
 	"github.com/afonsocosta/visto/internal/application/tracking"
+	"github.com/afonsocosta/visto/internal/application/watch"
 	"github.com/afonsocosta/visto/internal/domain"
 	"github.com/afonsocosta/visto/internal/infrastructure/sqlite"
 )
+
+type repairingCatalogProvider struct {
+	seasons []int
+	fail    bool
+}
+
+func (p *repairingCatalogProvider) Show(ctx context.Context, id int64) (domain.TVShowMetadata, error) {
+	return p.RefreshShow(ctx, id)
+}
+
+func (p *repairingCatalogProvider) ShowSummary(ctx context.Context, id int64) (domain.TVShowMetadata, error) {
+	return p.RefreshShow(ctx, id)
+}
+
+func (p *repairingCatalogProvider) RefreshShow(context.Context, int64) (domain.TVShowMetadata, error) {
+	return domain.TVShowMetadata{TMDBID: 42, Name: "Show", Status: "Ended", Seasons: []domain.TVSeasonMetadata{
+		{Number: 1, EpisodeCount: 2},
+		{Number: 2, EpisodeCount: 1, Episodes: []domain.TVEpisodeMetadata{{TMDBID: 201, SeasonNumber: 2, EpisodeNumber: 1}}},
+	}}, nil
+}
+
+func (p *repairingCatalogProvider) Season(_ context.Context, _ int64, number int) (domain.TVSeasonMetadata, error) {
+	p.seasons = append(p.seasons, number)
+	if p.fail {
+		return domain.TVSeasonMetadata{}, errors.New("season unavailable")
+	}
+	return domain.TVSeasonMetadata{Number: number, Episodes: []domain.TVEpisodeMetadata{
+		{TMDBID: 101, SeasonNumber: number, EpisodeNumber: 1},
+		{TMDBID: 102, SeasonNumber: number, EpisodeNumber: 2},
+	}}, nil
+}
+
+func TestRefreshCatalog_RepairsOldSeasonWithoutLosingHistory(t *testing.T) {
+	ctx := context.Background()
+	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "visto.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	userID := insertTestUser(t, store.DB, "viewer", "Viewer", "private")
+	if _, err := store.DB.Exec(`INSERT INTO media(id,media_type,tmdb_id,title,metadata_updated_at,created_at) VALUES('tv:42','tv',42,'Show','2026-01-01','2026-01-01')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.DB.Exec(`INSERT INTO user_media(id,user_id,media_id,status,added_at,updated_at) VALUES(?,?,'tv:42','watching','2026-01-01','2026-01-01')`, userID+":tv:42", userID); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.ImportShowMetadata(ctx, "tv:42", domain.TVShowMetadata{TMDBID: 42, Name: "Show", Status: "Ended", Seasons: []domain.TVSeasonMetadata{
+		{Number: 1, Episodes: []domain.TVEpisodeMetadata{{TMDBID: 101, SeasonNumber: 1, EpisodeNumber: 1}, {TMDBID: 103, SeasonNumber: 1, EpisodeNumber: 3}}},
+		{Number: 2, Episodes: []domain.TVEpisodeMetadata{{TMDBID: 201, SeasonNumber: 2, EpisodeNumber: 1}}},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.DB.Exec(`INSERT INTO episodes(id,show_id,season_id,season_number,episode_number,name) VALUES('tv:42:episode:1:2','tv:42','tv:42:season:1',1,2,'Episode 2')`); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"tv:42:episode:101", "tv:42:episode:1:2", "tv:42:episode:103", "tv:42:episode:201"} {
+		if _, err := store.DB.Exec(`INSERT INTO plays(user_id,episode_id,watched_at,created_at) VALUES(?,?,?,?)`, userID, id, "2026-01-01", "2026-01-01"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ids, err := store.ShowsNeedingCatalogRefresh(ctx, 24*time.Hour, 30*24*time.Hour, 10)
+	if err != nil || !slices.Equal(ids, []int64{42}) {
+		t.Fatalf("recent ended show eligible for repair: ids=%v err=%v", ids, err)
+	}
+	var before string
+	if err := store.DB.QueryRow(`SELECT catalog_updated_at FROM media WHERE id='tv:42'`).Scan(&before); err != nil {
+		t.Fatal(err)
+	}
+	provider := &repairingCatalogProvider{fail: true}
+	service := watch.NewService(store, provider)
+	if err := service.RefreshCatalog(ctx, 24*time.Hour, 30*24*time.Hour); err == nil {
+		t.Fatal("expected season fetch failure")
+	}
+	var after string
+	if err := store.DB.QueryRow(`SELECT catalog_updated_at FROM media WHERE id='tv:42'`).Scan(&after); err != nil || after != before {
+		t.Fatalf("failed fetch changed catalog timestamp: before=%q after=%q err=%v", before, after, err)
+	}
+	provider.fail = false
+	provider.seasons = nil
+	if err := service.RefreshCatalog(ctx, 24*time.Hour, 30*24*time.Hour); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(provider.seasons, []int{1}) {
+		t.Fatalf("fetched seasons=%v, want only old season 1", provider.seasons)
+	}
+	var canonicalID int64
+	if err := store.DB.QueryRow(`SELECT tmdb_id FROM episodes WHERE id='tv:42:episode:1:2'`).Scan(&canonicalID); err != nil || canonicalID != 102 {
+		t.Fatalf("synthetic episode identity=%d err=%v", canonicalID, err)
+	}
+	var active, plays int
+	if err := store.DB.QueryRow(`SELECT active FROM episodes WHERE id='tv:42:episode:103'`).Scan(&active); err != nil || active != 0 {
+		t.Fatalf("obsolete episode active=%d err=%v", active, err)
+	}
+	if err := store.DB.QueryRow(`SELECT COUNT(*) FROM plays WHERE episode_id IN ('tv:42:episode:1:2','tv:42:episode:103')`).Scan(&plays); err != nil || plays != 2 {
+		t.Fatalf("preserved plays=%d err=%v", plays, err)
+	}
+	var status string
+	if err := store.DB.QueryRow(`SELECT status FROM user_media WHERE user_id=? AND media_id='tv:42'`, userID).Scan(&status); err != nil || status != "completed" {
+		t.Fatalf("show status=%q err=%v", status, err)
+	}
+}
 
 func TestShowsNeedingCatalogRefresh_GivenManyTrackedShows_WhenLimited_ThenItReturnsOnlyTheBoundedBatch(t *testing.T) {
 	store, err := sqlite.Open(context.Background(), filepath.Join(t.TempDir(), "visto.db"))
@@ -31,6 +134,15 @@ func TestShowsNeedingCatalogRefresh_GivenManyTrackedShows_WhenLimited_ThenItRetu
 			t.Fatal(err)
 		}
 	}
+	if _, err := store.DB.Exec(`INSERT INTO media(id,media_type,tmdb_id,title,status,metadata_updated_at,catalog_updated_at,created_at) VALUES('tv:5','tv',5,'Damaged','Ended',?,?,?)`, time.Now().UTC().Format(time.RFC3339Nano), time.Now().UTC().Format(time.RFC3339Nano), "2026-01-01"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.DB.Exec(`INSERT INTO user_media(id,user_id,media_id,status,added_at,updated_at) VALUES(? ,?,'tv:5','watching','2026-01-01','2026-01-01')`, userID+":tv:5", userID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.DB.Exec(`INSERT INTO seasons(id,show_id,season_number,episode_count) VALUES('tv:5:season:1','tv:5',1,1)`); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := store.DB.Exec(`INSERT INTO media(id,media_type,tmdb_id,title,metadata_updated_at,created_at) VALUES('tv:99','tv',99,'Placeholder','','2026-01-01')`); err != nil {
 		t.Fatal(err)
 	}
@@ -42,8 +154,8 @@ func TestShowsNeedingCatalogRefresh_GivenManyTrackedShows_WhenLimited_ThenItRetu
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(ids) != 2 || ids[0] == 99 || ids[1] == 99 {
-		t.Fatalf("refresh IDs=%v, want exactly two", ids)
+	if len(ids) != 2 || ids[0] != 5 || ids[1] == 99 {
+		t.Fatalf("refresh IDs=%v, want damaged show first in a bounded batch", ids)
 	}
 }
 

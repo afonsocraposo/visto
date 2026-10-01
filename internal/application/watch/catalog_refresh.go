@@ -43,32 +43,65 @@ func (service *Service) RefreshCatalog(ctx context.Context, activeTTL, finishedT
 		if err != nil {
 			return err
 		}
-		if seasons, ok := service.repository.(interface {
-			PendingSeasonNumbers(context.Context, string) ([]int, error)
-		}); ok {
-			if provider, ok := service.metadataProvider.(domain.TVShowSummaryProvider); ok {
-				showID := fmt.Sprintf("tv:%d", tmdbID)
-				numbers, err := seasons.PendingSeasonNumbers(ctx, showID)
+		if provider, ok := service.metadataProvider.(domain.TVShowSummaryProvider); ok {
+			showID := fmt.Sprintf("tv:%d", tmdbID)
+			var numbers []int
+			if pending, ok := service.repository.(interface {
+				PendingSeasonNumbers(context.Context, string) ([]int, error)
+			}); ok {
+				numbers, err = pending.PendingSeasonNumbers(ctx, showID)
 				if err != nil {
 					return err
 				}
-				for _, number := range numbers {
-					season, err := provider.Season(ctx, tmdbID, number)
-					if err != nil {
-						return err
+			}
+			if catalog, ok := service.repository.(interface {
+				SeasonCatalogStates(context.Context, string) ([]SeasonCatalogState, error)
+			}); ok {
+				states, err := catalog.SeasonCatalogStates(ctx, showID)
+				if err != nil {
+					return err
+				}
+				byNumber := make(map[int]SeasonCatalogState, len(states))
+				for _, state := range states {
+					byNumber[state.SeasonNumber] = state
+				}
+				for _, season := range metadata.Seasons {
+					state := byNumber[season.Number]
+					if season.EpisodeCount > 0 && season.Episodes == nil &&
+						(state.ActiveEpisodeCount != season.EpisodeCount || state.SyntheticEpisodeCount > 0) {
+						numbers = append(numbers, season.Number)
 					}
-					replaced := false
-					for i := range metadata.Seasons {
-						if metadata.Seasons[i].Number == number {
-
-							metadata.Seasons[i] = season
-							replaced = true
-							break
-						}
+				}
+			}
+			fetched := make(map[int]bool, len(numbers))
+			for _, number := range numbers {
+				if fetched[number] {
+					continue
+				}
+				fetched[number] = true
+				replaced := false
+				for _, season := range metadata.Seasons {
+					if season.Number == number && season.Episodes != nil {
+						replaced = true
+						break
 					}
-					if !replaced {
-						metadata.Seasons = append(metadata.Seasons, season)
+				}
+				if replaced {
+					continue
+				}
+				season, err := provider.Season(ctx, tmdbID, number)
+				if err != nil {
+					return err
+				}
+				for i := range metadata.Seasons {
+					if metadata.Seasons[i].Number == number {
+						metadata.Seasons[i] = season
+						replaced = true
+						break
 					}
+				}
+				if !replaced {
+					metadata.Seasons = append(metadata.Seasons, season)
 				}
 			}
 		}
