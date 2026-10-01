@@ -8,6 +8,7 @@ import { SectionTabs } from "../../components/SectionTabs";
 import { PageLoadingShell } from "../../components/LoadingShell";
 import { AccountAvatar } from "../../components/AccountAvatar";
 import { navItems } from "./navItems";
+import { requestUpNextScroll } from "../watch/upNextScroll";
 import { WatchHistoryReveal } from "../watch/WatchHistoryReveal";
 import type { LibraryStatus, MediaDetailTarget, Tab, Theme, User } from "../../types";
 import type { LibraryMediaFilter } from "../library/mediaFilter";
@@ -126,8 +127,10 @@ export function Dashboard({
 
   const settingsOpen = page.kind === "settings";
   // One routing implementation for both bars; only the presentation differs.
-  const goToTab = (value: Tab) =>
+  const goToTab = (value: Tab) => {
+    if (value === "watch") requestUpNextScroll();
     void navigate({ to: navItems.find((item) => item.tab === value)!.path });
+  };
   // The top bar marks Settings on the avatar; the bottom bar keeps Library active for it.
   const navButtons = (className: string, iconSize: number, settingsHasOwnMarker: boolean) =>
     navItems.map(({ tab: value, label, Icon }) => (
