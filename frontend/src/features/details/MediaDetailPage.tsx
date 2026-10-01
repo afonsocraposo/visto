@@ -1654,9 +1654,10 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
                 <PosterGridSkeleton count={6} className="poster-grid related-media-grid" />
               )}
               {related.isError && (
-                <Alert color="yellow" mt="sm">
-                  Related titles are temporarily unavailable.
-                </Alert>
+                <QueryError
+                  message="Could not load related titles."
+                  onRetry={() => related.refetch()}
+                />
               )}
               {related.data?.length ? (
                 <div className="poster-grid related-media-grid">

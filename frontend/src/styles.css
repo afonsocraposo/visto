@@ -571,7 +571,7 @@ button.watch-row-show {
   font-size: 0.85rem;
   font-variant-numeric: tabular-nums;
 }
-.watch-row-meta > span + span::before {
+.watch-row-meta > span:not(:last-child)::after {
   margin-inline: 7px;
   content: "·";
 }
@@ -1093,6 +1093,36 @@ button.watch-row-show {
   }
 }
 
+/*
+ * Touch targets: important controls get a ≥44px hit area on touch screens. Icons keep their
+ * size; small inline controls grow their hit area with padding offset by negative margins.
+ */
+@media (pointer: coarse) {
+  .detail-back,
+  .detail-actions .mantine-Button-root,
+  .section-tab,
+  .clamped-text-toggle,
+  .detail-eyebrow-link {
+    min-height: var(--visto-touch-target);
+  }
+  .detail-overflow-action,
+  .media-quick-actions .mantine-ActionIcon-root,
+  .activity-row-heading .mantine-ActionIcon-root,
+  .search-input .mantine-CloseButton-root {
+    min-width: var(--visto-touch-target);
+    min-height: var(--visto-touch-target);
+  }
+  .activity-row-heading .mantine-ActionIcon-root {
+    margin: -8px -8px -8px 0;
+  }
+  /* Grow upwards only, so the hit area never overlaps the main title below. */
+  .watch-row-show,
+  .calendar-show-link {
+    margin-top: -12px;
+    padding-top: 12px;
+  }
+}
+
 /* A short crossfade when skeletons are replaced by content. No stagger, no movement. */
 .content-ready {
   animation: content-ready 120ms var(--visto-ease-standard) both;
@@ -1356,7 +1386,7 @@ button.watch-row-show {
   font-size: 0.95rem;
   text-shadow: 0 1px 8px rgb(0 0 0 / 0.6);
 }
-.detail-facts > span + span::before {
+.detail-facts > span:not(:last-child)::after {
   margin-inline: 8px;
   color: rgb(255 255 255 / 0.5);
   content: "·";
@@ -1915,7 +1945,7 @@ label.tracking-row {
   font-size: 0.82rem;
   font-variant-numeric: tabular-nums;
 }
-.episode-row-meta > span + span::before {
+.episode-row-meta > span:not(:last-child)::after {
   margin-inline: 7px;
   content: "·";
 }
@@ -2301,12 +2331,34 @@ label.tracking-row {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.activity-row-clickable {
+.activity-row,
+.calendar-card {
+  position: relative;
+}
+.activity-row-open,
+.calendar-card-open {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  padding: 0;
+  border: 0;
+  border-radius: inherit;
+  background: none;
   cursor: pointer;
 }
-.activity-row-clickable:focus-visible {
+.activity-row-open:focus-visible,
+.calendar-card-open:focus-visible {
   outline: 2px solid var(--visto-focus);
   outline-offset: 2px;
+}
+.activity-actor-button,
+.activity-show-link,
+.activity-row-heading .mantine-ActionIcon-root,
+.activity-row .rating-stars,
+.activity-edit,
+.calendar-show-link {
+  position: relative;
+  z-index: 2;
 }
 .activity-row-art {
   display: grid;
@@ -2435,6 +2487,13 @@ label.tracking-row {
   .expand {
     transition: none;
   }
+}
+.activity-edit .mantine-TextInput-root {
+  min-width: 0;
+  flex: 1 1 180px;
+}
+.activity-edit input {
+  min-width: 0;
 }
 .activity-edit {
   width: 100%;

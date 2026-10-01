@@ -389,9 +389,7 @@ export function WatchCalendar({
     );
   if (settings.isError || !range)
     return (
-      <Alert color="red" mt="md">
-        Calendar settings are temporarily unavailable.
-      </Alert>
+      <QueryError message="Could not load your calendar." onRetry={() => settings.refetch()} />
     );
 
   const releaseDates = new Set(dates.data ?? []);
@@ -419,11 +417,13 @@ export function WatchCalendar({
           <CalendarDayGroupSkeleton />
         </div>
       ) : entries.isError ? (
-        <Alert color="red" mt="md">
-          Calendar is temporarily unavailable.
-        </Alert>
+        <QueryError message="Could not load upcoming episodes." onRetry={() => entries.refetch()} />
       ) : loaded.length === 0 ? (
-        <EmptyState title="No upcoming episodes" detail="New release dates will appear here." />
+        <EmptyState
+          icon={<IconCalendar size={20} />}
+          title="No upcoming episodes"
+          detail="When shows you're watching announce new episodes, their dates appear here."
+        />
       ) : (
         <div className="calendar-list content-ready">
           {groups.map((group) => (
@@ -468,7 +468,11 @@ export function WatchCalendar({
         {dates.isPending ? (
           <Skeleton height={320} radius="md" />
         ) : dates.isError ? (
-          <Alert color="red">Release dates are temporarily unavailable.</Alert>
+          <QueryError
+            mt={0}
+            message="Could not load release dates."
+            onRetry={() => dates.refetch()}
+          />
         ) : (
           <Calendar
             fullWidth
@@ -503,7 +507,11 @@ export function WatchCalendar({
                 />
               </div>
             ) : dayEntries.isError ? (
-              <Alert color="red">Episodes for this date are temporarily unavailable.</Alert>
+              <QueryError
+                mt={0}
+                message="Could not load this day's episodes."
+                onRetry={() => dayEntries.refetch()}
+              />
             ) : (
               <div className="calendar-day-entries">
                 {selectedEntries.map((item) => (
@@ -570,25 +578,15 @@ function CalendarEpisodeCard({
       episodeNumber: item.episode.episode_number,
     });
   return (
-    <Paper
-      className="calendar-card"
-      withBorder
-      p={0}
-      role={onOpenDetail ? "button" : undefined}
-      tabIndex={onOpenDetail ? 0 : undefined}
-      aria-label={
-        onOpenDetail
-          ? `Open ${item.title}, season ${item.episode.season_number}, episode ${item.episode.episode_number}`
-          : undefined
-      }
-      onClick={open}
-      onKeyDown={(event) => {
-        if (onOpenDetail && (event.key === "Enter" || event.key === " ")) {
-          event.preventDefault();
-          open();
-        }
-      }}
-    >
+    <Paper className="calendar-card" withBorder p={0} component="article">
+      {onOpenDetail && (
+        <button type="button" className="calendar-card-open" onClick={open}>
+          <span className="visually-hidden">
+            Open {item.title}, season {item.episode.season_number}, episode{" "}
+            {item.episode.episode_number}
+          </span>
+        </button>
+      )}
       <div className="calendar-card-art">
         {art ? (
           <FadeImage src={art} alt="" />
@@ -601,8 +599,7 @@ function CalendarEpisodeCard({
           type="button"
           className="calendar-card-show calendar-show-link"
           disabled={!onOpenDetail}
-          onClick={(event) => {
-            event.stopPropagation();
+          onClick={() => {
             onOpenDetail?.({
               mediaType: "tv",
               tmdbID: Number(item.show_id.split(":")[1]),
@@ -612,7 +609,7 @@ function CalendarEpisodeCard({
         >
           {item.title}
         </button>
-        <Text className="calendar-card-number">{`S${String(item.episode.season_number).padStart(2, "0")} E${String(item.episode.episode_number).padStart(2, "0")}`}</Text>
+        <Text className="calendar-card-number">{episodeCode(item.episode)}</Text>
         <Text className="calendar-card-episode" lineClamp={1}>
           {item.episode_name || `Episode ${item.episode.episode_number}`}
         </Text>

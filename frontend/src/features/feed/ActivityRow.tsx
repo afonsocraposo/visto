@@ -52,21 +52,13 @@ export function ActivityRow({
       className={`activity-row${onOpenDetail ? " activity-row-clickable" : ""}`}
       component="article"
       withBorder
-      role={onOpenDetail ? "link" : undefined}
-      tabIndex={onOpenDetail ? 0 : undefined}
-      aria-label={onOpenDetail ? `Open details for ${title}` : undefined}
-      onClick={(event) => {
-        if (!(event.target as HTMLElement).closest("button, input, form, [role='menuitem']")) {
-          onOpenDetail?.();
-        }
-      }}
-      onKeyDown={(event) => {
-        if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) {
-          event.preventDefault();
-          onOpenDetail?.();
-        }
-      }}
     >
+      {onOpenDetail && (
+        // Covers the card; the actor, show and menu controls are layered above it.
+        <button type="button" className="activity-row-open" onClick={onOpenDetail}>
+          <span className="visually-hidden">Open details for {title}</span>
+        </button>
+      )}
       <div className="activity-row-art" aria-hidden="true">
         {art ? (
           <FadeImage src={art} alt="" />

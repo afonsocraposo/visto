@@ -1,4 +1,5 @@
 import { InfiniteScrollTrigger } from "../../components/InfiniteScrollTrigger";
+import { QueryError } from "../../components/QueryError";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { Alert, Button } from "@mantine/core";
 import { EmptyState } from "../../components/EmptyState";
@@ -42,9 +43,7 @@ export function FeedPanel({
     );
   if (feed.isError)
     return (
-      <Alert color="red" mt="md">
-        The feed is temporarily unavailable.
-      </Alert>
+      <QueryError message="Could not load community activity." onRetry={() => feed.refetch()} />
     );
   const items = feed.data.pages.flatMap((page) => page.items);
   if (items.length === 0)

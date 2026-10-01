@@ -1,4 +1,5 @@
 import { InfiniteScrollTrigger } from "../../components/InfiniteScrollTrigger";
+import { QueryError } from "../../components/QueryError";
 import { useState } from "react";
 import { useMutation, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "@mantine/form";
@@ -54,9 +55,7 @@ export function HistoryPanel({
     );
   if (history.isError)
     return (
-      <Alert color="red" mt="lg">
-        Watch history is temporarily unavailable.
-      </Alert>
+      <QueryError message="Could not load your watch history." onRetry={() => history.refetch()} />
     );
 
   const entries = history.data.pages.flatMap((page) => page.items);

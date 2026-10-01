@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { QueryError } from "../../components/QueryError";
 import { useQuery } from "@tanstack/react-query";
 import {
   Alert,
@@ -75,7 +76,7 @@ export function PersonDetailPage({ personID, onBack, onOpenDetail }: Props) {
         >
           Back
         </Button>
-        <Alert color="red">{person.error.message}</Alert>
+        <QueryError message="Could not load this person." onRetry={() => person.refetch()} />
       </Stack>
     );
 

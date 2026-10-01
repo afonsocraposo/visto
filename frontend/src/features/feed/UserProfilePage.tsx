@@ -1,4 +1,5 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { QueryError } from "../../components/QueryError";
 import {
   Alert,
   Avatar,
@@ -167,7 +168,10 @@ export function UserProfilePage({
                   </Group>
                   {library.isPending && <PosterGridSkeleton count={12} />}
                   {library.isError && (
-                    <Alert color="red">Library is temporarily unavailable.</Alert>
+                    <QueryError
+                      message="Could not load this library."
+                      onRetry={() => library.refetch()}
+                    />
                   )}
                   {library.isSuccess &&
                     (() => {
@@ -256,7 +260,10 @@ export function UserProfilePage({
                     </div>
                   )}
                   {activity.isError && (
-                    <Alert color="red">Activity is temporarily unavailable.</Alert>
+                    <QueryError
+                      message="Could not load this activity."
+                      onRetry={() => activity.refetch()}
+                    />
                   )}
                   {activity.isSuccess &&
                     (() => {
