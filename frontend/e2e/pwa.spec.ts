@@ -99,7 +99,7 @@ test("Given a phone viewport, When switching destinations, Then the bottom navig
       const { height, bottom } = element.getBoundingClientRect();
       return { height, bottom };
     });
-    expect(navBounds).toEqual({ height: 56, bottom: 740 });
+    expect(navBounds).toEqual({ height: 50, bottom: 740 });
     await expect(nav.getByRole("button", { name: "Watching" })).toHaveAttribute(
       "aria-current",
       "page",
@@ -136,10 +136,9 @@ test("Given an iPhone safe-area inset, Then the bottom bar stays compact and usa
 }) => {
   await mockSignedInSession(page);
   await page.setViewportSize({ width: 390, height: 740 });
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Emulation.setSafeAreaInsetsOverride", { insets: { bottom: 34 } });
   await page.goto("/watch");
-  await page.evaluate(() =>
-    document.documentElement.style.setProperty("--visto-device-safe-bottom", "34px"),
-  );
 
   const layout = await page.locator(".visto-footer").evaluate((footer) => {
     const nav = footer.querySelector(".bottom-nav");
@@ -149,21 +148,26 @@ test("Given an iPhone safe-area inset, Then the bottom bar stays compact and usa
       footerHeight: footerBounds.height,
       footerBottom: footerBounds.bottom,
       navHeight: nav.getBoundingClientRect().height,
+      navBottom: nav.getBoundingClientRect().bottom,
       paddingBottom: parseFloat(getComputedStyle(footer).paddingBottom),
-      borderTop: parseFloat(getComputedStyle(footer).borderTopWidth),
+      mainPaddingBottom: parseFloat(
+        getComputedStyle(document.querySelector(".visto-main")!).paddingBottom,
+      ),
       buttons: Array.from(nav.querySelectorAll("button"), (button) => {
         const { width, height } = button.getBoundingClientRect();
         return { width, height };
       }),
     };
   });
-  expect(layout.footerHeight).toBe(65);
+  expect(layout.footerHeight).toBe(84);
   expect(layout.footerBottom).toBe(740);
-  expect(layout.navHeight).toBe(56);
-  expect(layout.paddingBottom).toBe(8);
-  expect(layout.borderTop).toBe(1);
+  expect(layout.navHeight).toBe(50);
+  expect(layout.navBottom).toBe(706);
+  expect(layout.paddingBottom).toBe(34);
+  expect(layout.mainPaddingBottom).toBe(116);
   expect(layout.buttons).toHaveLength(4);
   expect(layout.buttons.every(({ width, height }) => width >= 44 && height >= 44)).toBe(true);
+  await cdp.detach();
 });
 
 test("Given a signed-in user, When they navigate and manage appearance and account settings, Then the shell stays compact and actions work", async ({
