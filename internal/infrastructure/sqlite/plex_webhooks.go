@@ -254,35 +254,23 @@ func nullableInt(value int64) any {
 
 var _ plexsync.Repository = (*Store)(nil)
 
-// PlexShowMatch returns the TMDB show remembered for a Plex show GUID, or 0 when unknown.
-func (store *Store) PlexShowMatch(ctx context.Context, plexGUID string) (int64, error) {
-	var tmdbID int64
-	err := store.DB.QueryRowContext(ctx, `SELECT tmdb_id FROM plex_show_matches WHERE plex_guid=?`, plexGUID).Scan(&tmdbID)
-	if err == sql.ErrNoRows {
-		return 0, nil
-	}
-	if err != nil {
-		return 0, fmt.Errorf("look up Plex show match: %w", err)
-	}
-	return tmdbID, nil
-}
-
-func (store *Store) SavePlexShowMatch(ctx context.Context, plexGUID string, tmdbShowID int64) error {
-	if plexGUID == "" || tmdbShowID <= 0 {
-		return nil
-	}
-	if _, err := store.DB.ExecContext(ctx, `INSERT INTO plex_show_matches(plex_guid,tmdb_id,updated_at) VALUES(?,?,?)
-		ON CONFLICT(plex_guid) DO UPDATE SET tmdb_id=excluded.tmdb_id,updated_at=excluded.updated_at`, plexGUID, tmdbShowID, time.Now().UTC().Format(time.RFC3339Nano)); err != nil {
-		return fmt.Errorf("save Plex show match: %w", err)
-	}
-	return nil
-}
-
 // LocalEpisode finds an active episode already in the catalog, with its show's title.
 func (store *Store) LocalEpisode(ctx context.Context, tmdbShowID int64, season, episode int) (plexsync.LocalEpisode, bool, error) {
+	return store.localEpisode(ctx, `e.show_id=? AND e.season_number=? AND e.episode_number=?`, fmt.Sprintf("tv:%d", tmdbShowID), season, episode)
+}
+
+// LocalEpisodeByTMDBID finds an active episode by its own TMDB ID, which names the show too.
+func (store *Store) LocalEpisodeByTMDBID(ctx context.Context, tmdbEpisodeID int64) (plexsync.LocalEpisode, bool, error) {
+	if tmdbEpisodeID <= 0 {
+		return plexsync.LocalEpisode{}, false, nil
+	}
+	return store.localEpisode(ctx, `e.tmdb_id=?`, tmdbEpisodeID)
+}
+
+func (store *Store) localEpisode(ctx context.Context, condition string, args ...any) (plexsync.LocalEpisode, bool, error) {
 	var found plexsync.LocalEpisode
-	err := store.DB.QueryRowContext(ctx, `SELECT e.id,m.title FROM episodes e JOIN media m ON m.id=e.show_id
-		WHERE e.show_id=? AND e.season_number=? AND e.episode_number=? AND e.active=1`, fmt.Sprintf("tv:%d", tmdbShowID), season, episode).Scan(&found.EpisodeID, &found.ShowTitle)
+	err := store.DB.QueryRowContext(ctx, `SELECT e.id,m.tmdb_id,m.title,e.season_number,e.episode_number FROM episodes e JOIN media m ON m.id=e.show_id
+		WHERE m.media_type='tv' AND e.active=1 AND `+condition+` LIMIT 1`, args...).Scan(&found.EpisodeID, &found.ShowTMDBID, &found.ShowTitle, &found.Season, &found.Episode)
 	if err == sql.ErrNoRows {
 		return plexsync.LocalEpisode{}, false, nil
 	}

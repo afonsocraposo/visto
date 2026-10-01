@@ -212,47 +212,47 @@ func TestPlexEventPayloads_GivenStoredEvents_WhenReadBack_ThenPayloadsAreScopedT
 	}
 }
 
-func TestPlexMatching_RemembersShowsAndFindsCataloguedEpisodes(t *testing.T) {
+func TestPlexMatching_FindsCataloguedEpisodesByNumberAndByTMDBID(t *testing.T) {
 	ctx := context.Background()
 	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "visto.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer store.Close()
-
-	if id, err := store.PlexShowMatch(ctx, "plex://show/abc"); err != nil || id != 0 {
-		t.Fatalf("unknown show match = %d, %v; want 0", id, err)
-	}
-	if err := store.SavePlexShowMatch(ctx, "plex://show/abc", 100); err != nil {
-		t.Fatal(err)
-	}
-	if err := store.SavePlexShowMatch(ctx, "plex://show/abc", 101); err != nil {
-		t.Fatal(err)
-	}
-	if id, err := store.PlexShowMatch(ctx, "plex://show/abc"); err != nil || id != 101 {
-		t.Fatalf("remembered show match = %d, %v; want the latest, 101", id, err)
-	}
-
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 	for _, statement := range []string{
 		`INSERT INTO media(id,media_type,tmdb_id,title,metadata_updated_at,created_at) VALUES('tv:100','tv',100,'The Paper','` + now + `','` + now + `')`,
 		`INSERT INTO seasons(id,show_id,season_number) VALUES('tv:100:season:2','tv:100',2)`,
-		`INSERT INTO episodes(id,show_id,season_id,season_number,episode_number,active) VALUES('tv:100:episode:9004','tv:100','tv:100:season:2',2,4,1)`,
-		`INSERT INTO episodes(id,show_id,season_id,season_number,episode_number,active) VALUES('tv:100:episode:9005','tv:100','tv:100:season:2',2,5,0)`,
+		`INSERT INTO episodes(id,show_id,season_id,tmdb_id,season_number,episode_number,active) VALUES('tv:100:episode:7423219','tv:100','tv:100:season:2',7423219,2,4,1)`,
+		`INSERT INTO episodes(id,show_id,season_id,tmdb_id,season_number,episode_number,active) VALUES('tv:100:episode:9005','tv:100','tv:100:season:2',9005,2,5,0)`,
+		`INSERT INTO episodes(id,show_id,season_id,season_number,episode_number,active) VALUES('tv:100:episode:imported','tv:100','tv:100:season:2',2,6,1)`,
 	} {
 		if _, err := store.DB.ExecContext(ctx, statement); err != nil {
 			t.Fatal(err)
 		}
 	}
-	found, ok, err := store.LocalEpisode(ctx, 100, 2, 4)
-	if err != nil || !ok || found.EpisodeID != "tv:100:episode:9004" || found.ShowTitle != "The Paper" {
-		t.Fatalf("local episode = %#v, %v, %v; want the catalogued episode with its show title", found, ok, err)
+	want := plexsync.LocalEpisode{EpisodeID: "tv:100:episode:7423219", ShowTMDBID: 100, ShowTitle: "The Paper", Season: 2, Episode: 4}
+	if found, ok, err := store.LocalEpisode(ctx, 100, 2, 4); err != nil || !ok || found != want {
+		t.Fatalf("by number = %#v, %v, %v; want %#v", found, ok, err, want)
+	}
+	if found, ok, err := store.LocalEpisodeByTMDBID(ctx, 7423219); err != nil || !ok || found != want {
+		t.Fatalf("by TMDB ID = %#v, %v, %v; want the episode and its show %#v", found, ok, err, want)
+	}
+	if _, ok, err := store.LocalEpisodeByTMDBID(ctx, 9005); err != nil || ok {
+		t.Fatalf("inactive episode by TMDB ID found=%v err=%v; want ignored", ok, err)
+	}
+	if _, ok, err := store.LocalEpisodeByTMDBID(ctx, 1); err != nil || ok {
+		t.Fatalf("unknown TMDB ID found=%v err=%v; want not found", ok, err)
+	}
+	if _, ok, err := store.LocalEpisodeByTMDBID(ctx, 0); err != nil || ok {
+		t.Fatalf("zero TMDB ID found=%v err=%v; want not found", ok, err)
 	}
 	if _, ok, err := store.LocalEpisode(ctx, 100, 2, 5); err != nil || ok {
-		t.Fatalf("inactive episode found=%v err=%v; want it ignored", ok, err)
+		t.Fatalf("inactive episode by number found=%v err=%v; want ignored", ok, err)
 	}
-	if _, ok, err := store.LocalEpisode(ctx, 100, 3, 1); err != nil || ok {
-		t.Fatalf("missing episode found=%v err=%v; want not found", ok, err)
+	var indexed int
+	if err := store.DB.QueryRowContext(ctx, `SELECT COUNT(*) FROM sqlite_master WHERE type='index' AND name='idx_episodes_tmdb_id'`).Scan(&indexed); err != nil || indexed != 1 {
+		t.Fatalf("episode TMDB ID index present=%d err=%v; want the lookup indexed", indexed, err)
 	}
 }
 
@@ -314,7 +314,7 @@ func TestMigration_BackfillsEpisodeLabelsFromStoredPayloads(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	script, err := os.ReadFile("migrations/0017_plex_show_matches_and_labels.sql")
+	script, err := os.ReadFile("migrations/0017_plex_episode_lookup_and_labels.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

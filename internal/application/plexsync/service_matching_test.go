@@ -17,8 +17,6 @@ const thePaperScrobble = `{"event":"media.scrobble","Account":{"id":123},"Server
 "grandparentGuid":"plex://show/663c5c9154860a808df84899","index":4,"parentIndex":2,"year":2026,"lastViewedAt":1790846007,
 "Guid":[{"id":"imdb://tt43347562"},{"id":"tmdb://7423219"},{"id":"tvdb://11861026"}]}}`
 
-const thePaperGUID = "plex://show/663c5c9154860a808df84899"
-
 func thePaperMetadata() *fakeMetadataProvider {
 	return &fakeMetadataProvider{
 		searchResults: []domain.MediaSearchResult{
@@ -55,29 +53,21 @@ func (provider *countingProvider) FindEpisodeByExternalID(_ context.Context, sou
 	return provider.location, provider.findErr
 }
 
-// matchRepository adds the local-knowledge capability to the fake repository.
+// matchRepository adds the local-catalog capability to the fake repository.
 type matchRepository struct {
 	*fakeRepository
-	matches    map[string]int64
-	local      map[[3]int64]LocalEpisode
-	savedGUIDs map[string]int64
+	byPosition map[[3]int64]LocalEpisode
+	byTMDBID   map[int64]LocalEpisode
 	episodeIDs []string
 }
 
-func (repository *matchRepository) PlexShowMatch(_ context.Context, guid string) (int64, error) {
-	return repository.matches[guid], nil
-}
-
-func (repository *matchRepository) SavePlexShowMatch(_ context.Context, guid string, id int64) error {
-	if repository.savedGUIDs == nil {
-		repository.savedGUIDs = map[string]int64{}
-	}
-	repository.savedGUIDs[guid] = id
-	return nil
-}
-
 func (repository *matchRepository) LocalEpisode(_ context.Context, show int64, season, episode int) (LocalEpisode, bool, error) {
-	found, ok := repository.local[[3]int64{show, int64(season), int64(episode)}]
+	found, ok := repository.byPosition[[3]int64{show, int64(season), int64(episode)}]
+	return found, ok, nil
+}
+
+func (repository *matchRepository) LocalEpisodeByTMDBID(_ context.Context, id int64) (LocalEpisode, bool, error) {
+	found, ok := repository.byTMDBID[id]
 	return found, ok, nil
 }
 
@@ -119,9 +109,6 @@ func TestHandle_GivenShowTitledWithAYear_WhenEpisodeIDsAreKnown_ThenTheEpisodeID
 	if len(catalog.saved) != 1 || catalog.saved[0].ID != "tv:100" {
 		t.Fatalf("saved = %#v, want the show stored", catalog.saved)
 	}
-	if repository.savedGUIDs[thePaperGUID] != 100 {
-		t.Fatalf("remembered matches = %v, want the Plex show GUID mapped to TMDB 100", repository.savedGUIDs)
-	}
 }
 
 func TestHandle_GivenShowTitledWithAYear_WhenOnlyTheTitleIsAvailable_ThenTheYearInTheTitleSelectsTheShow(t *testing.T) {
@@ -145,18 +132,19 @@ func TestHandle_GivenAnEpisodeIDLookupThatFails_WhenTheTitleMatches_ThenItFallsB
 	}
 }
 
-func TestHandle_GivenAShowRememberedFromAnEarlierEvent_WhenTheEpisodeIsInTheCatalog_ThenTMDBIsNotAsked(t *testing.T) {
+// Plex's Guid list names the episode's own TMDB ID (7423219 here), and the catalog stores episode
+// TMDB IDs, so an episode seen before identifies its show without any TMDB request.
+func TestHandle_GivenAnEpisodeAlreadyInTheCatalog_WhenPlexSendsItsTMDBID_ThenTMDBIsNotAsked(t *testing.T) {
 	provider := &countingProvider{fakeMetadataProvider: thePaperMetadata()}
 	service, repository, catalog := newMatchingService(t, provider)
-	repository.matches = map[string]int64{thePaperGUID: 100}
-	repository.local = map[[3]int64]LocalEpisode{{100, 2, 4}: {EpisodeID: "tv:100:episode:9004", ShowTitle: "The Paper"}}
+	repository.byTMDBID = map[int64]LocalEpisode{7423219: {EpisodeID: "tv:100:episode:7423219", ShowTMDBID: 100, ShowTitle: "The Paper", Season: 2, Episode: 4}}
 	if err := service.Handle(context.Background(), "secret", thePaperScrobble); err != nil {
 		t.Fatal(err)
 	}
-	if len(repository.recorded) != 1 || repository.recorded[0].Title != "The Paper" || repository.recorded[0].EpisodeLabel != "S2E4" {
-		t.Fatalf("recorded=%#v logged=%#v; want The Paper S2E4", repository.recorded, repository.logged)
+	if len(repository.recorded) != 1 || repository.recorded[0].Title != "The Paper" || repository.recorded[0].EpisodeLabel != "S2E4" || repository.recorded[0].TMDBID != 100 {
+		t.Fatalf("recorded=%#v logged=%#v; want The Paper S2E4 (tmdb 100)", repository.recorded, repository.logged)
 	}
-	if len(repository.episodeIDs) != 1 || repository.episodeIDs[0] != "tv:100:episode:9004" {
+	if len(repository.episodeIDs) != 1 || repository.episodeIDs[0] != "tv:100:episode:7423219" {
 		t.Fatalf("episode IDs = %v, want the catalogued episode", repository.episodeIDs)
 	}
 	if provider.searches != 0 || len(provider.finds) != 0 || provider.summary != 0 || len(provider.seasonNumbers) != 0 || len(catalog.saved) != 0 {
@@ -164,21 +152,31 @@ func TestHandle_GivenAShowRememberedFromAnEarlierEvent_WhenTheEpisodeIsInTheCata
 	}
 }
 
-func TestHandle_GivenAShowRememberedFromAnEarlierEvent_WhenTheEpisodeIsNew_ThenOnlyItsSeasonIsFetched(t *testing.T) {
-	provider := &countingProvider{fakeMetadataProvider: thePaperMetadata()}
+func TestHandle_GivenAnEpisodeMissingFromTheCatalog_WhenPlexSendsItsTMDBID_ThenItIsLookedUpAndStored(t *testing.T) {
+	provider := &countingProvider{
+		fakeMetadataProvider: thePaperMetadata(),
+		location:             domain.EpisodeLocation{ShowTMDBID: 100, SeasonNumber: 2, EpisodeNumber: 4},
+	}
 	service, repository, catalog := newMatchingService(t, provider)
-	repository.matches = map[string]int64{thePaperGUID: 100}
+	repository.byTMDBID = map[int64]LocalEpisode{999: {EpisodeID: "tv:5:episode:999", ShowTMDBID: 5, ShowTitle: "Other", Season: 1, Episode: 1}}
 	if err := service.Handle(context.Background(), "secret", thePaperScrobble); err != nil {
 		t.Fatal(err)
 	}
-	if len(repository.recorded) != 1 || provider.searches != 0 || len(provider.finds) != 0 {
-		t.Fatalf("recorded=%d searches=%d finds=%v; want the remembered show without a lookup", len(repository.recorded), provider.searches, provider.finds)
+	if len(repository.recorded) != 1 || len(provider.finds) != 1 || len(catalog.saved) != 1 {
+		t.Fatalf("recorded=%d finds=%v saved=%d; want one lookup and the show stored for next time", len(repository.recorded), provider.finds, len(catalog.saved))
 	}
-	if len(catalog.saved) != 1 || len(provider.seasonNumbers) != 1 {
-		t.Fatalf("saved=%d seasons=%v; want the season fetched and stored once", len(catalog.saved), provider.seasonNumbers)
+}
+
+func TestHandle_GivenAShowWithATMDBGUID_WhenTheEpisodeIsInTheCatalog_ThenItIsFoundByNumber(t *testing.T) {
+	provider := &countingProvider{fakeMetadataProvider: thePaperMetadata()}
+	service, repository, _ := newMatchingService(t, provider)
+	repository.byPosition = map[[3]int64]LocalEpisode{{100, 2, 4}: {EpisodeID: "tv:100:episode:9004", ShowTMDBID: 100, ShowTitle: "The Paper", Season: 2, Episode: 4}}
+	payload := `{"event":"media.scrobble","Account":{"id":123},"Metadata":{"type":"episode","title":"X","grandparentTitle":"The Paper","grandparentGuid":"com.plexapp.agents.themoviedb://100?lang=en","index":4,"parentIndex":2}}`
+	if err := service.Handle(context.Background(), "secret", payload); err != nil {
+		t.Fatal(err)
 	}
-	if len(repository.savedGUIDs) != 0 {
-		t.Fatalf("remembered matches = %v; a known show must not be written again", repository.savedGUIDs)
+	if len(repository.recorded) != 1 || provider.searches != 0 || len(provider.finds) != 0 || provider.summary != 0 {
+		t.Fatalf("recorded=%d searches=%d finds=%v summary=%d; want a local match without TMDB", len(repository.recorded), provider.searches, provider.finds, provider.summary)
 	}
 }
 
@@ -247,6 +245,16 @@ func TestExternalEpisodeIDs_PrefersTVDBAndIgnoresOtherIDs(t *testing.T) {
 		t.Fatalf("externalEpisodeIDs = %v, want %v", got, want)
 	}
 	if externalEpisodeIDs([]byte(`"not a list"`)) != nil || externalEpisodeIDs(nil) != nil {
+		t.Fatal("malformed Guid values must yield no IDs")
+	}
+}
+
+func TestTMDBIDs_ListsTheEpisodesTMDBIDs(t *testing.T) {
+	got := tmdbIDs([]byte(`[{"id":"imdb://tt43347562"},{"id":"tmdb://7423219"},{"id":"tvdb://11861026"}]`))
+	if len(got) != 1 || got[0] != 7423219 {
+		t.Fatalf("tmdbIDs = %v, want [7423219]", got)
+	}
+	if tmdbIDs([]byte(`"nope"`)) != nil || tmdbIDs(nil) != nil {
 		t.Fatal("malformed Guid values must yield no IDs")
 	}
 }
