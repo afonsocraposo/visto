@@ -269,8 +269,8 @@ func (store *Store) LocalEpisodeByTMDBID(ctx context.Context, tmdbEpisodeID int6
 
 func (store *Store) localEpisode(ctx context.Context, condition string, args ...any) (plexsync.LocalEpisode, bool, error) {
 	var found plexsync.LocalEpisode
-	err := store.DB.QueryRowContext(ctx, `SELECT e.id,m.tmdb_id,m.title,e.season_number,e.episode_number FROM episodes e JOIN media m ON m.id=e.show_id
-		WHERE m.media_type='tv' AND e.active=1 AND `+condition+` LIMIT 1`, args...).Scan(&found.EpisodeID, &found.ShowTMDBID, &found.ShowTitle, &found.Season, &found.Episode)
+	err := store.DB.QueryRowContext(ctx, `SELECT e.id,COALESCE(e.tmdb_id,0),m.tmdb_id,m.title,e.season_number,e.episode_number FROM episodes e JOIN media m ON m.id=e.show_id
+		WHERE m.media_type='tv' AND e.active=1 AND `+condition+` LIMIT 1`, args...).Scan(&found.EpisodeID, &found.TMDBID, &found.ShowTMDBID, &found.ShowTitle, &found.Season, &found.Episode)
 	if err == sql.ErrNoRows {
 		return plexsync.LocalEpisode{}, false, nil
 	}

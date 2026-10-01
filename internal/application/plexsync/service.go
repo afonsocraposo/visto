@@ -119,6 +119,7 @@ type EpisodeFinder interface {
 // LocalEpisode is an episode already in Visto's catalog.
 type LocalEpisode struct {
 	EpisodeID  string
+	TMDBID     int64 // the episode's own TMDB ID; 0 when the catalog has none yet
 	ShowTMDBID int64
 	ShowTitle  string
 	Season     int
@@ -525,20 +526,28 @@ func (service *Service) resolveEpisode(ctx context.Context, metadata plexMetadat
 	if havePosition {
 		season, episode = *metadata.ParentIndex, *metadata.EpisodeIndex
 	}
+	plexEpisodeIDs := tmdbIDs(metadata.GUIDs)
 	local, _ := service.repository.(MatchStore)
 	if local != nil {
-		for _, episodeID := range tmdbIDs(metadata.GUIDs) {
+		for _, episodeID := range plexEpisodeIDs {
 			if found, ok, err := local.LocalEpisodeByTMDBID(ctx, episodeID); err == nil && ok {
 				return found.resolved(), nil
 			}
 		}
 	}
+	// An episode picked by its number is checked against the TMDB ID Plex sent for it, so a
+	// numbering difference is reported instead of marking a different episode watched.
+	var mismatch error
 	byPosition := func(showID int64, season, episode int) (resolvedEpisode, bool) {
 		if local == nil || showID == 0 {
 			return resolvedEpisode{}, false
 		}
 		found, ok, err := local.LocalEpisode(ctx, showID, season, episode)
 		if err != nil || !ok {
+			return resolvedEpisode{}, false
+		}
+		if err := sameEpisode(plexEpisodeIDs, found.TMDBID, season, episode); err != nil {
+			mismatch = err
 			return resolvedEpisode{}, false
 		}
 		return found.resolved(), true
@@ -548,6 +557,9 @@ func (service *Service) resolveEpisode(ctx context.Context, metadata plexMetadat
 		if resolved, ok := byPosition(showID, season, episode); ok {
 			return resolved, nil
 		}
+		if mismatch != nil {
+			return resolvedEpisode{}, mismatch
+		}
 	}
 	if showID == 0 {
 		if location, found := service.findEpisode(ctx, metadata); found {
@@ -556,6 +568,9 @@ func (service *Service) resolveEpisode(ctx context.Context, metadata plexMetadat
 				return resolved, nil
 			}
 		}
+	}
+	if mismatch != nil {
+		return resolvedEpisode{}, mismatch
 	}
 	if showID == 0 {
 		year := metadata.GrandparentYear
@@ -581,6 +596,9 @@ func (service *Service) resolveEpisode(ctx context.Context, metadata plexMetadat
 	}
 	for _, candidate := range seasonData.Episodes {
 		if candidate.SeasonNumber == season && candidate.EpisodeNumber == episode {
+			if err := sameEpisode(plexEpisodeIDs, candidate.TMDBID, season, episode); err != nil {
+				return resolvedEpisode{}, err
+			}
 			return resolvedEpisode{
 				showTMDBID: show.TMDBID, showTitle: show.Name, season: season, episode: episode,
 				episodeID: fmt.Sprintf("tv:%d:episode:%d", show.TMDBID, candidate.TMDBID),
@@ -589,6 +607,20 @@ func (service *Service) resolveEpisode(ctx context.Context, metadata plexMetadat
 		}
 	}
 	return resolvedEpisode{}, fmt.Errorf("no exact TMDB episode matched Plex season %d episode %d", season, episode)
+}
+
+// sameEpisode checks an episode chosen by its number against the TMDB IDs Plex sent for the watched
+// episode. Without IDs on either side there is nothing to compare, so it passes.
+func sameEpisode(plexEpisodeIDs []int64, tmdbEpisodeID int64, season, episode int) error {
+	if len(plexEpisodeIDs) == 0 || tmdbEpisodeID <= 0 {
+		return nil
+	}
+	for _, id := range plexEpisodeIDs {
+		if id == tmdbEpisodeID {
+			return nil
+		}
+	}
+	return fmt.Errorf("Plex episode does not match TMDB season %d episode %d; numbering differs", season, episode)
 }
 
 // tmdbIDs returns every TMDB ID in Plex's Guid list. For an episode these are the episode's own IDs.

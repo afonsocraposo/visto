@@ -231,7 +231,7 @@ func TestPlexMatching_FindsCataloguedEpisodesByNumberAndByTMDBID(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	want := plexsync.LocalEpisode{EpisodeID: "tv:100:episode:7423219", ShowTMDBID: 100, ShowTitle: "The Paper", Season: 2, Episode: 4}
+	want := plexsync.LocalEpisode{EpisodeID: "tv:100:episode:7423219", TMDBID: 7423219, ShowTMDBID: 100, ShowTitle: "The Paper", Season: 2, Episode: 4}
 	if found, ok, err := store.LocalEpisode(ctx, 100, 2, 4); err != nil || !ok || found != want {
 		t.Fatalf("by number = %#v, %v, %v; want %#v", found, ok, err, want)
 	}

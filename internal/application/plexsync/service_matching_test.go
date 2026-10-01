@@ -24,7 +24,7 @@ func thePaperMetadata() *fakeMetadataProvider {
 			{TMDBID: 100, Type: domain.TVMediaType, Title: "The Paper", OriginalTitle: "The Paper", ReleaseDate: "2025-09-04"},
 		},
 		show:   domain.TVShowMetadata{TMDBID: 100, Name: "The Paper", FirstAirDate: "2025-09-04"},
-		season: domain.TVSeasonMetadata{Number: 2, Episodes: []domain.TVEpisodeMetadata{{TMDBID: 9004, SeasonNumber: 2, EpisodeNumber: 4, Name: "Impressing a Cop"}}},
+		season: domain.TVSeasonMetadata{Number: 2, Episodes: []domain.TVEpisodeMetadata{{TMDBID: 7423219, SeasonNumber: 2, EpisodeNumber: 4, Name: "Impressing a Cop"}}},
 	}
 }
 
@@ -129,6 +129,27 @@ func TestHandle_GivenAnEpisodeIDLookupThatFails_WhenTheTitleMatches_ThenItFallsB
 	}
 	if len(repository.recorded) != 1 || provider.searches != 1 || len(provider.finds) != 2 {
 		t.Fatalf("recorded=%d searches=%d finds=%v; want TVDB then IMDb lookups, then one search", len(repository.recorded), provider.searches, provider.finds)
+	}
+}
+
+func TestHandle_GivenDifferentEpisodeIDs_WhenMatchedByNumber_ThenItSkipsThePlay(t *testing.T) {
+	for _, localMatch := range []bool{false, true} {
+		provider := &countingProvider{fakeMetadataProvider: thePaperMetadata(), findErr: errors.New("not found")}
+		provider.season.Episodes[0].TMDBID = 9004
+		service, repository, catalog := newMatchingService(t, provider)
+		if localMatch {
+			repository.byPosition = map[[3]int64]LocalEpisode{{100, 2, 4}: {EpisodeID: "tv:100:episode:9004", TMDBID: 9004, ShowTMDBID: 100, ShowTitle: "The Paper", Season: 2, Episode: 4}}
+		}
+		if err := service.Handle(context.Background(), "secret", thePaperScrobble); err != nil {
+			t.Fatal(err)
+		}
+		if len(repository.recorded) != 0 || len(repository.episodeIDs) != 0 || len(catalog.saved) != 0 || len(repository.logged) != 1 {
+			t.Fatalf("local=%v recorded=%v saved=%v logged=%v; want only a skipped event", localMatch, repository.recorded, catalog.saved, repository.logged)
+		}
+		event := repository.logged[0]
+		if event.Status != "skipped" || event.Title != "The Paper" || event.EpisodeLabel != "S2E4" || event.Message != "Plex episode does not match TMDB season 2 episode 4; numbering differs" {
+			t.Fatalf("local=%v event=%#v; want episode mismatch", localMatch, event)
+		}
 	}
 }
 
