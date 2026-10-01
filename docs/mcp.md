@@ -33,7 +33,13 @@ approve access. Visto uses the identity tied to that user's token, not a
   skip existing plays, so repeating one doesn't create rewatch history.
 - `get_show_progress` reports earlier gaps separately from `is_caught_up`,
   which only refers to episodes after the furthest watched episode.
-- `get_library` lists saved media, with filters by status and media type.
+- `get_library` lists saved media, most recently updated first, with filters
+  by `status` and `media_type`. It is paginated like the REST library list:
+  it returns up to `limit` entries (1–100, default 30) as
+  `{ "items": [...], "next_cursor": "...", "total_count": 347 }`. When
+  `next_cursor` is not null, call `get_library` again with the same filters
+  and `cursor` set to that value to get the next page. A cursor only works
+  with the filters it came from.
 - `remove_media` (destructive) removes a movie or show from the authenticated
   user's library along with that user's plays, ratings, and activity for the
   title. Other users' records and shared catalog data are untouched.

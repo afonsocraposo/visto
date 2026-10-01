@@ -3,9 +3,11 @@ package mcp
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
+	"github.com/afonsocosta/visto/internal/application/pagination"
 	"github.com/afonsocosta/visto/internal/domain"
 )
 
@@ -98,4 +100,38 @@ func mediaArg(args map[string]any) (domain.MediaSearchResult, error) {
 		return item, fmt.Errorf("media must include a valid TMDB ID, type, and title")
 	}
 	return item, nil
+}
+
+// paginationArgs reads the MCP limit and cursor arguments, applying the same
+// defaults and bounds as the REST list endpoints.
+func paginationArgs(args map[string]any) (pagination.Request, error) {
+	request := pagination.Request{Limit: pagination.DefaultLimit, Cursor: stringArg(args, "cursor")}
+	if args["cursor"] != nil {
+		if _, ok := args["cursor"].(string); !ok {
+			return pagination.Request{}, fmt.Errorf("cursor must be a string returned as next_cursor")
+		}
+	}
+	if args["limit"] == nil {
+		return request, nil
+	}
+	var limit float64
+	switch value := args["limit"].(type) {
+	case json.Number:
+		parsed, err := value.Float64()
+		if err != nil {
+			return pagination.Request{}, pagination.ErrInvalidLimit
+		}
+		limit = parsed
+	case float64:
+		limit = value
+	case int:
+		limit = float64(value)
+	default:
+		return pagination.Request{}, pagination.ErrInvalidLimit
+	}
+	if limit != math.Trunc(limit) || limit < 1 || limit > pagination.MaxLimit {
+		return pagination.Request{}, pagination.ErrInvalidLimit
+	}
+	request.Limit = int(limit)
+	return request, nil
 }

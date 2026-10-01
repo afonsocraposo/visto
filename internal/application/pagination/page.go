@@ -8,6 +8,11 @@ import (
 	"strconv"
 )
 
+const (
+	DefaultLimit = 30
+	MaxLimit     = 100
+)
+
 var ErrInvalidCursor = errors.New("invalid cursor")
 var ErrInvalidLimit = errors.New("limit must be from 1 to 100")
 
@@ -28,10 +33,10 @@ type Position struct {
 }
 
 func Parse(r *http.Request) (Request, error) {
-	limit := 30
+	limit := DefaultLimit
 	if raw := r.URL.Query().Get("limit"); raw != "" {
 		value, err := strconv.Atoi(raw)
-		if err != nil || value < 1 || value > 100 {
+		if err != nil || value < 1 || value > MaxLimit {
 			return Request{}, ErrInvalidLimit
 		}
 		limit = value

@@ -7,6 +7,7 @@ import (
 
 	"github.com/afonsocosta/visto/internal/application/library"
 	"github.com/afonsocosta/visto/internal/application/oauth"
+	"github.com/afonsocosta/visto/internal/application/pagination"
 	"github.com/afonsocosta/visto/internal/application/watch"
 	"github.com/afonsocosta/visto/internal/domain"
 )
@@ -35,7 +36,7 @@ func toolDefinitions() []toolDefinition {
 	writeSecurity := []map[string]any{{"type": "oauth2", "scopes": []string{oauth.WriteScope}}}
 	return []toolDefinition{
 		{Name: "search_media", Description: "Search TMDB for movies and TV shows.", InputSchema: objectSchema(map[string]any{"query": map[string]string{"type": "string"}, "language": map[string]string{"type": "string"}}, "query"), Annotations: readOnly, SecuritySchemes: readSecurity},
-		{Name: "get_library", Description: "List saved movies and TV shows with their library status and progress. Optionally filter by media type or status.", InputSchema: objectSchema(map[string]any{"media_type": map[string]any{"type": "string", "enum": []string{"movie", "tv"}}, "status": statusSchema()}), Annotations: readOnly, SecuritySchemes: readSecurity},
+		{Name: "get_library", Description: "List saved movies and TV shows with their library status and progress, most recently updated first. Optionally filter by media type or status. Returns up to limit entries (default 30, maximum 100) with total_count; when next_cursor is not null, call again with the same filters and cursor set to next_cursor to get the next page.", InputSchema: objectSchema(map[string]any{"media_type": map[string]any{"type": "string", "enum": []string{"movie", "tv"}}, "status": statusSchema(), "limit": map[string]any{"type": "integer", "minimum": 1, "maximum": pagination.MaxLimit, "default": pagination.DefaultLimit}, "cursor": map[string]string{"type": "string"}}), Annotations: readOnly, SecuritySchemes: readSecurity},
 		{Name: "get_currently_watching", Description: "List the next unwatched episode for each show the user is watching.", InputSchema: objectSchema(map[string]any{}), Annotations: readOnly, SecuritySchemes: readSecurity},
 		{Name: "get_show_progress", Description: "Get a tracked TV show's watched counts, earlier gaps, and next episode. is_caught_up only means no newer released episode follows the furthest watched episode; is_fully_watched means all released regular episodes are watched. Use a Visto show ID such as tv:123.", InputSchema: objectSchema(map[string]any{"show_id": map[string]string{"type": "string"}}, "show_id"), Annotations: readOnly, SecuritySchemes: readSecurity},
 		{Name: "get_show_episodes", Description: "List a tracked TV show's episodes, IDs, air dates, and watched state. Optionally filter by season number.", InputSchema: objectSchema(map[string]any{"show_id": map[string]string{"type": "string"}, "season_number": map[string]any{"type": "integer", "minimum": 0}}, "show_id"), Annotations: readOnly, SecuritySchemes: readSecurity},
@@ -90,17 +91,11 @@ func (server *Server) callTool(ctx context.Context, userID, name string, args ma
 		if status != "" && status != "watchlist" && status != "watching" && status != "paused" && status != "dropped" && status != "completed" {
 			return nil, fmt.Errorf("invalid library status")
 		}
-		entries, err := server.library.List(ctx, userID)
+		request, err := paginationArgs(args)
 		if err != nil {
 			return nil, err
 		}
-		filtered := make([]library.Entry, 0, len(entries))
-		for _, entry := range entries {
-			if (mediaType == "" || string(entry.Media.Type) == mediaType) && (status == "" || string(entry.Item.Status) == status) {
-				filtered = append(filtered, entry)
-			}
-		}
-		return filtered, nil
+		return server.library.ListPage(ctx, userID, library.ListOptions{Status: status, MediaType: mediaType}, request)
 	case "get_currently_watching":
 		if server.watch == nil {
 			return nil, fmt.Errorf("watch progress is not configured")

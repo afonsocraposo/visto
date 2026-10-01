@@ -16,6 +16,7 @@ import (
 	"github.com/afonsocosta/visto/internal/application/auth"
 	"github.com/afonsocosta/visto/internal/application/library"
 	"github.com/afonsocosta/visto/internal/application/oauth"
+	"github.com/afonsocosta/visto/internal/application/pagination"
 	"github.com/afonsocosta/visto/internal/application/tracking"
 	"github.com/afonsocosta/visto/internal/application/watch"
 	"github.com/afonsocosta/visto/internal/domain"
@@ -36,6 +37,7 @@ type libraryUseCases interface {
 	SaveMedia(context.Context, string, library.Media, domain.LibraryStatus, *int) (library.Item, error)
 	StoreMedia(context.Context, library.Media) error
 	List(context.Context, string) ([]library.Entry, error)
+	ListPage(context.Context, string, library.ListOptions, pagination.Request) (pagination.Page[library.Entry], error)
 	ImportShow(context.Context, int64, domain.TVShowMetadataProvider) error
 	RefreshShow(context.Context, int64, domain.TVShowMetadataProvider) error
 	Complete(context.Context, string, string, *int, string) (library.Item, error)
