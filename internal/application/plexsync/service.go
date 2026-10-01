@@ -31,19 +31,21 @@ var (
 	ErrPersonalDisabled = errors.New("personal Plex webhooks are disabled")
 	ErrEventNotFound    = errors.New("Plex event not found")
 	ErrAccountUnmapped  = errors.New("Plex account is not mapped")
-	tmdbGUIDPattern     = regexp.MustCompile(`(?i)(?:tmdb://(?:movie/|tv/)?|themoviedb\.org/(?:movie|tv)/)([0-9]+)`)
+	tmdbGUIDPattern     = regexp.MustCompile(`(?i)(?:tmdb://(?:movie/|tv/)?|agents\.themoviedb://|themoviedb\.org/(?:movie|tv)/)([0-9]+)`)
 )
 
 type Event struct {
-	ID         int64     `json:"id"`
-	TMDBID     int64     `json:"tmdb_id,omitempty"`
-	EventType  string    `json:"event_type,omitempty"`
-	RawPayload string    `json:"-"`
-	Status     string    `json:"status"`
-	Title      string    `json:"title,omitempty"`
-	MediaType  string    `json:"media_type,omitempty"`
-	Message    string    `json:"message,omitempty"`
-	OccurredAt time.Time `json:"occurred_at"`
+	ID         int64  `json:"id"`
+	TMDBID     int64  `json:"tmdb_id,omitempty"`
+	EventType  string `json:"event_type,omitempty"`
+	RawPayload string `json:"-"`
+	Status     string `json:"status"`
+	Title      string `json:"title,omitempty"`
+	// EpisodeLabel is "S2E4" for episodes, so the history can name the show and the episode.
+	EpisodeLabel string    `json:"episode_label,omitempty"`
+	MediaType    string    `json:"media_type,omitempty"`
+	Message      string    `json:"message,omitempty"`
+	OccurredAt   time.Time `json:"occurred_at"`
 }
 
 type Status struct {
@@ -105,6 +107,28 @@ type MetadataProvider interface {
 	Movie(context.Context, int64) (domain.MovieMetadata, error)
 	ShowSummary(context.Context, int64) (domain.TVShowMetadata, error)
 	Season(context.Context, int64, int) (domain.TVSeasonMetadata, error)
+}
+
+// EpisodeFinder is an optional capability of the metadata provider: it resolves an episode from
+// an external ID ("tvdb_id", "imdb_id"). Plex sends these for the episode, so they identify
+// the show even when its Plex title does not match TMDB.
+type EpisodeFinder interface {
+	FindEpisodeByExternalID(ctx context.Context, source, externalID string) (domain.EpisodeLocation, error)
+}
+
+// LocalEpisode is an episode already in Visto's catalog.
+type LocalEpisode struct {
+	EpisodeID string
+	ShowTitle string
+}
+
+// MatchStore is an optional capability of the repository that lets Plex events be matched without
+// asking TMDB: it remembers which TMDB show a Plex show GUID turned out to be, and knows which
+// episodes are already in the local catalog.
+type MatchStore interface {
+	PlexShowMatch(ctx context.Context, plexGUID string) (int64, error)
+	SavePlexShowMatch(ctx context.Context, plexGUID string, tmdbShowID int64) error
+	LocalEpisode(ctx context.Context, tmdbShowID int64, season, episode int) (LocalEpisode, bool, error)
 }
 
 type Library interface {
@@ -296,7 +320,7 @@ func (service *Service) Handle(ctx context.Context, secret, rawPayload string) e
 		}
 	}
 	metadata := payload.Metadata
-	event := Event{EventType: payload.Event, RawPayload: rawPayload, Status: "skipped", Title: firstNonEmpty(metadata.Title, metadata.GrandparentTitle), MediaType: metadata.Type, OccurredAt: plexTime(metadata.LastViewedAt, service.now().UTC())}
+	event := Event{EventType: payload.Event, RawPayload: rawPayload, Status: "skipped", Title: metadata.displayTitle(), EpisodeLabel: metadata.episodeLabel(), MediaType: metadata.Type, OccurredAt: plexTime(metadata.LastViewedAt, service.now().UTC())}
 	fingerprint := service.fingerprint(payload, rawPayload)
 	if accountID == "" || payload.Account.ID == "" || payload.Account.ID.String() != accountID {
 		event.Message = "Plex account does not match this webhook"
@@ -329,21 +353,27 @@ func (service *Service) Handle(ctx context.Context, secret, rawPayload string) e
 		id := media.ID
 		mediaID, event.Title, event.MediaType, event.TMDBID = &id, movie.Title, "movie", movie.TMDBID
 	case domain.TVMediaType, "episode":
-		show, season, matchedEpisode, resolveErr := service.resolveEpisode(ctx, metadata)
+		resolved, resolveErr := service.resolveEpisode(ctx, metadata)
 		if resolveErr != nil {
 			return service.logResolutionError(ctx, userID, fingerprint, event, resolveErr)
 		}
-		media := library.Media{ID: fmt.Sprintf("tv:%d", show.TMDBID), Type: domain.TVMediaType, TMDBID: show.TMDBID, Title: show.Name, OriginalTitle: show.Name, Overview: show.Overview, ReleaseDate: show.FirstAirDate, PosterPath: show.PosterPath, BackdropPath: show.BackdropPath, OriginalLanguage: show.OriginalLanguage, Status: show.Status}
-		if err := service.library.StoreMedia(ctx, media); err != nil {
-			event.Status, event.Message = "failed", "Could not add the TV show to the Visto library"
-			return service.log(ctx, userID, fingerprint, event)
+		if resolved.fetched != nil {
+			// Only fetched metadata needs storing; a locally known episode is already catalogued.
+			show, season := resolved.fetched.show, resolved.fetched.season
+			media := library.Media{ID: fmt.Sprintf("tv:%d", show.TMDBID), Type: domain.TVMediaType, TMDBID: show.TMDBID, Title: show.Name, OriginalTitle: show.Name, Overview: show.Overview, ReleaseDate: show.FirstAirDate, PosterPath: show.PosterPath, BackdropPath: show.BackdropPath, OriginalLanguage: show.OriginalLanguage, Status: show.Status}
+			if err := service.library.StoreMedia(ctx, media); err != nil {
+				event.Status, event.Message = "failed", "Could not add the TV show to the Visto library"
+				return service.log(ctx, userID, fingerprint, event)
+			}
+			if err := service.library.ImportShowSeason(ctx, userID, show, season); err != nil {
+				event.Status, event.Message = "failed", "Could not save the TV episode metadata"
+				return service.log(ctx, userID, fingerprint, event)
+			}
 		}
-		if err := service.library.ImportShowSeason(ctx, userID, show, season); err != nil {
-			event.Status, event.Message = "failed", "Could not save the TV episode metadata"
-			return service.log(ctx, userID, fingerprint, event)
-		}
-		id := fmt.Sprintf("tv:%d:episode:%d", show.TMDBID, matchedEpisode.TMDBID)
-		episodeID, event.Title, event.MediaType, event.TMDBID = &id, show.Name, "tv", show.TMDBID
+		id := resolved.episodeID
+		episodeID, event.Title, event.MediaType, event.TMDBID = &id, resolved.showTitle, "tv", resolved.showTMDBID
+		event.EpisodeLabel = episodeLabel(resolved.season, resolved.episode)
+		service.rememberShow(ctx, metadata, resolved)
 	default:
 		event.Message = "Plex event is not a movie or TV episode"
 		return service.log(ctx, userID, fingerprint, event)
@@ -405,6 +435,42 @@ type plexMetadata struct {
 	LastViewedAt     json.RawMessage `json:"lastViewedAt"`
 }
 
+// displayTitle names what the history shows: the show for an episode (never the episode's own
+// title), the movie title for a movie.
+func (metadata plexMetadata) displayTitle() string {
+	if metadata.Type == "episode" {
+		show, _ := splitPlexTitle(metadata.GrandparentTitle)
+		return firstNonEmpty(show, metadata.Title)
+	}
+	return firstNonEmpty(metadata.Title, metadata.GrandparentTitle)
+}
+
+func (metadata plexMetadata) episodeLabel() string {
+	if metadata.Type != "episode" || metadata.ParentIndex == nil || metadata.EpisodeIndex == nil || *metadata.ParentIndex < 0 || *metadata.EpisodeIndex <= 0 {
+		return ""
+	}
+	return episodeLabel(*metadata.ParentIndex, *metadata.EpisodeIndex)
+}
+
+func episodeLabel(season, episode int) string {
+	return fmt.Sprintf("S%dE%d", season, episode)
+}
+
+// plexYearSuffix matches the "(2025)" Plex appends to a title to tell similarly named titles
+// apart. TMDB titles do not carry it.
+var plexYearSuffix = regexp.MustCompile(`\s*\((\d{4})\)\s*$`)
+
+// splitPlexTitle removes a trailing "(YYYY)" and returns it as a year hint (0 when absent).
+func splitPlexTitle(title string) (string, int) {
+	title = strings.TrimSpace(title)
+	match := plexYearSuffix.FindStringSubmatchIndex(title)
+	if match == nil {
+		return title, 0
+	}
+	year, _ := strconv.Atoi(title[match[2]:match[3]])
+	return strings.TrimSpace(title[:match[0]]), year
+}
+
 func (service *Service) resolveMovie(ctx context.Context, metadata plexMetadata) (domain.MovieMetadata, error) {
 	id := parseTMDBID(metadata.GUID)
 	if id == 0 {
@@ -424,43 +490,165 @@ func (service *Service) resolveMovie(ctx context.Context, metadata plexMetadata)
 	return movie, nil
 }
 
-func (service *Service) resolveEpisode(ctx context.Context, metadata plexMetadata) (domain.TVShowMetadata, domain.TVSeasonMetadata, domain.TVEpisodeMetadata, error) {
-	showID := parseTMDBID(json.RawMessage(metadata.GrandparentGUID))
+type fetchedEpisode struct {
+	show   domain.TVShowMetadata
+	season domain.TVSeasonMetadata
+}
+
+// resolvedEpisode is a Plex episode matched to Visto's catalog. fetched is set only when TMDB had
+// to be asked, in which case that metadata still has to be stored.
+type resolvedEpisode struct {
+	showTMDBID    int64
+	showTitle     string
+	season        int
+	episode       int
+	episodeID     string
+	fetched       *fetchedEpisode
+	learnedByLook bool // the show was identified by a TMDB lookup worth remembering
+}
+
+// resolveEpisode matches a Plex episode, asking TMDB as little as possible, in this order:
+//  1. a TMDB ID in the show's GUID (no request);
+//  2. a show match remembered from an earlier event (no request);
+//  3. an episode already in the local catalog (no request at all);
+//  4. the episode's TVDB/IMDb ID, then an exact title search (one TMDB request each).
+func (service *Service) resolveEpisode(ctx context.Context, metadata plexMetadata) (resolvedEpisode, error) {
+	var season, episode int
+	havePosition := metadata.ParentIndex != nil && metadata.EpisodeIndex != nil && *metadata.ParentIndex >= 0 && *metadata.EpisodeIndex > 0
+	if havePosition {
+		season, episode = *metadata.ParentIndex, *metadata.EpisodeIndex
+	}
+	matches, _ := service.repository.(MatchStore)
+	showID := parseTMDBGUID(metadata.GrandparentGUID)
+	if showID == 0 && matches != nil && metadata.GrandparentGUID != "" {
+		if remembered, err := matches.PlexShowMatch(ctx, metadata.GrandparentGUID); err == nil {
+			showID = remembered
+		}
+	}
+	local := func(showID int64, season, episode int) (resolvedEpisode, bool) {
+		if matches == nil || showID == 0 {
+			return resolvedEpisode{}, false
+		}
+		found, ok, err := matches.LocalEpisode(ctx, showID, season, episode)
+		if err != nil || !ok {
+			return resolvedEpisode{}, false
+		}
+		return resolvedEpisode{showTMDBID: showID, showTitle: found.ShowTitle, season: season, episode: episode, episodeID: found.EpisodeID}, true
+	}
+	if havePosition {
+		if resolved, ok := local(showID, season, episode); ok {
+			return resolved, nil
+		}
+	}
+	learned := false
 	if showID == 0 {
-		var err error
+		if location, found := service.findEpisode(ctx, metadata); found {
+			showID, season, episode, havePosition, learned = location.ShowTMDBID, location.SeasonNumber, location.EpisodeNumber, true, true
+			if resolved, ok := local(showID, season, episode); ok {
+				resolved.learnedByLook = true
+				return resolved, nil
+			}
+		}
+	}
+	if showID == 0 {
 		year := metadata.GrandparentYear
 		if year == 0 {
 			year = metadata.ParentYear
 		}
+		var err error
 		showID, err = service.searchID(ctx, domain.TVMediaType, metadata.GrandparentTitle, "", year)
 		if err != nil {
-			return domain.TVShowMetadata{}, domain.TVSeasonMetadata{}, domain.TVEpisodeMetadata{}, err
+			return resolvedEpisode{}, err
 		}
+		learned = true
+	}
+	if !havePosition {
+		return resolvedEpisode{}, fmt.Errorf("Plex did not include a valid season and episode number")
 	}
 	show, err := service.metadata.ShowSummary(ctx, showID)
 	if err != nil {
-		return domain.TVShowMetadata{}, domain.TVSeasonMetadata{}, domain.TVEpisodeMetadata{}, fmt.Errorf("TMDB could not load the TV show")
+		return resolvedEpisode{}, fmt.Errorf("TMDB could not load the TV show")
 	}
-	if metadata.ParentIndex == nil || metadata.EpisodeIndex == nil || *metadata.ParentIndex < 0 || *metadata.EpisodeIndex <= 0 {
-		return domain.TVShowMetadata{}, domain.TVSeasonMetadata{}, domain.TVEpisodeMetadata{}, fmt.Errorf("Plex did not include a valid season and episode number")
-	}
-	seasonNumber, episodeNumber := *metadata.ParentIndex, *metadata.EpisodeIndex
-	season, err := service.metadata.Season(ctx, showID, seasonNumber)
+	seasonData, err := service.metadata.Season(ctx, showID, season)
 	if err != nil {
-		return domain.TVShowMetadata{}, domain.TVSeasonMetadata{}, domain.TVEpisodeMetadata{}, fmt.Errorf("TMDB could not load the matching season")
+		return resolvedEpisode{}, fmt.Errorf("TMDB could not load the matching season")
 	}
-	for _, episode := range season.Episodes {
-		if episode.SeasonNumber == seasonNumber && episode.EpisodeNumber == episodeNumber {
-			return show, season, episode, nil
+	for _, candidate := range seasonData.Episodes {
+		if candidate.SeasonNumber == season && candidate.EpisodeNumber == episode {
+			return resolvedEpisode{
+				showTMDBID: show.TMDBID, showTitle: show.Name, season: season, episode: episode,
+				episodeID: fmt.Sprintf("tv:%d:episode:%d", show.TMDBID, candidate.TMDBID),
+				fetched:   &fetchedEpisode{show: show, season: seasonData}, learnedByLook: learned,
+			}, nil
 		}
 	}
-	return domain.TVShowMetadata{}, domain.TVSeasonMetadata{}, domain.TVEpisodeMetadata{}, fmt.Errorf("no exact TMDB episode matched Plex season %d episode %d", seasonNumber, episodeNumber)
+	return resolvedEpisode{}, fmt.Errorf("no exact TMDB episode matched Plex season %d episode %d", season, episode)
+}
+
+// rememberShow stores which TMDB show a Plex show GUID is, after it was found by a lookup, so
+// the show's later episodes are matched locally.
+func (service *Service) rememberShow(ctx context.Context, metadata plexMetadata, resolved resolvedEpisode) {
+	matches, ok := service.repository.(MatchStore)
+	if !ok || !resolved.learnedByLook || metadata.GrandparentGUID == "" || resolved.showTMDBID <= 0 {
+		return
+	}
+	_ = matches.SavePlexShowMatch(ctx, metadata.GrandparentGUID, resolved.showTMDBID)
+}
+
+// findEpisode looks the episode up by the external IDs Plex lists for it. A lookup that fails or
+// is ambiguous simply falls through to the next strategy.
+func (service *Service) findEpisode(ctx context.Context, metadata plexMetadata) (domain.EpisodeLocation, bool) {
+	finder, ok := service.metadata.(EpisodeFinder)
+	if !ok {
+		return domain.EpisodeLocation{}, false
+	}
+	for _, candidate := range externalEpisodeIDs(metadata.GUIDs) {
+		location, err := finder.FindEpisodeByExternalID(ctx, candidate.source, candidate.id)
+		if err == nil && location.ShowTMDBID > 0 && location.EpisodeNumber > 0 {
+			return location, true
+		}
+	}
+	return domain.EpisodeLocation{}, false
+}
+
+type externalID struct{ source, id string }
+
+var externalGUIDPattern = regexp.MustCompile(`(?i)^(tvdb|imdb)://(tt)?([0-9]+)$`)
+
+// externalEpisodeIDs returns the TVDB and IMDb IDs from Plex's Guid list, TVDB first.
+func externalEpisodeIDs(raw json.RawMessage) []externalID {
+	var list []struct {
+		ID string `json:"id"`
+	}
+	if len(raw) == 0 || json.Unmarshal(raw, &list) != nil {
+		return nil
+	}
+	var tvdb, imdb []externalID
+	for _, entry := range list {
+		match := externalGUIDPattern.FindStringSubmatch(strings.TrimSpace(entry.ID))
+		if match == nil {
+			continue
+		}
+		if strings.EqualFold(match[1], "tvdb") {
+			tvdb = append(tvdb, externalID{"tvdb_id", match[3]})
+		} else {
+			imdb = append(imdb, externalID{"imdb_id", "tt" + match[3]})
+		}
+	}
+	return append(tvdb, imdb...)
 }
 
 func (service *Service) searchID(ctx context.Context, mediaType domain.MediaType, title, originalTitle string, year int) (int64, error) {
+	// Plex may title things "Show (2025)"; search for the bare title and use that year.
+	title, titleYear := splitPlexTitle(title)
+	if year == 0 {
+		year = titleYear
+	}
 	titles := []string{title}
-	if originalTitle != "" && normalizedTitle(originalTitle) != normalizedTitle(title) {
-		titles = append(titles, originalTitle)
+	if originalTitle != "" {
+		if original, _ := splitPlexTitle(originalTitle); normalizedTitle(original) != normalizedTitle(title) {
+			titles = append(titles, original)
+		}
 	}
 	for _, query := range titles {
 		if strings.TrimSpace(query) == "" {
@@ -500,6 +688,15 @@ func normalizedTitle(value string) string {
 		}
 	}
 	return builder.String()
+}
+
+// parseTMDBGUID reads the ID from a plain GUID string such as "tmdb://1396" or a TMDB URL.
+func parseTMDBGUID(value string) int64 {
+	if matches := tmdbGUIDPattern.FindStringSubmatch(value); len(matches) == 2 {
+		id, _ := strconv.ParseInt(matches[1], 10, 64)
+		return id
+	}
+	return 0
 }
 
 func parseTMDBID(raw json.RawMessage) int64 {

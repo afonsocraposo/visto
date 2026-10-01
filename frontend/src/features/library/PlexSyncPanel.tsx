@@ -25,6 +25,7 @@ type PlexEvent = {
   event_type?: string;
   status: "synced" | "skipped" | "failed";
   title?: string;
+  episode_label?: string;
   media_type?: string;
   message?: string;
   occurred_at: string;
@@ -287,52 +288,64 @@ export function PlexSyncPanel() {
           <Title order={4} mt="xl">
             Recent sync activity
           </Title>
-          <Table mt="sm" striped highlightOnHover withTableBorder>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Media</Table.Th>
-                <Table.Th>Event</Table.Th>
-                <Table.Th>Status</Table.Th>
-                <Table.Th>Details</Table.Th>
-                <Table.Th>Time</Table.Th>
-                <Table.Th />
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {status.data!.recent_events.map((event) => (
-                <Table.Tr key={event.id}>
-                  <Table.Td>{event.title || event.media_type || "Plex event"}</Table.Td>
-                  <Table.Td>{event.event_type || "—"}</Table.Td>
-                  <Table.Td>
-                    <Badge
-                      color={
-                        event.status === "synced"
-                          ? "green"
-                          : event.status === "failed"
-                            ? "red"
-                            : "gray"
-                      }
-                    >
-                      {event.status}
-                    </Badge>
-                  </Table.Td>
-                  <Table.Td>{event.message || "—"}</Table.Td>
-                  <Table.Td>
-                    <ActivityTime value={event.occurred_at} />
-                  </Table.Td>
-                  <Table.Td>
-                    <Button
-                      variant="subtle"
-                      size="compact-xs"
-                      onClick={() => setPayloadEventId(event.id)}
-                    >
-                      View payload
-                    </Button>
-                  </Table.Td>
+          <Table.ScrollContainer minWidth={720} mt="sm">
+            <Table striped highlightOnHover withTableBorder>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Media</Table.Th>
+                  <Table.Th>Event</Table.Th>
+                  <Table.Th>Status</Table.Th>
+                  <Table.Th>Details</Table.Th>
+                  <Table.Th>Time</Table.Th>
+                  <Table.Th />
                 </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
+              </Table.Thead>
+              <Table.Tbody>
+                {status.data!.recent_events.map((event) => (
+                  <Table.Tr key={event.id}>
+                    <Table.Td>
+                      {/* The show (or movie) first; an episode is identified by its number. */}
+                      <Text fw={600} size="sm">
+                        {event.title || event.media_type || "Plex event"}
+                      </Text>
+                      {event.episode_label && (
+                        <Text size="xs" c="dimmed" style={{ fontVariantNumeric: "tabular-nums" }}>
+                          {event.episode_label}
+                        </Text>
+                      )}
+                    </Table.Td>
+                    <Table.Td>{event.event_type || "—"}</Table.Td>
+                    <Table.Td>
+                      <Badge
+                        color={
+                          event.status === "synced"
+                            ? "green"
+                            : event.status === "failed"
+                              ? "red"
+                              : "gray"
+                        }
+                      >
+                        {event.status}
+                      </Badge>
+                    </Table.Td>
+                    <Table.Td>{event.message || "—"}</Table.Td>
+                    <Table.Td>
+                      <ActivityTime value={event.occurred_at} />
+                    </Table.Td>
+                    <Table.Td>
+                      <Button
+                        variant="subtle"
+                        size="compact-xs"
+                        onClick={() => setPayloadEventId(event.id)}
+                      >
+                        View payload
+                      </Button>
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </Table.ScrollContainer>
         </>
       )}
       <PayloadModal eventId={payloadEventId} onClose={() => setPayloadEventId(null)} />

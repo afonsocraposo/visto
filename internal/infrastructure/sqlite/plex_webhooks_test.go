@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -207,5 +209,142 @@ func TestPlexEventPayloads_GivenStoredEvents_WhenReadBack_ThenPayloadsAreScopedT
 	var count int
 	if err := store.DB.QueryRow(`SELECT COUNT(*) FROM plex_webhook_events WHERE user_id=?`, alice).Scan(&count); err != nil || count != 100 {
 		t.Fatalf("event count=%d err=%v; want 100", count, err)
+	}
+}
+
+func TestPlexMatching_RemembersShowsAndFindsCataloguedEpisodes(t *testing.T) {
+	ctx := context.Background()
+	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "visto.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	if id, err := store.PlexShowMatch(ctx, "plex://show/abc"); err != nil || id != 0 {
+		t.Fatalf("unknown show match = %d, %v; want 0", id, err)
+	}
+	if err := store.SavePlexShowMatch(ctx, "plex://show/abc", 100); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SavePlexShowMatch(ctx, "plex://show/abc", 101); err != nil {
+		t.Fatal(err)
+	}
+	if id, err := store.PlexShowMatch(ctx, "plex://show/abc"); err != nil || id != 101 {
+		t.Fatalf("remembered show match = %d, %v; want the latest, 101", id, err)
+	}
+
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	for _, statement := range []string{
+		`INSERT INTO media(id,media_type,tmdb_id,title,metadata_updated_at,created_at) VALUES('tv:100','tv',100,'The Paper','` + now + `','` + now + `')`,
+		`INSERT INTO seasons(id,show_id,season_number) VALUES('tv:100:season:2','tv:100',2)`,
+		`INSERT INTO episodes(id,show_id,season_id,season_number,episode_number,active) VALUES('tv:100:episode:9004','tv:100','tv:100:season:2',2,4,1)`,
+		`INSERT INTO episodes(id,show_id,season_id,season_number,episode_number,active) VALUES('tv:100:episode:9005','tv:100','tv:100:season:2',2,5,0)`,
+	} {
+		if _, err := store.DB.ExecContext(ctx, statement); err != nil {
+			t.Fatal(err)
+		}
+	}
+	found, ok, err := store.LocalEpisode(ctx, 100, 2, 4)
+	if err != nil || !ok || found.EpisodeID != "tv:100:episode:9004" || found.ShowTitle != "The Paper" {
+		t.Fatalf("local episode = %#v, %v, %v; want the catalogued episode with its show title", found, ok, err)
+	}
+	if _, ok, err := store.LocalEpisode(ctx, 100, 2, 5); err != nil || ok {
+		t.Fatalf("inactive episode found=%v err=%v; want it ignored", ok, err)
+	}
+	if _, ok, err := store.LocalEpisode(ctx, 100, 3, 1); err != nil || ok {
+		t.Fatalf("missing episode found=%v err=%v; want not found", ok, err)
+	}
+}
+
+func TestPlexEvents_StoreAndListTheEpisodeLabel(t *testing.T) {
+	ctx := context.Background()
+	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "visto.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	user := insertTestUser(t, store.DB, "alice", "Alice", "private")
+	event := plexsync.Event{Status: "skipped", Title: "The Paper", EpisodeLabel: "S2E4", MediaType: "episode", EventType: "media.scrobble", Message: "no match", OccurredAt: time.Now().UTC()}
+	if err := store.LogPlexEvent(ctx, user, "fingerprint-1", event); err != nil {
+		t.Fatal(err)
+	}
+	movie := plexsync.Event{Status: "skipped", Title: "Dune", MediaType: "movie", EventType: "media.scrobble", OccurredAt: time.Now().UTC()}
+	if err := store.LogPlexEvent(ctx, user, "fingerprint-2", movie); err != nil {
+		t.Fatal(err)
+	}
+	status, err := store.GetPlexWebhookStatus(ctx, user)
+	if err != nil || len(status.RecentEvents) != 2 {
+		t.Fatalf("status=%#v err=%v; want two events", status, err)
+	}
+	byTitle := map[string]plexsync.Event{}
+	for _, listed := range status.RecentEvents {
+		byTitle[listed.Title] = listed
+	}
+	if byTitle["The Paper"].EpisodeLabel != "S2E4" || byTitle["Dune"].EpisodeLabel != "" {
+		t.Fatalf("listed events = %#v, want S2E4 on the episode only", byTitle)
+	}
+}
+
+// Events logged before episode labels existed are filled in from their stored payload.
+func TestMigration_BackfillsEpisodeLabelsFromStoredPayloads(t *testing.T) {
+	ctx := context.Background()
+	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "visto.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	user := insertTestUser(t, store.DB, "alice", "Alice", "private")
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	episodePayload := `{"event":"media.scrobble","Metadata":{"type":"episode","title":"Impressing a Cop","grandparentTitle":"The Paper (2025)","parentIndex":2,"index":4}}`
+	moviePayload := `{"event":"media.scrobble","Metadata":{"type":"movie","title":"Dune"}}`
+	rows := []struct{ fingerprint, status, title, payload string }{
+		{"a", "skipped", "Impressing a Cop", episodePayload},
+		{"b", "synced", "The Paper", episodePayload},
+		{"c", "skipped", "Dune", moviePayload},
+		{"d", "failed", "", "not json"},
+		{"e", "skipped", "Old event", ""},
+	}
+	for _, row := range rows {
+		payload := any(row.payload)
+		if row.payload == "" {
+			payload = nil
+		}
+		if _, err := store.DB.ExecContext(ctx, `INSERT INTO plex_webhook_events(user_id,fingerprint,status,title,occurred_at,created_at,raw_payload) VALUES(?,?,?,?,?,?,?)`,
+			user, row.fingerprint, row.status, row.title, now, now, payload); err != nil {
+			t.Fatal(err)
+		}
+	}
+	script, err := os.ReadFile("migrations/0017_plex_show_matches_and_labels.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	backfill := string(script[strings.Index(string(script), "UPDATE plex_webhook_events"):])
+	if _, err := store.DB.ExecContext(ctx, backfill); err != nil {
+		t.Fatal(err)
+	}
+	got := map[string][2]string{}
+	result, err := store.DB.QueryContext(ctx, `SELECT fingerprint,COALESCE(title,''),COALESCE(episode_label,'') FROM plex_webhook_events`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer result.Close()
+	for result.Next() {
+		var fingerprint, title, label string
+		if err := result.Scan(&fingerprint, &title, &label); err != nil {
+			t.Fatal(err)
+		}
+		got[fingerprint] = [2]string{title, label}
+	}
+	want := map[string][2]string{
+		"a": {"The Paper (2025)", "S2E4"}, // skipped: named after the show, not the episode
+		"b": {"The Paper", "S2E4"},        // synced: keeps the TMDB show name
+		"c": {"Dune", ""},
+		"d": {"", ""},
+		"e": {"Old event", ""},
+	}
+	for fingerprint, expected := range want {
+		if got[fingerprint] != expected {
+			t.Errorf("event %s = %v, want %v", fingerprint, got[fingerprint], expected)
+		}
 	}
 }

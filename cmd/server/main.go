@@ -40,6 +40,13 @@ import (
 	"github.com/afonsocosta/visto/internal/presentation/security"
 )
 
+// The Plex sync uses these optional capabilities to avoid asking TMDB when it can; keeping them as
+// compile-time checks stops a signature change from silently turning the shortcuts off.
+var (
+	_ plexsync.EpisodeFinder = (*tmdb.Client)(nil)
+	_ plexsync.MatchStore    = (*sqlite.Store)(nil)
+)
+
 func main() {
 	if len(os.Args) > 1 && os.Args[1] == "backup" {
 		if len(os.Args) != 3 {

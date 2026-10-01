@@ -42,6 +42,36 @@ func (client *Client) FindByTVDB(ctx context.Context, kind, tvdbID string) (int6
 	return 0, fmt.Errorf("no unique TMDB match")
 }
 
+// FindEpisodeByExternalID locates an episode from an external episode ID ("tvdb_id" or
+// "imdb_id"), which names the exact episode regardless of how a media server titles its show.
+func (client *Client) FindEpisodeByExternalID(ctx context.Context, source, externalID string) (domain.EpisodeLocation, error) {
+	if source != "tvdb_id" && source != "imdb_id" {
+		return domain.EpisodeLocation{}, fmt.Errorf("unsupported external ID source")
+	}
+	externalID = strings.TrimSpace(externalID)
+	if externalID == "" || strings.ContainsAny(externalID, "/?&# ") {
+		return domain.EpisodeLocation{}, fmt.Errorf("invalid external episode ID")
+	}
+	if err := client.acquire(ctx); err != nil {
+		return domain.EpisodeLocation{}, err
+	}
+	defer func() { <-client.requests }()
+	var found *tmdbapi.FindByID
+	err := client.requestHeld(ctx, func() error {
+		var requestErr error
+		found, requestErr = client.client.GetFindByID(externalID, map[string]string{"external_source": source})
+		return requestErr
+	})
+	if err != nil {
+		return domain.EpisodeLocation{}, err
+	}
+	if len(found.TvEpisodeResults) != 1 || found.TvEpisodeResults[0].ShowID <= 0 {
+		return domain.EpisodeLocation{}, fmt.Errorf("no unique TMDB episode match")
+	}
+	episode := found.TvEpisodeResults[0]
+	return domain.EpisodeLocation{ShowTMDBID: episode.ShowID, SeasonNumber: episode.SeasonNumber, EpisodeNumber: episode.EpisodeNumber}, nil
+}
+
 func (client *Client) Search(ctx context.Context, query, language string) ([]domain.MediaSearchResult, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err

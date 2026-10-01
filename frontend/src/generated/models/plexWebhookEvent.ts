@@ -13,7 +13,10 @@ export interface PlexWebhookEvent {
   /** Plex event name such as media.stop or media.scrobble */
   event_type?: string;
   status: PlexWebhookEventStatus;
+  /** The show for an episode */
   title?: string;
+  /** Episode number such as S2E4; absent for movies */
+  episode_label?: string;
   media_type?: string;
   message?: string;
   occurred_at: string;

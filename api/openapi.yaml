@@ -987,7 +987,8 @@ components:
         tmdb_id: { type: integer, format: int64 }
         event_type: { type: string, description: Plex event name such as media.stop or media.scrobble }
         status: { type: string, enum: [synced, skipped, failed] }
-        title: { type: string }
+        title: { type: string, description: The show for an episode, or the movie title }
+        episode_label: { type: string, description: 'Episode number such as S2E4; absent for movies' }
         media_type: { type: string }
         message: { type: string }
         occurred_at: { type: string, format: date-time }

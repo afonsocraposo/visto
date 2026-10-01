@@ -14,22 +14,6 @@ erDiagram
     text created_at
   }
 
-  backup_settings {
-    integer id PK
-    text destination
-    integer interval_seconds
-    text s3_bucket
-    text s3_region
-    text s3_endpoint
-    text s3_access_key_id
-    text s3_secret_ciphertext
-    integer s3_path_style
-    text s3_prefix
-    integer s3_max_keep
-    text last_success_at
-    text last_error
-  }
-
   episode_ratings {
     integer user_id PK, FK
     text episode_id PK, FK
@@ -52,6 +36,8 @@ erDiagram
     text still_path
     text raw_metadata
     text metadata_updated_at
+    integer active
+    integer original_episode_number
   }
 
   media {
@@ -72,9 +58,11 @@ erDiagram
     text catalog_updated_at
   }
 
-  notification_deliveries {
+  movie_release_deliveries {
     integer user_id PK, FK
-    text episode_id PK, FK
+    text media_id PK, FK
+    text channel PK
+    text subscription_id PK
     text state
     text attempted_at
     text sent_at
@@ -82,11 +70,9 @@ erDiagram
     text next_attempt_at
   }
 
-  movie_release_deliveries {
+  notification_deliveries {
     integer user_id PK, FK
-    text media_id PK, FK
-    text channel PK
-    text subscription_id PK
+    text episode_id PK, FK
     text state
     text attempted_at
     text sent_at
@@ -156,6 +142,18 @@ erDiagram
     text created_at
   }
 
+  plex_observed_accounts {
+    text account_id PK
+    text title
+    text last_seen_at
+  }
+
+  plex_show_matches {
+    text plex_guid PK
+    integer tmdb_id
+    text updated_at
+  }
+
   plex_webhook_events {
     integer id PK
     integer user_id FK
@@ -167,21 +165,18 @@ erDiagram
     text message
     text occurred_at
     text created_at
+    text event_type
+    text raw_payload
+    text episode_label
   }
 
   plex_webhooks {
     integer id PK
     integer user_id FK
     text token_hash
+    text account_id
     text created_at
     text last_used_at
-    text account_id
-  }
-
-  plex_observed_accounts {
-    text account_id PK
-    text title
-    text last_seen_at
   }
 
   schema_migrations {
@@ -189,6 +184,25 @@ erDiagram
     text name
     text checksum
     text applied_at
+  }
+
+  season_ready_alerts {
+    integer user_id PK, FK
+    text season_id PK, FK
+    text created_at
+    text ready_at
+  }
+
+  season_ready_deliveries {
+    integer user_id PK, FK
+    text season_id PK, FK
+    text channel PK
+    text subscription_id PK
+    text state
+    text attempted_at
+    text sent_at
+    integer attempt_count
+    text next_attempt_at
   }
 
   seasons {
@@ -222,6 +236,7 @@ erDiagram
     text added_at
     text updated_at
     text notifications_since
+    integer season_alerts_enabled
   }
 
   user_settings {
@@ -233,6 +248,7 @@ erDiagram
     text pushover_user_key_encrypted
     integer pushover_notifications_enabled
     text pushover_app_token_encrypted
+    text import_welcome_seen_at
   }
 
   users {
@@ -281,17 +297,20 @@ erDiagram
   oauth_clients ||--o{ oauth_authorization_codes : client_id
   oauth_clients ||--o{ oauth_refresh_tokens : client_id
   plays ||--o{ activity_events : play_id
+  season_ready_alerts ||--o{ season_ready_deliveries : user_id_season_id
   seasons ||--o{ episodes : season_id
+  seasons ||--o{ season_ready_alerts : season_id
   users ||--o{ activity_events : user_id
   users ||--o{ episode_ratings : user_id
-  users ||--o{ notification_deliveries : user_id
   users ||--o{ movie_release_deliveries : user_id
+  users ||--o{ notification_deliveries : user_id
   users ||--o{ oauth_access_tokens : user_id
   users ||--o{ oauth_authorization_codes : user_id
   users ||--o{ oauth_refresh_tokens : user_id
   users ||--o{ personal_api_tokens : user_id
   users ||--o{ plays : user_id
   users ||--o{ plex_webhook_events : user_id
+  users ||--o{ season_ready_alerts : user_id
   users ||--o{ sessions : user_id
   users ||--o{ user_media : user_id
   users ||--o{ web_push_deliveries : user_id
