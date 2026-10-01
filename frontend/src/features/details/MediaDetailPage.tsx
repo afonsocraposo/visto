@@ -1316,15 +1316,10 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
                 isSaved={isSaved}
                 status={status as ListStatus | undefined}
                 add={add}
-                onChangeStatus={changeStatus}
-                statusPending={update.isPending}
                 watched={Boolean(watchedPlay) || library.data?.item.status === "completed"}
                 onWatch={() => markMovieWatched.mutate()}
                 onUnwatch={() => removeMovieWatches.mutate()}
                 onRemoveWatchlist={() => removeWatchlist.mutate()}
-                onRemoveCurrentList={() =>
-                  removeCurrentList.mutate(status as "watching" | "paused" | "dropped")
-                }
                 onViewWatchHistory={() => setMovieHistoryMode("view")}
                 onChangeWatchDate={() => setMovieHistoryMode("edit")}
                 showBulkAction={target.mediaType === "tv" ? showBulkAction : null}

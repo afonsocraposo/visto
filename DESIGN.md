@@ -146,8 +146,10 @@ supports opening in a new tab, and a plain click uses in-app navigation.
   icon-only buttons with tooltips.
   - Unsaved show: `+ Watching` · `Watchlist` · `⋯`
   - Movie: `Mark watched` · `Watchlist` · `⋯`
-  - Saved show: `Watching ▾` · `Mark watched` · `⋯`
-- Secondary actions (rewatch, history, watch date, removal, bulk unwatch) live in `⋯`.
+  - Saved show: `Mark watched` · `⋯` (only when there is something to put in it)
+- Secondary actions (rewatch, history, watch date, bulk unwatch) live in `⋯`.
+- Each choice has exactly one home. The list a title is in, and removing it from that list, are
+  changed only from the Status row in **Your tracking**, never repeated in the hero.
 - **Your tracking**, directly below the hero for saved titles, holds Status, Your rating and
   Alerts as rows that open a menu or sheet.
 

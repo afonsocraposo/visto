@@ -952,7 +952,7 @@ test("Given a TV show detail, When the user uses compact watch controls, Then sh
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Add The Example Show to Watching" }).click();
   await expect.poll(() => savedStatus).toBe("watching");
-  await expect(page.getByRole("button", { name: "List: Watching. Change list" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Status: Watching. Change list" })).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Alerts: Every episode. Change alerts" }),
   ).toBeVisible();
@@ -994,20 +994,20 @@ test("Given a TV show detail, When the user uses compact watch controls, Then sh
   await page.reload();
   await page.getByRole("button", { name: "Save The Example Show for later" }).click();
   await expect.poll(() => savedStatus).toBe("watchlist");
-  await expect(page.getByRole("button", { name: "List: Watchlist. Change list" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Status: Watchlist. Change list" })).toBeVisible();
   await expect(page.getByRole("button", { name: /^Alerts:/ })).toHaveCount(0);
   page.once("dialog", (dialog) => dialog.accept());
-  await page.getByRole("button", { name: "List: Watchlist. Change list" }).click();
+  await page.getByRole("button", { name: "Status: Watchlist. Change list" }).click();
   await page.getByRole("menuitem", { name: "Completed" }).click();
   await expect.poll(() => confirmedCompletion).toBe(true);
-  await expect(page.getByRole("button", { name: "List: Completed. Change list" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Status: Completed. Change list" })).toBeVisible();
   await page
     .getByText("Show completed.")
     .locator("..")
     .getByRole("button", { name: "Undo" })
     .click();
   await expect.poll(() => savedStatus).toBe("watchlist");
-  await expect(page.getByRole("button", { name: "List: Watchlist. Change list" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Status: Watchlist. Change list" })).toBeVisible();
 });
 
 test("A full-season alert can be switched back to episode alerts", async ({ page }) => {

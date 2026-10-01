@@ -5,7 +5,6 @@ import {
   IconBookmark,
   IconBookmarkFilled,
   IconCheck,
-  IconChevronDown,
   IconChevronRight,
   IconDots,
   IconEye,
@@ -178,13 +177,10 @@ type MediaActionsProps = {
   isSaved: boolean;
   status?: ListStatus;
   add: ActionMutation<ListStatus>;
-  onChangeStatus: (status: ListStatus) => void;
-  statusPending: boolean;
   watched: boolean;
   onWatch: () => void;
   onUnwatch: () => void;
   onRemoveWatchlist: () => void;
-  onRemoveCurrentList: () => void;
   onViewWatchHistory: () => void;
   onChangeWatchDate: () => void;
   showBulkAction?: "watch" | "unwatch" | null;
@@ -205,13 +201,10 @@ export function MediaActions({
   isSaved,
   status,
   add,
-  onChangeStatus,
-  statusPending,
   watched,
   onWatch,
   onUnwatch,
   onRemoveWatchlist,
-  onRemoveCurrentList,
   onViewWatchHistory,
   onChangeWatchDate,
   showBulkAction,
@@ -369,42 +362,11 @@ export function MediaActions({
       </Group>
     );
 
+  // The list itself is changed from "Your tracking" right below; the hero only keeps actions.
   return (
     <Group className="detail-actions" mt="lg" gap="xs">
-      <StatusMenu
-        media={media}
-        status={status}
-        onChange={onChangeStatus}
-        onRemove={status === "watchlist" ? onRemoveWatchlist : onRemoveCurrentList}
-        disabled={disabled || statusPending}
-      >
-        <Button
-          className="detail-status-button"
-          variant="default"
-          rightSection={<IconChevronDown size={16} />}
-          loading={statusPending}
-          aria-label={`List: ${status ? statusLabels[status] : "None"}. Change list`}
-        >
-          {status ? statusLabels[status] : "Add to list"}
-        </Button>
-      </StatusMenu>
       {bulkWatch}
-      {(bulkUnwatchItem || status !== "completed") &&
-        overflow(
-          <>
-            {bulkUnwatchItem}
-            {status && status !== "completed" && (
-              <Menu.Item
-                color="red"
-                leftSection={<IconTrash size={16} />}
-                onClick={status === "watchlist" ? onRemoveWatchlist : onRemoveCurrentList}
-              >
-                Remove from {statusLabels[status]}
-              </Menu.Item>
-            )}
-          </>,
-          `More actions for ${media.title}`,
-        )}
+      {bulkUnwatchItem && overflow(bulkUnwatchItem, `More actions for ${media.title}`)}
     </Group>
   );
 }
