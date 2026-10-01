@@ -15,6 +15,24 @@ import (
 
 type emptyShowProvider struct{ publicTrendingProvider }
 
+type emptySearchProvider struct{ publicTrendingProvider }
+
+func (emptySearchProvider) Search(context.Context, string, string) ([]domain.MediaSearchResult, error) {
+	return nil, nil
+}
+
+func (emptySearchProvider) Trending(context.Context, string, string) ([]domain.MediaSearchResult, error) {
+	return []domain.MediaSearchResult{}, nil
+}
+
+func (emptySearchProvider) Related(context.Context, domain.MediaType, int64) ([]domain.MediaSearchResult, error) {
+	return []domain.MediaSearchResult{}, nil
+}
+
+func (emptySearchProvider) Person(context.Context, int64) (domain.PersonMetadata, error) {
+	return domain.PersonMetadata{TMDBID: 42, Name: "Example", Credits: []domain.PersonCredit{}}, nil
+}
+
 func (emptyShowProvider) ShowSummary(context.Context, int64) (domain.TVShowMetadata, error) {
 	return domain.TVShowMetadata{TMDBID: 42, Name: "Example"}, nil
 }
@@ -42,6 +60,63 @@ func TestTemporaryShowDetails_GivenNoCollections_ReturnsArrays(t *testing.T) {
 	}
 	if data.Seasons == nil || data.Cast == nil {
 		t.Fatalf("collections must be arrays: %s", response.Body.String())
+	}
+}
+
+func TestSearch_GivenNoMatches_ReturnsEmptyArray(t *testing.T) {
+	repository := &accountHTTPRepository{actor: domain.User{ID: "user-1", Role: domain.UserRole}}
+	handler := httpserver.New(auth.NewService(repository), emptySearchProvider{}, "", nil, nil, nil, nil, nil, nil).Handler()
+	request := httptest.NewRequest(http.MethodGet, "http://visto.local/api/v1/search?q=sopramos", nil)
+	request.AddCookie(&http.Cookie{Name: "visto_session", Value: "session-1"})
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+	if got := strings.TrimSpace(response.Body.String()); got != "[]" {
+		t.Fatalf("body=%s, want []", got)
+	}
+	var results []domain.MediaSearchResult
+	if err := json.Unmarshal(response.Body.Bytes(), &results); err != nil {
+		t.Fatal(err)
+	}
+	if results == nil || len(results) != 0 {
+		t.Fatalf("decoded results=%v, want a non-nil empty slice", results)
+	}
+}
+
+func TestDiscover_GivenEmptyLists_ReturnsArrays(t *testing.T) {
+	repository := &accountHTTPRepository{actor: domain.User{ID: "user-1", Role: domain.UserRole}}
+	handler := httpserver.New(auth.NewService(repository), emptySearchProvider{}, "", nil, nil, nil, nil, nil, nil).Handler()
+	for _, test := range []struct {
+		path string
+		key  string
+	}{
+		{path: "/api/v1/discover/tv/42/related"},
+		{path: "/api/v1/trending", key: "tv"},
+		{path: "/api/v1/trending", key: "movies"},
+		{path: "/api/v1/people/42", key: "credits"},
+	} {
+		t.Run(test.path+test.key, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodGet, test.path, nil)
+			request.AddCookie(&http.Cookie{Name: "visto_session", Value: "session-1"})
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, request)
+			if response.Code != http.StatusOK {
+				t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+			}
+			var body json.RawMessage = response.Body.Bytes()
+			if test.key != "" {
+				var object map[string]json.RawMessage
+				if err := json.Unmarshal(body, &object); err != nil {
+					t.Fatal(err)
+				}
+				body = object[test.key]
+			}
+			if strings.TrimSpace(string(body)) != "[]" {
+				t.Fatalf("%s=%s, want []", test.key, body)
+			}
+		})
 	}
 }
 

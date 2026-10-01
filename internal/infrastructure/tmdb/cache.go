@@ -6,6 +6,15 @@ import (
 	"github.com/afonsocosta/visto/internal/domain"
 )
 
+func cloneSlice[T any](items []T) []T {
+	if items == nil {
+		return nil
+	}
+	cloned := make([]T, len(items))
+	copy(cloned, items)
+	return cloned
+}
+
 // cacheShowLocked bounds retained show metadata in addition to its TTL. Search
 // and show results can be large, so arbitrary browsing must not grow memory
 // without limit. The caller must hold client.mu.
@@ -29,37 +38,37 @@ func (client *Client) cacheShowLocked(tmdbID int64, show domain.TVShowMetadata, 
 
 func cloneShow(show domain.TVShowMetadata) domain.TVShowMetadata {
 	clone := show
-	clone.Seasons = make([]domain.TVSeasonMetadata, len(show.Seasons))
+	clone.Seasons = cloneSlice(show.Seasons)
 	for index, season := range show.Seasons {
 		clone.Seasons[index] = season
-		clone.Seasons[index].Episodes = append([]domain.TVEpisodeMetadata(nil), season.Episodes...)
+		clone.Seasons[index].Episodes = cloneSlice(season.Episodes)
 	}
-	clone.Cast = append([]domain.TVCastMember(nil), show.Cast...)
+	clone.Cast = cloneSlice(show.Cast)
 	return clone
 }
 
 func cloneSeason(season domain.TVSeasonMetadata) domain.TVSeasonMetadata {
 	clone := season
-	clone.Episodes = append([]domain.TVEpisodeMetadata(nil), season.Episodes...)
+	clone.Episodes = cloneSlice(season.Episodes)
 	return clone
 }
 
 func cloneEpisode(episode domain.TVEpisodeMetadata) domain.TVEpisodeMetadata {
 	clone := episode
-	clone.GuestStars = append([]domain.TVCastMember(nil), episode.GuestStars...)
-	clone.Crew = append([]domain.TVCrewMember(nil), episode.Crew...)
+	clone.GuestStars = cloneSlice(episode.GuestStars)
+	clone.Crew = cloneSlice(episode.Crew)
 	return clone
 }
 
 func cloneMovie(movie domain.MovieMetadata) domain.MovieMetadata {
 	clone := movie
-	clone.Genres = append([]string(nil), movie.Genres...)
-	clone.Cast = append([]domain.TVCastMember(nil), movie.Cast...)
+	clone.Genres = cloneSlice(movie.Genres)
+	clone.Cast = cloneSlice(movie.Cast)
 	return clone
 }
 
 func clonePerson(person domain.PersonMetadata) domain.PersonMetadata {
 	clone := person
-	clone.Credits = append([]domain.PersonCredit(nil), person.Credits...)
+	clone.Credits = cloneSlice(person.Credits)
 	return clone
 }

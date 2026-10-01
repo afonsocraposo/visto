@@ -168,6 +168,44 @@ func TestRelated_GivenTVRecommendations_WhenRequested_ThenItMapsTVFields(t *test
 	}
 }
 
+func TestEmptyTMDBLists_RemainNonNilAfterCaching(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case strings.Contains(r.URL.Path, "/person/"):
+			_, _ = w.Write([]byte(`{"id":42,"name":"Example","combined_credits":{"cast":[]}}`))
+		default:
+			_, _ = w.Write([]byte(`{"page":1,"results":[],"total_results":0,"total_pages":0}`))
+		}
+	}))
+	defer server.Close()
+	client, err := New("test-key", server.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	previous := client.client.GetBaseURL()
+	client.client.SetCustomBaseURL(server.URL + "/3")
+	defer client.client.SetCustomBaseURL(previous)
+	for attempt := range 2 {
+		for name, fetch := range map[string]func() ([]domain.MediaSearchResult, error){
+			"search": func() ([]domain.MediaSearchResult, error) { return client.Search(context.Background(), "sopramos", "") },
+			"related": func() ([]domain.MediaSearchResult, error) {
+				return client.Related(context.Background(), domain.TVMediaType, 42)
+			},
+			"trending": func() ([]domain.MediaSearchResult, error) { return client.Trending(context.Background(), "tv", "week") },
+		} {
+			results, err := fetch()
+			if err != nil || results == nil || len(results) != 0 {
+				t.Fatalf("%s attempt %d: results=%v err=%v, want non-nil empty slice", name, attempt, results, err)
+			}
+		}
+		person, err := client.Person(context.Background(), 42)
+		if err != nil || person.Credits == nil || len(person.Credits) != 0 {
+			t.Fatalf("person attempt %d: credits=%v err=%v, want non-nil empty slice", attempt, person.Credits, err)
+		}
+	}
+}
+
 func TestSearch_GivenTMDBReturns429_WhenRetryAfterExpires_ThenItRetriesWithinTheConfiguredCap(t *testing.T) {
 	var calls atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

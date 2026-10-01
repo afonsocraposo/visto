@@ -85,7 +85,7 @@ func (client *Client) Search(ctx context.Context, query, language string) ([]dom
 	client.mu.Lock()
 	if cached, ok := client.searchCache[cacheKey]; ok && time.Now().Before(cached.expiresAt) {
 		client.mu.Unlock()
-		return append([]domain.MediaSearchResult(nil), cached.results...), nil
+		return cloneSlice(cached.results), nil
 	}
 	client.mu.Unlock()
 
@@ -95,7 +95,7 @@ func (client *Client) Search(ctx context.Context, query, language string) ([]dom
 			return nil, err
 		}
 		client.mu.Lock()
-		client.searchCache[cacheKey] = cachedSearch{results: append([]domain.MediaSearchResult(nil), results...), expiresAt: time.Now().Add(searchCacheTTL)}
+		client.searchCache[cacheKey] = cachedSearch{results: cloneSlice(results), expiresAt: time.Now().Add(searchCacheTTL)}
 		if len(client.searchCache) > maxSearchCacheEntries {
 			now := time.Now()
 			for key, cached := range client.searchCache {
@@ -116,7 +116,7 @@ func (client *Client) Search(ctx context.Context, query, language string) ([]dom
 	if err != nil {
 		return nil, err
 	}
-	return append([]domain.MediaSearchResult(nil), result.([]domain.MediaSearchResult)...), nil
+	return cloneSlice(result.([]domain.MediaSearchResult)), nil
 }
 
 func (client *Client) Trending(ctx context.Context, mediaType, timeWindow string) ([]domain.MediaSearchResult, error) {
@@ -130,7 +130,7 @@ func (client *Client) Trending(ctx context.Context, mediaType, timeWindow string
 	client.mu.Lock()
 	if cached, ok := client.searchCache[cacheKey]; ok && time.Now().Before(cached.expiresAt) {
 		client.mu.Unlock()
-		return append([]domain.MediaSearchResult(nil), cached.results...), nil
+		return cloneSlice(cached.results), nil
 	}
 	client.mu.Unlock()
 
@@ -140,14 +140,14 @@ func (client *Client) Trending(ctx context.Context, mediaType, timeWindow string
 			return nil, err
 		}
 		client.mu.Lock()
-		client.searchCache[cacheKey] = cachedSearch{results: append([]domain.MediaSearchResult(nil), results...), expiresAt: time.Now().Add(searchCacheTTL)}
+		client.searchCache[cacheKey] = cachedSearch{results: cloneSlice(results), expiresAt: time.Now().Add(searchCacheTTL)}
 		client.mu.Unlock()
 		return results, nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	return append([]domain.MediaSearchResult(nil), result.([]domain.MediaSearchResult)...), nil
+	return cloneSlice(result.([]domain.MediaSearchResult)), nil
 }
 
 func (client *Client) Related(ctx context.Context, mediaType domain.MediaType, tmdbID int64) ([]domain.MediaSearchResult, error) {
@@ -158,7 +158,7 @@ func (client *Client) Related(ctx context.Context, mediaType domain.MediaType, t
 	client.mu.Lock()
 	if cached, ok := client.relatedCache[cacheKey]; ok && time.Now().Before(cached.expiresAt) {
 		client.mu.Unlock()
-		return append([]domain.MediaSearchResult(nil), cached.results...), nil
+		return cloneSlice(cached.results), nil
 	}
 	client.mu.Unlock()
 
@@ -174,7 +174,7 @@ func (client *Client) Related(ctx context.Context, mediaType domain.MediaType, t
 				delete(client.relatedCache, key)
 			}
 		}
-		client.relatedCache[cacheKey] = cachedSearch{results: append([]domain.MediaSearchResult(nil), results...), expiresAt: now.Add(relatedCacheTTL)}
+		client.relatedCache[cacheKey] = cachedSearch{results: cloneSlice(results), expiresAt: now.Add(relatedCacheTTL)}
 		for len(client.relatedCache) > maxRelatedCacheEntries {
 			for key := range client.relatedCache {
 				if key != cacheKey {
@@ -189,7 +189,7 @@ func (client *Client) Related(ctx context.Context, mediaType domain.MediaType, t
 	if err != nil {
 		return nil, err
 	}
-	return append([]domain.MediaSearchResult(nil), result.([]domain.MediaSearchResult)...), nil
+	return cloneSlice(result.([]domain.MediaSearchResult)), nil
 }
 
 func (client *Client) fetchRelated(ctx context.Context, mediaType domain.MediaType, tmdbID int64) ([]domain.MediaSearchResult, error) {

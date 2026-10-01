@@ -281,6 +281,9 @@ func search(authService *auth.Service, provider domain.MetadataProvider) http.Ha
 			writeError(w, http.StatusBadGateway, "metadata search is temporarily unavailable")
 			return
 		}
+		if results == nil {
+			results = []domain.MediaSearchResult{}
+		}
 		writeJSON(w, http.StatusOK, results)
 	}
 }

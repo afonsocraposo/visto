@@ -23,6 +23,7 @@ export function SearchPanel({
   const trimmed = query.trim();
   const [debouncedQuery] = useDebouncedValue(trimmed, 350);
   const { library, results, trending } = useDiscoverQueries(debouncedQuery);
+  const searchResults = results.data ?? [];
   const { addToLibrary, addMovieAsWatched, markWatchlistMovieWatched } = useDiscoverMutations();
   const libraryEntries = new Map(library.data?.map((entry) => [entry.item.media_id, entry]) ?? []);
   // Trending leaves as soon as there is a query; results show a skeleton until they arrive.
@@ -144,7 +145,7 @@ export function SearchPanel({
           onRetry={() => results.refetch()}
         />
       )}
-      {searching && !waitingForResults && results.isSuccess && results.data.length === 0 && (
+      {searching && !waitingForResults && results.isSuccess && searchResults.length === 0 && (
         <EmptyState
           icon={<IconSearch size={20} />}
           title={`No results for “${debouncedQuery}”`}
@@ -173,7 +174,7 @@ export function SearchPanel({
       )}
       {searching && !waitingForResults && (
         <div key={debouncedQuery} className="search-results content-ready">
-          {results.data?.map((item) => {
+          {searchResults.map((item) => {
             const mediaID = `${item.type}:${item.tmdb_id}`;
             const savedEntry = libraryEntries.get(mediaID);
             const savedLabel =
