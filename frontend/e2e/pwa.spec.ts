@@ -100,11 +100,11 @@ test("Given a phone viewport, When switching destinations, Then the bottom navig
       return { height, bottom };
     });
     expect(navBounds).toEqual({ height: 50, bottom: 740 });
-    await expect(nav.getByRole("button", { name: "Watching" })).toHaveAttribute(
+    await expect(nav.getByRole("link", { name: "Watching" })).toHaveAttribute(
       "aria-current",
       "page",
     );
-    const boxes = await nav.getByRole("button").evaluateAll((buttons) =>
+    const boxes = await nav.getByRole("link").evaluateAll((buttons) =>
       buttons.map((button) => {
         const { x, width, height } = button.getBoundingClientRect();
         return { x, width, height, direction: getComputedStyle(button).flexDirection };
@@ -117,8 +117,8 @@ test("Given a phone viewport, When switching destinations, Then the bottom navig
     expect(boxes[0].x).toBeGreaterThanOrEqual(0);
     expect(boxes[3].x + boxes[3].width).toBeLessThanOrEqual(width);
 
-    await nav.getByRole("button", { name: "Discover" }).click();
-    await expect(nav.getByRole("button", { name: "Discover" })).toHaveAttribute(
+    await nav.getByRole("link", { name: "Discover" }).click();
+    await expect(nav.getByRole("link", { name: "Discover" })).toHaveAttribute(
       "aria-current",
       "page",
     );
@@ -129,6 +129,20 @@ test("Given a phone viewport, When switching destinations, Then the bottom navig
       }),
     ).toEqual(navBounds);
   }
+});
+
+test("Main navigation supports opening a destination in a new tab", async ({ page }) => {
+  await mockSignedInSession(page);
+  await page.setViewportSize({ width: 390, height: 740 });
+  await page.goto("/watch");
+  const discover = page.locator(".bottom-nav-button", { hasText: "Discover" });
+  await expect(discover).toHaveAttribute("href", "/discover");
+  const popupPromise = page.context().waitForEvent("page");
+  await discover.click({ modifiers: ["Meta"] });
+  const popup = await popupPromise;
+  await expect(popup).toHaveURL(/\/discover$/);
+  await popup.close();
+  await expect(page).toHaveURL(/\/watch$/);
 });
 
 test("Given an iPhone safe-area inset, Then the bottom bar stays compact and usable", async ({
@@ -153,7 +167,7 @@ test("Given an iPhone safe-area inset, Then the bottom bar stays compact and usa
       mainPaddingBottom: parseFloat(
         getComputedStyle(document.querySelector(".visto-main")!).paddingBottom,
       ),
-      buttons: Array.from(nav.querySelectorAll("button"), (button) => {
+      buttons: Array.from(nav.querySelectorAll("a"), (button) => {
         const { width, height } = button.getBoundingClientRect();
         return { width, height };
       }),
@@ -177,22 +191,22 @@ test("Given a signed-in user, When they navigate and manage appearance and accou
   await page.goto("/");
 
   await expect(page.locator(".visto-header")).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Watching", exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Watching", exact: true })).toBeVisible();
   await page.getByRole("tab", { name: "Upcoming" }).click();
   await expect
     .poll(() => page.evaluate(() => sessionStorage.getItem("visto:tab:user-1:watching")))
     .toBe("calendar");
-  await page.getByRole("button", { name: "Activity", exact: true }).click();
+  await page.getByRole("link", { name: "Activity", exact: true }).click();
   await page.getByRole("tab", { name: "Community" }).click();
   await expect(page.getByText("No shared activity yet")).toBeVisible();
   await expect
     .poll(() => page.evaluate(() => localStorage.getItem("visto:tab:user-1:feed")))
     .toBe("community");
-  await page.getByRole("button", { name: "Discover" }).click();
+  await page.getByRole("link", { name: "Discover" }).click();
   await expect(page.getByRole("textbox", { name: "Search TMDB" })).toBeVisible();
-  await page.getByRole("button", { name: "Library" }).click();
+  await page.getByRole("link", { name: "Library" }).click();
   await expect(page.getByRole("heading", { name: "Start with your watch history" })).toBeVisible();
-  await page.getByRole("button", { name: "Account and settings" }).click();
+  await page.getByRole("link", { name: "Account and settings" }).click();
   await expect(page.getByText("Choose who can see your activity")).toBeVisible();
   await expect(page).toHaveURL(/\/settings$/);
 
@@ -203,18 +217,18 @@ test("Given a signed-in user, When they navigate and manage appearance and accou
   await page.getByRole("combobox", { name: "Color theme" }).click();
   await page.getByRole("option", { name: "Light" }).click();
   await expect(page.locator("html")).toHaveAttribute("data-mantine-color-scheme", "light");
-  await page.getByRole("button", { name: "Watching", exact: true }).click();
+  await page.getByRole("link", { name: "Watching", exact: true }).click();
   await expect(page.getByRole("tab", { name: "Upcoming" })).toHaveAttribute(
     "aria-selected",
     "true",
   );
-  await page.getByRole("button", { name: "Activity", exact: true }).click();
+  await page.getByRole("link", { name: "Activity", exact: true }).click();
   await expect(page.getByRole("tab", { name: "Community" })).toHaveAttribute(
     "aria-selected",
     "true",
   );
   await page.reload();
-  await page.getByRole("button", { name: "Activity", exact: true }).click();
+  await page.getByRole("link", { name: "Activity", exact: true }).click();
   await expect(page.getByRole("tab", { name: "Community" })).toHaveAttribute(
     "aria-selected",
     "true",
@@ -222,10 +236,10 @@ test("Given a signed-in user, When they navigate and manage appearance and accou
 
   await page.setViewportSize({ width: 390, height: 844 });
   for (const label of ["Watching", "Discover", "Activity", "Library"]) {
-    await expect(page.getByRole("button", { name: label, exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: label, exact: true })).toBeVisible();
   }
-  await page.getByRole("button", { name: "Library", exact: true }).click();
-  await page.getByRole("button", { name: "Account and settings" }).click();
+  await page.getByRole("link", { name: "Library", exact: true }).click();
+  await page.getByRole("link", { name: "Account and settings" }).click();
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page.getByRole("heading", { name: "Welcome to Visto" })).toBeVisible();
 });
@@ -304,9 +318,18 @@ test("Given an Upcoming episode, When the user opens its season and selects anot
 
   await page.goto("/");
   await page.getByRole("tab", { name: "Upcoming" }).click();
-  await page.getByRole("button", { name: /Open The Example Show, season 1, episode 1/ }).click();
+  await expect(page.locator(".calendar-card-open")).toHaveAttribute(
+    "href",
+    "/shows/100/season/1/episode/1",
+  );
+  await expect(page.locator(".calendar-card-show")).toHaveAttribute("href", "/media/tv/100");
+  await page.getByRole("link", { name: /Open The Example Show, season 1, episode 1/ }).click();
   await expect(page.getByRole("heading", { name: "The Upcoming Episode" })).toBeVisible();
   await expect(page.locator(".detail-hero")).toContainText("S1 E1");
+  await expect(page.getByRole("link", { name: /^Next episode/ })).toHaveAttribute(
+    "href",
+    "/shows/100/season/2/episode/1",
+  );
   const swipe = (fromX: number, toX: number) =>
     touchDrag(page, { x: fromX, y: 300 }, { x: toX, y: 300 });
   await swipe(300, 120); // swipe left: next episode
@@ -315,22 +338,22 @@ test("Given an Upcoming episode, When the user opens its season and selects anot
   await swipe(120, 300); // swipe right: previous episode
   await expect(page).toHaveURL(/\/shows\/100\/season\/1\/episode\/1/);
   await expect(page.locator(".detail-hero")).toContainText("S1 E1");
-  await page.getByRole("button", { name: /^Next episode/ }).click();
+  await page.getByRole("link", { name: /^Next episode/ }).click();
   await expect(page).toHaveURL(/\/shows\/100\/season\/2\/episode\/1/);
   await expect(page.getByRole("heading", { name: "Season 2 premiere" })).toBeVisible();
   await expect(page.locator(".detail-hero")).toContainText("S2 E1");
   await page.goBack();
   await expect(page).toHaveURL("http://127.0.0.1:4173/");
   await expect(page.getByRole("heading", { name: "Upcoming episodes" })).toBeVisible();
-  await page.getByRole("button", { name: /Open The Example Show, season 1, episode 1/ }).click();
+  await page.getByRole("link", { name: /Open The Example Show, season 1, episode 1/ }).click();
   await expect(page.getByRole("heading", { name: "The Upcoming Episode" })).toBeVisible();
   await expect(page.locator(".detail-hero")).toContainText("S1 E1");
-  await page.getByRole("button", { name: "The Example Show" }).click();
+  await page.getByRole("link", { name: "The Example Show" }).click();
   await expect(page.getByRole("heading", { name: "Seasons & episodes" })).toBeVisible();
   await expect(page.getByRole("combobox", { name: "Season" })).toHaveValue("Season 1");
   await page.getByRole("combobox", { name: "Season" }).click();
   await page.getByRole("option", { name: "Season 2" }).click();
-  await expect(page.getByRole("button", { name: "1 · Season 2 premiere" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "1 · Season 2 premiere" })).toBeVisible();
   await expect(page.getByText("Episode overview.")).toHaveCount(0);
   await expect(page).toHaveURL(/season=2/);
   await page.getByRole("button", { name: "Back" }).click();
@@ -346,8 +369,8 @@ test("Given an Upcoming episode, When the user opens its season and selects anot
   await expect(page.getByRole("heading", { name: "Upcoming episodes" })).toBeVisible();
 
   await page.goto("/media/tv/100?from=%2F&media=tv%3A100&season=2");
-  await expect(page.getByRole("button", { name: "1 · Season 2 premiere" })).toBeVisible();
-  await page.getByRole("button", { name: "1 · Season 2 premiere" }).click();
+  await expect(page.getByRole("link", { name: "1 · Season 2 premiere" })).toBeVisible();
+  await page.getByRole("link", { name: "1 · Season 2 premiere" }).click();
   await expect(page.getByRole("heading", { name: "Season 2 premiere" })).toBeVisible();
 });
 
@@ -533,7 +556,7 @@ test("Given an unsaved TV show, When the user adds it or chooses Watch later, Th
   });
   await page.route("**/api/v1/library/lookup", (route) => fulfillJSON(route, []));
   await page.goto("/");
-  await page.getByRole("button", { name: "Discover" }).click();
+  await page.getByRole("link", { name: "Discover" }).click();
   await page.getByRole("textbox", { name: "Search TMDB" }).fill("Example");
   await expect(page.getByText("The Example Show").first()).toBeVisible();
   await page.getByRole("button", { name: "Add The Example Show to watching" }).click();
@@ -603,7 +626,7 @@ test("Discovery search survives reload and clears back to trending", async ({ pa
     fulfillJSON(route, [{ tmdb_id: 100, type: "tv", title: "Example Show" }]),
   );
   await page.goto("/watch");
-  await page.getByRole("button", { name: "Discover" }).click();
+  await page.getByRole("link", { name: "Discover" }).click();
   const search = page.getByRole("textbox", { name: "Search TMDB" });
   await search.fill("Example");
   await expect(page).toHaveURL(/\/discover\?q=Example$/);
@@ -714,7 +737,7 @@ test("TV details show the production status for saved and unsaved shows", async 
   await expect(page.getByText("Pilot summary.")).toBeVisible();
   await page.reload();
   await expect(page.getByRole("heading", { name: "Pilot episode" })).toBeVisible();
-  await page.getByRole("button", { name: "Example Show" }).click();
+  await page.getByRole("link", { name: "Example Show" }).click();
   await expect(page).toHaveURL(/\/media\/tv\/100\?/);
   await expect
     .poll(() => page.evaluate(() => new URL(location.href).searchParams.has("episode_number")))
@@ -821,9 +844,9 @@ test("Detail Back restores the show's scroll position and direct links use a fal
   await expect(page).toHaveURL(/\/media\/tv\/100$/);
   await expectEpisodeScrollRestored();
 
-  await page.getByRole("button", { name: "View Actor Seven" }).scrollIntoViewIfNeeded();
+  await page.getByRole("link", { name: "View Actor Seven" }).scrollIntoViewIfNeeded();
   const castScrollY = await page.evaluate(() => window.scrollY);
-  await page.getByRole("button", { name: "View Actor Seven" }).click();
+  await page.getByRole("link", { name: "View Actor Seven" }).click();
   await expect(page).toHaveURL(/\/people\/7\?/);
   await page.getByRole("button", { name: "Back", exact: true }).click();
   await expect(page).toHaveURL(/\/media\/tv\/100$/);
@@ -1170,7 +1193,7 @@ test("Given a movie in Watchlist, When it is marked watched from search, Then Un
     await fulfillJSON(route, {});
   });
   await page.goto("/");
-  await page.getByRole("button", { name: "Discover" }).click();
+  await page.getByRole("link", { name: "Discover" }).click();
   await page.getByRole("textbox", { name: "Search TMDB" }).fill("Example");
   await expect(page.getByText("In Watchlist")).toBeVisible();
   await page.getByRole("button", { name: "Mark Example Movie watched" }).click();
@@ -1179,6 +1202,43 @@ test("Given a movie in Watchlist, When it is marked watched from search, Then Un
   await expect.poll(() => playDeleted).toBe(true);
   await expect.poll(() => status).toBe("watchlist");
   await expect(page.getByText("In Watchlist")).toBeVisible();
+});
+
+test("Watching links keep native browser navigation and separate the watched action", async ({
+  page,
+}) => {
+  await mockSignedInSession(page);
+  await page.setViewportSize({ width: 390, height: 740 });
+  await page.route("**/api/v1/plays", (route) => fulfillJSON(route, { id: "play-1" }, 201));
+  await page.goto("/watch");
+
+  const row = page.locator(".watch-row", { hasText: "The Example Show" });
+  const show = row.locator("a.watch-row-show");
+  const episode = row.locator("a.watch-row-title");
+  await expect(show).toHaveAttribute("href", "/media/tv/42");
+  await expect(episode).toHaveAttribute("href", "/shows/42/season/1/episode/1");
+  expect(
+    await show.evaluate((element) => element.getBoundingClientRect().height),
+  ).toBeGreaterThanOrEqual(43.9);
+
+  const popupPromise = page.context().waitForEvent("page");
+  await episode.click({ modifiers: ["Meta"] });
+  const popup = await popupPromise;
+  await expect(popup).toHaveURL(/\/shows\/42\/season\/1\/episode\/1/);
+  await popup.close();
+  await expect(page).toHaveURL(/\/watch$/);
+
+  await show.click();
+  await expect(page).toHaveURL(/\/media\/tv\/42/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/watch$/);
+  await episode.click();
+  await expect(page).toHaveURL(/\/shows\/42\/season\/1\/episode\/1/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/watch$/);
+
+  await row.getByRole("button", { name: /Mark The Example Show.*watched/ }).click();
+  await expect(page).toHaveURL(/\/watch$/);
 });
 
 test("Given the ordinary next episode, When the user taps Watched, Then only that episode is recorded", async ({
@@ -1390,10 +1450,42 @@ test("Given another feed page, When the sentinel enters view, Then it loads with
     });
   });
   await page.goto("/");
-  await page.getByRole("button", { name: "Activity", exact: true }).click();
+  await page.getByRole("link", { name: "Activity", exact: true }).click();
   await page.getByRole("tab", { name: "Community" }).click();
   await expect(page.getByText("Second title")).toBeVisible();
   expect(requested).toContain("next-page");
+});
+
+test("Activity media and user destinations are native links", async ({ page }) => {
+  await mockSignedInSession(page);
+  await page.route(/\/api\/v1\/feed(?:\?.*)?$/, (route) =>
+    fulfillJSON(route, {
+      items: [
+        {
+          id: "event-1",
+          user_id: "user-2",
+          display_name: "Another viewer",
+          kind: "watch",
+          title: "Silo",
+          media_type: "tv",
+          tmdb_id: 100,
+          season_number: 2,
+          episode_number: 6,
+          occurred_at: "2026-09-26T12:00:00Z",
+        },
+      ],
+      next_cursor: null,
+    }),
+  );
+  await page.goto("/feed");
+  await page.getByRole("tab", { name: "Community" }).click();
+  const row = page.locator(".activity-row", { hasText: "Silo" });
+  await expect(row.locator("a.activity-row-open")).toHaveAttribute(
+    "href",
+    "/shows/100/season/2/episode/6",
+  );
+  await expect(row.locator("a.activity-show-link")).toHaveAttribute("href", "/media/tv/100");
+  await expect(row.locator("a.activity-actor-button")).toHaveAttribute("href", "/users/user-2");
 });
 
 test("Feed cards stay compact and touch does not leave a hover border", async ({
@@ -1436,7 +1528,7 @@ test("Feed cards stay compact and touch does not leave a hover border", async ({
       }),
     );
     await target.goto("/");
-    await target.getByRole("button", { name: "Activity", exact: true }).click();
+    await target.getByRole("link", { name: "Activity", exact: true }).click();
     await target.getByRole("tab", { name: "Community" }).click();
     await expect(target.locator(".activity-list-feed .activity-row")).toHaveCount(2);
   };
@@ -1523,8 +1615,8 @@ test("Given another library page, When the user scrolls the list, Then more titl
     return fulfillJSON(route, { items: [entry(1)], next_cursor: "list-more" });
   });
   await page.goto("/");
-  await page.getByRole("button", { name: "Library", exact: true }).click();
-  await page.getByRole("button", { name: "Show all" }).click();
+  await page.getByRole("link", { name: "Library", exact: true }).click();
+  await page.getByRole("link", { name: "Show all" }).click();
   await expect(page.getByText("Library title 2")).toBeVisible();
 });
 
@@ -1597,7 +1689,7 @@ test("Expanded library pages filter media before pagination and keep the selecti
   await page
     .locator(".library-section")
     .filter({ has: page.getByRole("heading", { name: "Completed" }) })
-    .getByRole("button", { name: "Show all" })
+    .getByRole("link", { name: "Show all" })
     .click();
   await expect(page).toHaveURL(/\/profile\/library\/completed\?media_type=tv$/);
 });
@@ -1694,15 +1786,15 @@ test("Library previews show full filtered counts in the requested order and rest
   await expect(sections).toHaveCount(3);
   await expect(sections.locator("h2")).toHaveText(["Watching", "Watchlist", "Completed"]);
   const moreLists = page.getByRole("navigation", { name: "More lists" });
-  await expect(moreLists.getByRole("button")).toHaveText([/Paused\s*12/, /Dropped\s*12/]);
+  await expect(moreLists.getByRole("link")).toHaveText([/Paused\s*12/, /Dropped\s*12/]);
   await expect(sections.first().getByText("12 titles")).toBeVisible();
   await page.getByText("TV", { exact: true }).click();
   await expect(sections.first().getByText("3 titles")).toBeVisible();
   await page.getByRole("combobox", { name: "Sort library media" }).click();
   await page.getByRole("option", { name: "Title" }).click();
 
-  await page.getByRole("button", { name: "Watching", exact: true }).click();
-  await page.getByRole("button", { name: "Library", exact: true }).click();
+  await page.getByRole("link", { name: "Watching", exact: true }).click();
+  await page.getByRole("link", { name: "Library", exact: true }).click();
   sections = page.locator(".library-section");
   await expect(sections.first().getByText("3 titles")).toBeVisible();
   await expect(page.getByRole("combobox", { name: "Sort library media" })).toHaveValue("Title");
@@ -1771,6 +1863,16 @@ test.describe("touch devices", () => {
     await expect(rows.nth(1)).toContainText("Silo");
     await expect(rows.nth(1)).toContainText("S2 E6");
     await expect(rows.nth(1)).toContainText("Barricades");
+    await expect(rows.nth(0).locator("a.watch-row-show")).toHaveAttribute("href", "/media/movie/2");
+    await expect(rows.nth(0).locator("a.watch-row-title")).toHaveAttribute(
+      "href",
+      "/media/movie/2",
+    );
+    await expect(rows.nth(1).locator("a.watch-row-show")).toHaveAttribute("href", "/media/tv/1");
+    await expect(rows.nth(1).locator("a.watch-row-title")).toHaveAttribute(
+      "href",
+      "/shows/1/season/2/episode/6",
+    );
 
     // The page opens at "Up next", with the history just above the viewport.
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
@@ -1797,10 +1899,10 @@ test.describe("touch devices", () => {
         })),
       );
     });
-    await page.getByRole("button", { name: "Library", exact: true }).click();
+    await page.getByRole("link", { name: "Library", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Library" })).toBeVisible();
     await page.evaluate(() => window.scrollTo(0, 120));
-    await page.getByRole("button", { name: "Watching", exact: true }).click();
+    await page.getByRole("link", { name: "Watching", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Up next" })).toBeInViewport();
     await expect(page.locator(".watch-row", { hasText: "The Example Show" })).toBeInViewport();
     await expect(rows.nth(0)).not.toBeInViewport();
@@ -1808,7 +1910,7 @@ test.describe("touch devices", () => {
     // Tapping Watching again while already there returns to Up next.
     await page.waitForTimeout(700);
     await page.evaluate(() => window.scrollTo(0, 0));
-    await page.getByRole("button", { name: "Watching", exact: true }).click();
+    await page.getByRole("link", { name: "Watching", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Up next" })).toBeInViewport();
   });
 });

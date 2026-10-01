@@ -256,6 +256,7 @@ select {
   font-size: 0.74rem;
   font-weight: 600;
   line-height: 1.1;
+  text-decoration: none;
   appearance: none;
   -webkit-appearance: none;
   -webkit-tap-highlight-color: transparent;
@@ -318,6 +319,7 @@ select {
   font-size: 1.05rem;
   font-weight: 800;
   letter-spacing: -0.03em;
+  text-decoration: none;
 }
 .topbar-brand img {
   width: 28px;
@@ -342,6 +344,7 @@ select {
   cursor: pointer;
   font-size: 0.9rem;
   font-weight: 600;
+  text-decoration: none;
   transition: color var(--visto-motion-normal) var(--visto-ease-standard);
 }
 .topbar-nav-button .nav-icon {
@@ -522,10 +525,11 @@ select {
   letter-spacing: -0.015em;
   line-height: 1.25;
   text-align: left;
+  text-decoration: none;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-button.watch-row-show {
+a.watch-row-show {
   /* A generous hit area: full row width and at least 44px tall, without moving the layout. */
   align-self: stretch;
   min-height: var(--visto-touch-target);
@@ -534,7 +538,7 @@ button.watch-row-show {
   cursor: pointer;
 }
 @media (hover: hover) and (pointer: fine) {
-  button.watch-row-show:hover {
+  a.watch-row-show:hover {
     text-decoration: underline;
     text-underline-offset: 3px;
   }
@@ -557,6 +561,7 @@ button.watch-row-show {
   font-weight: 600;
   line-height: 1.3;
   text-align: left;
+  text-decoration: none;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
 }
@@ -803,6 +808,9 @@ button.watch-row-show {
   text-align: left;
   cursor: pointer;
 }
+.calendar-show-link {
+  text-decoration: none;
+}
 .calendar-card-episode {
   color: var(--mantine-color-dimmed);
   font-size: 0.9rem;
@@ -927,6 +935,7 @@ button.watch-row-show {
   cursor: pointer;
   font-weight: 650;
   text-align: left;
+  text-decoration: none;
   transition:
     border-color var(--visto-motion-normal) var(--visto-ease-standard),
     transform var(--visto-motion-fast) var(--visto-ease-standard);
@@ -1477,6 +1486,7 @@ button.watch-row-show {
   color: var(--mantine-color-text);
   cursor: pointer;
   text-align: left;
+  text-decoration: none;
   transition:
     background-color var(--visto-motion-fast) var(--visto-ease-standard),
     transform var(--visto-motion-fast) var(--visto-ease-standard);
@@ -1930,6 +1940,7 @@ label.tracking-row {
   font-weight: 700;
   line-height: 1.3;
   text-align: left;
+  text-decoration: none;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -2060,6 +2071,7 @@ label.tracking-row {
   font: inherit;
   text-align: left;
   cursor: pointer;
+  text-decoration: none;
 }
 .cast-member-clickable:focus-visible {
   outline: 2px solid var(--visto-focus);
@@ -2415,6 +2427,7 @@ label.tracking-row {
   font-size: var(--mantine-font-size-sm);
   font-weight: 700;
   cursor: pointer;
+  text-decoration: none;
 }
 @media (hover: hover) and (pointer: fine) {
   .activity-actor-button:hover span {
@@ -2443,6 +2456,7 @@ label.tracking-row {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  text-decoration: none;
 }
 .activity-row-episode {
   min-width: 0;

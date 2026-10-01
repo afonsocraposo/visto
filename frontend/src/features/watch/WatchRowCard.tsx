@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
+import { DetailLink } from "../../components/DetailLink";
 import { FadeImage } from "../../components/FadeImage";
+import type { MediaDetailTarget } from "../../types";
 
 /**
  * The card shared by "Up next" rows and the recent watch history rows. The episode title is the
@@ -9,11 +11,12 @@ import { FadeImage } from "../../components/FadeImage";
 export function WatchRowCard({
   className = "",
   show,
-  onOpenShow,
+  showTarget,
   title,
   meta,
   art,
-  onOpen,
+  titleTarget,
+  onOpenDetail,
   openLabel,
   onAnimationEnd,
   trailing,
@@ -21,12 +24,13 @@ export function WatchRowCard({
   className?: string;
   /** Context line: the show (or "Movie"). */
   show: string;
-  onOpenShow?: () => void;
+  showTarget?: MediaDetailTarget;
   /** Main content: the episode title (or the movie title). */
   title: string;
   meta?: ReactNode;
   art?: string | null;
-  onOpen?: () => void;
+  titleTarget?: MediaDetailTarget;
+  onOpenDetail?: (target: MediaDetailTarget) => void;
   openLabel?: string;
   onAnimationEnd?: (event: React.AnimationEvent<HTMLElement>) => void;
   trailing?: ReactNode;
@@ -41,22 +45,22 @@ export function WatchRowCard({
         )}
       </div>
       <div className="watch-row-content">
-        {onOpenShow ? (
-          <button type="button" className="watch-row-show" onClick={onOpenShow}>
+        {showTarget ? (
+          <DetailLink to={showTarget} onOpen={onOpenDetail} className="watch-row-show">
             {show}
-          </button>
+          </DetailLink>
         ) : (
           <span className="watch-row-show">{show}</span>
         )}
-        {onOpen ? (
-          <button
-            type="button"
+        {titleTarget ? (
+          <DetailLink
+            to={titleTarget}
+            onOpen={onOpenDetail}
             className="watch-row-title watch-row-open"
             aria-label={openLabel}
-            onClick={onOpen}
           >
             {title}
-          </button>
+          </DetailLink>
         ) : (
           <span className="watch-row-title">{title}</span>
         )}

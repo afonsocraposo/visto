@@ -1,17 +1,22 @@
 import type { ReactNode } from "react";
 import { FadeImage } from "../../components/FadeImage";
+import { DetailLink } from "../../components/DetailLink";
+import { RouteLink } from "../../components/RouteLink";
 import { Avatar, Group, Paper, Text } from "@mantine/core";
 import { IconDeviceTv, IconMovie } from "@tabler/icons-react";
 import { RatingStars } from "../../components/RatingStars";
 import { ActivityTime } from "../../components/ActivityTime";
 import { backdropURL, posterURL } from "../../lib/artwork";
 import { episodeLabelCode } from "../../lib/episodePosition";
+import { useSessionUserID } from "../auth/SessionContext";
+import type { MediaDetailTarget } from "../../types";
 
 type Props = {
   title: string;
   mediaType?: "movie" | "tv";
   artworkPath?: string;
   actor?: string;
+  actorID?: string;
   onOpenActor?: () => void;
   action: string;
   episodeLabel?: string;
@@ -21,8 +26,9 @@ type Props = {
   exactTime?: ReactNode;
   actions?: ReactNode;
   children?: ReactNode;
-  onOpenDetail?: () => void;
-  onOpenShow?: () => void;
+  detailTarget?: MediaDetailTarget;
+  showTarget?: MediaDetailTarget;
+  onOpenDetail?: (target: MediaDetailTarget) => void;
 };
 
 export function ActivityRow({
@@ -30,6 +36,7 @@ export function ActivityRow({
   mediaType,
   artworkPath,
   actor,
+  actorID,
   onOpenActor,
   action,
   episodeLabel,
@@ -40,8 +47,10 @@ export function ActivityRow({
   actions,
   children,
   onOpenDetail,
-  onOpenShow,
+  detailTarget,
+  showTarget,
 }: Props) {
+  const currentUserID = useSessionUserID();
   const art =
     episodeLabel && mediaType === "tv"
       ? backdropURL(artworkPath, "w780")
@@ -49,15 +58,18 @@ export function ActivityRow({
 
   return (
     <Paper
-      className={`activity-row${onOpenDetail ? " activity-row-clickable" : ""}`}
+      className={`activity-row${detailTarget ? " activity-row-clickable" : ""}`}
       component="article"
       withBorder
     >
-      {onOpenDetail && (
+      {detailTarget && (
         // Covers the card; the actor, show and menu controls are layered above it.
-        <button type="button" className="activity-row-open" onClick={onOpenDetail}>
-          <span className="visually-hidden">Open details for {title}</span>
-        </button>
+        <DetailLink
+          to={detailTarget}
+          onOpen={onOpenDetail}
+          className="activity-row-open"
+          aria-label={`Open details for ${title}`}
+        />
       )}
       <div className="activity-row-art" aria-hidden="true">
         {art ? (
@@ -77,18 +89,20 @@ export function ActivityRow({
           wrap="nowrap"
         >
           <Group gap="xs" wrap="nowrap" className="activity-row-byline">
-            {onOpenActor ? (
-              <button
-                type="button"
+            {actorID ? (
+              <RouteLink
+                href={
+                  actorID === currentUserID ? "/profile" : `/users/${encodeURIComponent(actorID)}`
+                }
+                onOpen={onOpenActor}
                 className="activity-actor-button"
-                onClick={onOpenActor}
                 aria-label={`Open ${actor || "your"} profile`}
               >
                 <Avatar className="activity-avatar" size={30} aria-hidden="true">
                   {(actor || "You").trim().slice(0, 1).toLocaleUpperCase()}
                 </Avatar>
                 <span>{actor || "You"}</span>
-              </button>
+              </RouteLink>
             ) : (
               <>
                 {actor && (
@@ -107,17 +121,14 @@ export function ActivityRow({
           </Group>
           {actions}
         </Group>
-        {onOpenShow ? (
-          <button
-            type="button"
+        {showTarget ? (
+          <DetailLink
+            to={showTarget}
+            onOpen={onOpenDetail}
             className="activity-row-title activity-show-link"
-            onClick={(event) => {
-              event.stopPropagation();
-              onOpenShow();
-            }}
           >
             {title}
-          </button>
+          </DetailLink>
         ) : (
           <Text className="activity-row-title" fw={750} lineClamp={1}>
             {title}

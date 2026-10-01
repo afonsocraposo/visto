@@ -47,6 +47,7 @@ import { findMissingPriorEpisodes } from "../library/episodeSelection";
 import { CastSection } from "../../components/CastSection";
 import { HistoryPanel } from "../library/HistoryPanel";
 import { MediaPosterCard } from "../../components/MediaPosterCard";
+import { DetailLink } from "../../components/DetailLink";
 import {
   regularSeasonsThrough,
   selectUnwatchedEpisodes,
@@ -1246,23 +1247,18 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
           )}
           <div className="detail-hero-body">
             {selectedEpisode ? (
-              <button
-                type="button"
+              <DetailLink
+                to={{
+                  mediaType: "tv",
+                  tmdbID: media.tmdb_id,
+                  mediaID: showID,
+                  seasonNumber: selectedEpisode.episode.season_number,
+                }}
                 className="detail-eyebrow detail-eyebrow-link"
-                onClick={() =>
-                  onOpenDetail(
-                    {
-                      mediaType: "tv",
-                      tmdbID: media.tmdb_id,
-                      mediaID: showID,
-                      seasonNumber: selectedEpisode.episode.season_number,
-                    },
-                    { from: returnTo },
-                  )
-                }
+                onOpen={(showTarget) => onOpenDetail(showTarget, { from: returnTo })}
               >
                 {media.title}
-              </button>
+              </DetailLink>
             ) : (
               <span className="detail-eyebrow">{media.type === "tv" ? "TV show" : "Movie"}</span>
             )}
@@ -1382,6 +1378,7 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
           current={selectedEpisode.episode}
           previous={adjacentEpisodes.previousEpisode}
           next={adjacentEpisodes.nextEpisode}
+          showTarget={{ mediaType: "tv", tmdbID: media.tmdb_id, mediaID: showID }}
         />
       )}
       <div className="episode-transition-body">
@@ -1581,17 +1578,16 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
                     markEpisodeWatched.isPending ||
                     removeEpisodesWatched.isPending
                   }
-                  onOpen={() =>
-                    onOpenDetail({
-                      mediaType: "tv",
-                      tmdbID: media.tmdb_id,
-                      mediaID: showID,
-                      episodeID: entry.episode.id,
-                      episode: entry.episode,
-                      seasonNumber: entry.episode.season_number,
-                      episodeNumber: entry.episode.episode_number,
-                    })
-                  }
+                  target={{
+                    mediaType: "tv",
+                    tmdbID: media.tmdb_id,
+                    mediaID: showID,
+                    episodeID: entry.episode.id,
+                    episode: entry.episode,
+                    seasonNumber: entry.episode.season_number,
+                    episodeNumber: entry.episode.episode_number,
+                  }}
+                  onOpenDetail={onOpenDetail}
                   onToggleWatched={() => {
                     if (entry.watched) removeEpisodesWatched.mutate([entry.episode.id]);
                     else requestEpisodeWatch(entry);

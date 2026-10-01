@@ -181,6 +181,16 @@ function HistoryCard({
 
   const watchedAtDate = new Date(entry.play.watched_at);
   const mediaType = entry.play.episode_id ? "tv" : "movie";
+  const showTarget: MediaDetailTarget | undefined = entry.tmdb_id
+    ? { mediaType, tmdbID: entry.tmdb_id, mediaID: entry.play.media_id ?? undefined }
+    : undefined;
+  const detailTarget: MediaDetailTarget | undefined = showTarget
+    ? {
+        ...showTarget,
+        ...(entry.play.episode_id ? { episodeID: entry.play.episode_id } : {}),
+        ...episodePosition(entry.episode_label),
+      }
+    : undefined;
   const actions = (
     <Menu withinPortal position="bottom-end">
       <Menu.Target>
@@ -239,28 +249,9 @@ function HistoryCard({
         </>
       }
       actions={actions}
-      onOpenDetail={
-        entry.tmdb_id
-          ? () =>
-              onOpenDetail?.({
-                mediaType,
-                tmdbID: entry.tmdb_id!,
-                mediaID: entry.play.media_id ?? undefined,
-                ...(entry.play.episode_id ? { episodeID: entry.play.episode_id } : {}),
-                ...episodePosition(entry.episode_label),
-              })
-          : undefined
-      }
-      onOpenShow={
-        entry.tmdb_id
-          ? () =>
-              onOpenDetail?.({
-                mediaType,
-                tmdbID: entry.tmdb_id!,
-                mediaID: entry.play.media_id ?? undefined,
-              })
-          : undefined
-      }
+      detailTarget={detailTarget}
+      showTarget={showTarget}
+      onOpenDetail={onOpenDetail}
     >
       <div className="expand" data-open={editing || undefined} inert={!editing}>
         <div className="expand-inner">

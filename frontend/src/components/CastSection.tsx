@@ -1,5 +1,6 @@
 import { Paper, SimpleGrid, Text, Title } from "@mantine/core";
 import { FadeImage } from "./FadeImage";
+import { RouteLink } from "./RouteLink";
 import type { TVCastMember } from "../types";
 import { posterURL } from "../lib/artwork";
 
@@ -54,10 +55,10 @@ function CastMemberCard({
   return (
     <Paper
       className="cast-member-card cast-member-clickable"
-      component="button"
-      type="button"
+      component={RouteLink}
+      href={`/people/${member.id}`}
+      onOpen={onOpen}
       aria-label={`View ${member.name}`}
-      onClick={onOpen}
       withBorder
       p={0}
     >

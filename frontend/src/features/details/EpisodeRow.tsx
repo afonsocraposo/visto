@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { FadeImage } from "../../components/FadeImage";
+import { DetailLink } from "../../components/DetailLink";
 import { ActionIcon, Menu } from "@mantine/core";
 import { IconCheck, IconDots, IconRefresh } from "@tabler/icons-react";
 import { backdropURL } from "../../lib/artwork";
 import { episodeCode } from "../../lib/episodePosition";
 import { formatEpisodeAirDate, isUnreleased } from "../../lib/airDate";
-import type { ShowEpisodeEntry } from "../../types";
+import type { MediaDetailTarget, ShowEpisodeEntry } from "../../types";
 
 /**
  * One episode in a season list: "4 · Title", then "S3 E4 · Mar 18", then one line of overview.
@@ -14,13 +15,15 @@ import type { ShowEpisodeEntry } from "../../types";
  */
 export function EpisodeRow({
   entry,
-  onOpen,
+  target,
+  onOpenDetail,
   onToggleWatched,
   onRewatch,
   disabled,
 }: {
   entry: ShowEpisodeEntry;
-  onOpen: () => void;
+  target: MediaDetailTarget;
+  onOpenDetail: (target: MediaDetailTarget) => void;
   onToggleWatched: () => void;
   onRewatch: () => void;
   disabled: boolean;
@@ -44,11 +47,15 @@ export function EpisodeRow({
         )}
       </div>
       <div className="episode-row-copy">
-        <button type="button" className="episode-row-title episode-row-open" onClick={onOpen}>
+        <DetailLink
+          to={target}
+          onOpen={onOpenDetail}
+          className="episode-row-title episode-row-open"
+        >
           <span className="episode-row-number">{episode.episode_number}</span>
           {" · "}
           {name}
-        </button>
+        </DetailLink>
         <p className="episode-row-meta">
           <span>{episodeCode(episode)}</span>
           {release && <span className={future ? "is-upcoming" : undefined}>{release}</span>}

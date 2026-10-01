@@ -272,44 +272,37 @@ export function UserProfilePage({
                         <Text c="dimmed">No shared activity yet.</Text>
                       ) : (
                         <div className="activity-list">
-                          {items.map((item) => (
-                            <ActivityRow
-                              key={item.id}
-                              title={item.title}
-                              mediaType={item.media_type}
-                              artworkPath={item.artwork_path}
-                              actor={item.display_name}
-                              action={activityAction(item)}
-                              episodeLabel={episodeLabel(item)}
-                              episodeName={item.episode_name}
-                              rating={item.kind === "rating" ? item.rating : undefined}
-                              occurredAt={item.occurred_at}
-                              onOpenDetail={
-                                item.media_type && item.tmdb_id
-                                  ? () =>
-                                      onOpenDetail?.({
-                                        mediaType: item.media_type!,
-                                        tmdbID: item.tmdb_id!,
-                                        ...(item.season_number !== undefined
-                                          ? { seasonNumber: item.season_number }
-                                          : {}),
-                                        ...(item.episode_number !== undefined
-                                          ? { episodeNumber: item.episode_number }
-                                          : {}),
-                                      })
-                                  : undefined
-                              }
-                              onOpenShow={
-                                item.media_type && item.tmdb_id
-                                  ? () =>
-                                      onOpenDetail?.({
-                                        mediaType: item.media_type!,
-                                        tmdbID: item.tmdb_id!,
-                                      })
-                                  : undefined
-                              }
-                            />
-                          ))}
+                          {items.map((item) => {
+                            const showTarget: MediaDetailTarget | undefined =
+                              item.media_type && item.tmdb_id
+                                ? { mediaType: item.media_type, tmdbID: item.tmdb_id }
+                                : undefined;
+                            return (
+                              <ActivityRow
+                                key={item.id}
+                                title={item.title}
+                                mediaType={item.media_type}
+                                artworkPath={item.artwork_path}
+                                actor={item.display_name}
+                                action={activityAction(item)}
+                                episodeLabel={episodeLabel(item)}
+                                episodeName={item.episode_name}
+                                rating={item.kind === "rating" ? item.rating : undefined}
+                                occurredAt={item.occurred_at}
+                                detailTarget={
+                                  showTarget
+                                    ? {
+                                        ...showTarget,
+                                        seasonNumber: item.season_number,
+                                        episodeNumber: item.episode_number,
+                                      }
+                                    : undefined
+                                }
+                                showTarget={showTarget}
+                                onOpenDetail={onOpenDetail}
+                              />
+                            );
+                          })}
                         </div>
                       );
                     })()}

@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Alert, Avatar, Button, Drawer, Skeleton, Stack, Text, TextInput } from "@mantine/core";
-import { useUserQueryKey } from "../auth/SessionContext";
+import { useSessionUserID, useUserQueryKey } from "../auth/SessionContext";
 import { fetchAllPages } from "../../lib/pagination";
 import type { CommunityUser } from "../../types";
+import { RouteLink } from "../../components/RouteLink";
 
 export function UserDirectory({
   opened,
@@ -15,6 +16,7 @@ export function UserDirectory({
   onOpenUser: (userID: string) => void;
 }) {
   const [search, setSearch] = useState("");
+  const currentUserID = useSessionUserID();
   const userQueryKey = useUserQueryKey();
   const users = useQuery({
     queryKey: userQueryKey("community-users"),
@@ -49,13 +51,17 @@ export function UserDirectory({
           {matches.map((user) => (
             <Button
               key={user.id}
+              component={RouteLink}
+              href={
+                user.id === currentUserID ? "/profile" : `/users/${encodeURIComponent(user.id)}`
+              }
               variant="subtle"
               color="gray"
               justify="flex-start"
               leftSection={
                 <Avatar size={28}>{user.name.trim().slice(0, 1).toLocaleUpperCase()}</Avatar>
               }
-              onClick={() => onOpenUser(user.id)}
+              onOpen={() => onOpenUser(user.id)}
             >
               {user.name}
             </Button>

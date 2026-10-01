@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { FadeImage } from "../../components/FadeImage";
+import { DetailLink } from "../../components/DetailLink";
+import { RouteLink } from "../../components/RouteLink";
 import {
   useInfiniteQuery,
   useMutation,
@@ -160,7 +162,12 @@ export function WatchNow({ onOpenDetail }: { onOpenDetail?: (target: MediaDetail
           title="Nothing to watch"
           detail="Add a show and its next released episode will appear here."
           action={
-            <Button variant="light" onClick={() => void navigate({ to: "/discover" })}>
+            <Button
+              component={RouteLink}
+              href="/discover"
+              variant="light"
+              onOpen={() => void navigate({ to: "/discover" })}
+            >
               Discover shows
             </Button>
           }
@@ -233,29 +240,26 @@ export function WatchNow({ onOpenDetail }: { onOpenDetail?: (target: MediaDetail
             posterURL(entry.poster_path, "w500");
           const isCompleted = completedShowIDs.has(entry.show_id);
           const next = entry.next_episode;
-          const openEpisode = () =>
-            onOpenDetail?.({
-              mediaType: "tv",
-              tmdbID: Number(entry.show_id.split(":")[1]),
-              mediaID: entry.show_id,
-              episodeID: next?.id,
-              episode: next,
-              seasonNumber: next?.season_number,
-              episodeNumber: next?.episode_number,
-            });
-          const openShow = () =>
-            onOpenDetail?.({
-              mediaType: "tv",
-              tmdbID: Number(entry.show_id.split(":")[1]),
-              mediaID: entry.show_id,
-              seasonNumber: next?.season_number,
-            });
+          const showTarget: MediaDetailTarget = {
+            mediaType: "tv",
+            tmdbID: Number(entry.show_id.split(":")[1]),
+            mediaID: entry.show_id,
+          };
+          const episodeTarget: MediaDetailTarget | undefined = next
+            ? {
+                ...showTarget,
+                episodeID: next.id,
+                episode: next,
+                seasonNumber: next.season_number,
+                episodeNumber: next.episode_number,
+              }
+            : undefined;
           return (
             <WatchRowCard
               key={entry.show_id}
               className={isCompleted ? "watch-row-completed" : ""}
               show={entry.title}
-              onOpenShow={onOpenDetail && !isCompleted ? openShow : undefined}
+              showTarget={!isCompleted ? showTarget : undefined}
               title={
                 next
                   ? entry.next_episode_name || `Episode ${next.episode_number}`
@@ -275,7 +279,8 @@ export function WatchNow({ onOpenDetail }: { onOpenDetail?: (target: MediaDetail
                 )
               }
               art={art}
-              onOpen={onOpenDetail && !isCompleted ? openEpisode : undefined}
+              titleTarget={!isCompleted ? episodeTarget : undefined}
+              onOpenDetail={onOpenDetail}
               onAnimationEnd={(event) => {
                 if (event.animationName === "watch-row-exit") finishWatchedAnimation(entry.show_id);
               }}
@@ -567,26 +572,26 @@ function CalendarEpisodeCard({
   const art = backdropURL(item.episode_still_path, "w780") ?? posterURL(item.poster_path, "w500");
   const releaseDate = item.episode.air_date?.slice(0, 10) ?? today;
   const days = daysUntilRelease(today, releaseDate);
-  const open = () =>
-    onOpenDetail?.({
-      mediaType: "tv",
-      tmdbID: Number(item.show_id.split(":")[1]),
-      mediaID: item.show_id,
-      episodeID: item.episode.id,
-      episode: item.episode,
-      seasonNumber: item.episode.season_number,
-      episodeNumber: item.episode.episode_number,
-    });
+  const showTarget: MediaDetailTarget = {
+    mediaType: "tv",
+    tmdbID: Number(item.show_id.split(":")[1]),
+    mediaID: item.show_id,
+  };
+  const episodeTarget: MediaDetailTarget = {
+    ...showTarget,
+    episodeID: item.episode.id,
+    episode: item.episode,
+    seasonNumber: item.episode.season_number,
+    episodeNumber: item.episode.episode_number,
+  };
   return (
     <Paper className="calendar-card" withBorder p={0} component="article">
-      {onOpenDetail && (
-        <button type="button" className="calendar-card-open" onClick={open}>
-          <span className="visually-hidden">
-            Open {item.title}, season {item.episode.season_number}, episode{" "}
-            {item.episode.episode_number}
-          </span>
-        </button>
-      )}
+      <DetailLink
+        to={episodeTarget}
+        onOpen={onOpenDetail}
+        className="calendar-card-open"
+        aria-label={`Open ${item.title}, season ${item.episode.season_number}, episode ${item.episode.episode_number}`}
+      />
       <div className="calendar-card-art">
         {art ? (
           <FadeImage src={art} alt="" />
@@ -595,20 +600,13 @@ function CalendarEpisodeCard({
         )}
       </div>
       <div className="calendar-card-copy">
-        <button
-          type="button"
+        <DetailLink
+          to={showTarget}
+          onOpen={onOpenDetail}
           className="calendar-card-show calendar-show-link"
-          disabled={!onOpenDetail}
-          onClick={() => {
-            onOpenDetail?.({
-              mediaType: "tv",
-              tmdbID: Number(item.show_id.split(":")[1]),
-              mediaID: item.show_id,
-            });
-          }}
         >
           {item.title}
-        </button>
+        </DetailLink>
         <Text className="calendar-card-number">{episodeCode(item.episode)}</Text>
         <Text className="calendar-card-episode" lineClamp={1}>
           {item.episode_name || `Episode ${item.episode.episode_number}`}

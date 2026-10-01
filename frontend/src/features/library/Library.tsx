@@ -17,6 +17,7 @@ import { useState, type ReactNode } from "react";
 import { EmptyState } from "../../components/EmptyState";
 import { PosterGridSkeleton } from "../../components/PosterGridSkeleton";
 import { ImportData } from "./ImportData";
+import { RouteLink } from "../../components/RouteLink";
 import { useSessionUserID, useUserQueryKey } from "../auth/SessionContext";
 import { api } from "../../lib/api";
 import { LibraryCard } from "./LibraryCard";
@@ -131,10 +132,12 @@ export function LibraryPanel({
           <Group className="library-empty-actions" mt="xl">
             <ImportData prominent refreshLibraryOnClose />
             <Button
+              component={RouteLink}
+              href="/discover"
               variant="subtle"
               size="lg"
               leftSection={<IconSearch size={18} />}
-              onClick={() => void navigate({ to: "/discover" })}
+              onOpen={() => void navigate({ to: "/discover" })}
             >
               Browse trending
             </Button>
@@ -148,6 +151,8 @@ export function LibraryPanel({
     const page = pages.get(status)!;
     return page.total_count ?? page.items.length;
   };
+  const listHref = (status: LibraryStatus) =>
+    `/profile/library/${status}${mediaFilter === "all" ? "" : `?media_type=${mediaFilter}`}`;
   const secondary = sections.filter(
     (section) => !primaryStatuses.includes(section.status) && countOf(section.status) > 0,
   );
@@ -228,10 +233,12 @@ export function LibraryPanel({
                   </Group>
                   {page.next_cursor && (
                     <Button
+                      component={RouteLink}
+                      href={listHref(section.status)}
                       variant="subtle"
                       size="compact-sm"
                       rightSection={<IconChevronRight size={15} />}
-                      onClick={() => onOpenList?.(section.status, mediaFilter)}
+                      onOpen={() => onOpenList?.(section.status, mediaFilter)}
                     >
                       Show all
                     </Button>
@@ -265,7 +272,12 @@ export function LibraryPanel({
                         : "Add a show and its next episode will appear in Watching."
                     }
                     action={
-                      <Button variant="light" onClick={() => void navigate({ to: "/discover" })}>
+                      <Button
+                        component={RouteLink}
+                        href="/discover"
+                        variant="light"
+                        onOpen={() => void navigate({ to: "/discover" })}
+                      >
                         {section.status === "watchlist" ? "Browse trending" : "Discover shows"}
                       </Button>
                     }
@@ -278,16 +290,16 @@ export function LibraryPanel({
       {secondary.length > 0 && (
         <nav className="library-more-lists" aria-label="More lists">
           {secondary.map((section) => (
-            <button
+            <RouteLink
               key={section.status}
-              type="button"
+              href={listHref(section.status)}
               className="library-list-link"
-              onClick={() => onOpenList?.(section.status, mediaFilter)}
+              onOpen={() => onOpenList?.(section.status, mediaFilter)}
             >
               <span>{section.label}</span>
               <span className="library-list-link-count">{countOf(section.status)}</span>
               <IconChevronRight size={16} aria-hidden="true" />
-            </button>
+            </RouteLink>
           ))}
         </nav>
       )}

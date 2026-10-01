@@ -1,5 +1,5 @@
-import { UnstyledButton } from "@mantine/core";
 import { AccountAvatar } from "../../components/AccountAvatar";
+import { RouteLink } from "../../components/RouteLink";
 import { LibraryPanel } from "./Library";
 import type { LibraryStatus, MediaDetailTarget, User } from "../../types";
 import type { LibraryMediaFilter } from "./mediaFilter";
@@ -21,13 +21,14 @@ export function LibraryArea({
       onOpenDetail={onOpenDetail}
       onOpenList={onOpenList}
       headerAction={
-        <UnstyledButton
+        <RouteLink
+          href="/settings"
           className="library-account-button"
           aria-label="Account and settings"
-          onClick={onOpenSettings}
+          onOpen={onOpenSettings}
         >
           <AccountAvatar name={user.name} size={36} />
-        </UnstyledButton>
+        </RouteLink>
       }
     />
   );

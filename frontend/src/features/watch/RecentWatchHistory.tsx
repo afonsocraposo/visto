@@ -48,25 +48,21 @@ function RecentWatchRow({
   onOpenDetail?: (target: MediaDetailTarget) => void;
 }) {
   const isEpisode = !!entry.play.episode_id;
-  const show = entry.tmdb_id
-    ? () =>
-        onOpenDetail?.({
-          mediaType: isEpisode ? "tv" : "movie",
-          tmdbID: entry.tmdb_id!,
-          mediaID: entry.play.media_id ?? undefined,
-        })
+  const showTarget: MediaDetailTarget | undefined = entry.tmdb_id
+    ? {
+        mediaType: isEpisode ? "tv" : "movie",
+        tmdbID: entry.tmdb_id,
+        mediaID: entry.play.media_id ?? undefined,
+      }
     : undefined;
-  const open = entry.tmdb_id
-    ? isEpisode
-      ? () =>
-          onOpenDetail?.({
-            mediaType: "tv",
-            tmdbID: entry.tmdb_id!,
-            episodeID: entry.play.episode_id!,
-            ...episodePosition(entry.episode_label),
-          })
-      : show
-    : undefined;
+  const titleTarget: MediaDetailTarget | undefined =
+    showTarget && isEpisode
+      ? {
+          ...showTarget,
+          episodeID: entry.play.episode_id!,
+          ...episodePosition(entry.episode_label),
+        }
+      : showTarget;
   // Episodes carry a still (or the show poster as fallback), movies a poster.
   const art = isEpisode
     ? backdropURL(entry.artwork_path, "w780")
@@ -75,7 +71,7 @@ function RecentWatchRow({
     <WatchRowCard
       className="watch-row-watched"
       show={entry.title}
-      onOpenShow={onOpenDetail ? show : undefined}
+      showTarget={showTarget}
       title={isEpisode ? entry.episode_name || "Episode" : "Movie"}
       openLabel={`Open ${entry.title}${isEpisode && entry.episode_label ? ` ${entry.episode_label}` : ""}`}
       meta={
@@ -87,7 +83,8 @@ function RecentWatchRow({
         </>
       }
       art={art}
-      onOpen={onOpenDetail ? open : undefined}
+      titleTarget={titleTarget}
+      onOpenDetail={onOpenDetail}
       trailing={
         <span className="watch-row-watched-mark" aria-label="Watched">
           <IconCheck size={18} stroke={2.4} aria-hidden="true" />

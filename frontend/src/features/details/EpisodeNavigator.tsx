@@ -1,5 +1,6 @@
 import { IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
-import type { Episode, ShowEpisodeEntry } from "../../types";
+import { DetailLink } from "../../components/DetailLink";
+import type { Episode, MediaDetailTarget, ShowEpisodeEntry } from "../../types";
 import { useEpisodeNavigate } from "./EpisodeTransition";
 import { episodeCode } from "../../lib/episodePosition";
 
@@ -13,27 +14,19 @@ export function EpisodeNavigator({
   current,
   previous,
   next,
+  showTarget,
 }: {
   current: Episode;
   previous: ShowEpisodeEntry | null;
   next: ShowEpisodeEntry | null;
+  showTarget: MediaDetailTarget;
 }) {
   const navigate = useEpisodeNavigate();
   const side = (entry: ShowEpisodeEntry | null, direction: "previous" | "next") => {
     const label = direction === "previous" ? "Previous episode" : "Next episode";
     const Icon = direction === "previous" ? IconChevronLeft : IconChevronRight;
-    return (
-      <button
-        type="button"
-        className={`episode-nav-step is-${direction}`}
-        disabled={!entry}
-        aria-label={
-          entry
-            ? `${label}: ${episodeCode(entry.episode)}${entry.name ? `, ${entry.name}` : ""}`
-            : `No ${label.toLowerCase()}`
-        }
-        onClick={() => navigate(direction)}
-      >
+    const content = (
+      <>
         <Icon className="episode-nav-chevron" size={22} stroke={2} aria-hidden="true" />
         {entry && (
           <span className="episode-nav-neighbour" aria-hidden="true">
@@ -41,7 +34,35 @@ export function EpisodeNavigator({
             {entry.name && <span className="episode-nav-neighbour-name">{entry.name}</span>}
           </span>
         )}
-      </button>
+      </>
+    );
+    const className = `episode-nav-step is-${direction}`;
+    if (!entry)
+      return (
+        <button
+          type="button"
+          className={className}
+          disabled
+          aria-label={`No ${label.toLowerCase()}`}
+        >
+          {content}
+        </button>
+      );
+    return (
+      <DetailLink
+        to={{
+          ...showTarget,
+          episodeID: entry.episode.id,
+          episode: entry.episode,
+          seasonNumber: entry.episode.season_number,
+          episodeNumber: entry.episode.episode_number,
+        }}
+        onOpen={() => navigate(direction)}
+        className={className}
+        aria-label={`${label}: ${episodeCode(entry.episode)}${entry.name ? `, ${entry.name}` : ""}`}
+      >
+        {content}
+      </DetailLink>
     );
   };
 

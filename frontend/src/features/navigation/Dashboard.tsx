@@ -7,6 +7,7 @@ import { WatchCalendar, WatchNow } from "../watch/Watch";
 import { SectionTabs } from "../../components/SectionTabs";
 import { PageLoadingShell } from "../../components/LoadingShell";
 import { AccountAvatar } from "../../components/AccountAvatar";
+import { RouteLink } from "../../components/RouteLink";
 import { navItems } from "./navItems";
 import { requestUpNextScroll } from "../watch/upNextScroll";
 import { WatchHistoryReveal } from "../watch/WatchHistoryReveal";
@@ -133,19 +134,19 @@ export function Dashboard({
   };
   // The top bar marks Settings on the avatar; the bottom bar keeps Library active for it.
   const navButtons = (className: string, iconSize: number, settingsHasOwnMarker: boolean) =>
-    navItems.map(({ tab: value, label, Icon }) => (
-      <button
+    navItems.map(({ tab: value, label, path, Icon }) => (
+      <RouteLink
         key={value}
-        type="button"
+        href={path}
         className={className}
         aria-current={tab === value && !(settingsOpen && settingsHasOwnMarker) ? "page" : undefined}
-        onClick={() => goToTab(value)}
+        onOpen={() => goToTab(value)}
       >
         <span className="nav-icon" aria-hidden="true">
           <Icon size={iconSize} stroke={1.8} />
         </span>
         <span className="nav-label">{label}</span>
-      </button>
+      </RouteLink>
     ));
   const pageContent = !profileUserID && !detail && !personID && !listStatus && !settingsOpen;
 
@@ -158,22 +159,22 @@ export function Dashboard({
     >
       <AppShell.Header className="visto-topbar">
         <div className="topbar-inner">
-          <button type="button" className="topbar-brand" onClick={() => goToTab("watch")}>
+          <RouteLink href="/watch" className="topbar-brand" onOpen={() => goToTab("watch")}>
             <img src="/icon.svg?v=3" alt="" aria-hidden="true" />
             <span>Visto</span>
-          </button>
+          </RouteLink>
           <nav className="topbar-nav" aria-label="Main navigation">
             {navButtons("topbar-nav-button", 18, true)}
           </nav>
-          <button
-            type="button"
+          <RouteLink
+            href="/settings"
             className="topbar-account"
             aria-label="Account and settings"
             aria-current={settingsOpen ? "page" : undefined}
-            onClick={() => void navigate({ to: "/settings" })}
+            onOpen={() => void navigate({ to: "/settings" })}
           >
             <AccountAvatar name={user.name} size={34} />
-          </button>
+          </RouteLink>
         </div>
       </AppShell.Header>
       <Modal
