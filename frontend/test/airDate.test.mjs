@@ -1,24 +1,33 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import dayjs from "dayjs";
-import { formatEpisodeAirDate } from "../src/lib/airDate.ts";
+import { formatEpisodeAirDate, isUnreleased } from "../src/lib/airDate.ts";
 
 const today = dayjs("2026-09-30T15:30:00");
 
-test("episode air dates within the next week are relative", () => {
-  assert.equal(formatEpisodeAirDate("2026-10-01", today), "in 1 day");
-  assert.equal(formatEpisodeAirDate("2026-10-02", today), "in 2 days");
-  assert.equal(formatEpisodeAirDate("2026-10-06", today), "in 6 days");
-  assert.equal(formatEpisodeAirDate("2026-10-07", today), "in 7 days");
+test("Given an episode airing today or tomorrow, When formatted, Then it reads Today or Tomorrow", () => {
+  assert.equal(formatEpisodeAirDate("2026-09-30", today), "Today");
+  assert.equal(formatEpisodeAirDate("2026-10-01", today), "Tomorrow");
 });
 
-test("past, current and distant air dates are unchanged", () => {
-  assert.equal(formatEpisodeAirDate("2026-09-01", today), "2026-09-01");
-  assert.equal(formatEpisodeAirDate("2026-09-30", today), "2026-09-30");
-  assert.equal(formatEpisodeAirDate("2026-10-08", today), "2026-10-08");
+test("Given an episode within the next week, When formatted, Then it counts down in days", () => {
+  assert.equal(formatEpisodeAirDate("2026-10-02", today), "In 2 days");
+  assert.equal(formatEpisodeAirDate("2026-10-07", today), "In 7 days");
 });
 
-test("missing air dates use the fallback", () => {
-  assert.equal(formatEpisodeAirDate("", today), "Air date not announced");
-  assert.equal(formatEpisodeAirDate(undefined, today), "Air date not announced");
+test("Given past or distant air dates, When formatted, Then they show a short date with the year only when it differs", () => {
+  assert.equal(formatEpisodeAirDate("2026-09-01", today), "Sep 1");
+  assert.equal(formatEpisodeAirDate("2026-10-08", today), "Oct 8");
+  assert.equal(formatEpisodeAirDate("2025-03-18", today), "Mar 18, 2025");
+});
+
+test("Given no air date, When formatted, Then no release state is invented", () => {
+  assert.equal(formatEpisodeAirDate("", today), null);
+  assert.equal(formatEpisodeAirDate(undefined, today), null);
+});
+
+test("Given air dates, When checking release, Then only dated future episodes are unreleased", () => {
+  assert.equal(isUnreleased("2026-10-01", today), true);
+  assert.equal(isUnreleased("2026-09-30", today), false);
+  assert.equal(isUnreleased(null, today), false);
 });

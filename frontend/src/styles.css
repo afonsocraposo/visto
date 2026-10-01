@@ -107,6 +107,15 @@ select {
   outline-color: var(--visto-focus);
 }
 
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
 .mantine-Notifications-root[data-position="bottom-center"] {
   bottom: calc(var(--visto-footer-height, 0px) + 16px);
 }
@@ -1275,6 +1284,32 @@ button.watch-row-show {
 .detail-actions .mantine-Button-root {
   min-height: 42px;
 }
+.detail-actions-wide {
+  display: contents;
+}
+@media (max-width: 680px) {
+  .detail-actions-wide {
+    display: none;
+  }
+}
+.detail-hero .detail-actions .mantine-Button-root[data-variant="default"],
+.detail-hero .detail-overflow-action {
+  border-color: rgb(255 255 255 / 0.22);
+  background: rgb(255 255 255 / 0.12);
+  color: #fff;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+@media (hover: hover) and (pointer: fine) {
+  .detail-hero .detail-actions .mantine-Button-root[data-variant="default"]:hover,
+  .detail-hero .detail-overflow-action:hover {
+    background: rgb(255 255 255 / 0.2);
+  }
+}
+.detail-hero .detail-actions .mantine-Button-root[data-variant="light"] {
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
 .detail-rating {
   display: inline-flex;
   align-items: center;
@@ -1401,42 +1436,168 @@ button.watch-row-show {
 .rating-star.is-filled {
   color: var(--visto-accent);
 }
-.detail-actions .mantine-Select-input {
-  background: rgb(255 255 255 / 0.12);
-  color: #fff;
-  border-color: rgb(255 255 255 / 0.2);
-}
 .detail-section {
   margin-top: 28px;
 }
-.episode-row {
+/* Your tracking: status, rating and alerts in one predictable place below the hero. */
+.tracking-section {
+  margin-top: 20px;
+}
+.tracking-heading {
+  margin: 0 0 8px;
+  color: var(--mantine-color-dimmed);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.tracking-rows {
   overflow: hidden;
-  background: var(--mantine-color-body);
+  border: 1px solid var(--visto-border);
+  border-radius: var(--visto-radius-card);
+  background: var(--visto-surface);
+}
+.tracking-row {
+  display: flex;
+  width: 100%;
+  min-height: 52px;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 14px;
+  border: 0;
+  background: none;
+  color: var(--mantine-color-text);
+  font: inherit;
+  text-align: left;
+  transition: background-color var(--visto-motion-fast) var(--visto-ease-standard);
+}
+.tracking-row + .tracking-row {
+  border-top: 1px solid var(--visto-border);
+}
+button.tracking-row,
+label.tracking-row {
+  cursor: pointer;
+}
+@media (hover: hover) and (pointer: fine) {
+  button.tracking-row:hover {
+    background: var(--mantine-color-default-hover);
+  }
+}
+.tracking-row:focus-visible {
+  outline: 2px solid var(--visto-focus);
+  outline-offset: -2px;
+}
+.tracking-row-label {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  gap: 6px;
+  color: var(--mantine-color-dimmed);
+  font-size: 0.92rem;
+}
+.tracking-row-value {
+  font-weight: 650;
+}
+.tracking-row-chevron {
+  color: var(--mantine-color-dimmed);
+}
+@media (min-width: 900px) {
+  .tracking-section {
+    max-width: 560px;
+  }
+}
+
+/* Season browsing: a sticky toolbar that only changes surface once it is stuck. */
+.season-section-heading {
+  margin-bottom: 4px;
+}
+.season-toolbar {
+  position: sticky;
+  z-index: 5;
+  top: var(--visto-header-height);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 -12px 10px;
+  padding: 6px 12px;
+  border: 1px solid transparent;
+  border-radius: 0 0 var(--visto-radius-card) var(--visto-radius-card);
+  background: transparent;
   transition:
-    transform var(--visto-motion-normal) var(--visto-ease-standard),
-    border-color var(--visto-motion-normal) var(--visto-ease-standard);
+    background-color 150ms var(--visto-ease-standard),
+    border-color 150ms var(--visto-ease-standard),
+    box-shadow 150ms var(--visto-ease-standard);
+}
+.season-toolbar[data-stuck] {
+  border-color: var(--visto-border);
+  border-top-color: transparent;
+  background: var(--visto-surface-glass);
+  box-shadow: var(--visto-shadow-bar);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+.season-select {
+  width: auto;
+}
+.season-select .mantine-Select-input {
+  width: 11ch;
+  min-height: var(--visto-touch-target);
+  padding-right: 28px;
+  color: var(--mantine-color-text);
+  font-size: 1.15rem;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  cursor: pointer;
+}
+.season-bulk-action {
+  min-height: var(--visto-touch-target);
+}
+.episode-list {
+  display: grid;
+  gap: 8px;
+}
+
+/* Episode rows: number · title, code · release, one line of overview; separate watch toggle. */
+.episode-row {
+  position: relative;
+  display: flex;
+  min-height: 112px;
+  align-items: stretch;
+  overflow: hidden;
+  border: 1px solid var(--visto-border);
+  border-radius: var(--visto-radius-card);
+  background: var(--visto-surface);
+  transition:
+    border-color var(--visto-motion-normal) var(--visto-ease-standard),
+    background-color var(--visto-motion-slow) var(--visto-ease-standard),
+    transform var(--visto-motion-fast) var(--visto-ease-standard);
 }
 @media (hover: hover) and (pointer: fine) {
   .episode-row:hover {
-    transform: translateX(3px);
     border-color: var(--visto-border-strong);
   }
 }
-.episode-row-layout {
-  min-height: 132px;
-  align-items: stretch;
+.episode-row:has(.episode-row-open:focus-visible) {
+  outline: 2px solid var(--visto-focus);
+  outline-offset: 2px;
 }
-.episode-row-main {
-  min-width: 0;
-  flex: 1;
-  align-items: stretch;
+.episode-row.is-just-watched {
+  animation: episode-row-success 600ms var(--visto-ease-standard);
+}
+@keyframes episode-row-success {
+  0%,
+  35% {
+    border-color: var(--visto-success);
+    background: color-mix(in srgb, var(--visto-success) 12%, var(--visto-surface));
+  }
 }
 .episode-art {
-  width: 220px;
-  min-height: 132px;
-  flex: 0 0 220px;
+  width: 200px;
+  flex: 0 0 200px;
   overflow: hidden;
   background: var(--visto-artwork-bg);
+  transition: opacity var(--visto-motion-slow) var(--visto-ease-standard);
 }
 .episode-art .mantine-Image-root,
 .episode-art img {
@@ -1445,30 +1606,136 @@ button.watch-row-show {
   height: 100%;
   object-fit: cover;
 }
+.episode-row.is-watched .episode-art {
+  opacity: 0.6;
+}
 .episode-row-copy {
+  display: flex;
   min-width: 0;
-  align-self: center;
-  padding: 14px 16px;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  padding: 12px 8px 12px 16px;
 }
-.episode-row-controls {
-  align-self: center;
-  flex: 0 0 auto;
-  margin-right: 16px;
+.episode-row-title {
+  display: block;
+  overflow: hidden;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--mantine-color-text);
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.3;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
-.episode-row-controls .mantine-Checkbox-root {
-  padding: 8px;
+.episode-row-title::after {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  content: "";
 }
-.episode-row-controls .mantine-Checkbox-input:focus-visible {
-  outline: 2px solid var(--visto-accent);
-  outline-offset: 3px;
+.episode-row-title:focus-visible {
+  outline: none;
+}
+.episode-row-number {
+  font-variant-numeric: tabular-nums;
+}
+.episode-row-meta {
+  display: flex;
+  flex-wrap: wrap;
+  margin: 0;
+  color: var(--mantine-color-dimmed);
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+}
+.episode-row-meta > span + span::before {
+  margin-inline: 7px;
+  content: "·";
+}
+.episode-row-meta .is-upcoming {
+  color: var(--visto-accent-strong);
+  font-weight: 650;
 }
 .episode-description {
   display: -webkit-box;
-  max-width: 610px;
+  max-width: 620px;
+  margin: 3px 0 0;
   overflow: hidden;
+  color: var(--mantine-color-dimmed);
+  font-size: 0.88rem;
+  line-height: 1.4;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
-  line-height: 1.4;
+}
+.episode-row-controls {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 2px;
+  padding-right: 8px;
+}
+.episode-check {
+  display: grid;
+  width: var(--visto-touch-target);
+  height: var(--visto-touch-target);
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  cursor: pointer;
+}
+.episode-check:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.episode-check-mark {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border: 2px solid var(--visto-border-strong);
+  border-radius: 999px;
+  color: transparent;
+  transition:
+    background-color var(--visto-motion-normal) var(--visto-ease-standard),
+    border-color var(--visto-motion-normal) var(--visto-ease-standard),
+    color var(--visto-motion-normal) var(--visto-ease-standard);
+}
+.episode-check[aria-checked="true"] .episode-check-mark {
+  border-color: var(--visto-success);
+  background: var(--visto-success);
+  color: #fff;
+}
+.episode-row.is-just-watched .episode-check-mark {
+  animation: check-pop 240ms var(--visto-ease-standard);
+}
+@keyframes check-pop {
+  0% {
+    transform: scale(0.8);
+  }
+  55% {
+    transform: scale(1.1);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.episode-check:focus-visible {
+  outline: 2px solid var(--visto-focus);
+  outline-offset: -2px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .episode-check:not(:disabled):hover .episode-check-mark {
+    border-color: var(--visto-success);
+  }
 }
 .detail-hint {
   margin-top: 20px;
@@ -2105,25 +2372,30 @@ button.watch-row-show {
   .person-facts {
     justify-content: center;
   }
-  .episode-row-layout {
-    min-height: 104px;
+  .episode-row {
+    min-height: 96px;
   }
   .episode-art {
-    width: 112px;
-    min-height: 104px;
-    flex-basis: 112px;
+    width: 104px;
+    flex-basis: 104px;
   }
   .episode-row-copy {
-    padding: 9px 10px;
+    padding: 9px 4px 9px 12px;
+  }
+  .episode-row-title {
+    font-size: 0.94rem;
+  }
+  .episode-description {
+    -webkit-line-clamp: 1;
   }
   .episode-row-controls {
-    margin-right: 8px;
+    padding-right: 2px;
   }
-  .detail-actions .mantine-Select-root {
-    width: 130px !important;
+  .episode-row-more {
+    display: none;
   }
-  .detail-actions > .show-bulk-action {
-    width: 44px;
+  .season-toolbar {
+    margin-inline: -12px;
   }
   .section-tabs {
     flex: 1;

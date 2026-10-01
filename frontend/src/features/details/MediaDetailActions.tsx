@@ -1,10 +1,12 @@
-import { ActionIcon, Button, Group, Menu, Select, Text, Tooltip } from "@mantine/core";
+import type { ReactNode } from "react";
+import { ActionIcon, Button, Group, Menu, Switch, Text } from "@mantine/core";
 import {
   IconBell,
-  IconBellOff,
   IconBookmark,
+  IconBookmarkFilled,
   IconCheck,
   IconChevronDown,
+  IconChevronRight,
   IconDots,
   IconEye,
   IconEyeOff,
@@ -12,6 +14,7 @@ import {
   IconEdit,
   IconPlus,
   IconRefresh,
+  IconTrash,
 } from "@tabler/icons-react";
 import { RatingStars } from "../../components/RatingStars";
 import type { SearchMedia, ShowEpisodeEntry } from "../../types";
@@ -99,17 +102,84 @@ export function EpisodeActions({
   );
 }
 
+export type ListStatus = "watching" | "watchlist" | "paused" | "dropped" | "completed";
+
+export const statusLabels: Record<ListStatus, string> = {
+  watching: "Watching",
+  watchlist: "Watchlist",
+  paused: "Paused",
+  dropped: "Dropped",
+  completed: "Completed",
+};
+
+function listOptions(media: SearchMedia): ListStatus[] {
+  if (media.type === "movie") return ["watchlist"];
+  const ended = ["Ended", "Canceled", "Cancelled"].includes(media.status ?? "");
+  return ["watching", "watchlist", "paused", "dropped", ...(ended ? ["completed" as const] : [])];
+}
+
+/** Picks the list a title belongs to. Used by the hero status button and the tracking row. */
+export function StatusMenu({
+  media,
+  status,
+  onChange,
+  onRemove,
+  disabled,
+  children,
+}: {
+  media: SearchMedia;
+  status?: ListStatus;
+  onChange: (status: ListStatus) => void;
+  onRemove?: () => void;
+  disabled?: boolean;
+  children: ReactNode;
+}) {
+  const options =
+    status === "completed" && media.type === "tv" ? ["completed" as const] : listOptions(media);
+  return (
+    <Menu withinPortal position="bottom-start" disabled={disabled}>
+      <Menu.Target>{children}</Menu.Target>
+      <Menu.Dropdown>
+        <Menu.Label>Move to list</Menu.Label>
+        {options.map((option) => (
+          <Menu.Item
+            key={option}
+            rightSection={status === option ? <IconCheck size={15} /> : undefined}
+            onClick={() => {
+              if (option === status) return;
+              if (
+                option === "completed" &&
+                media.type === "tv" &&
+                !window.confirm(completionQuestion)
+              )
+                return;
+              onChange(option);
+            }}
+          >
+            {statusLabels[option]}
+            {status === option && <span className="visually-hidden"> (current)</span>}
+          </Menu.Item>
+        ))}
+        {status && onRemove && status !== "completed" && (
+          <>
+            <Menu.Divider />
+            <Menu.Item color="red" leftSection={<IconTrash size={15} />} onClick={onRemove}>
+              Remove from {statusLabels[status]}
+            </Menu.Item>
+          </>
+        )}
+      </Menu.Dropdown>
+    </Menu>
+  );
+}
+
 type MediaActionsProps = {
   media: SearchMedia;
   isSaved: boolean;
-  status?: string;
-  rating?: number | null;
-  notificationsEnabled: boolean;
-  add: ActionMutation<"watching" | "watchlist" | "paused" | "dropped" | "completed">;
-  update: ActionMutation<{ status: string; rating: number | null; confirm_all_episodes?: boolean }>;
-  updateNotifications: ActionMutation<boolean>;
-  notificationMode: "episode" | "season" | "off" | "";
-  onOpenNotifications: () => void;
+  status?: ListStatus;
+  add: ActionMutation<ListStatus>;
+  onChangeStatus: (status: ListStatus) => void;
+  statusPending: boolean;
   watched: boolean;
   onWatch: () => void;
   onUnwatch: () => void;
@@ -126,17 +196,17 @@ type MediaActionsProps = {
   disabled: boolean;
 };
 
+/**
+ * The hero's primary actions: at most two labelled buttons and an overflow menu, so touch users
+ * never depend on icon-only controls and tooltips.
+ */
 export function MediaActions({
   media,
   isSaved,
   status,
-  rating,
-  notificationsEnabled,
   add,
-  update,
-  updateNotifications,
-  notificationMode,
-  onOpenNotifications,
+  onChangeStatus,
+  statusPending,
   watched,
   onWatch,
   onUnwatch,
@@ -152,35 +222,57 @@ export function MediaActions({
   removePending,
   disabled,
 }: MediaActionsProps) {
-  if (media.type === "movie")
+  const overflow = (items: ReactNode, label: string) => (
+    <Menu withinPortal position="bottom-end">
+      <Menu.Target>
+        <ActionIcon
+          className="detail-overflow-action"
+          size={42}
+          variant="default"
+          aria-label={label}
+          disabled={disabled}
+        >
+          <IconDots size={18} />
+        </ActionIcon>
+      </Menu.Target>
+      <Menu.Dropdown>{items}</Menu.Dropdown>
+    </Menu>
+  );
+
+  if (media.type === "movie") {
+    const inWatchlist = isSaved && status === "watchlist";
     return (
-      <Group className="detail-actions detail-icon-actions" mt="lg" gap="xs">
-        <Tooltip label={watched ? "Mark unwatched" : "Mark watched"} withArrow>
-          <ActionIcon
-            size="lg"
-            color="yellow"
-            variant="filled"
-            aria-label={`Mark ${media.title} ${watched ? "unwatched" : "watched"}`}
-            onClick={watched ? onUnwatch : onWatch}
-            loading={watched ? removePending : watchPending}
+      <Group className="detail-actions" mt="lg" gap="xs">
+        <Button
+          className="detail-primary-action"
+          color={watched ? "teal" : "yellow"}
+          variant={watched ? "light" : "filled"}
+          leftSection={watched ? <IconCheck size={18} /> : <IconEye size={18} />}
+          aria-label={`Mark ${media.title} ${watched ? "unwatched" : "watched"}`}
+          onClick={watched ? onUnwatch : onWatch}
+          loading={watched ? removePending : watchPending}
+          disabled={disabled}
+        >
+          {watched ? "Watched" : "Mark watched"}
+        </Button>
+        {!watched && (
+          <ToggleButton
+            active={inWatchlist}
+            activeLabel="In Watchlist"
+            label="Watchlist"
+            activeIcon={<IconBookmarkFilled size={17} />}
+            icon={<IconBookmark size={17} />}
+            aria-label={
+              inWatchlist ? `Remove ${media.title} from Watchlist` : `Save ${media.title} for later`
+            }
+            onClick={inWatchlist ? onRemoveWatchlist : () => add.mutate("watchlist")}
+            loading={watchlistPending || (add.isPending && add.variables === "watchlist")}
             disabled={disabled}
-          >
-            {watched ? <IconCheck size={18} /> : <IconEye size={18} />}
-          </ActionIcon>
-        </Tooltip>
-        {watched ? (
-          <Menu withinPortal position="bottom-start">
-            <Menu.Target>
-              <ActionIcon
-                size="lg"
-                variant="default"
-                aria-label={`More actions for ${media.title}`}
-                disabled={disabled}
-              >
-                <IconChevronDown size={18} />
-              </ActionIcon>
-            </Menu.Target>
-            <Menu.Dropdown>
+          />
+        )}
+        {watched &&
+          overflow(
+            <>
               <Menu.Item leftSection={<IconRefresh size={16} />} onClick={onWatch}>
                 Mark rewatched
               </Menu.Item>
@@ -190,181 +282,271 @@ export function MediaActions({
               <Menu.Item leftSection={<IconEdit size={16} />} onClick={onChangeWatchDate}>
                 Change watch date
               </Menu.Item>
-            </Menu.Dropdown>
-          </Menu>
-        ) : (
-          <Tooltip label={isSaved ? "Remove from Watchlist" : "Save for later"} withArrow>
-            <ActionIcon
-              size="lg"
-              variant={isSaved ? "light" : "default"}
-              aria-label={`${isSaved ? "Remove" : "Save"} ${media.title} ${isSaved ? "from Watchlist" : "for later"}`}
-              onClick={isSaved ? onRemoveWatchlist : () => add.mutate("watchlist")}
-              loading={
-                isSaved
-                  ? watchlistPending
-                  : watchlistPending || (add.isPending && add.variables === "watchlist")
-              }
-              disabled={disabled}
-            >
-              <IconBookmark size={18} />
-            </ActionIcon>
-          </Tooltip>
-        )}
-        {isSaved && (
-          <RatingStars
-            value={rating}
-            onChange={(value) => update.mutate({ status: status!, rating: value })}
-            label="Media rating"
-            disabled={disabled}
-            size="md"
-          />
-        )}
-        {isSaved &&
-          showMovieReleaseAlert(
-            status,
-            media.release_date,
-            new Date().toISOString().slice(0, 10),
-          ) && (
-            <Button
-              variant={notificationsEnabled ? "filled" : "default"}
-              color={notificationsEnabled ? "yellow" : undefined}
-              aria-label={movieReleaseAlertLabel(notificationsEnabled)}
-              aria-pressed={notificationsEnabled}
-              loading={updateNotifications.isPending}
-              onClick={() => updateNotifications.mutate(!notificationsEnabled)}
-              leftSection={
-                notificationsEnabled ? <IconBell size={20} /> : <IconBellOff size={20} />
-              }
-            >
-              {movieReleaseAlertLabel(notificationsEnabled)}
-            </Button>
+              <Menu.Divider />
+              <Menu.Item leftSection={<IconEyeOff size={16} />} onClick={onUnwatch}>
+                Mark unwatched
+              </Menu.Item>
+            </>,
+            `More actions for ${media.title}`,
           )}
       </Group>
     );
-  const showWatchAction = showBulkAction && (
-    <Tooltip
-      label={showBulkAction === "watch" ? "Mark show watched" : "Mark show unwatched"}
-      withArrow
+  }
+
+  const bulkWatch = showBulkAction === "watch" && (
+    <Button
+      className="show-bulk-action"
+      variant={isSaved ? "filled" : "default"}
+      color={isSaved ? "yellow" : undefined}
+      leftSection={<IconEye size={18} />}
+      aria-label={`Mark ${media.title} watched`}
+      onClick={onShowBulkAction}
+      loading={showBulkPending}
+      disabled={disabled || add.isPending}
     >
-      <ActionIcon
-        className="show-bulk-action"
-        size={44}
-        color="yellow"
-        variant="light"
-        aria-label={`Mark ${media.title} ${showBulkAction === "watch" ? "watched" : "unwatched"}`}
-        onClick={onShowBulkAction}
-        loading={showBulkPending}
-        disabled={disabled || add.isPending}
-      >
-        {showBulkAction === "watch" ? <IconEye size={20} /> : <IconCheck size={20} />}
-      </ActionIcon>
-    </Tooltip>
+      Mark watched
+    </Button>
   );
+  const bulkUnwatchItem = showBulkAction === "unwatch" && (
+    <Menu.Item leftSection={<IconEyeOff size={16} />} onClick={onShowBulkAction}>
+      Mark {media.title} unwatched
+    </Menu.Item>
+  );
+
   if (!isSaved)
     return (
-      <Group className="detail-actions detail-icon-actions" mt="lg" gap="xs">
-        <Tooltip label="Add to Watching" withArrow>
-          <ActionIcon
-            size={44}
-            color="yellow"
-            variant="filled"
-            loading={add.isPending && add.variables === "watching"}
-            disabled={disabled || add.isPending}
-            aria-label={`Add ${media.title} to Watching`}
-            onClick={() => add.mutate("watching")}
-          >
-            <IconPlus size={20} />
-          </ActionIcon>
-        </Tooltip>
-        <Tooltip label="Watch later" withArrow>
-          <ActionIcon
-            size={44}
-            variant="default"
-            loading={add.isPending && add.variables === "watchlist"}
-            disabled={disabled || add.isPending}
-            aria-label={`Save ${media.title} for later`}
-            onClick={() => add.mutate("watchlist")}
-          >
-            <IconBookmark size={20} />
-          </ActionIcon>
-        </Tooltip>
-        <Select
-          aria-label="Add to list"
-          placeholder="Choose list"
-          value={null}
-          onChange={(value) => {
-            if (!value) return;
-            if (value === "completed" && !window.confirm(completionQuestion)) return;
-            add.mutate(value as "watching" | "watchlist" | "paused" | "dropped" | "completed");
-          }}
-          data={[
-            { value: "watchlist", label: "Watchlist" },
-            { value: "watching", label: "Watching" },
-            { value: "paused", label: "Paused" },
-            { value: "dropped", label: "Dropped" },
-            ...(["Ended", "Canceled", "Cancelled"].includes(media.status ?? "")
-              ? [{ value: "completed", label: "Completed" }]
-              : []),
-          ]}
+      <Group className="detail-actions" mt="lg" gap="xs">
+        <Button
+          className="detail-primary-action"
+          leftSection={<IconPlus size={18} />}
+          loading={add.isPending && add.variables === "watching"}
           disabled={disabled || add.isPending}
-          w={150}
-        />
-        {showWatchAction}
-      </Group>
-    );
-  const statusOptions = [
-    { value: "watchlist", label: "Watchlist" },
-    { value: "watching", label: "Watching" },
-    { value: "paused", label: "Paused" },
-    { value: "dropped", label: "Dropped" },
-    ...(["Ended", "Canceled", "Cancelled"].includes(media.status ?? "")
-      ? [{ value: "completed", label: "Completed" }]
-      : []),
-  ];
-  return (
-    <Group className="detail-actions" mt="lg">
-      <Select
-        aria-label="Current list"
-        allowDeselect={status !== "completed"}
-        value={status}
-        onChange={(value) => {
-          if (value) {
-            if (value === "completed" && status !== "completed") {
-              if (!window.confirm(completionQuestion)) return;
-              update.mutate({ status: value, rating: rating ?? null, confirm_all_episodes: true });
-            } else update.mutate({ status: value, rating: rating ?? null });
-          } else if (status === "watchlist") onRemoveWatchlist();
-          else onRemoveCurrentList();
-        }}
-        data={status === "completed" ? [{ value: "completed", label: "Completed" }] : statusOptions}
-        disabled={disabled || update.isPending}
-        w={150}
-      />
-      {showWatchAction}
-      <RatingStars
-        value={rating}
-        onChange={(value) => update.mutate({ status: status!, rating: value })}
-        label="Media rating"
-        disabled={disabled || update.isPending}
-        size="md"
-      />
-      {status === "watching" && (
+          aria-label={`Add ${media.title} to Watching`}
+          onClick={() => add.mutate("watching")}
+        >
+          Watching
+        </Button>
         <Button
           variant="default"
-          onClick={onOpenNotifications}
-          leftSection={
-            notificationMode === "off" ? <IconBellOff size={20} /> : <IconBell size={20} />
-          }
+          leftSection={<IconBookmark size={17} />}
+          loading={add.isPending && add.variables === "watchlist"}
+          disabled={disabled || add.isPending}
+          aria-label={`Save ${media.title} for later`}
+          onClick={() => add.mutate("watchlist")}
         >
-          {notificationMode === "season"
-            ? "Notifications · Every full season"
-            : notificationMode === "episode"
-              ? "Notifications · Every episode"
-              : notificationMode === "off"
-                ? "Notifications off"
-                : "Choose notifications"}
+          Watchlist
         </Button>
-      )}
+        {overflow(
+          <>
+            <Menu.Label>Add to list</Menu.Label>
+            {listOptions(media)
+              .filter((option) => option !== "watching" && option !== "watchlist")
+              .map((option) => (
+                <Menu.Item
+                  key={option}
+                  onClick={() => {
+                    if (option === "completed" && !window.confirm(completionQuestion)) return;
+                    add.mutate(option);
+                  }}
+                >
+                  {statusLabels[option]}
+                </Menu.Item>
+              ))}
+            {showBulkAction === "watch" && (
+              <>
+                <Menu.Divider />
+                <Menu.Item leftSection={<IconEye size={16} />} onClick={onShowBulkAction}>
+                  Mark seasons watched…
+                </Menu.Item>
+              </>
+            )}
+            {bulkUnwatchItem}
+          </>,
+          `More actions for ${media.title}`,
+        )}
+        {/* Bulk marking stays reachable as a labelled button on wide screens. */}
+        <span className="detail-actions-wide">{bulkWatch}</span>
+      </Group>
+    );
+
+  return (
+    <Group className="detail-actions" mt="lg" gap="xs">
+      <StatusMenu
+        media={media}
+        status={status}
+        onChange={onChangeStatus}
+        onRemove={status === "watchlist" ? onRemoveWatchlist : onRemoveCurrentList}
+        disabled={disabled || statusPending}
+      >
+        <Button
+          className="detail-status-button"
+          variant="default"
+          rightSection={<IconChevronDown size={16} />}
+          loading={statusPending}
+          aria-label={`List: ${status ? statusLabels[status] : "None"}. Change list`}
+        >
+          {status ? statusLabels[status] : "Add to list"}
+        </Button>
+      </StatusMenu>
+      {bulkWatch}
+      {(bulkUnwatchItem || status !== "completed") &&
+        overflow(
+          <>
+            {bulkUnwatchItem}
+            {status && status !== "completed" && (
+              <Menu.Item
+                color="red"
+                leftSection={<IconTrash size={16} />}
+                onClick={status === "watchlist" ? onRemoveWatchlist : onRemoveCurrentList}
+              >
+                Remove from {statusLabels[status]}
+              </Menu.Item>
+            )}
+          </>,
+          `More actions for ${media.title}`,
+        )}
     </Group>
   );
 }
+
+function ToggleButton({
+  active,
+  label,
+  activeLabel,
+  icon,
+  activeIcon,
+  ...props
+}: {
+  active: boolean;
+  label: string;
+  activeLabel: string;
+  icon: ReactNode;
+  activeIcon: ReactNode;
+  "aria-label": string;
+  onClick: () => void;
+  loading: boolean;
+  disabled: boolean;
+}) {
+  return (
+    <Button
+      className="state-toggle"
+      data-active={active || undefined}
+      variant={active ? "light" : "default"}
+      aria-pressed={active}
+      leftSection={
+        <span key={String(active)} className="state-toggle-icon">
+          {active ? activeIcon : icon}
+        </span>
+      }
+      {...props}
+    >
+      {active ? activeLabel : label}
+    </Button>
+  );
+}
+
+const alertModeLabels = {
+  episode: "Every episode",
+  season: "Every full season",
+  off: "Off",
+  "": "Choose",
+} as const;
+
+/** Everything personal about a saved title in one predictable place below the hero. */
+export function TrackingSection({
+  media,
+  status,
+  rating,
+  onRate,
+  ratingPending,
+  onChangeStatus,
+  onRemove,
+  statusPending,
+  alerts,
+}: {
+  media: SearchMedia;
+  status?: ListStatus;
+  rating?: number | null;
+  onRate: (rating: number | null) => void;
+  ratingPending: boolean;
+  onChangeStatus: (status: ListStatus) => void;
+  onRemove: () => void;
+  statusPending: boolean;
+  alerts:
+    | { kind: "show"; mode: "episode" | "season" | "off" | ""; onOpen: () => void }
+    | { kind: "movie"; enabled: boolean; pending: boolean; onToggle: (enabled: boolean) => void }
+    | null;
+}) {
+  return (
+    <section className="tracking-section" aria-labelledby="tracking-heading">
+      <h2 id="tracking-heading" className="tracking-heading">
+        Your tracking
+      </h2>
+      <div className="tracking-rows">
+        <StatusMenu
+          media={media}
+          status={status}
+          onChange={onChangeStatus}
+          onRemove={onRemove}
+          disabled={statusPending}
+        >
+          <button
+            type="button"
+            className="tracking-row"
+            aria-label={`Status: ${status ? statusLabels[status] : "None"}. Change list`}
+          >
+            <span className="tracking-row-label">Status</span>
+            <span className="tracking-row-value">{status ? statusLabels[status] : "None"}</span>
+            <IconChevronRight className="tracking-row-chevron" size={18} aria-hidden="true" />
+          </button>
+        </StatusMenu>
+        <div className="tracking-row is-static">
+          <span className="tracking-row-label" id="tracking-rating-label">
+            Your rating
+          </span>
+          <RatingStars
+            value={rating}
+            onChange={onRate}
+            label="Media rating"
+            disabled={ratingPending}
+            size="md"
+          />
+        </div>
+        {alerts?.kind === "show" && (
+          <button
+            type="button"
+            className="tracking-row"
+            aria-label={`Alerts: ${alertModeLabels[alerts.mode]}. Change alerts`}
+            onClick={alerts.onOpen}
+          >
+            <span className="tracking-row-label">
+              <IconBell size={16} aria-hidden="true" /> Alerts
+            </span>
+            <span className="tracking-row-value">{alertModeLabels[alerts.mode]}</span>
+            <IconChevronRight className="tracking-row-chevron" size={18} aria-hidden="true" />
+          </button>
+        )}
+        {alerts?.kind === "movie" && (
+          <label className="tracking-row">
+            <span className="tracking-row-label">
+              <IconBell size={16} aria-hidden="true" /> Release alert
+            </span>
+            <Switch
+              checked={alerts.enabled}
+              disabled={alerts.pending}
+              aria-label={movieReleaseAlertLabel(alerts.enabled)}
+              onChange={(event) => alerts.onToggle(event.currentTarget.checked)}
+            />
+          </label>
+        )}
+      </div>
+      {!status && (
+        <Text size="xs" c="dimmed" mt={6}>
+          Add this title to a list to keep your rating and alerts.
+        </Text>
+      )}
+    </section>
+  );
+}
+
+export { showMovieReleaseAlert };

@@ -291,7 +291,7 @@ test("Given an Upcoming episode, When the user opens its season and selects anot
   await expect(page.getByRole("combobox", { name: "Season" })).toHaveValue("Season 1");
   await page.getByRole("combobox", { name: "Season" }).click();
   await page.getByRole("option", { name: "Season 2" }).click();
-  await expect(page.getByText("S02E01 — Season 2 premiere")).toBeVisible();
+  await expect(page.getByRole("button", { name: "1 · Season 2 premiere" })).toBeVisible();
   await expect(page.getByText("Episode overview.")).toHaveCount(0);
   await expect(page).toHaveURL(/season=2/);
   await page.getByRole("button", { name: "Back" }).click();
@@ -307,8 +307,8 @@ test("Given an Upcoming episode, When the user opens its season and selects anot
   await expect(page.getByRole("heading", { name: "Upcoming episodes" })).toBeVisible();
 
   await page.goto("/media/tv/100?from=%2F&media=tv%3A100&season=2");
-  await expect(page.getByText("S02E01 — Season 2 premiere")).toBeVisible();
-  await page.getByRole("button", { name: /S02E01 — Season 2 premiere/ }).click();
+  await expect(page.getByRole("button", { name: "1 · Season 2 premiere" })).toBeVisible();
+  await page.getByRole("button", { name: "1 · Season 2 premiere" }).click();
   await expect(page.getByRole("heading", { name: "Season 2 premiere" })).toBeVisible();
 });
 
@@ -952,19 +952,21 @@ test("Given a TV show detail, When the user uses compact watch controls, Then sh
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Add The Example Show to Watching" }).click();
   await expect.poll(() => savedStatus).toBe("watching");
-  await expect(page.getByRole("combobox", { name: "Current list" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Notifications · Every episode" })).toBeVisible();
-  await page.getByRole("button", { name: "Notifications · Every episode" }).click();
+  await expect(page.getByRole("button", { name: "List: Watching. Change list" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Alerts: Every episode. Change alerts" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Alerts: Every episode. Change alerts" }).click();
   await page.getByRole("radio", { name: "Turn off alerts" }).click();
-  await expect(page.getByRole("button", { name: "Notifications off" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Alerts: Off. Change alerts" })).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.getByRole("button", { name: "Mark The Example Show watched" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Mark season 1 watched" })).toBeVisible();
   await expect(page.getByRole("checkbox", { name: "Episode 1 watched" })).toBeVisible();
   allWatched = true;
   await page.reload();
-  await expect(page.getByRole("button", { name: "Mark The Example Show unwatched" })).toBeVisible();
-  await page.getByRole("button", { name: "Mark The Example Show unwatched" }).click();
+  await page.getByRole("button", { name: "More actions for The Example Show" }).click();
+  await page.getByRole("menuitem", { name: "Mark The Example Show unwatched" }).click();
   await expect(page.getByRole("dialog", { name: "Mark The Example Show unwatched" })).toBeVisible();
   await page.getByRole("button", { name: "Cancel" }).click();
   await expect(page.getByRole("button", { name: "Mark season 1 unwatched" })).toBeVisible();
@@ -992,22 +994,20 @@ test("Given a TV show detail, When the user uses compact watch controls, Then sh
   await page.reload();
   await page.getByRole("button", { name: "Save The Example Show for later" }).click();
   await expect.poll(() => savedStatus).toBe("watchlist");
-  await expect(page.getByRole("combobox", { name: "Current list" })).toHaveValue("Watchlist");
-  await expect(
-    page.getByRole("switch", { name: "New episode notifications for this show" }),
-  ).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "List: Watchlist. Change list" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Alerts:/ })).toHaveCount(0);
   page.once("dialog", (dialog) => dialog.accept());
-  await page.getByRole("combobox", { name: "Current list" }).click();
-  await page.getByRole("option", { name: "Completed" }).click();
+  await page.getByRole("button", { name: "List: Watchlist. Change list" }).click();
+  await page.getByRole("menuitem", { name: "Completed" }).click();
   await expect.poll(() => confirmedCompletion).toBe(true);
-  await expect(page.getByRole("combobox", { name: "Current list" })).toHaveValue("Completed");
+  await expect(page.getByRole("button", { name: "List: Completed. Change list" })).toBeVisible();
   await page
     .getByText("Show completed.")
     .locator("..")
     .getByRole("button", { name: "Undo" })
     .click();
   await expect.poll(() => savedStatus).toBe("watchlist");
-  await expect(page.getByRole("combobox", { name: "Current list" })).toHaveValue("Watchlist");
+  await expect(page.getByRole("button", { name: "List: Watchlist. Change list" })).toBeVisible();
 });
 
 test("A full-season alert can be switched back to episode alerts", async ({ page }) => {
@@ -1058,13 +1058,13 @@ test("A full-season alert can be switched back to episode alerts", async ({ page
   );
   await page.route("**/api/v1/discover/tv/100/related", (route) => fulfillJSON(route, []));
   await page.goto("/media/tv/100");
-  await expect(
-    page.getByRole("button", { name: "Notifications · Every full season" }),
-  ).toBeVisible();
-  await page.getByRole("button", { name: "Notifications · Every full season" }).click();
+  const alerts = (mode: string) =>
+    page.getByRole("button", { name: `Alerts: ${mode}. Change alerts` });
+  await expect(alerts("Every full season")).toBeVisible();
+  await alerts("Every full season").click();
   await page.getByRole("radio", { name: "Every new episode" }).click();
   await expect.poll(() => updatedMode).toBe("episode");
-  await expect(page.getByRole("button", { name: "Notifications · Every episode" })).toBeVisible();
+  await expect(alerts("Every episode")).toBeVisible();
 });
 
 test("Given a movie in Watchlist, When it is marked watched from search, Then Undo restores Watchlist", async ({

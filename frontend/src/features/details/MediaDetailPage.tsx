@@ -30,6 +30,7 @@ import {
   IconChevronRight,
   IconClock,
   IconEye,
+  IconEyeOff,
   IconRefresh,
 } from "@tabler/icons-react";
 import { fetchAllPages } from "../../lib/pagination";
@@ -53,9 +54,14 @@ import {
 } from "./watchSelection";
 import { resolveMediaID } from "./mediaIdentity";
 import { heroArtworkLayers, resolveMediaArtwork } from "./heroArtwork";
-import { EpisodeActions, MediaActions } from "./MediaDetailActions";
+import {
+  EpisodeActions,
+  MediaActions,
+  TrackingSection,
+  showMovieReleaseAlert,
+  type ListStatus,
+} from "./MediaDetailActions";
 import { chunk } from "./batch";
-import { formatEpisodeAirDate } from "../../lib/airDate";
 import {
   useDetailHistoryQuery,
   useEpisodeDetailsQuery,
@@ -69,6 +75,9 @@ import { getAdjacentEpisodes } from "./episodeNavigation";
 import { EpisodeTransition } from "./EpisodeTransition";
 import { EpisodeNavigator, episodeCode } from "./EpisodeNavigator";
 import { ClampedText } from "../../components/ClampedText";
+import { QueryError } from "../../components/QueryError";
+import { useStuck } from "../../components/useStuck";
+import { EpisodeRow } from "./EpisodeRow";
 import type { SwipeDirection } from "./episodeNavigation";
 import type { EpisodeRating, MediaDetailTarget, ShowEpisodeEntry } from "../../types";
 
@@ -128,6 +137,7 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
   const [showWatchModal, setShowWatchModal] = useState(false);
   const [showNotificationsOpen, setShowNotificationsOpen] = useState(false);
   const isMobile = useMediaQuery("(max-width: 680px)");
+  const { sentinel: seasonSentinel, stuck: seasonToolbarStuck } = useStuck<HTMLDivElement>();
   const [movieHistoryMode, setMovieHistoryMode] = useState<"view" | "edit" | null>(null);
   const [showWatchAction, setShowWatchAction] = useState<"watch" | "unwatch">("watch");
   const [selectedShowSeasons, setSelectedShowSeasons] = useState<Record<number, boolean>>({});
@@ -1009,6 +1019,12 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
           ...((media.type === "movie" ? movieGenres : library.data?.genres) ?? []).slice(0, 2),
         ]
   ).filter((fact): fact is string => Boolean(fact));
+  const changeStatus = (next: ListStatus) =>
+    update.mutate({
+      status: next,
+      rating: library.data?.item.rating ?? null,
+      ...(next === "completed" && media.type === "tv" ? { confirm_all_episodes: true } : {}),
+    });
   const openAdjacent = (direction: SwipeDirection) => {
     const adjacent =
       direction === "previous" ? adjacentEpisodes.previousEpisode : adjacentEpisodes.nextEpisode;
@@ -1298,14 +1314,10 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
               <MediaActions
                 media={media}
                 isSaved={isSaved}
-                status={status}
-                rating={library.data?.item.rating}
-                notificationsEnabled={library.data?.item.notifications_enabled ?? true}
+                status={status as ListStatus | undefined}
                 add={add}
-                update={update}
-                updateNotifications={updateNotifications}
-                notificationMode={showNotificationMode}
-                onOpenNotifications={() => setShowNotificationsOpen(true)}
+                onChangeStatus={changeStatus}
+                statusPending={update.isPending}
                 watched={Boolean(watchedPlay) || library.data?.item.status === "completed"}
                 onWatch={() => markMovieWatched.mutate()}
                 onUnwatch={() => removeMovieWatches.mutate()}
@@ -1336,6 +1348,40 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
           </div>
         </div>
       </section>
+      {!selectedEpisode && isSaved && (
+        <TrackingSection
+          media={media}
+          status={status as ListStatus | undefined}
+          rating={library.data?.item.rating}
+          onRate={(rating) => update.mutate({ status: status!, rating })}
+          ratingPending={update.isPending}
+          onChangeStatus={changeStatus}
+          onRemove={() =>
+            status === "watchlist"
+              ? removeWatchlist.mutate()
+              : removeCurrentList.mutate(status as "watching" | "paused" | "dropped")
+          }
+          statusPending={update.isPending}
+          alerts={
+            media.type === "tv"
+              ? status === "watching"
+                ? {
+                    kind: "show",
+                    mode: showNotificationMode,
+                    onOpen: () => setShowNotificationsOpen(true),
+                  }
+                : null
+              : showMovieReleaseAlert(status, media.release_date, today)
+                ? {
+                    kind: "movie",
+                    enabled: library.data?.item.notifications_enabled ?? true,
+                    pending: updateNotifications.isPending,
+                    onToggle: (enabled) => updateNotifications.mutate(enabled),
+                  }
+                : null
+          }
+        />
+      )}
       {selectedEpisode && (
         <EpisodeNavigator
           current={selectedEpisode.episode}
@@ -1421,103 +1467,95 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
           </Alert>
         )}
         {target.mediaType === "tv" && !selectedEpisode && (
-          <section className="detail-section">
-            <Group justify="space-between" align="end" mb="sm">
-              <div>
-                <Text className="section-kicker">{isSaved ? "Your catalog" : "From TMDB"}</Text>
-                <Title order={2}>Seasons & episodes</Title>
-              </div>
-              <Group gap="xs">
-                <Group gap="xs" wrap="nowrap">
-                  {seasons.length > 0 && (
-                    <Select
-                      aria-label="Season"
-                      value={selectedSeason}
-                      onChange={(value) => {
-                        if (value !== null) {
-                          onOpenDetail(
-                            {
-                              mediaType: "tv",
-                              tmdbID: media.tmdb_id,
-                              mediaID: showID,
-                              seasonNumber: Number(value),
-                            },
-                            { from: returnTo, replace: true },
-                          );
-                        }
-                      }}
-                      data={seasons.map((number) => ({
-                        value: String(number),
-                        label: number === 0 ? "Specials" : `Season ${number}`,
-                      }))}
-                      w={150}
-                    />
-                  )}
-                  {seasonBulkAction && (
-                    <Tooltip
-                      label={
-                        seasonBulkAction === "watch"
-                          ? "Mark season watched"
-                          : "Mark season unwatched"
-                      }
-                      withArrow
-                    >
-                      <ActionIcon
-                        size={44}
-                        variant="subtle"
-                        color="yellow"
-                        aria-label={`Mark ${Number(selectedSeason) === 0 ? "specials" : `season ${selectedSeason}`} ${seasonBulkAction === "watch" ? "watched" : "unwatched"}`}
-                        onClick={() => requestSeasonWatch(seasonBulkAction)}
-                        disabled={markEpisodesWatched.isPending || removeEpisodesWatched.isPending}
-                      >
-                        {seasonBulkAction === "watch" ? (
-                          <IconEye size={19} />
-                        ) : (
-                          <IconCheck size={19} />
-                        )}
-                      </ActionIcon>
-                    </Tooltip>
-                  )}
-                </Group>
-              </Group>
-            </Group>
+          <section className="detail-section season-section">
+            <div className="season-section-heading">
+              <Text className="section-kicker">{isSaved ? "Your catalog" : "From TMDB"}</Text>
+              <Title order={2}>Seasons & episodes</Title>
+            </div>
+            <div ref={seasonSentinel} aria-hidden="true" />
+            <div className="season-toolbar" data-stuck={seasonToolbarStuck || undefined}>
+              {seasons.length > 0 && (
+                <Select
+                  className="season-select"
+                  aria-label="Season"
+                  variant="unstyled"
+                  value={selectedSeason}
+                  allowDeselect={false}
+                  comboboxProps={{ width: 200, position: "bottom-start" }}
+                  rightSection={<IconChevronDown size={18} />}
+                  onChange={(value) => {
+                    if (value !== null) {
+                      onOpenDetail(
+                        {
+                          mediaType: "tv",
+                          tmdbID: media.tmdb_id,
+                          mediaID: showID,
+                          seasonNumber: Number(value),
+                        },
+                        { from: returnTo, replace: true },
+                      );
+                    }
+                  }}
+                  data={seasons.map((number) => ({
+                    value: String(number),
+                    label: number === 0 ? "Specials" : `Season ${number}`,
+                  }))}
+                />
+              )}
+              {seasonBulkAction && (
+                <Button
+                  className="season-bulk-action"
+                  variant="subtle"
+                  color={seasonBulkAction === "watch" ? "teal" : "gray"}
+                  leftSection={
+                    seasonBulkAction === "watch" ? (
+                      <IconCheck size={17} />
+                    ) : (
+                      <IconEyeOff size={17} />
+                    )
+                  }
+                  aria-label={`Mark ${Number(selectedSeason) === 0 ? "specials" : `season ${selectedSeason}`} ${seasonBulkAction === "watch" ? "watched" : "unwatched"}`}
+                  onClick={() => requestSeasonWatch(seasonBulkAction)}
+                  disabled={markEpisodesWatched.isPending || removeEpisodesWatched.isPending}
+                >
+                  {seasonBulkAction === "watch" ? "Mark season" : "Unmark season"}
+                </Button>
+              )}
+            </div>
             {((isSaved && episodes.isPending) ||
               (!isSaved && (temporary.isPending || temporaryEpisodes.isPending))) && (
-              <Stack gap="xs">
+              <div className="episode-list" aria-busy="true">
                 {Array.from({ length: 4 }).map((_, i) => (
-                  <Paper key={i} className="episode-row" withBorder p={0}>
-                    <Group
-                      className="episode-row-layout"
-                      justify="space-between"
-                      wrap="nowrap"
-                      gap={0}
-                    >
-                      <Group className="episode-row-main" wrap="nowrap" gap={0}>
-                        <div className="episode-art">
-                          <Skeleton height="100%" width="100%" radius={0} />
-                        </div>
-                        <div className="episode-row-copy">
-                          <Skeleton height={14} width={180} mb={8} />
-                          <Skeleton height={12} width={110} mb={6} />
-                          <Skeleton height={12} width={230} />
-                        </div>
-                      </Group>
-                      <div className="episode-row-controls">
-                        <Skeleton height={32} width={32} circle />
-                      </div>
-                    </Group>
-                  </Paper>
+                  <div key={i} className="episode-row">
+                    <div className="episode-art">
+                      <Skeleton height="100%" width="100%" radius={0} />
+                    </div>
+                    <div className="episode-row-copy">
+                      <Skeleton height={15} width={180} mb={8} />
+                      <Skeleton height={12} width={110} mb={6} />
+                      <Skeleton height={12} width="80%" />
+                    </div>
+                  </div>
                 ))}
-              </Stack>
+              </div>
             )}
             {episodes.isError && isSaved && (
-              <Alert color="red">Episodes are temporarily unavailable.</Alert>
+              <QueryError
+                message="Could not load the episodes."
+                onRetry={() => episodes.refetch()}
+              />
             )}
             {temporary.isError && !isSaved && (
-              <Alert color="red">TV details are temporarily unavailable.</Alert>
+              <QueryError
+                message="Could not load this show from TMDB."
+                onRetry={() => temporary.refetch()}
+              />
             )}
             {temporaryEpisodes.isError && !isSaved && (
-              <Alert color="red">Season episodes are temporarily unavailable.</Alert>
+              <QueryError
+                message="Could not load this season."
+                onRetry={() => temporaryEpisodes.refetch()}
+              />
             )}
             {markEpisodesWatched.isError && (
               <Alert color="red">{markEpisodesWatched.error.message}</Alert>
@@ -1538,117 +1576,34 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
               !visibleEpisodes.length && (
                 <Text c="dimmed">Episode details are not available yet.</Text>
               )}
-            <Stack gap="xs">
-              {visibleEpisodes.map((entry) => {
-                const openEpisode = () =>
-                  onOpenDetail({
-                    mediaType: "tv",
-                    tmdbID: media.tmdb_id,
-                    mediaID: showID,
-                    episodeID: entry.episode.id,
-                    episode: entry.episode,
-                    seasonNumber: entry.episode.season_number,
-                    episodeNumber: entry.episode.episode_number,
-                  });
-                return (
-                  <Paper
-                    key={entry.episode.id}
-                    className="episode-row"
-                    withBorder
-                    p={0}
-                    role="button"
-                    tabIndex={0}
-                    onClick={openEpisode}
-                    onKeyDown={(event) => {
-                      if (
-                        (event.key === "Enter" || event.key === " ") &&
-                        event.target === event.currentTarget
-                      ) {
-                        event.preventDefault();
-                        openEpisode();
-                      }
-                    }}
-                  >
-                    <Group
-                      className="episode-row-layout"
-                      justify="space-between"
-                      wrap="nowrap"
-                      gap={0}
-                    >
-                      <Group className="episode-row-main" wrap="nowrap" gap={0}>
-                        <div className="episode-art">
-                          {entry.still_path ? (
-                            <Image src={backdropURL(entry.still_path, "w780")!} alt="" />
-                          ) : (
-                            <div className="artwork-fallback">{entry.episode.episode_number}</div>
-                          )}
-                        </div>
-                        <div className="episode-row-copy">
-                          <Text
-                            fw={650}
-                          >{`S${String(entry.episode.season_number).padStart(2, "0")}E${String(entry.episode.episode_number).padStart(2, "0")} — ${entry.name || `Episode ${entry.episode.episode_number}`}`}</Text>
-                          <Text size="xs" c="dimmed">
-                            {formatEpisodeAirDate(entry.episode.air_date)}
-                          </Text>
-                          {entry.overview && (
-                            <Text className="episode-description" size="sm" c="dimmed" mt={5}>
-                              {entry.overview}
-                            </Text>
-                          )}
-                        </div>
-                      </Group>
-                      <Group
-                        className="episode-row-controls"
-                        gap="xs"
-                        wrap="nowrap"
-                        onClick={(event) => event.stopPropagation()}
-                      >
-                        <Tooltip
-                          label={`Mark episode ${entry.episode.episode_number} ${entry.watched ? "unwatched" : "watched"}`}
-                          withArrow
-                        >
-                          <Checkbox
-                            aria-label={`Episode ${entry.episode.episode_number} watched`}
-                            checked={entry.watched}
-                            color="yellow"
-                            size="md"
-                            disabled={
-                              prepareEpisodeWatch.isPending ||
-                              markEpisodeWatched.isPending ||
-                              removeEpisodesWatched.isPending
-                            }
-                            onChange={() => {
-                              if (entry.watched) removeEpisodesWatched.mutate([entry.episode.id]);
-                              else requestEpisodeWatch(entry);
-                            }}
-                          />
-                        </Tooltip>
-                        {entry.watched && (
-                          <Menu withinPortal position="bottom-end">
-                            <Menu.Target>
-                              <ActionIcon
-                                aria-label={`More actions for episode ${entry.episode.episode_number}`}
-                                size="sm"
-                                variant="subtle"
-                              >
-                                <IconChevronDown size={16} />
-                              </ActionIcon>
-                            </Menu.Target>
-                            <Menu.Dropdown>
-                              <Menu.Item
-                                leftSection={<IconRefresh size={15} />}
-                                onClick={() => markEpisodeWatched.mutate(entry.episode.id)}
-                              >
-                                Rewatch episode
-                              </Menu.Item>
-                            </Menu.Dropdown>
-                          </Menu>
-                        )}
-                      </Group>
-                    </Group>
-                  </Paper>
-                );
-              })}
+            <div className="episode-list">
+              {visibleEpisodes.map((entry) => (
+                <EpisodeRow
+                  key={entry.episode.id}
+                  entry={entry}
+                  disabled={
+                    prepareEpisodeWatch.isPending ||
+                    markEpisodeWatched.isPending ||
+                    removeEpisodesWatched.isPending
+                  }
+                  onOpen={() =>
+                    onOpenDetail({
+                      mediaType: "tv",
+                      tmdbID: media.tmdb_id,
+                      mediaID: showID,
+                      episodeID: entry.episode.id,
+                      episode: entry.episode,
+                      seasonNumber: entry.episode.season_number,
+                      episodeNumber: entry.episode.episode_number,
+                    })
+                  }
+                  onToggleWatched={() => {
+                    if (entry.watched) removeEpisodesWatched.mutate([entry.episode.id]);
+                    else requestEpisodeWatch(entry);
+                  }}
+                  onRewatch={() => markEpisodeWatched.mutate(entry.episode.id)}
+                />
+              ))}
               {isSaved && (
                 <InfiniteScrollTrigger
                   hasNextPage={!!episodes.hasNextPage}
@@ -1657,7 +1612,7 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
                   fetchNextPage={() => void episodes.fetchNextPage()}
                 />
               )}
-            </Stack>
+            </div>
           </section>
         )}
         {target.mediaType === "movie" && !selectedEpisode && movieGenres?.length ? (
