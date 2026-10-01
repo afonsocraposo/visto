@@ -3,11 +3,16 @@ package tmdb
 import (
 	"context"
 	"fmt"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/afonsocosta/visto/internal/domain"
 	tmdbapi "github.com/cyruzin/golang-tmdb"
 )
+
+// maxAggregateCharacters caps how many of an actor's series roles are shown.
+const maxAggregateCharacters = 2
 
 func (client *Client) Show(ctx context.Context, tmdbID int64) (domain.TVShowMetadata, error) {
 	if tmdbID <= 0 {
@@ -177,21 +182,63 @@ func (client *Client) fetchShowSummary(ctx context.Context, tmdbID int64) (domai
 	var details *tmdbapi.TVDetails
 	if err := client.requestHeld(ctx, func() error {
 		var requestErr error
-		details, requestErr = client.client.GetTVDetails(int(tmdbID), map[string]string{"append_to_response": "credits"})
+		details, requestErr = client.client.GetTVDetails(int(tmdbID), map[string]string{"append_to_response": "aggregate_credits"})
 		return requestErr
 	}); err != nil {
 		return domain.TVShowMetadata{}, err
 	}
 	show := domain.TVShowMetadata{TMDBID: details.ID, Name: details.Name, Overview: details.Overview, PosterPath: details.PosterPath, BackdropPath: details.BackdropPath, FirstAirDate: details.FirstAirDate, OriginalLanguage: details.OriginalLanguage, Status: details.Status}
-	if details.TVCreditsAppend != nil && details.Credits.TVCredits != nil {
-		for _, member := range details.Credits.Cast {
-			show.Cast = append(show.Cast, domain.TVCastMember{ID: member.ID, Name: member.Name, Character: member.Character, ProfilePath: member.ProfilePath})
-		}
+	if details.TVAggregateCreditsAppend != nil && details.AggregateCredits != nil {
+		show.Cast = aggregateCast(details.AggregateCredits)
 	}
 	for _, season := range details.Seasons {
 		show.Seasons = append(show.Seasons, domain.TVSeasonMetadata{TMDBID: season.ID, Number: season.SeasonNumber, EpisodeCount: season.EpisodeCount, Name: season.Name, Overview: season.Overview, PosterPath: season.PosterPath, AirDate: season.AirDate})
 	}
 	return show, nil
+}
+
+// aggregateCast maps series-wide credits so long-running shows list their
+// principal ensemble rather than only the latest season's cast.
+func aggregateCast(credits *tmdbapi.TVAggregateCredits) []domain.TVCastMember {
+	type rankedMember struct {
+		member   domain.TVCastMember
+		order    int
+		episodes int
+	}
+	ranked := make([]rankedMember, 0, len(credits.Cast))
+	for _, actor := range credits.Cast {
+		// Roles with the most episodes describe the actor's main character.
+		roles := make([]int, len(actor.Roles))
+		for index := range roles {
+			roles[index] = index
+		}
+		slices.SortStableFunc(roles, func(a, b int) int {
+			return actor.Roles[b].EpisodeCount - actor.Roles[a].EpisodeCount
+		})
+		characters := []string{}
+		for _, index := range roles {
+			character := strings.TrimSpace(actor.Roles[index].Character)
+			if character != "" && !slices.Contains(characters, character) && len(characters) < maxAggregateCharacters {
+				characters = append(characters, character)
+			}
+		}
+		ranked = append(ranked, rankedMember{
+			member:   domain.TVCastMember{ID: actor.ID, Name: actor.Name, Character: strings.Join(characters, " / "), ProfilePath: actor.ProfilePath},
+			order:    actor.Order,
+			episodes: actor.TotalEpisodeCount,
+		})
+	}
+	slices.SortStableFunc(ranked, func(a, b rankedMember) int {
+		if a.order != b.order {
+			return a.order - b.order
+		}
+		return b.episodes - a.episodes
+	})
+	cast := make([]domain.TVCastMember, 0, len(ranked))
+	for _, item := range ranked {
+		cast = append(cast, item.member)
+	}
+	return cast
 }
 
 func (client *Client) fetchSeason(ctx context.Context, tmdbID int64, seasonNumber int) (domain.TVSeasonMetadata, error) {

@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
+	"github.com/afonsocosta/visto/internal/application/library"
 	"github.com/afonsocosta/visto/internal/application/tracking"
 	"github.com/afonsocosta/visto/internal/domain"
 	"github.com/afonsocosta/visto/internal/infrastructure/sqlite"
@@ -224,5 +226,44 @@ func TestImportShowMetadata_ReconcilesRemovedEpisodesAndKeepsHistory(t *testing.
 	entries, err = store.ListShowEpisodes(ctx, userID, "tv:42")
 	if err != nil || len(entries) != 3 || entries[2].Episode.ID != "tv:42:episode:105" {
 		t.Fatalf("new episode=%v, err=%v", entries, err)
+	}
+}
+
+type fixedShowProvider struct{ show domain.TVShowMetadata }
+
+func (provider fixedShowProvider) Show(context.Context, int64) (domain.TVShowMetadata, error) {
+	return provider.show, nil
+}
+
+func TestRefreshShow_GivenSavedShowWithPartialCast_WhenRefreshed_ThenTheAggregateCastReplacesIt(t *testing.T) {
+	ctx := context.Background()
+	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "visto.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	userID := insertTestUser(t, store.DB, "u", "u", "private")
+	libraries := library.NewService(store)
+	if _, err := libraries.SaveMedia(ctx, userID, library.Media{Type: domain.TVMediaType, TMDBID: 2316, Title: "The Office"}, domain.WatchingStatus, nil); err != nil {
+		t.Fatal(err)
+	}
+	show := domain.TVShowMetadata{TMDBID: 2316, Name: "The Office", Cast: []domain.TVCastMember{{ID: 99, Name: "Final Season Only", Character: "Newcomer"}}}
+	if err := libraries.RefreshShow(ctx, 2316, fixedShowProvider{show}); err != nil {
+		t.Fatal(err)
+	}
+	show.Cast = []domain.TVCastMember{
+		{ID: 1, Name: "Steve Carell", Character: "Michael Scott", ProfilePath: "/steve.jpg"},
+		{ID: 2, Name: "Rainn Wilson", Character: "Dwight Schrute"},
+		{ID: 3, Name: "John Krasinski", Character: "Jim Halpert"},
+	}
+	if err := libraries.RefreshShow(ctx, 2316, fixedShowProvider{show}); err != nil {
+		t.Fatal(err)
+	}
+	entry, err := libraries.GetByTMDBID(ctx, userID, domain.TVMediaType, 2316)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(entry.Cast, show.Cast) {
+		t.Fatalf("saved cast=%+v, want refreshed aggregate cast %+v", entry.Cast, show.Cast)
 	}
 }

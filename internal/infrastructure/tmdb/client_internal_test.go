@@ -474,3 +474,50 @@ func TestSearchType_GivenAMediaType_ThenItUsesThatTMDBSearchAndCachesItSeparatel
 		t.Fatal("expected an error for an unsupported media type")
 	}
 }
+
+func TestShowSummary_GivenAggregateCredits_WhenFetched_ThenCastSpansTheWholeSeriesInOrder(t *testing.T) {
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		if r.URL.Path != "/3/tv/2316" || r.URL.Query().Get("append_to_response") != "aggregate_credits" {
+			t.Errorf("request URL=%s, want TV details with aggregate credits", r.URL.String())
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":2316,"name":"The Office","status":"Ended","seasons":[{"id":1,"season_number":1,"episode_count":6}],
+			"credits":{"cast":[{"id":99,"name":"Final Season Only","character":"Newcomer","order":0}]},
+			"aggregate_credits":{"cast":[
+				{"id":3,"name":"Ed Helms","profile_path":"/ed.jpg","order":2,"total_episode_count":146,"roles":[{"character":"Andy Bernard","episode_count":146}]},
+				{"id":1,"name":"Steve Carell","profile_path":"/steve.jpg","order":0,"total_episode_count":146,"roles":[{"character":"Michael Scott","episode_count":146}]},
+				{"id":4,"name":"Multi Role","order":2,"total_episode_count":160,"roles":[{"character":"Minor","episode_count":3},{"character":"Main","episode_count":150},{"character":"Main","episode_count":7},{"character":" ","episode_count":1},{"character":"Third","episode_count":2}]},
+				{"id":2,"name":"Rainn Wilson","profile_path":"/rainn.jpg","order":1,"total_episode_count":201,"roles":[{"character":"Dwight Schrute","episode_count":201}]}
+			]}}`))
+	}))
+	defer server.Close()
+	client, err := New("test-key", server.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	previous := client.client.GetBaseURL()
+	client.client.SetCustomBaseURL(server.URL + "/3")
+	defer client.client.SetCustomBaseURL(previous)
+
+	show, err := client.ShowSummary(context.Background(), 2316)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []domain.TVCastMember{
+		{ID: 1, Name: "Steve Carell", Character: "Michael Scott", ProfilePath: "/steve.jpg"},
+		{ID: 2, Name: "Rainn Wilson", Character: "Dwight Schrute", ProfilePath: "/rainn.jpg"},
+		{ID: 4, Name: "Multi Role", Character: "Main / Minor"},
+		{ID: 3, Name: "Ed Helms", Character: "Andy Bernard", ProfilePath: "/ed.jpg"},
+	}
+	if !slices.Equal(show.Cast, want) {
+		t.Fatalf("cast=%+v, want aggregate cast %+v", show.Cast, want)
+	}
+	if show.Name != "The Office" || len(show.Seasons) != 1 {
+		t.Fatalf("show=%+v, want details still mapped", show)
+	}
+	if _, err := client.ShowSummary(context.Background(), 2316); err != nil || calls.Load() != 1 {
+		t.Fatalf("calls=%d err=%v, want aggregate cast cached with the summary", calls.Load(), err)
+	}
+}
