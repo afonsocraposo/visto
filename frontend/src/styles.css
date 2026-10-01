@@ -400,6 +400,7 @@ select {
   border-radius: 999px;
   background: none;
   cursor: pointer;
+  text-decoration: none;
 }
 .account-avatar {
   border: 2px solid transparent;
@@ -2442,7 +2443,7 @@ label.tracking-row {
   text-decoration: none;
 }
 @media (hover: hover) and (pointer: fine) {
-  .activity-actor-button:hover span {
+  .activity-actor-button:hover > span {
     text-decoration: underline;
   }
 }
