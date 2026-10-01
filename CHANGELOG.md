@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.23.2](https://github.com/afonsocraposo/visto/compare/v0.23.1...v0.23.2) (2026-10-01)
+
+
+### Bug Fixes
+
+* preserve scroll for in-place route state changes ([e0399bc](https://github.com/afonsocraposo/visto/commit/e0399bc75ee009783b58708946fafa517b53db6a))
+
 ## [0.23.1](https://github.com/afonsocraposo/visto/compare/v0.23.0...v0.23.1) (2026-10-01)
 
 
