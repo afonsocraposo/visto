@@ -267,25 +267,25 @@ test("Given an Upcoming episode, When the user opens its season and selects anot
   await page.getByRole("tab", { name: "Upcoming" }).click();
   await page.getByRole("button", { name: /Open The Example Show, season 1, episode 1/ }).click();
   await expect(page.getByRole("heading", { name: "The Upcoming Episode" })).toBeVisible();
-  await expect(page.locator(".detail-hero")).toContainText("S01E01");
+  await expect(page.locator(".detail-hero")).toContainText("S1 E1");
   const swipe = (fromX: number, toX: number) =>
     touchDrag(page, { x: fromX, y: 300 }, { x: toX, y: 300 });
   await swipe(300, 120); // swipe left: next episode
   await expect(page).toHaveURL(/\/shows\/100\/season\/2\/episode\/1/);
-  await expect(page.locator(".detail-hero")).toContainText("S02E01");
+  await expect(page.locator(".detail-hero")).toContainText("S2 E1");
   await swipe(120, 300); // swipe right: previous episode
   await expect(page).toHaveURL(/\/shows\/100\/season\/1\/episode\/1/);
-  await expect(page.locator(".detail-hero")).toContainText("S01E01");
-  await page.getByRole("button", { name: "Go to next episode" }).click();
+  await expect(page.locator(".detail-hero")).toContainText("S1 E1");
+  await page.getByRole("button", { name: /^Next episode/ }).click();
   await expect(page).toHaveURL(/\/shows\/100\/season\/2\/episode\/1/);
   await expect(page.getByRole("heading", { name: "Season 2 premiere" })).toBeVisible();
-  await expect(page.locator(".detail-hero")).toContainText("S02E01");
+  await expect(page.locator(".detail-hero")).toContainText("S2 E1");
   await page.goBack();
   await expect(page).toHaveURL("http://127.0.0.1:4173/");
   await expect(page.getByRole("heading", { name: "Upcoming episodes" })).toBeVisible();
   await page.getByRole("button", { name: /Open The Example Show, season 1, episode 1/ }).click();
   await expect(page.getByRole("heading", { name: "The Upcoming Episode" })).toBeVisible();
-  await expect(page.locator(".detail-hero")).toContainText("S01E01");
+  await expect(page.locator(".detail-hero")).toContainText("S1 E1");
   await page.getByRole("button", { name: "The Example Show" }).click();
   await expect(page.getByRole("heading", { name: "Seasons & episodes" })).toBeVisible();
   await expect(page.getByRole("combobox", { name: "Season" })).toHaveValue("Season 1");
@@ -297,7 +297,7 @@ test("Given an Upcoming episode, When the user opens its season and selects anot
   await page.getByRole("button", { name: "Back" }).click();
   await expect(page).toHaveURL(/\/shows\/100\/season\/1\/episode\/1/);
   await expect(page.getByRole("heading", { name: "The Upcoming Episode" })).toBeVisible();
-  await expect(page.locator(".detail-hero")).toContainText("S01E01");
+  await expect(page.locator(".detail-hero")).toContainText("S1 E1");
   await page.getByRole("button", { name: "Back" }).click();
   await expect(page).toHaveURL("/");
   await expect(page.getByRole("tab", { name: "Upcoming" })).toHaveAttribute(
@@ -619,10 +619,8 @@ test("TV details show the production status for saved and unsaved shows", async 
     await page.goto("/media/tv/100");
     await expect(page.getByRole("heading", { name: "Example Show" })).toBeVisible();
     if (label)
-      await expect(
-        page.locator(".detail-hero .mantine-Badge-root", { hasText: label }),
-      ).toBeVisible();
-    else await expect(page.locator(".detail-hero .mantine-Badge-root")).toHaveCount(1);
+      await expect(page.locator(".detail-facts").getByText(label, { exact: true })).toBeVisible();
+    else await expect(page.locator(".detail-facts > span")).toHaveCount(1);
   }
 
   await page.route("**/api/v1/shows/100", (route) =>
@@ -632,9 +630,7 @@ test("TV details show the production status for saved and unsaved shows", async 
     }),
   );
   await page.goto("/media/tv/100");
-  await expect(
-    page.locator(".detail-hero .mantine-Badge-root", { hasText: "Ongoing" }),
-  ).toBeVisible();
+  await expect(page.locator(".detail-facts").getByText("Ongoing", { exact: true })).toBeVisible();
 
   await page.route("**/api/v1/shows/**/episodes", (route) =>
     fulfillJSON(route, {
@@ -675,13 +671,10 @@ test("TV details show the production status for saved and unsaved shows", async 
   );
   await page.goto("/shows/100/season/1/episode/1");
   await expect(page.getByRole("heading", { name: "Pilot episode" })).toBeVisible();
-  await expect(page.locator(".detail-hero")).toContainText("S01E01");
+  await expect(page.locator(".detail-hero")).toContainText("S1 E1");
   await expect(page.getByText("Pilot summary.")).toBeVisible();
   await page.reload();
   await expect(page.getByRole("heading", { name: "Pilot episode" })).toBeVisible();
-  await expect(
-    page.locator(".detail-hero .mantine-Badge-root", { hasText: "Ongoing" }),
-  ).toBeVisible();
   await page.getByRole("button", { name: "Example Show" }).click();
   await expect(page).toHaveURL(/\/media\/tv\/100\?/);
   await expect
@@ -713,13 +706,13 @@ test("TV details show the production status for saved and unsaved shows", async 
   );
   await page.goto("/shows/100/season/2/episode/4");
   await expect(page.getByRole("heading", { name: "Second season episode" })).toBeVisible();
-  await expect(page.locator(".detail-hero")).toContainText("S02E04");
+  await expect(page.locator(".detail-hero")).toContainText("S2 E4");
 
   await page.route("**/api/v1/movies/100", (route) =>
     fulfillJSON(route, { media: media("Ended", "movie"), item: {} }),
   );
   await page.goto("/media/movie/100");
-  await expect(page.locator(".detail-hero .mantine-Badge-root")).toHaveCount(1);
+  await expect(page.locator(".detail-facts > span")).toHaveCount(1);
 });
 
 test("Detail Back restores the show's scroll position and direct links use a fallback", async ({
@@ -778,8 +771,8 @@ test("Detail Back restores the show's scroll position and direct links use a fal
   await episode.click();
   await expect(page).toHaveURL(/\/shows\/100\/season\/1\/episode\/20/);
   await expect(page.getByRole("heading", { name: "Episode 20" })).toBeVisible();
-  await expect(page.locator(".detail-hero")).toContainText("S01E20");
-  await expect(page.getByText("No description available.")).toBeVisible();
+  await expect(page.locator(".detail-hero")).toContainText("S1 E20");
+  await expect(page.getByText("No description is available.")).toBeVisible();
   await page.getByRole("button", { name: "Back", exact: true }).click();
   await expect(page).toHaveURL(/\/media\/tv\/100$/);
   await expectEpisodeScrollRestored();

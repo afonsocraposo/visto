@@ -66,7 +66,9 @@ import {
   useTemporarySeasonEpisodesQuery,
 } from "./queries";
 import { getAdjacentEpisodes } from "./episodeNavigation";
-import { EpisodeSwipeArea } from "./episodeSwipe";
+import { EpisodeTransition } from "./EpisodeTransition";
+import { EpisodeNavigator, episodeCode } from "./EpisodeNavigator";
+import { ClampedText } from "../../components/ClampedText";
 import type { SwipeDirection } from "./episodeNavigation";
 import type { EpisodeRating, MediaDetailTarget, ShowEpisodeEntry } from "../../types";
 
@@ -84,6 +86,25 @@ type PendingWatch = {
   action?: "watch" | "unwatch";
 };
 type PendingWatchChoice = "single" | "all" | "previous" | "season" | "unwatch" | null;
+
+function formatRuntime(minutes: number) {
+  const hours = Math.floor(minutes / 60);
+  return hours ? `${hours}h ${minutes % 60}m` : `${minutes} min`;
+}
+
+function formatLongDate(value: string) {
+  const [year, month, day] = value.slice(0, 10).split("-").map(Number);
+  if (!year || !month || !day) return value;
+  return new Date(year, month - 1, day).toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function airedLabel(airDate: string, today: string) {
+  return airDate.slice(0, 10) > today ? "Airs" : "Aired";
+}
 
 function showStatusLabel(status: string | undefined): string | null {
   const labels: Record<string, string> = {
@@ -963,6 +984,31 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
     </>
   );
 
+  const episodeRuntime = selectedEpisode
+    ? episodeDetails.data?.runtime || selectedEpisode.runtime
+    : undefined;
+  const episodeAirDate = selectedEpisode
+    ? episodeDetails.data?.air_date || selectedEpisode.episode.air_date
+    : undefined;
+  const heroFacts = (
+    selectedEpisode
+      ? [
+          episodeCode(selectedEpisode.episode),
+          episodeRuntime ? `${episodeRuntime} min` : null,
+          episodeAirDate
+            ? `${airedLabel(episodeAirDate, today)} ${formatLongDate(episodeAirDate)}`
+            : null,
+          episodeDetails.data?.vote_average
+            ? `TMDB ${episodeDetails.data.vote_average.toFixed(1)}`
+            : null,
+        ]
+      : [
+          media.release_date ? media.release_date.slice(0, 4) : null,
+          media.type === "tv" ? showStatusLabel(media.status) : null,
+          media.type === "movie" && movieRuntime ? formatRuntime(movieRuntime) : null,
+          ...((media.type === "movie" ? movieGenres : library.data?.genres) ?? []).slice(0, 2),
+        ]
+  ).filter((fact): fact is string => Boolean(fact));
   const openAdjacent = (direction: SwipeDirection) => {
     const adjacent =
       direction === "previous" ? adjacentEpisodes.previousEpisode : adjacentEpisodes.nextEpisode;
@@ -982,7 +1028,15 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
   };
 
   return (
-    <EpisodeSwipeArea className="detail-page" onSwipe={selectedEpisode ? openAdjacent : undefined}>
+    <EpisodeTransition
+      className="detail-page"
+      episodeKey={selectedEpisode ? selectedEpisode.episode.id : null}
+      available={{
+        previous: Boolean(adjacentEpisodes.previousEpisode),
+        next: Boolean(adjacentEpisodes.nextEpisode),
+      }}
+      onNavigate={openAdjacent}
+    >
       <Modal
         opened={movieHistoryMode !== null}
         onClose={() => setMovieHistoryMode(null)}
@@ -1150,7 +1204,12 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
           </Button>
         </Group>
       </Modal>
-      <section className="detail-hero" style={{ backgroundImage: heroBackground }}>
+      <section className={`detail-hero${selectedEpisode ? " is-episode" : ""}`}>
+        <div
+          className="detail-hero-art"
+          style={{ backgroundImage: heroBackground }}
+          aria-hidden="true"
+        />
         <Button
           className="detail-hero-back"
           variant="subtle"
@@ -1160,24 +1219,37 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
           Back
         </Button>
         <div className="detail-hero-content">
-          <div className="detail-poster">
-            {art ? (
-              <Image src={art} alt={`${media.title} poster`} />
-            ) : (
-              <div className="artwork-fallback">{media.title.slice(0, 1)}</div>
-            )}
-          </div>
-          <div className="detail-hero-body">
-            <Group gap="xs">
-              <Badge className="watch-kind" variant="filled">
-                {media.type === "tv" ? "TV show" : "Movie"}
-              </Badge>
-              {media.type === "tv" && showStatusLabel(media.status) && (
-                <Badge variant="light" color="gray">
-                  {showStatusLabel(media.status)}
-                </Badge>
+          {!selectedEpisode && (
+            <div className="detail-poster">
+              {art ? (
+                <Image src={art} alt={`${media.title} poster`} />
+              ) : (
+                <div className="artwork-fallback">{media.title.slice(0, 1)}</div>
               )}
-            </Group>
+            </div>
+          )}
+          <div className="detail-hero-body">
+            {selectedEpisode ? (
+              <button
+                type="button"
+                className="detail-eyebrow detail-eyebrow-link"
+                onClick={() =>
+                  onOpenDetail(
+                    {
+                      mediaType: "tv",
+                      tmdbID: media.tmdb_id,
+                      mediaID: showID,
+                      seasonNumber: selectedEpisode.episode.season_number,
+                    },
+                    { from: returnTo },
+                  )
+                }
+              >
+                {media.title}
+              </button>
+            ) : (
+              <span className="detail-eyebrow">{media.type === "tv" ? "TV show" : "Movie"}</span>
+            )}
             <Title order={1}>
               {selectedEpisode
                 ? episodeDetails.data?.name ||
@@ -1185,77 +1257,27 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
                   `Episode ${selectedEpisode.episode.episode_number}`
                 : media.title}
             </Title>
-            {selectedEpisode ? (
-              <Group gap="xs" align="center">
-                <Button
-                  className="detail-season-link"
-                  variant="subtle"
-                  onClick={() =>
-                    onOpenDetail(
-                      {
-                        mediaType: "tv",
-                        tmdbID: media.tmdb_id,
-                        mediaID: showID,
-                        seasonNumber: selectedEpisode.episode.season_number,
-                      },
-                      { from: returnTo },
-                    )
-                  }
-                >
-                  {media.title}
-                </Button>
-                <Badge variant="light" color="gray">
-                  {`S${String(selectedEpisode.episode.season_number).padStart(2, "0")}E${String(selectedEpisode.episode.episode_number).padStart(2, "0")}`}
-                </Badge>
-              </Group>
-            ) : (
-              <Text className="detail-subtitle">{`${media.release_date ? media.release_date.slice(0, 4) : ""}${media.original_language ? ` · ${media.original_language.toUpperCase()}` : ""}`}</Text>
+            {heroFacts.length > 0 && (
+              <p className="detail-facts">
+                {heroFacts.map((fact) => (
+                  <span key={fact}>{fact}</span>
+                ))}
+              </p>
             )}
-            <Text className="detail-overview">
-              {selectedEpisode
-                ? episodeDetails.data?.overview ||
-                  selectedEpisode.overview ||
-                  "No description available."
-                : media.overview || "No description is available."}
-            </Text>
-            <div className="detail-meta">
-              {(
-                selectedEpisode
-                  ? episodeDetails.data?.runtime || selectedEpisode.runtime
-                  : movieRuntime
-              ) ? (
-                <Text className="detail-runtime">
-                  <IconClock size={15} />{" "}
-                  {selectedEpisode
-                    ? episodeDetails.data?.runtime || selectedEpisode.runtime
-                    : movieRuntime}{" "}
-                  min
-                </Text>
-              ) : null}
-              {selectedEpisode && episodeDetails.data?.vote_average ? (
-                <Text className="detail-runtime">
-                  TMDB {episodeDetails.data.vote_average.toFixed(1)} / 10
-                </Text>
-              ) : null}
-              {selectedEpisode &&
-              (episodeDetails.data?.air_date || selectedEpisode.episode.air_date) ? (
-                <Text className="detail-runtime">
-                  Aired {episodeDetails.data?.air_date || selectedEpisode.episode.air_date}
-                  {episodeDetails.data?.production_code
-                    ? ` · ${episodeDetails.data.production_code}`
-                    : ""}
-                </Text>
-              ) : null}
-              {lastWatchedAt ? (
-                <Text className="detail-runtime">
-                  <IconEye size={15} /> Last watched{" "}
-                  {new Date(lastWatchedAt).toLocaleString(undefined, {
-                    dateStyle: "medium",
-                    timeStyle: "short",
-                  })}
-                </Text>
-              ) : null}
-            </div>
+            <ClampedText className="detail-overview" lines={isMobile ? 3 : 5}>
+              {(selectedEpisode
+                ? episodeDetails.data?.overview || selectedEpisode.overview
+                : media.overview) || "No description is available."}
+            </ClampedText>
+            {lastWatchedAt ? (
+              <Text className="detail-last-watched">
+                <IconEye size={15} aria-hidden="true" /> Last watched{" "}
+                {new Date(lastWatchedAt).toLocaleString(undefined, {
+                  dateStyle: "medium",
+                  timeStyle: "short",
+                })}
+              </Text>
+            ) : null}
             {selectedEpisode ? (
               <EpisodeActions
                 entry={selectedEpisode}
@@ -1314,431 +1336,416 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
           </div>
         </div>
       </section>
-      {isMobile ? (
-        <Drawer
-          opened={showNotificationsOpen}
-          onClose={() => setShowNotificationsOpen(false)}
-          position="bottom"
-          title="Episode alerts"
-          radius="lg"
-          classNames={{
-            content: "show-notifications-drawer",
-            header: "show-notifications-header",
-            body: "show-notifications-body",
-          }}
-        >
-          {notificationSettings}
-        </Drawer>
-      ) : (
-        <Modal
-          opened={showNotificationsOpen}
-          onClose={() => setShowNotificationsOpen(false)}
-          title="Episode alerts"
-          size="md"
-          centered
-        >
-          {notificationSettings}
-        </Modal>
+      {selectedEpisode && (
+        <EpisodeNavigator
+          current={selectedEpisode.episode}
+          previous={adjacentEpisodes.previousEpisode}
+          next={adjacentEpisodes.nextEpisode}
+        />
       )}
-      {updateNotifications.isError && target.mediaType !== "tv" && (
-        <Alert color="red" mt="sm">
-          {updateNotifications.error.message}
-        </Alert>
-      )}
-      {update.isError && (
-        <Alert color="red" mt="sm">
-          {update.error.message}
-        </Alert>
-      )}
-      {removeMovieWatches.isError && (
-        <Alert color="red" mt="sm">
-          {removeMovieWatches.error.message}
-        </Alert>
-      )}
-      {removeWatchlist.isError && (
-        <Alert color="red" mt="sm">
-          {removeWatchlist.error.message}
-        </Alert>
-      )}
-      {removeCurrentList.isError && (
-        <Alert color="red" mt="sm">
-          {removeCurrentList.error.message}
-        </Alert>
-      )}
-      {markMovieWatched.isError && (
-        <Alert color="red" mt="sm">
-          {markMovieWatched.error.message}
-        </Alert>
-      )}
-      {selectedEpisode && removeEpisodesWatched.isError && !pendingWatch && !showWatchModal && (
-        <Alert color="red" mt="sm">
-          {removeEpisodesWatched.error.message}
-        </Alert>
-      )}
-      {selectedEpisode && prepareEpisodeWatch.isError && (
-        <Alert color="red" mt="sm">
-          {prepareEpisodeWatch.error.message}
-        </Alert>
-      )}
-      {selectedEpisode && markEpisodeWatched.isError && (
-        <Alert color="red" mt="sm">
-          {markEpisodeWatched.error.message}
-        </Alert>
-      )}
-      {selectedEpisode && markEpisodesWatched.isError && !pendingWatch && !showWatchModal && (
-        <Alert color="red" mt="sm">
-          {markEpisodesWatched.error.message}
-        </Alert>
-      )}
-      {target.mediaType === "tv" && !selectedEpisode && (
-        <section className="detail-section">
-          <Group justify="space-between" align="end" mb="sm">
-            <div>
-              <Text className="section-kicker">{isSaved ? "Your catalog" : "From TMDB"}</Text>
-              <Title order={2}>Seasons & episodes</Title>
-            </div>
-            <Group gap="xs">
-              <Group gap="xs" wrap="nowrap">
-                {seasons.length > 0 && (
-                  <Select
-                    aria-label="Season"
-                    value={selectedSeason}
-                    onChange={(value) => {
-                      if (value !== null) {
-                        onOpenDetail(
-                          {
-                            mediaType: "tv",
-                            tmdbID: media.tmdb_id,
-                            mediaID: showID,
-                            seasonNumber: Number(value),
-                          },
-                          { from: returnTo, replace: true },
-                        );
+      <div className="episode-transition-body">
+        {isMobile ? (
+          <Drawer
+            opened={showNotificationsOpen}
+            onClose={() => setShowNotificationsOpen(false)}
+            position="bottom"
+            title="Episode alerts"
+            radius="lg"
+            classNames={{
+              content: "show-notifications-drawer",
+              header: "show-notifications-header",
+              body: "show-notifications-body",
+            }}
+          >
+            {notificationSettings}
+          </Drawer>
+        ) : (
+          <Modal
+            opened={showNotificationsOpen}
+            onClose={() => setShowNotificationsOpen(false)}
+            title="Episode alerts"
+            size="md"
+            centered
+          >
+            {notificationSettings}
+          </Modal>
+        )}
+        {updateNotifications.isError && target.mediaType !== "tv" && (
+          <Alert color="red" mt="sm">
+            {updateNotifications.error.message}
+          </Alert>
+        )}
+        {update.isError && (
+          <Alert color="red" mt="sm">
+            {update.error.message}
+          </Alert>
+        )}
+        {removeMovieWatches.isError && (
+          <Alert color="red" mt="sm">
+            {removeMovieWatches.error.message}
+          </Alert>
+        )}
+        {removeWatchlist.isError && (
+          <Alert color="red" mt="sm">
+            {removeWatchlist.error.message}
+          </Alert>
+        )}
+        {removeCurrentList.isError && (
+          <Alert color="red" mt="sm">
+            {removeCurrentList.error.message}
+          </Alert>
+        )}
+        {markMovieWatched.isError && (
+          <Alert color="red" mt="sm">
+            {markMovieWatched.error.message}
+          </Alert>
+        )}
+        {selectedEpisode && removeEpisodesWatched.isError && !pendingWatch && !showWatchModal && (
+          <Alert color="red" mt="sm">
+            {removeEpisodesWatched.error.message}
+          </Alert>
+        )}
+        {selectedEpisode && prepareEpisodeWatch.isError && (
+          <Alert color="red" mt="sm">
+            {prepareEpisodeWatch.error.message}
+          </Alert>
+        )}
+        {selectedEpisode && markEpisodeWatched.isError && (
+          <Alert color="red" mt="sm">
+            {markEpisodeWatched.error.message}
+          </Alert>
+        )}
+        {selectedEpisode && markEpisodesWatched.isError && !pendingWatch && !showWatchModal && (
+          <Alert color="red" mt="sm">
+            {markEpisodesWatched.error.message}
+          </Alert>
+        )}
+        {target.mediaType === "tv" && !selectedEpisode && (
+          <section className="detail-section">
+            <Group justify="space-between" align="end" mb="sm">
+              <div>
+                <Text className="section-kicker">{isSaved ? "Your catalog" : "From TMDB"}</Text>
+                <Title order={2}>Seasons & episodes</Title>
+              </div>
+              <Group gap="xs">
+                <Group gap="xs" wrap="nowrap">
+                  {seasons.length > 0 && (
+                    <Select
+                      aria-label="Season"
+                      value={selectedSeason}
+                      onChange={(value) => {
+                        if (value !== null) {
+                          onOpenDetail(
+                            {
+                              mediaType: "tv",
+                              tmdbID: media.tmdb_id,
+                              mediaID: showID,
+                              seasonNumber: Number(value),
+                            },
+                            { from: returnTo, replace: true },
+                          );
+                        }
+                      }}
+                      data={seasons.map((number) => ({
+                        value: String(number),
+                        label: number === 0 ? "Specials" : `Season ${number}`,
+                      }))}
+                      w={150}
+                    />
+                  )}
+                  {seasonBulkAction && (
+                    <Tooltip
+                      label={
+                        seasonBulkAction === "watch"
+                          ? "Mark season watched"
+                          : "Mark season unwatched"
                       }
-                    }}
-                    data={seasons.map((number) => ({
-                      value: String(number),
-                      label: number === 0 ? "Specials" : `Season ${number}`,
-                    }))}
-                    w={150}
-                  />
-                )}
-                {seasonBulkAction && (
-                  <Tooltip
-                    label={
-                      seasonBulkAction === "watch" ? "Mark season watched" : "Mark season unwatched"
-                    }
-                    withArrow
-                  >
-                    <ActionIcon
-                      size={44}
-                      variant="subtle"
-                      color="yellow"
-                      aria-label={`Mark ${Number(selectedSeason) === 0 ? "specials" : `season ${selectedSeason}`} ${seasonBulkAction === "watch" ? "watched" : "unwatched"}`}
-                      onClick={() => requestSeasonWatch(seasonBulkAction)}
-                      disabled={markEpisodesWatched.isPending || removeEpisodesWatched.isPending}
+                      withArrow
                     >
-                      {seasonBulkAction === "watch" ? (
-                        <IconEye size={19} />
-                      ) : (
-                        <IconCheck size={19} />
-                      )}
-                    </ActionIcon>
-                  </Tooltip>
-                )}
+                      <ActionIcon
+                        size={44}
+                        variant="subtle"
+                        color="yellow"
+                        aria-label={`Mark ${Number(selectedSeason) === 0 ? "specials" : `season ${selectedSeason}`} ${seasonBulkAction === "watch" ? "watched" : "unwatched"}`}
+                        onClick={() => requestSeasonWatch(seasonBulkAction)}
+                        disabled={markEpisodesWatched.isPending || removeEpisodesWatched.isPending}
+                      >
+                        {seasonBulkAction === "watch" ? (
+                          <IconEye size={19} />
+                        ) : (
+                          <IconCheck size={19} />
+                        )}
+                      </ActionIcon>
+                    </Tooltip>
+                  )}
+                </Group>
               </Group>
             </Group>
-          </Group>
-          {((isSaved && episodes.isPending) ||
-            (!isSaved && (temporary.isPending || temporaryEpisodes.isPending))) && (
-            <Stack gap="xs">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <Paper key={i} className="episode-row" withBorder p={0}>
-                  <Group
-                    className="episode-row-layout"
-                    justify="space-between"
-                    wrap="nowrap"
-                    gap={0}
-                  >
-                    <Group className="episode-row-main" wrap="nowrap" gap={0}>
-                      <div className="episode-art">
-                        <Skeleton height="100%" width="100%" radius={0} />
-                      </div>
-                      <div className="episode-row-copy">
-                        <Skeleton height={14} width={180} mb={8} />
-                        <Skeleton height={12} width={110} mb={6} />
-                        <Skeleton height={12} width={230} />
-                      </div>
-                    </Group>
-                    <div className="episode-row-controls">
-                      <Skeleton height={32} width={32} circle />
-                    </div>
-                  </Group>
-                </Paper>
-              ))}
-            </Stack>
-          )}
-          {episodes.isError && isSaved && (
-            <Alert color="red">Episodes are temporarily unavailable.</Alert>
-          )}
-          {temporary.isError && !isSaved && (
-            <Alert color="red">TV details are temporarily unavailable.</Alert>
-          )}
-          {temporaryEpisodes.isError && !isSaved && (
-            <Alert color="red">Season episodes are temporarily unavailable.</Alert>
-          )}
-          {markEpisodesWatched.isError && (
-            <Alert color="red">{markEpisodesWatched.error.message}</Alert>
-          )}
-          {prepareEpisodeWatch.isError && (
-            <Alert color="red">{prepareEpisodeWatch.error.message}</Alert>
-          )}
-          {markEpisodeWatched.isError && (
-            <Alert color="red">{markEpisodeWatched.error.message}</Alert>
-          )}
-          {add.isError && <Alert color="red">{add.error.message}</Alert>}
-          {(isSaved
-            ? !episodes.isPending && !episodes.isError
-            : !temporary.isPending &&
-              !temporaryEpisodes.isPending &&
-              !temporary.isError &&
-              !temporaryEpisodes.isError) &&
-            !visibleEpisodes.length && (
-              <Text c="dimmed">Episode details are not available yet.</Text>
-            )}
-          <Stack gap="xs">
-            {visibleEpisodes.map((entry) => {
-              const openEpisode = () =>
-                onOpenDetail({
-                  mediaType: "tv",
-                  tmdbID: media.tmdb_id,
-                  mediaID: showID,
-                  episodeID: entry.episode.id,
-                  episode: entry.episode,
-                  seasonNumber: entry.episode.season_number,
-                  episodeNumber: entry.episode.episode_number,
-                });
-              return (
-                <Paper
-                  key={entry.episode.id}
-                  className="episode-row"
-                  withBorder
-                  p={0}
-                  role="button"
-                  tabIndex={0}
-                  onClick={openEpisode}
-                  onKeyDown={(event) => {
-                    if (
-                      (event.key === "Enter" || event.key === " ") &&
-                      event.target === event.currentTarget
-                    ) {
-                      event.preventDefault();
-                      openEpisode();
-                    }
-                  }}
-                >
-                  <Group
-                    className="episode-row-layout"
-                    justify="space-between"
-                    wrap="nowrap"
-                    gap={0}
-                  >
-                    <Group className="episode-row-main" wrap="nowrap" gap={0}>
-                      <div className="episode-art">
-                        {entry.still_path ? (
-                          <Image src={backdropURL(entry.still_path, "w780")!} alt="" />
-                        ) : (
-                          <div className="artwork-fallback">{entry.episode.episode_number}</div>
-                        )}
-                      </div>
-                      <div className="episode-row-copy">
-                        <Text
-                          fw={650}
-                        >{`S${String(entry.episode.season_number).padStart(2, "0")}E${String(entry.episode.episode_number).padStart(2, "0")} — ${entry.name || `Episode ${entry.episode.episode_number}`}`}</Text>
-                        <Text size="xs" c="dimmed">
-                          {formatEpisodeAirDate(entry.episode.air_date)}
-                        </Text>
-                        {entry.overview && (
-                          <Text className="episode-description" size="sm" c="dimmed" mt={5}>
-                            {entry.overview}
-                          </Text>
-                        )}
-                      </div>
-                    </Group>
+            {((isSaved && episodes.isPending) ||
+              (!isSaved && (temporary.isPending || temporaryEpisodes.isPending))) && (
+              <Stack gap="xs">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <Paper key={i} className="episode-row" withBorder p={0}>
                     <Group
-                      className="episode-row-controls"
-                      gap="xs"
+                      className="episode-row-layout"
+                      justify="space-between"
                       wrap="nowrap"
-                      onClick={(event) => event.stopPropagation()}
+                      gap={0}
                     >
-                      <Tooltip
-                        label={`Mark episode ${entry.episode.episode_number} ${entry.watched ? "unwatched" : "watched"}`}
-                        withArrow
-                      >
-                        <Checkbox
-                          aria-label={`Episode ${entry.episode.episode_number} watched`}
-                          checked={entry.watched}
-                          color="yellow"
-                          size="md"
-                          disabled={
-                            prepareEpisodeWatch.isPending ||
-                            markEpisodeWatched.isPending ||
-                            removeEpisodesWatched.isPending
-                          }
-                          onChange={() => {
-                            if (entry.watched) removeEpisodesWatched.mutate([entry.episode.id]);
-                            else requestEpisodeWatch(entry);
-                          }}
-                        />
-                      </Tooltip>
-                      {entry.watched && (
-                        <Menu withinPortal position="bottom-end">
-                          <Menu.Target>
-                            <ActionIcon
-                              aria-label={`More actions for episode ${entry.episode.episode_number}`}
-                              size="sm"
-                              variant="subtle"
-                            >
-                              <IconChevronDown size={16} />
-                            </ActionIcon>
-                          </Menu.Target>
-                          <Menu.Dropdown>
-                            <Menu.Item
-                              leftSection={<IconRefresh size={15} />}
-                              onClick={() => markEpisodeWatched.mutate(entry.episode.id)}
-                            >
-                              Rewatch episode
-                            </Menu.Item>
-                          </Menu.Dropdown>
-                        </Menu>
-                      )}
+                      <Group className="episode-row-main" wrap="nowrap" gap={0}>
+                        <div className="episode-art">
+                          <Skeleton height="100%" width="100%" radius={0} />
+                        </div>
+                        <div className="episode-row-copy">
+                          <Skeleton height={14} width={180} mb={8} />
+                          <Skeleton height={12} width={110} mb={6} />
+                          <Skeleton height={12} width={230} />
+                        </div>
+                      </Group>
+                      <div className="episode-row-controls">
+                        <Skeleton height={32} width={32} circle />
+                      </div>
                     </Group>
-                  </Group>
-                </Paper>
-              );
-            })}
-            {isSaved && (
-              <InfiniteScrollTrigger
-                hasNextPage={!!episodes.hasNextPage}
-                isFetchingNextPage={episodes.isFetchingNextPage}
-                isFetchNextPageError={episodes.isFetchNextPageError}
-                fetchNextPage={() => void episodes.fetchNextPage()}
-              />
-            )}
-          </Stack>
-        </section>
-      )}
-      {target.mediaType === "movie" && !selectedEpisode && movieGenres?.length ? (
-        <section className="detail-section">
-          <Text className="section-kicker">About this film</Text>
-          <Group gap="xs">
-            {movieGenres.map((genre) => (
-              <Badge key={genre} variant="light">
-                {genre}
-              </Badge>
-            ))}
-            {movieScore ? <Badge variant="light">TMDB {movieScore.toFixed(1)} / 10</Badge> : null}
-          </Group>
-        </section>
-      ) : null}
-      {selectedEpisode && (adjacentEpisodes.previousEpisode || adjacentEpisodes.nextEpisode) ? (
-        <Group className="detail-section" justify="space-between" wrap="nowrap">
-          {adjacentEpisodes.previousEpisode ? (
-            <Button
-              variant="subtle"
-              leftSection={<IconChevronLeft size={16} />}
-              aria-label="Go to previous episode"
-              onClick={() => openAdjacent("previous")}
-            >
-              Previous
-            </Button>
-          ) : (
-            <span />
-          )}
-          {adjacentEpisodes.nextEpisode ? (
-            <Button
-              variant="subtle"
-              rightSection={<IconChevronRight size={16} />}
-              aria-label="Go to next episode"
-              onClick={() => openAdjacent("next")}
-            >
-              Next
-            </Button>
-          ) : null}
-        </Group>
-      ) : null}
-      {!selectedEpisode && (
-        <CastSection
-          members={
-            target.mediaType === "tv"
-              ? isSaved
-                ? (library.data?.cast ?? [])
-                : (temporary.data?.cast ?? [])
-              : isSaved
-                ? (library.data?.cast ?? [])
-                : (movieDetails.data?.cast ?? [])
-          }
-          title="Cast"
-          kicker="People"
-          onOpenPerson={onOpenPerson}
-        />
-      )}
-      {!target.episodeID &&
-        target.episodeNumber === undefined &&
-        (related.isPending || related.isError || Boolean(related.data?.length)) && (
-          <section className="detail-section">
-            <Text className="section-kicker">More to explore</Text>
-            <Title order={2}>More like this</Title>
-            {related.isPending && (
-              <PosterGridSkeleton count={6} className="poster-grid related-media-grid" />
-            )}
-            {related.isError && (
-              <Alert color="yellow" mt="sm">
-                Related titles are temporarily unavailable.
-              </Alert>
-            )}
-            {related.data?.length ? (
-              <div className="poster-grid related-media-grid">
-                {related.data.map((item) => (
-                  <MediaPosterCard
-                    key={`${item.type}:${item.tmdb_id}`}
-                    media={item}
-                    onOpenDetail={onOpenDetail}
-                  />
+                  </Paper>
                 ))}
-              </div>
-            ) : null}
+              </Stack>
+            )}
+            {episodes.isError && isSaved && (
+              <Alert color="red">Episodes are temporarily unavailable.</Alert>
+            )}
+            {temporary.isError && !isSaved && (
+              <Alert color="red">TV details are temporarily unavailable.</Alert>
+            )}
+            {temporaryEpisodes.isError && !isSaved && (
+              <Alert color="red">Season episodes are temporarily unavailable.</Alert>
+            )}
+            {markEpisodesWatched.isError && (
+              <Alert color="red">{markEpisodesWatched.error.message}</Alert>
+            )}
+            {prepareEpisodeWatch.isError && (
+              <Alert color="red">{prepareEpisodeWatch.error.message}</Alert>
+            )}
+            {markEpisodeWatched.isError && (
+              <Alert color="red">{markEpisodeWatched.error.message}</Alert>
+            )}
+            {add.isError && <Alert color="red">{add.error.message}</Alert>}
+            {(isSaved
+              ? !episodes.isPending && !episodes.isError
+              : !temporary.isPending &&
+                !temporaryEpisodes.isPending &&
+                !temporary.isError &&
+                !temporaryEpisodes.isError) &&
+              !visibleEpisodes.length && (
+                <Text c="dimmed">Episode details are not available yet.</Text>
+              )}
+            <Stack gap="xs">
+              {visibleEpisodes.map((entry) => {
+                const openEpisode = () =>
+                  onOpenDetail({
+                    mediaType: "tv",
+                    tmdbID: media.tmdb_id,
+                    mediaID: showID,
+                    episodeID: entry.episode.id,
+                    episode: entry.episode,
+                    seasonNumber: entry.episode.season_number,
+                    episodeNumber: entry.episode.episode_number,
+                  });
+                return (
+                  <Paper
+                    key={entry.episode.id}
+                    className="episode-row"
+                    withBorder
+                    p={0}
+                    role="button"
+                    tabIndex={0}
+                    onClick={openEpisode}
+                    onKeyDown={(event) => {
+                      if (
+                        (event.key === "Enter" || event.key === " ") &&
+                        event.target === event.currentTarget
+                      ) {
+                        event.preventDefault();
+                        openEpisode();
+                      }
+                    }}
+                  >
+                    <Group
+                      className="episode-row-layout"
+                      justify="space-between"
+                      wrap="nowrap"
+                      gap={0}
+                    >
+                      <Group className="episode-row-main" wrap="nowrap" gap={0}>
+                        <div className="episode-art">
+                          {entry.still_path ? (
+                            <Image src={backdropURL(entry.still_path, "w780")!} alt="" />
+                          ) : (
+                            <div className="artwork-fallback">{entry.episode.episode_number}</div>
+                          )}
+                        </div>
+                        <div className="episode-row-copy">
+                          <Text
+                            fw={650}
+                          >{`S${String(entry.episode.season_number).padStart(2, "0")}E${String(entry.episode.episode_number).padStart(2, "0")} — ${entry.name || `Episode ${entry.episode.episode_number}`}`}</Text>
+                          <Text size="xs" c="dimmed">
+                            {formatEpisodeAirDate(entry.episode.air_date)}
+                          </Text>
+                          {entry.overview && (
+                            <Text className="episode-description" size="sm" c="dimmed" mt={5}>
+                              {entry.overview}
+                            </Text>
+                          )}
+                        </div>
+                      </Group>
+                      <Group
+                        className="episode-row-controls"
+                        gap="xs"
+                        wrap="nowrap"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <Tooltip
+                          label={`Mark episode ${entry.episode.episode_number} ${entry.watched ? "unwatched" : "watched"}`}
+                          withArrow
+                        >
+                          <Checkbox
+                            aria-label={`Episode ${entry.episode.episode_number} watched`}
+                            checked={entry.watched}
+                            color="yellow"
+                            size="md"
+                            disabled={
+                              prepareEpisodeWatch.isPending ||
+                              markEpisodeWatched.isPending ||
+                              removeEpisodesWatched.isPending
+                            }
+                            onChange={() => {
+                              if (entry.watched) removeEpisodesWatched.mutate([entry.episode.id]);
+                              else requestEpisodeWatch(entry);
+                            }}
+                          />
+                        </Tooltip>
+                        {entry.watched && (
+                          <Menu withinPortal position="bottom-end">
+                            <Menu.Target>
+                              <ActionIcon
+                                aria-label={`More actions for episode ${entry.episode.episode_number}`}
+                                size="sm"
+                                variant="subtle"
+                              >
+                                <IconChevronDown size={16} />
+                              </ActionIcon>
+                            </Menu.Target>
+                            <Menu.Dropdown>
+                              <Menu.Item
+                                leftSection={<IconRefresh size={15} />}
+                                onClick={() => markEpisodeWatched.mutate(entry.episode.id)}
+                              >
+                                Rewatch episode
+                              </Menu.Item>
+                            </Menu.Dropdown>
+                          </Menu>
+                        )}
+                      </Group>
+                    </Group>
+                  </Paper>
+                );
+              })}
+              {isSaved && (
+                <InfiniteScrollTrigger
+                  hasNextPage={!!episodes.hasNextPage}
+                  isFetchingNextPage={episodes.isFetchingNextPage}
+                  isFetchNextPageError={episodes.isFetchNextPageError}
+                  fetchNextPage={() => void episodes.fetchNextPage()}
+                />
+              )}
+            </Stack>
           </section>
         )}
-      {selectedEpisode && (
-        <CastSection
-          members={episodeDetails.data?.guest_stars ?? []}
-          title="Guest stars"
-          kicker="Episode cast"
-          fallbackRole="Guest star"
-          onOpenPerson={onOpenPerson}
-        />
-      )}
-      {selectedEpisode && episodeDetails.data?.crew?.length ? (
-        <section className="detail-section">
-          <Text className="section-kicker">Episode crew</Text>
-          <Group gap="xs">
-            {episodeDetails.data.crew
-              .filter((member) => ["Director", "Writer", "Screenplay"].includes(member.job))
-              .slice(0, 8)
-              .map((member) => (
-                <Badge key={`${member.id}-${member.job}`} variant="light">
-                  {member.job}: {member.name}
+        {target.mediaType === "movie" && !selectedEpisode && movieGenres?.length ? (
+          <section className="detail-section">
+            <Text className="section-kicker">About this film</Text>
+            <Group gap="xs">
+              {movieGenres.map((genre) => (
+                <Badge key={genre} variant="light">
+                  {genre}
                 </Badge>
               ))}
-          </Group>
-        </section>
-      ) : null}
-      {!isSaved && (
-        <Text className="detail-hint" c="dimmed">
-          This is a temporary preview. Mark an episode watched to add the show to Watching.
-        </Text>
-      )}
-    </EpisodeSwipeArea>
+              {movieScore ? <Badge variant="light">TMDB {movieScore.toFixed(1)} / 10</Badge> : null}
+            </Group>
+          </section>
+        ) : null}
+        {!selectedEpisode && (
+          <CastSection
+            members={
+              target.mediaType === "tv"
+                ? isSaved
+                  ? (library.data?.cast ?? [])
+                  : (temporary.data?.cast ?? [])
+                : isSaved
+                  ? (library.data?.cast ?? [])
+                  : (movieDetails.data?.cast ?? [])
+            }
+            title="Cast"
+            kicker="People"
+            onOpenPerson={onOpenPerson}
+          />
+        )}
+        {!target.episodeID &&
+          target.episodeNumber === undefined &&
+          (related.isPending || related.isError || Boolean(related.data?.length)) && (
+            <section className="detail-section">
+              <Text className="section-kicker">More to explore</Text>
+              <Title order={2}>More like this</Title>
+              {related.isPending && (
+                <PosterGridSkeleton count={6} className="poster-grid related-media-grid" />
+              )}
+              {related.isError && (
+                <Alert color="yellow" mt="sm">
+                  Related titles are temporarily unavailable.
+                </Alert>
+              )}
+              {related.data?.length ? (
+                <div className="poster-grid related-media-grid">
+                  {related.data.map((item) => (
+                    <MediaPosterCard
+                      key={`${item.type}:${item.tmdb_id}`}
+                      media={item}
+                      onOpenDetail={onOpenDetail}
+                    />
+                  ))}
+                </div>
+              ) : null}
+            </section>
+          )}
+        {selectedEpisode && (
+          <CastSection
+            members={episodeDetails.data?.guest_stars ?? []}
+            title="Guest stars"
+            kicker="Episode cast"
+            fallbackRole="Guest star"
+            onOpenPerson={onOpenPerson}
+          />
+        )}
+        {selectedEpisode && episodeDetails.data?.crew?.length ? (
+          <section className="detail-section">
+            <Text className="section-kicker">Episode crew</Text>
+            <Group gap="xs">
+              {episodeDetails.data.crew
+                .filter((member) => ["Director", "Writer", "Screenplay"].includes(member.job))
+                .slice(0, 8)
+                .map((member) => (
+                  <Badge key={`${member.id}-${member.job}`} variant="light">
+                    {member.job}: {member.name}
+                  </Badge>
+                ))}
+            </Group>
+          </section>
+        ) : null}
+        {!isSaved && (
+          <Text className="detail-hint" c="dimmed">
+            This is a temporary preview. Mark an episode watched to add the show to Watching.
+          </Text>
+        )}
+      </div>
+    </EpisodeTransition>
   );
 }

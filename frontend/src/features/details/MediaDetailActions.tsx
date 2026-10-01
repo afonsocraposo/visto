@@ -5,7 +5,9 @@ import {
   IconBookmark,
   IconCheck,
   IconChevronDown,
+  IconDots,
   IconEye,
+  IconEyeOff,
   IconHistory,
   IconEdit,
   IconPlus,
@@ -43,51 +45,56 @@ export function EpisodeActions({
   ratingPending,
 }: EpisodeActionsProps) {
   return (
-    <Group className="detail-actions detail-icon-actions" mt="lg" gap="xs">
-      <Tooltip label={entry.watched ? "Mark unwatched" : "Mark watched"} withArrow>
-        <ActionIcon
-          size="lg"
-          color="yellow"
-          variant="filled"
-          aria-label={`Mark episode ${entry.episode.episode_number} ${entry.watched ? "unwatched" : "watched"}`}
-          onClick={entry.watched ? onUnwatch : onWatch}
-          loading={actionPending}
-          disabled={actionPending || ratingPending}
-        >
-          {entry.watched ? <IconCheck size={18} /> : <IconEye size={18} />}
-        </ActionIcon>
-      </Tooltip>
+    <Group className="detail-actions" mt="lg" gap="xs">
+      <Button
+        className="detail-primary-action"
+        color={entry.watched ? "teal" : "yellow"}
+        variant={entry.watched ? "light" : "filled"}
+        leftSection={entry.watched ? <IconCheck size={18} /> : <IconEye size={18} />}
+        aria-label={`Mark episode ${entry.episode.episode_number} ${entry.watched ? "unwatched" : "watched"}`}
+        onClick={entry.watched ? onUnwatch : onWatch}
+        loading={actionPending}
+        disabled={actionPending || ratingPending}
+      >
+        {entry.watched ? "Watched" : "Mark watched"}
+      </Button>
       {entry.watched && (
         <Menu withinPortal position="bottom-start">
           <Menu.Target>
             <ActionIcon
-              size="lg"
+              className="detail-overflow-action"
+              size={42}
               variant="default"
               aria-label="More episode actions"
               disabled={actionPending || ratingPending}
             >
-              <IconChevronDown size={18} />
+              <IconDots size={18} />
             </ActionIcon>
           </Menu.Target>
           <Menu.Dropdown>
             <Menu.Item leftSection={<IconRefresh size={16} />} onClick={onRewatch}>
               Mark rewatched
             </Menu.Item>
+            <Menu.Item leftSection={<IconEyeOff size={16} />} onClick={onUnwatch}>
+              Mark unwatched
+            </Menu.Item>
           </Menu.Dropdown>
         </Menu>
       )}
-      <RatingStars
-        value={rating}
-        onChange={onRate}
-        label="Episode rating"
-        disabled={!canRate || actionPending || ratingPending}
-        size="md"
-      />
-      {!canRate && (
-        <Text size="xs" c="dimmed">
-          Add to library to rate
-        </Text>
-      )}
+      <div className="detail-rating">
+        <RatingStars
+          value={rating}
+          onChange={onRate}
+          label="Episode rating"
+          disabled={!canRate || actionPending || ratingPending}
+          size="md"
+        />
+        {!canRate && (
+          <Text size="xs" c="dimmed">
+            Add to library to rate
+          </Text>
+        )}
+      </div>
     </Group>
   );
 }

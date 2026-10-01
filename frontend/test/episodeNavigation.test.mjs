@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { getAdjacentEpisodes } from "../src/features/details/episodeNavigation.ts";
+import { dragFollow, getAdjacentEpisodes } from "../src/features/details/episodeNavigation.ts";
 
 const episode = (season, number, { watched = false, id = `s${season}e${number}` } = {}) => ({
   episode: {
@@ -49,4 +49,20 @@ test("watch state does not change episode order", () => {
     episode(1, 3, { watched: true }),
   ];
   assert.deepEqual(adjacent(entries[1], entries), ["s1e1", "s1e3"]);
+});
+
+test("Given an 80px drag toward an episode, When following the finger, Then content moves ~24px and dims slightly", () => {
+  const { shift, opacity } = dragFollow(-80, true);
+  assert.equal(shift, -24);
+  assert.ok(opacity < 1 && opacity >= 0.88);
+});
+
+test("Given a long drag, When following the finger, Then the shift is capped", () => {
+  assert.equal(dragFollow(400, true).shift, 28);
+});
+
+test("Given no episode in that direction, When dragging, Then the content barely moves and keeps full opacity", () => {
+  const { shift, opacity } = dragFollow(80, false);
+  assert.ok(Math.abs(shift) < 10);
+  assert.equal(opacity, 1);
 });

@@ -91,6 +91,8 @@ body {
   min-width: 320px;
   min-height: 100vh;
   margin: 0;
+  /* Full-bleed heroes and sliding episodes must never create horizontal page scroll. */
+  overflow-x: clip;
   background: var(--visto-page-bg);
   color: var(--mantine-color-text);
 }
@@ -869,15 +871,24 @@ select {
   justify-content: center;
   margin-top: -28px;
   margin-inline: calc(50% - 50vw);
+  background: rgb(9 13 18);
+  color: #fff;
+}
+.detail-hero.is-episode {
+  min-height: clamp(440px, 62vh, 680px);
+}
+.detail-hero-art {
+  position: absolute;
+  inset: 0;
   background-position: center;
   background-size: cover;
-  color: #fff;
 }
 .detail-hero-back {
   position: absolute;
   top: 20px;
   left: 20px;
   z-index: 2;
+  min-height: var(--visto-touch-target);
   background: rgb(9 13 18 / 0.55);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
@@ -892,21 +903,21 @@ select {
   position: relative;
   z-index: 1;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: clamp(24px, 4vw, 48px);
   width: calc(100% - 32px);
   max-width: 1120px;
   margin-inline: auto;
-  padding: clamp(24px, 5vw, 56px);
+  padding: clamp(24px, 5vw, 56px) 0;
 }
 .detail-poster {
   flex: 0 0 auto;
   width: clamp(160px, 16vw, 220px);
   aspect-ratio: 2 / 3;
   overflow: hidden;
-  border-radius: 14px;
+  border-radius: var(--visto-radius-card);
   background: var(--visto-artwork-bg);
-  box-shadow: 0 18px 44px rgb(0 0 0 / 0.45);
+  box-shadow: var(--visto-shadow-raised);
 }
 .detail-poster .mantine-Image-root,
 .detail-poster img {
@@ -918,53 +929,247 @@ select {
   min-width: 0;
   flex: 1;
 }
-.detail-hero h1 {
-  max-width: 760px;
-  margin-top: 12px;
-  font-size: clamp(2rem, 6vw, 4.6rem);
-  letter-spacing: -0.065em;
-  line-height: 0.98;
+.detail-eyebrow {
+  display: inline-block;
+  color: rgb(255 255 255 / 0.78);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
-.detail-subtitle {
-  color: rgb(255 255 255 / 0.72);
+.detail-eyebrow-link {
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  letter-spacing: 0.02em;
+  text-transform: none;
   font-size: 0.95rem;
-}
-.detail-season-link {
-  margin: 2px 0 0 -10px;
-  padding-inline: 10px;
-  color: rgb(255 255 255 / 0.72);
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  transition: text-decoration-color var(--visto-motion-normal) var(--visto-ease-standard);
 }
 @media (hover: hover) and (pointer: fine) {
-  .detail-season-link:hover {
+  .detail-eyebrow-link:hover {
     color: #fff;
-    background: rgb(255 255 255 / 0.1);
+    text-decoration-color: currentColor;
   }
+}
+.detail-eyebrow-link:focus-visible {
+  border-radius: 4px;
+  outline: 2px solid var(--visto-accent);
+  outline-offset: 3px;
+}
+.detail-hero h1 {
+  max-width: 760px;
+  margin-top: 6px;
+  font-size: clamp(2rem, 5.5vw, 4.4rem);
+  letter-spacing: -0.055em;
+  line-height: 0.98;
+  text-wrap: balance;
+}
+.detail-hero.is-episode h1 {
+  font-size: clamp(1.9rem, 4.5vw, 3.6rem);
+}
+.detail-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 0;
+  margin: 12px 0 0;
+  color: rgb(255 255 255 / 0.82);
+  font-size: 0.95rem;
+  text-shadow: 0 1px 8px rgb(0 0 0 / 0.6);
+}
+.detail-facts > span + span::before {
+  margin-inline: 8px;
+  color: rgb(255 255 255 / 0.5);
+  content: "·";
 }
 .detail-overview {
   max-width: 640px;
-  margin-top: 20px;
+  margin-top: 16px;
+}
+.clamped-text-body {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+}
+.clamped-text-body[data-expanded] {
+  display: block;
+}
+.detail-overview .clamped-text-body {
   color: rgb(255 255 255 / 0.86);
-  font-size: 1.05rem;
-  line-height: 1.65;
+  font-size: 1.02rem;
+  line-height: 1.6;
 }
-.detail-meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px 18px;
-  margin-top: 12px;
+.clamped-text-toggle {
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  font-weight: 700;
 }
-.detail-meta:empty {
-  display: none;
+.detail-overview .clamped-text-toggle {
+  color: #fff;
 }
-.detail-runtime {
+.clamped-text-toggle:focus-visible {
+  border-radius: 4px;
+  outline: 2px solid var(--visto-focus);
+  outline-offset: 2px;
+}
+.detail-last-watched {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: rgb(255 255 255 / 0.9);
-  text-shadow: 0 1px 8px rgb(0 0 0 / 0.75);
+  margin-top: 8px;
+  color: rgb(255 255 255 / 0.78);
+  font-size: 0.88rem;
+}
+
+/* Episode navigator: the current episode centred between previous/next chevrons. */
+.episode-nav {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  margin: 12px 0 4px;
+  padding: 4px;
+  border: 1px solid var(--visto-border);
+  border-radius: var(--visto-radius-card);
+  background: var(--visto-surface);
+  box-shadow: var(--visto-shadow-card);
+}
+.episode-nav-current {
+  padding-inline: 8px;
+  font-size: 1rem;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+.episode-nav-step {
+  display: flex;
+  min-width: var(--visto-touch-target);
+  min-height: var(--visto-touch-target);
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: var(--visto-radius-control);
+  background: none;
+  color: var(--mantine-color-text);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    background-color var(--visto-motion-fast) var(--visto-ease-standard),
+    transform var(--visto-motion-fast) var(--visto-ease-standard);
+}
+.episode-nav-step.is-previous {
+  justify-self: start;
+}
+.episode-nav-step.is-next {
+  flex-direction: row-reverse;
+  justify-self: end;
+  text-align: right;
+}
+.episode-nav-step:disabled {
+  color: var(--mantine-color-dimmed);
+  cursor: default;
+  opacity: 0.35;
+}
+.episode-nav-step:focus-visible {
+  outline: 2px solid var(--visto-focus);
+  outline-offset: 1px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .episode-nav-step:not(:disabled):hover {
+    background: var(--mantine-color-default-hover);
+  }
+}
+.episode-nav-chevron {
+  flex: 0 0 auto;
+}
+.episode-nav-neighbour {
+  display: grid;
+  min-width: 0;
+  line-height: 1.25;
+}
+.episode-nav-neighbour-code {
+  color: var(--mantine-color-dimmed);
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+.episode-nav-neighbour-name {
+  overflow: hidden;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+ * Episode slide: content (not the backdrop) follows the finger and slides; the backdrop only
+ * fades. data-motion picks the timing: "none" while dragging, "snap" back, "slide" between.
+ */
+.episode-transition .detail-hero-content,
+.episode-transition .episode-transition-body {
+  transform: translateX(var(--episode-shift, 0px));
+  opacity: var(--episode-opacity, 1);
+}
+.episode-transition .detail-hero-art {
+  opacity: calc(0.4 + var(--episode-opacity, 1) * 0.6);
+}
+.episode-transition[data-motion="slide"]
+  :is(.detail-hero-content, .episode-transition-body, .detail-hero-art) {
+  transition:
+    transform 200ms var(--visto-ease-standard),
+    opacity 200ms var(--visto-ease-standard);
+}
+.episode-transition[data-motion="snap"]
+  :is(.detail-hero-content, .episode-transition-body, .detail-hero-art) {
+  transition:
+    transform 140ms var(--visto-ease-standard),
+    opacity 140ms var(--visto-ease-standard);
+}
+@media (prefers-reduced-motion: reduce) {
+  .episode-transition :is(.detail-hero-content, .episode-transition-body, .detail-hero-art) {
+    transform: none !important;
+    opacity: 1 !important;
+    transition: none !important;
+  }
+}
+@media (min-width: 681px) {
+  .episode-nav {
+    padding: 6px 8px;
+  }
+}
+@media (max-width: 680px) {
+  .episode-nav-neighbour {
+    display: none;
+  }
+  .episode-nav-step {
+    justify-content: center;
+    min-width: 52px;
+  }
 }
 .detail-actions {
   align-items: center;
+}
+.detail-actions .mantine-Button-root {
+  min-height: 42px;
+}
+.detail-rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.detail-hero .detail-rating .mantine-Text-root {
+  color: rgb(255 255 255 / 0.7);
 }
 .show-notifications-drawer {
   max-width: 560px;
@@ -1654,6 +1859,46 @@ select {
   outline-offset: 3px;
 }
 
+/* Mobile detail hero: ~300–380px of artwork, no big poster, left-aligned, actions above the fold. */
+@media (max-width: 680px) {
+  .detail-hero,
+  .detail-hero.is-episode {
+    min-height: 340px;
+    margin-top: -24px;
+  }
+  .detail-hero-art {
+    bottom: auto;
+    height: 380px;
+  }
+  .detail-hero-content {
+    width: calc(100% - 24px);
+    padding: 120px 0 18px;
+  }
+  .detail-poster {
+    display: none;
+  }
+  .detail-hero h1,
+  .detail-hero.is-episode h1 {
+    font-size: clamp(1.75rem, 8.5vw, 2.4rem);
+    letter-spacing: -0.045em;
+  }
+  .detail-facts {
+    margin-top: 8px;
+    font-size: 0.88rem;
+  }
+  .detail-overview {
+    margin-top: 10px;
+  }
+  .detail-overview .clamped-text-body {
+    font-size: 0.94rem;
+    line-height: 1.5;
+  }
+  .detail-hero-back {
+    top: 12px;
+    left: 12px;
+  }
+}
+
 @media (max-width: 680px) {
   .mantine-Input-input {
     font-size: max(16px, var(--_input-fz, var(--input-fz, var(--mantine-font-size-md))));
@@ -1732,39 +1977,6 @@ select {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 10px;
   }
-  .detail-hero {
-    min-height: 560px;
-    align-items: flex-end;
-    margin-top: -24px;
-  }
-  .detail-hero-content {
-    width: calc(100% - 24px);
-    max-width: 1120px;
-    padding: 72px 22px 22px;
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-  }
-  .detail-poster {
-    width: min(55vw, 220px);
-  }
-  .detail-hero-body {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    width: 100%;
-  }
-  .detail-season-link {
-    margin-left: 0;
-  }
-  .detail-actions {
-    width: 100%;
-    justify-content: center;
-  }
-  .detail-hero-back {
-    top: 14px;
-    left: 14px;
-  }
   .person-hero {
     grid-template-columns: 1fr;
     gap: 22px;
@@ -1783,10 +1995,6 @@ select {
   .person-facts {
     justify-content: center;
   }
-  .detail-overview {
-    font-size: 0.95rem;
-    line-height: 1.5;
-  }
   .episode-row-layout {
     min-height: 104px;
   }
@@ -1801,24 +2009,11 @@ select {
   .episode-row-controls {
     margin-right: 8px;
   }
-  .detail-actions {
-    flex-direction: row;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-  }
   .detail-actions .mantine-Select-root {
     width: 130px !important;
   }
   .detail-actions > .show-bulk-action {
     width: 44px;
-  }
-  .detail-actions > .rating-stars {
-    order: 1;
-    width: max-content !important;
-    flex: 0 0 auto;
-    flex-basis: 100%;
-    justify-content: center;
   }
   .section-tabs {
     flex: 1;
