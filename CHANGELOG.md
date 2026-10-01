@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.21.0](https://github.com/afonsocraposo/visto/compare/v0.20.1...v0.21.0) (2026-10-01)
+
+
+### Features
+
+* episode navigator, compact mobile hero and episode transitions ([9db33b0](https://github.com/afonsocraposo/visto/commit/9db33b071af708dcf4e61383169ce15fe7a9f672))
+* faster Discover, simpler Library and consistent Activity ([b3fb7cc](https://github.com/afonsocraposo/visto/commit/b3fb7cc5b3856650b29d06ed112487ac800f210a))
+* interaction polish across cards, rating, loading and sign-in ([a015987](https://github.com/afonsocraposo/visto/commit/a01598752b64bd7662e10869ab97a4a2100cf1e6))
+* labelled detail actions, Your tracking and clearer season browsing ([bdf3769](https://github.com/afonsocraposo/visto/commit/bdf3769075774dfffcb0732a28e27c8c5714e554))
+* make empty Library sections point to Discover ([c4dbde8](https://github.com/afonsocraposo/visto/commit/c4dbde8ccd8cb04da4d51d7b3739fb95ae96e79b))
+* make Watching an up-next timeline with recent watches above ([4be751c](https://github.com/afonsocraposo/visto/commit/4be751ca9756a9a906433f621509d0c5d1636a6e))
+* rework navigation into Watching, Discover, Activity and Library ([10f92a3](https://github.com/afonsocraposo/visto/commit/10f92a3222462ed019597e0a2c48b514c34be923))
+
+
+### Bug Fixes
+
+* change a saved title's list only from Your tracking ([2d81dcb](https://github.com/afonsocraposo/visto/commit/2d81dcbc03a595c11e74ee5508b5060caed72168))
+* harden semantics, touch targets, errors and narrow layouts ([824dc35](https://github.com/afonsocraposo/visto/commit/824dc356fc0e189857ec4269fe89c6da988458db))
+
 ## [0.20.1](https://github.com/afonsocraposo/visto/compare/v0.20.0...v0.20.1) (2026-09-30)
 
 
