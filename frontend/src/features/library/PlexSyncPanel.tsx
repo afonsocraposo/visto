@@ -25,6 +25,7 @@ type PlexEvent = {
   event_type?: string;
   status: "synced" | "skipped" | "failed";
   title?: string;
+  episode_label?: string;
   media_type?: string;
   message?: string;
   occurred_at: string;
@@ -299,7 +300,17 @@ export function PlexSyncPanel() {
               <Table.Tbody>
                 {status.data!.recent_events.map((event) => (
                   <Table.Tr key={event.id}>
-                    <Table.Td>{event.title || event.media_type || "Plex event"}</Table.Td>
+                    <Table.Td>
+                      {/* The show (or movie) first; an episode is identified by its number. */}
+                      <Text fw={600} size="sm">
+                        {event.title || event.media_type || "Plex event"}
+                      </Text>
+                      {event.episode_label && (
+                        <Text size="xs" c="dimmed" style={{ fontVariantNumeric: "tabular-nums" }}>
+                          {event.episode_label}
+                        </Text>
+                      )}
+                    </Table.Td>
                     <Table.Td>{event.event_type || "—"}</Table.Td>
                     <Table.Td>
                       <Badge

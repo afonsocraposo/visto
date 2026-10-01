@@ -44,7 +44,7 @@ func (store *Store) GetPlexWebhookStatus(ctx context.Context, userID string) (pl
 		return status, fmt.Errorf("get last successful Plex sync: %w", err)
 	}
 	status.LastSyncedAt = parseNullableTime(lastSyncedAt)
-	rows, err := store.DB.QueryContext(ctx, `SELECT id,COALESCE(tmdb_id,0),status,COALESCE(title,''),COALESCE(media_type,''),COALESCE(message,''),occurred_at,COALESCE(event_type,'')
+	rows, err := store.DB.QueryContext(ctx, `SELECT id,COALESCE(tmdb_id,0),status,COALESCE(title,''),COALESCE(media_type,''),COALESCE(message,''),occurred_at,COALESCE(event_type,''),COALESCE(episode_label,'')
 		FROM plex_webhook_events WHERE user_id=? ORDER BY created_at DESC,id DESC LIMIT 20`, userID)
 	if err != nil {
 		return status, fmt.Errorf("list recent Plex sync events: %w", err)
@@ -53,7 +53,7 @@ func (store *Store) GetPlexWebhookStatus(ctx context.Context, userID string) (pl
 	for rows.Next() {
 		var event plexsync.Event
 		var occurredAt string
-		if err := rows.Scan(&event.ID, &event.TMDBID, &event.Status, &event.Title, &event.MediaType, &event.Message, &occurredAt, &event.EventType); err != nil {
+		if err := rows.Scan(&event.ID, &event.TMDBID, &event.Status, &event.Title, &event.MediaType, &event.Message, &occurredAt, &event.EventType, &event.EpisodeLabel); err != nil {
 			return status, fmt.Errorf("scan Plex sync event: %w", err)
 		}
 		event.OccurredAt, err = time.Parse(time.RFC3339Nano, occurredAt)
@@ -87,9 +87,9 @@ func (store *Store) LogPlexEvent(ctx context.Context, userID, fingerprint string
 	if event.OccurredAt.IsZero() {
 		event.OccurredAt = now
 	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO plex_webhook_events(user_id,fingerprint,status,title,media_type,tmdb_id,message,occurred_at,created_at,event_type,raw_payload)
-		VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(user_id,fingerprint) DO UPDATE SET status=excluded.status,title=excluded.title,media_type=excluded.media_type,tmdb_id=excluded.tmdb_id,message=excluded.message,occurred_at=excluded.occurred_at,created_at=excluded.created_at,event_type=excluded.event_type,raw_payload=excluded.raw_payload
-		WHERE plex_webhook_events.status='failed'`, userID, fingerprint, event.Status, nullableText(event.Title), nullableText(event.MediaType), nullableInt(event.TMDBID), nullableText(event.Message), event.OccurredAt.UTC().Format(time.RFC3339Nano), now.Format(time.RFC3339Nano), nullableText(event.EventType), nullableText(event.RawPayload))
+	_, err = tx.ExecContext(ctx, `INSERT INTO plex_webhook_events(user_id,fingerprint,status,title,episode_label,media_type,tmdb_id,message,occurred_at,created_at,event_type,raw_payload)
+		VALUES(?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(user_id,fingerprint) DO UPDATE SET status=excluded.status,title=excluded.title,episode_label=excluded.episode_label,media_type=excluded.media_type,tmdb_id=excluded.tmdb_id,message=excluded.message,occurred_at=excluded.occurred_at,created_at=excluded.created_at,event_type=excluded.event_type,raw_payload=excluded.raw_payload
+		WHERE plex_webhook_events.status='failed'`, userID, fingerprint, event.Status, nullableText(event.Title), nullableText(event.EpisodeLabel), nullableText(event.MediaType), nullableInt(event.TMDBID), nullableText(event.Message), event.OccurredAt.UTC().Format(time.RFC3339Nano), now.Format(time.RFC3339Nano), nullableText(event.EventType), nullableText(event.RawPayload))
 	if err != nil {
 		return fmt.Errorf("save Plex event status: %w", err)
 	}
@@ -121,10 +121,10 @@ func (store *Store) RecordPlexPlay(ctx context.Context, userID, fingerprint stri
 		event.OccurredAt = watchedAt
 	}
 	if err == sql.ErrNoRows {
-		_, err = tx.ExecContext(ctx, `INSERT INTO plex_webhook_events(user_id,fingerprint,status,title,media_type,tmdb_id,message,occurred_at,created_at,event_type,raw_payload)
-			VALUES(?,?,'processing',?,?,?,?,?,?,?,?)`, userID, fingerprint, nullableText(event.Title), nullableText(event.MediaType), nullableInt(event.TMDBID), nullableText(event.Message), event.OccurredAt.UTC().Format(time.RFC3339Nano), now.Format(time.RFC3339Nano), nullableText(event.EventType), nullableText(event.RawPayload))
+		_, err = tx.ExecContext(ctx, `INSERT INTO plex_webhook_events(user_id,fingerprint,status,title,episode_label,media_type,tmdb_id,message,occurred_at,created_at,event_type,raw_payload)
+			VALUES(?,?,'processing',?,?,?,?,?,?,?,?,?)`, userID, fingerprint, nullableText(event.Title), nullableText(event.EpisodeLabel), nullableText(event.MediaType), nullableInt(event.TMDBID), nullableText(event.Message), event.OccurredAt.UTC().Format(time.RFC3339Nano), now.Format(time.RFC3339Nano), nullableText(event.EventType), nullableText(event.RawPayload))
 	} else {
-		_, err = tx.ExecContext(ctx, `UPDATE plex_webhook_events SET status='processing',title=?,media_type=?,tmdb_id=?,message=?,occurred_at=?,created_at=?,event_type=?,raw_payload=? WHERE user_id=? AND fingerprint=?`, nullableText(event.Title), nullableText(event.MediaType), nullableInt(event.TMDBID), nullableText(event.Message), event.OccurredAt.UTC().Format(time.RFC3339Nano), now.Format(time.RFC3339Nano), nullableText(event.EventType), nullableText(event.RawPayload), userID, fingerprint)
+		_, err = tx.ExecContext(ctx, `UPDATE plex_webhook_events SET status='processing',title=?,episode_label=?,media_type=?,tmdb_id=?,message=?,occurred_at=?,created_at=?,event_type=?,raw_payload=? WHERE user_id=? AND fingerprint=?`, nullableText(event.Title), nullableText(event.EpisodeLabel), nullableText(event.MediaType), nullableInt(event.TMDBID), nullableText(event.Message), event.OccurredAt.UTC().Format(time.RFC3339Nano), now.Format(time.RFC3339Nano), nullableText(event.EventType), nullableText(event.RawPayload), userID, fingerprint)
 	}
 	if err != nil {
 		return false, fmt.Errorf("claim Plex event: %w", err)
@@ -253,3 +253,29 @@ func nullableInt(value int64) any {
 }
 
 var _ plexsync.Repository = (*Store)(nil)
+
+// LocalEpisode finds an active episode already in the catalog, with its show's title.
+func (store *Store) LocalEpisode(ctx context.Context, tmdbShowID int64, season, episode int) (plexsync.LocalEpisode, bool, error) {
+	return store.localEpisode(ctx, `e.show_id=? AND e.season_number=? AND e.episode_number=?`, fmt.Sprintf("tv:%d", tmdbShowID), season, episode)
+}
+
+// LocalEpisodeByTMDBID finds an active episode by its own TMDB ID, which names the show too.
+func (store *Store) LocalEpisodeByTMDBID(ctx context.Context, tmdbEpisodeID int64) (plexsync.LocalEpisode, bool, error) {
+	if tmdbEpisodeID <= 0 {
+		return plexsync.LocalEpisode{}, false, nil
+	}
+	return store.localEpisode(ctx, `e.tmdb_id=?`, tmdbEpisodeID)
+}
+
+func (store *Store) localEpisode(ctx context.Context, condition string, args ...any) (plexsync.LocalEpisode, bool, error) {
+	var found plexsync.LocalEpisode
+	err := store.DB.QueryRowContext(ctx, `SELECT e.id,COALESCE(e.tmdb_id,0),m.tmdb_id,m.title,e.season_number,e.episode_number FROM episodes e JOIN media m ON m.id=e.show_id
+		WHERE m.media_type='tv' AND e.active=1 AND `+condition+` LIMIT 1`, args...).Scan(&found.EpisodeID, &found.TMDBID, &found.ShowTMDBID, &found.ShowTitle, &found.Season, &found.Episode)
+	if err == sql.ErrNoRows {
+		return plexsync.LocalEpisode{}, false, nil
+	}
+	if err != nil {
+		return plexsync.LocalEpisode{}, false, fmt.Errorf("look up local episode: %w", err)
+	}
+	return found, true, nil
+}

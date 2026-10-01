@@ -37,6 +37,36 @@ func TestFindByTVDB(t *testing.T) {
 	}
 }
 
+func TestFindEpisodeByExternalID(t *testing.T) {
+	var lookedUp string
+	client, err := New("test-key", &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		lookedUp = request.URL.Path + "?" + request.URL.Query().Get("external_source")
+		body := `{"tv_episode_results":[{"id":9004,"show_id":100,"season_number":2,"episode_number":4}]}`
+		if strings.Contains(request.URL.Path, "/none") {
+			body = `{"tv_episode_results":[]}`
+		}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header), Request: request}, nil
+	})})
+	if err != nil {
+		t.Fatal(err)
+	}
+	location, err := client.FindEpisodeByExternalID(context.Background(), "tvdb_id", "11861026")
+	if err != nil || location.ShowTMDBID != 100 || location.SeasonNumber != 2 || location.EpisodeNumber != 4 {
+		t.Fatalf("location=%#v error=%v; want show 100 season 2 episode 4", location, err)
+	}
+	if lookedUp != "/3/find/11861026?tvdb_id" {
+		t.Fatalf("lookup = %q, want a TVDB find", lookedUp)
+	}
+	if _, err := client.FindEpisodeByExternalID(context.Background(), "imdb_id", "none"); err == nil {
+		t.Fatal("an ID with no episode match must fail")
+	}
+	for _, invalid := range [][2]string{{"tmdb_id", "1"}, {"tvdb_id", ""}, {"tvdb_id", "1/2"}} {
+		if _, err := client.FindEpisodeByExternalID(context.Background(), invalid[0], invalid[1]); err == nil {
+			t.Fatalf("source %q id %q must be rejected", invalid[0], invalid[1])
+		}
+	}
+}
+
 func TestDetailCaches_GivenMoreThanTheLimit_StayBounded(t *testing.T) {
 	transport := roundTripFunc(func(request *http.Request) (*http.Response, error) {
 		body := `{"id":42,"title":"Example","name":"Example","season_number":1,"episode_number":1}`

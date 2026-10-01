@@ -153,3 +153,10 @@ type MediaSearchResult struct {
 	OriginalLanguage string    `json:"original_language"`
 	BackdropPath     string    `json:"backdrop_path,omitempty"`
 }
+
+// EpisodeLocation identifies a TV episode inside TMDB by show, season and episode number.
+type EpisodeLocation struct {
+	ShowTMDBID    int64
+	SeasonNumber  int
+	EpisodeNumber int
+}
