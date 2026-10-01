@@ -60,7 +60,7 @@ export function PersonDetailPage({ personID, onBack, onOpenDetail }: Props) {
         </section>
         <section className="person-filmography">
           <Skeleton height={22} width={150} mb="sm" />
-          <PosterGridSkeleton count={12} />
+          <PosterGridSkeleton count={12} caption />
         </section>
       </div>
     );
@@ -171,6 +171,7 @@ export function PersonDetailPage({ personID, onBack, onOpenDetail }: Props) {
                 <MediaPosterCard
                   key={`${credit.type}:${credit.tmdb_id}`}
                   media={media}
+                  variant="caption"
                   subtitle={subtitle}
                   onOpenDetail={onOpenDetail}
                 />

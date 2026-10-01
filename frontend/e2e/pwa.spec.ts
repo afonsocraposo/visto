@@ -1533,7 +1533,7 @@ test("Expanded library pages filter media before pagination and keep the selecti
 
   await page.goto("/profile/library/completed");
   await expect(page.getByText("movie title 2")).toBeVisible();
-  await page.getByText("TV shows", { exact: true }).click();
+  await page.getByText("TV", { exact: true }).click();
   await expect(page).toHaveURL(/\/profile\/library\/completed\?media_type=tv$/);
   await expect
     .poll(() => page.evaluate(() => localStorage.getItem("visto:library:user-1:filter")))
@@ -1554,7 +1554,7 @@ test("Expanded library pages filter media before pagination and keep the selecti
   await page.goto("/profile/library/watchlist?media_type=tv");
   await expect(page.getByText("tv title 3")).toBeVisible();
   await page.goto("/profile");
-  await page.getByText("TV shows", { exact: true }).click();
+  await page.getByText("TV", { exact: true }).click();
   await page
     .locator(".library-section")
     .filter({ has: page.getByRole("heading", { name: "Completed" }) })
@@ -1651,16 +1651,13 @@ test("Library previews show full filtered counts in the requested order and rest
 
   await page.goto("/profile");
   let sections = page.locator(".library-section");
-  await expect(sections).toHaveCount(5);
-  await expect(sections.locator("h2")).toHaveText([
-    "Watching",
-    "Watchlist",
-    "Paused",
-    "Completed",
-    "Dropped",
-  ]);
+  // Watching, Watchlist and Completed get poster rows; the rest are compact list links.
+  await expect(sections).toHaveCount(3);
+  await expect(sections.locator("h2")).toHaveText(["Watching", "Watchlist", "Completed"]);
+  const moreLists = page.getByRole("navigation", { name: "More lists" });
+  await expect(moreLists.getByRole("button")).toHaveText([/Paused\s*12/, /Dropped\s*12/]);
   await expect(sections.first().getByText("12 titles")).toBeVisible();
-  await page.getByText("TV shows", { exact: true }).click();
+  await page.getByText("TV", { exact: true }).click();
   await expect(sections.first().getByText("3 titles")).toBeVisible();
   await page.getByRole("combobox", { name: "Sort library media" }).click();
   await page.getByRole("option", { name: "Title" }).click();

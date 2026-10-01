@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Button, Group, Text, Title } from "@mantine/core";
+import { Button, Group, Title } from "@mantine/core";
 import { IconUsers } from "@tabler/icons-react";
 import { UserDirectory } from "./UserDirectory";
 import { HistoryPanel } from "../library/HistoryPanel";
@@ -27,11 +27,8 @@ export function FeedArea({
 
   return (
     <section className="activity-page" aria-label="Activity">
-      <Group className="page-heading" justify="space-between" align="start" wrap="nowrap">
-        <div>
-          <Text className="section-kicker">Your watchroom</Text>
-          <Title order={1}>Activity</Title>
-        </div>
+      <Group className="page-heading" justify="space-between" align="center" wrap="nowrap">
+        <Title order={1}>Activity</Title>
         <Button
           className="people-button"
           variant="default"

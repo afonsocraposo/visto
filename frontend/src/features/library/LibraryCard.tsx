@@ -4,9 +4,11 @@ import { MediaPosterCard } from "../../components/MediaPosterCard";
 export function LibraryCard({
   entry,
   onOpenDetail,
+  eager,
 }: {
   entry: LibraryEntry;
   onOpenDetail?: (target: MediaDetailTarget) => void;
+  eager?: boolean;
 }) {
   const target = {
     mediaType: entry.media.type,
@@ -32,6 +34,7 @@ export function LibraryCard({
       target={target}
       onOpenDetail={onOpenDetail}
       progress={progress}
+      eager={eager}
     />
   );
 }

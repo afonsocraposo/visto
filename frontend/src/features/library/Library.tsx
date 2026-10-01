@@ -1,4 +1,4 @@
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQueries, useQuery } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import {
   Alert,
@@ -11,7 +11,8 @@ import {
   Text,
   Title,
 } from "@mantine/core";
-import { IconSearch } from "@tabler/icons-react";
+import { IconArrowsSort, IconChevronRight, IconSearch } from "@tabler/icons-react";
+import { QueryError } from "../../components/QueryError";
 import { useState, type ReactNode } from "react";
 import { EmptyState } from "../../components/EmptyState";
 import { PosterGridSkeleton } from "../../components/PosterGridSkeleton";
@@ -38,6 +39,8 @@ const sections: Array<{ status: LibraryStatus; label: string }> = [
   { status: "completed", label: "Completed" },
   { status: "dropped", label: "Dropped" },
 ];
+/** Shown as full poster rows; the others are compact links so the page stays short. */
+const primaryStatuses: LibraryStatus[] = ["watching", "watchlist", "completed"];
 const PREVIEW_LIMIT = 6;
 
 export function LibraryPanel({
@@ -64,6 +67,8 @@ export function LibraryPanel({
           `/api/v1/library?sort=${sort}&status=${section.status}&limit=${PREVIEW_LIMIT}${mediaFilter === "all" ? "" : `&media_type=${mediaFilter}`}`,
           "Your library is temporarily unavailable.",
         ),
+      // Keep the current posters while a new filter/sort loads; the grid just dims briefly.
+      placeholderData: keepPreviousData,
       refetchOnMount: "always" as const,
       refetchOnWindowFocus: "always" as const,
     })),
@@ -78,23 +83,24 @@ export function LibraryPanel({
     refetchOnMount: "always",
     refetchOnWindowFocus: "always",
   });
+  const heading = (
+    <Group className="page-heading" justify="space-between" align="center" wrap="nowrap">
+      <Title order={1}>Library</Title>
+      {headerAction}
+    </Group>
+  );
   if (libraries.some((library) => library.isPending) || anyLibrary.isPending)
     return (
       <>
-        <div className="page-heading">
-          <Skeleton height={12} width={130} mb={8} />
-          <Skeleton height={34} width={180} mb={8} />
-          <Skeleton height={16} width={280} />
-        </div>
-        <Group mb="xl" justify="space-between" align="end">
-          <Skeleton height={36} width={220} radius="xl" />
-          <Skeleton height={60} width={160} />
+        {heading}
+        <Group className="library-controls" justify="space-between">
+          <Skeleton height={36} width={200} radius="md" />
+          <Skeleton height={36} width={150} radius="md" />
         </Group>
         <div className="library-sections">
           {Array.from({ length: 2 }).map((_, i) => (
             <section className="library-section" key={i}>
-              <Skeleton height={22} width={140} mb={4} />
-              <Skeleton height={14} width={70} mb="sm" />
+              <Skeleton height={22} width={140} mb="sm" />
               <PosterGridSkeleton count={6} />
             </section>
           ))}
@@ -103,20 +109,20 @@ export function LibraryPanel({
     );
   if (libraries.some((library) => library.isError) || anyLibrary.isError)
     return (
-      <Alert color="red" mt="md">
-        Your library is temporarily unavailable.
-      </Alert>
+      <>
+        {heading}
+        <QueryError
+          message="Could not load your library."
+          onRetry={() =>
+            Promise.all([anyLibrary.refetch(), ...libraries.map((library) => library.refetch())])
+          }
+        />
+      </>
     );
   if (libraries.every((library) => !library.data?.items.length) && !anyLibrary.data?.items.length)
     return (
       <>
-        <Group className="page-heading" justify="space-between" align="center" wrap="nowrap">
-          <div>
-            <Text className="section-kicker">Your collection</Text>
-            <Title order={1}>Library</Title>
-          </div>
-          {headerAction}
-        </Group>
+        {heading}
         <Paper className="library-empty" withBorder radius="lg">
           <Title order={2}>Start with your watch history</Title>
           <Text c="dimmed" mt="sm">
@@ -136,16 +142,19 @@ export function LibraryPanel({
         </Paper>
       </>
     );
+  const refreshing = libraries.some((library) => library.isPlaceholderData) || undefined;
+  const pages = new Map(sections.map((section, index) => [section.status, libraries[index].data!]));
+  const countOf = (status: LibraryStatus) => {
+    const page = pages.get(status)!;
+    return page.total_count ?? page.items.length;
+  };
+  const secondary = sections.filter(
+    (section) => !primaryStatuses.includes(section.status) && countOf(section.status) > 0,
+  );
   return (
     <>
-      <Group className="page-heading" justify="space-between" align="center" wrap="nowrap">
-        <div>
-          <Text className="section-kicker">Your collection</Text>
-          <Title order={1}>Library</Title>
-        </div>
-        {headerAction}
-      </Group>
-      <Group mb="xl" align="end" justify="space-between">
+      {heading}
+      <Group className="library-controls" justify="space-between" align="center" wrap="nowrap">
         <SegmentedControl
           aria-label="Filter library by media type"
           value={mediaFilter}
@@ -157,8 +166,9 @@ export function LibraryPanel({
           data={libraryMediaFilterOptions}
         />
         <Select
-          label="Sort by"
+          className="library-sort"
           aria-label="Sort library media"
+          leftSection={<IconArrowsSort size={16} />}
           data={librarySortOptions}
           value={sort}
           onChange={(value) => {
@@ -168,65 +178,111 @@ export function LibraryPanel({
             saveLibrarySort(userID, next);
           }}
           allowDeselect={false}
+          comboboxProps={{ position: "bottom-end", width: 200 }}
         />
       </Group>
       {libraries.every((library) => !library.data?.items.length) && (
         <EmptyState
-          title="No titles in this filter"
-          detail="Choose another media type to see your library."
+          title={`No ${mediaFilter === "movie" ? "movies" : "TV shows"} yet`}
+          detail="Choose another media type to see the rest of your library."
+          action={
+            <Button
+              variant="light"
+              onClick={() => {
+                setMediaFilter("all");
+                saveLibraryFilter(userID, "all");
+              }}
+            >
+              Show everything
+            </Button>
+          }
         />
       )}
       <div className="library-sections">
-        {sections.map((section, index) => {
-          const page = libraries[index].data!;
-          const entries = page.items;
-          if (entries.length === 0) return null;
-          const totalCount = page.total_count ?? entries.length;
-          return (
-            <section
-              className="library-section"
-              key={section.status}
-              aria-labelledby={`library-section-${section.status}`}
-            >
-              <Group
-                className="library-section-heading"
-                justify="space-between"
-                align="baseline"
-                gap="sm"
+        {sections
+          .filter((section) => primaryStatuses.includes(section.status))
+          .map((section) => {
+            const page = pages.get(section.status)!;
+            const entries = page.items;
+            const totalCount = countOf(section.status);
+            return (
+              <section
+                className="library-section"
+                key={section.status}
+                aria-labelledby={`library-section-${section.status}`}
               >
-                <div>
-                  <Title id={`library-section-${section.status}`} order={2}>
-                    {section.label}
-                  </Title>
-                  <Text size="sm" c="dimmed">
-                    {totalCount} {totalCount === 1 ? "title" : "titles"}
+                <Group
+                  className="library-section-heading"
+                  justify="space-between"
+                  align="baseline"
+                  gap="sm"
+                  wrap="nowrap"
+                >
+                  <Group gap={8} align="baseline" wrap="nowrap">
+                    <Title id={`library-section-${section.status}`} order={2}>
+                      {section.label}
+                    </Title>
+                    <Text size="sm" c="dimmed">
+                      {totalCount} {totalCount === 1 ? "title" : "titles"}
+                    </Text>
+                  </Group>
+                  {page.next_cursor && (
+                    <Button
+                      variant="subtle"
+                      size="compact-sm"
+                      rightSection={<IconChevronRight size={15} />}
+                      onClick={() => onOpenList?.(section.status, mediaFilter)}
+                    >
+                      Show all
+                    </Button>
+                  )}
+                </Group>
+                {entries.length ? (
+                  <div className="poster-grid" data-refreshing={refreshing}>
+                    {entries.map((entry, index) => (
+                      <LibraryCard
+                        key={entry.item.media_id}
+                        entry={entry}
+                        eager={index < 6 && section.status === "watching"}
+                        onOpenDetail={onOpenDetail}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <Text size="sm" c="dimmed" className="library-section-empty">
+                    {libraryEmptyCopy[section.status]}
                   </Text>
-                </div>
-                {page.next_cursor && (
-                  <Button
-                    variant="subtle"
-                    size="sm"
-                    onClick={() => onOpenList?.(section.status, mediaFilter)}
-                  >
-                    Show all
-                  </Button>
                 )}
-              </Group>
-              <div className="poster-grid">
-                {entries.map((entry) => (
-                  <LibraryCard
-                    key={entry.item.media_id}
-                    entry={entry}
-                    onOpenDetail={onOpenDetail}
-                  />
-                ))}
-              </div>
-            </section>
-          );
-        })}
+              </section>
+            );
+          })}
       </div>
+      {secondary.length > 0 && (
+        <nav className="library-more-lists" aria-label="More lists">
+          {secondary.map((section) => (
+            <button
+              key={section.status}
+              type="button"
+              className="library-list-link"
+              onClick={() => onOpenList?.(section.status, mediaFilter)}
+            >
+              <span>{section.label}</span>
+              <span className="library-list-link-count">{countOf(section.status)}</span>
+              <IconChevronRight size={16} aria-hidden="true" />
+            </button>
+          ))}
+        </nav>
+      )}
     </>
   );
 }
+
+const libraryEmptyCopy: Record<LibraryStatus, string> = {
+  watching: "Shows you start watching will appear here.",
+  watchlist: "Save things you're interested in from Discover.",
+  completed: "Finished shows and watched movies will appear here.",
+  paused: "",
+  dropped: "",
+};
 
 export { sections as librarySections, PREVIEW_LIMIT };

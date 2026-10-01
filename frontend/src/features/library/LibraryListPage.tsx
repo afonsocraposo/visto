@@ -1,5 +1,5 @@
 import { InfiniteScrollTrigger } from "../../components/InfiniteScrollTrigger";
-import { useInfiniteQuery } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery } from "@tanstack/react-query";
 import { useDebouncedValue } from "@mantine/hooks";
 import {
   Alert,
@@ -12,7 +12,9 @@ import {
   TextInput,
   Title,
 } from "@mantine/core";
-import { IconArrowLeft, IconSearch } from "@tabler/icons-react";
+import { IconArrowLeft, IconArrowsSort, IconSearch } from "@tabler/icons-react";
+import { QueryError } from "../../components/QueryError";
+import { EmptyState } from "../../components/EmptyState";
 import { useState } from "react";
 import { useSessionUserID, useUserQueryKey } from "../auth/SessionContext";
 import { api } from "../../lib/api";
@@ -64,6 +66,7 @@ export function LibraryListPage({
         ),
         "Your library is temporarily unavailable.",
       ),
+    placeholderData: keepPreviousData,
     refetchOnMount: "always",
     refetchOnWindowFocus: "always",
     getNextPageParam: (page) => page.next_cursor ?? undefined,
@@ -99,9 +102,7 @@ export function LibraryListPage({
     return (
       <div className="library-list-page">
         {searchInput}
-        <Alert color="red" mt="md">
-          Your library is temporarily unavailable.
-        </Alert>
+        <QueryError message="Could not load this list." onRetry={() => library.refetch()} />
       </div>
     );
   const entries = library.data.pages.flatMap((page) => page.items);
@@ -124,7 +125,7 @@ export function LibraryListPage({
         </Text>
       </div>
       {searchInput}
-      <Group mb="xl" align="end" justify="space-between">
+      <Group className="library-controls" align="center" justify="space-between" wrap="nowrap">
         <SegmentedControl
           aria-label="Filter library by media type"
           value={mediaFilter}
@@ -136,8 +137,10 @@ export function LibraryListPage({
           data={libraryMediaFilterOptions}
         />
         <Select
-          label="Sort by"
+          className="library-sort"
           aria-label="Sort library media"
+          leftSection={<IconArrowsSort size={16} />}
+          comboboxProps={{ position: "bottom-end", width: 200 }}
           data={librarySortOptions}
           value={sort}
           onChange={(value) => {
@@ -150,11 +153,16 @@ export function LibraryListPage({
         />
       </Group>
       {entries.length === 0 ? (
-        <Text c="dimmed">
-          {debouncedQuery ? "No titles match your search." : "This list is empty."}
-        </Text>
+        <EmptyState
+          title={debouncedQuery ? "No titles match your search" : "This list is empty"}
+          detail={
+            debouncedQuery
+              ? "Try a different title or clear the search."
+              : "Titles you move to this list will appear here."
+          }
+        />
       ) : (
-        <div className="poster-grid">
+        <div className="poster-grid" data-refreshing={library.isPlaceholderData || undefined}>
           {entries.map((entry) => (
             <LibraryCard key={entry.item.media_id} entry={entry} onOpenDetail={onOpenDetail} />
           ))}

@@ -4,6 +4,7 @@ import { IconDeviceTv, IconMovie } from "@tabler/icons-react";
 import { RatingStars } from "../../components/RatingStars";
 import { ActivityTime } from "../../components/ActivityTime";
 import { backdropURL, posterURL } from "../../lib/artwork";
+import { episodeLabelCode } from "../../lib/episodePosition";
 
 type Props = {
   title: string;
@@ -131,7 +132,9 @@ export function ActivityRow({
         )}
         {(episodeLabel || episodeName) && (
           <Group className="activity-row-episode" gap="xs" wrap="wrap">
-            {episodeLabel && <span className="activity-episode-badge">{episodeLabel}</span>}
+            {episodeLabel && (
+              <span className="activity-episode-badge">{episodeLabelCode(episodeLabel)}</span>
+            )}
             {episodeName && (
               <Text size="sm" c="dimmed" lineClamp={1}>
                 {episodeName}

@@ -33,14 +33,14 @@ export function MediaQuickActions({
       onKeyDown={(event) => event.stopPropagation()}
     >
       {saved ? (
-        <>
+        <span key="saved" className="state-morph">
           <Badge color="teal" variant="light" leftSection={<IconEyeCheck size={14} />}>
             {savedLabel}
           </Badge>
           {canMarkSavedWatched && onMarkSavedWatched && (
             <Tooltip label="Mark watched" withArrow>
               <ActionIcon
-                size="lg"
+                size={42}
                 color="yellow"
                 variant="light"
                 aria-label={`Mark ${media.title} watched`}
@@ -52,12 +52,12 @@ export function MediaQuickActions({
               </ActionIcon>
             </Tooltip>
           )}
-        </>
+        </span>
       ) : (
-        <>
+        <span key="unsaved" className="state-morph">
           <Tooltip label={media.type === "tv" ? "Add to watching" : "Mark watched"} withArrow>
             <ActionIcon
-              size="lg"
+              size={42}
               color="yellow"
               variant="filled"
               aria-label={
@@ -74,7 +74,7 @@ export function MediaQuickActions({
           </Tooltip>
           <Tooltip label="Save for later" withArrow>
             <ActionIcon
-              size="lg"
+              size={42}
               variant="default"
               aria-label={`Save ${media.title} for later`}
               onClick={onWatchlist}
@@ -84,7 +84,7 @@ export function MediaQuickActions({
               <IconBookmark size={18} />
             </ActionIcon>
           </Tooltip>
-        </>
+        </span>
       )}
     </Group>
   );

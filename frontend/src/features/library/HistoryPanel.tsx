@@ -263,29 +263,31 @@ function HistoryCard({
           : undefined
       }
     >
-      {editing && (
-        <form className="activity-edit" onSubmit={form.onSubmit(() => save.mutate())}>
-          <Group align="end" gap="xs" wrap="wrap">
-            <TextInput
-              type="datetime-local"
-              label="Watched at"
-              aria-label={`Watched time for ${entry.title}`}
-              {...form.getInputProps("watchedAt")}
-            />
-            <Button
-              type="submit"
-              size="sm"
-              disabled={!form.values.watchedAt}
-              loading={save.isPending}
-            >
-              Save time
-            </Button>
-            <Button type="button" size="sm" variant="subtle" onClick={() => setEditing(false)}>
-              Cancel
-            </Button>
-          </Group>
-        </form>
-      )}
+      <div className="expand" data-open={editing || undefined} inert={!editing}>
+        <div className="expand-inner">
+          <form className="activity-edit" onSubmit={form.onSubmit(() => save.mutate())}>
+            <Group align="end" gap="xs" wrap="wrap">
+              <TextInput
+                type="datetime-local"
+                label="Watched at"
+                aria-label={`Watched time for ${entry.title}`}
+                {...form.getInputProps("watchedAt")}
+              />
+              <Button
+                type="submit"
+                size="sm"
+                disabled={!form.values.watchedAt}
+                loading={save.isPending}
+              >
+                Save time
+              </Button>
+              <Button type="button" size="sm" variant="subtle" onClick={() => setEditing(false)}>
+                Cancel
+              </Button>
+            </Group>
+          </form>
+        </div>
+      </div>
       {(save.isError || rewatch.isError || remove.isError) && (
         <Alert color="red" mt="sm">
           {save.error?.message || rewatch.error?.message || remove.error?.message}
