@@ -74,9 +74,9 @@ function RecentWatchRow({
   return (
     <WatchRowCard
       className="watch-row-watched"
-      show={isEpisode ? entry.title : "Movie"}
-      onOpenShow={onOpenDetail && isEpisode ? show : undefined}
-      title={isEpisode ? entry.episode_name || "Episode" : entry.title}
+      show={entry.title}
+      onOpenShow={onOpenDetail ? show : undefined}
+      title={isEpisode ? entry.episode_name || "Episode" : "Movie"}
       openLabel={`Open ${entry.title}${isEpisode && entry.episode_label ? ` ${entry.episode_label}` : ""}`}
       meta={
         <>

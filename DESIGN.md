@@ -39,7 +39,7 @@ Stack: React, Mantine, TanStack Router/Query. Do not add another visual framewor
 ### Navigation
 
 - One definition (`features/navigation/navItems.ts`) drives both bars.
-- **Below 900px:** a bottom bar, 64px plus the safe area. The active item gets an amber pill
+- **Below 900px:** a bottom bar, 56px plus under half of the safe-area inset. The active item gets an amber pill
   behind the icon.
 - **900px and up:** a 60px top app bar (brand · four destinations · avatar) replaces the
   bottom bar. The active item gets an amber underline and a neutral text colour, never a filled
@@ -133,9 +133,13 @@ supports opening in a new tab, and a plain click uses in-app navigation.
   A small _↑ Recent watches_ hint marks the boundary.
 - The page opens scrolled to _Up next_, but only if it is at the top. A restored or user scroll
   position is left alone. There is no nested scroller and no open/closed state.
-- Card hierarchy: show (context, link to the show) → **episode title** (content, opens the
-  episode) → `S2 E7 · 3 left` (metadata). The still sits on the left and a separate mark-watched
-  button on the right.
+- Card hierarchy: **show name** (the lead: large and bold, a link with a full-width hit area of at
+  least 44px) → episode title (quieter, still the card's main link to the episode) →
+  `S2 E7 · 3 left` (metadata). The still sits on the left and a separate mark-watched button on
+  the right.
+- Choosing *Watching* in the navigation (including tapping it while already there) always lands
+  on *Up next*. The scroll is reapplied briefly against the router's scroll reset until the user
+  touches or scrolls (`features/watch/upNextScroll.ts`).
 
 ### Media details
 

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { headerOffset } from "../lib/headerOffset";
 
 /**
  * Whether a sticky element is currently stuck below the app header. Attach the returned
@@ -9,10 +10,7 @@ export function useStuck<T extends HTMLElement>() {
   const [stuck, setStuck] = useState(false);
   useEffect(() => {
     if (!element) return;
-    const header =
-      parseFloat(
-        getComputedStyle(document.documentElement).getPropertyValue("--app-shell-header-height"),
-      ) || 0;
+    const header = headerOffset();
     const observer = new IntersectionObserver(
       ([entry]) => setStuck(!entry.isIntersecting && entry.boundingClientRect.top < header + 1),
       { rootMargin: `-${header + 1}px 0px 0px 0px` },

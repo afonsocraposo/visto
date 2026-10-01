@@ -99,7 +99,7 @@ test("Given a phone viewport, When switching destinations, Then the bottom navig
       const { height, bottom } = element.getBoundingClientRect();
       return { height, bottom };
     });
-    expect(navBounds).toEqual({ height: 64, bottom: 740 });
+    expect(navBounds).toEqual({ height: 56, bottom: 740 });
     await expect(nav.getByRole("button", { name: "Watching" })).toHaveAttribute(
       "aria-current",
       "page",
@@ -1740,8 +1740,36 @@ test.describe("touch devices", () => {
     await expect(rows.nth(0)).not.toBeInViewport();
 
     // Scrolling up is ordinary page scroll that goes back in time.
+    await page.waitForTimeout(700); // past the short guard against the router's scroll reset
     await page.evaluate(() => window.scrollTo(0, 0));
     await expect(rows.nth(0)).toBeInViewport();
     expect(historyRequests).toBe(1);
+
+    // Choosing Watching from another page lands on Up next again, even while it is still
+    // loading and even though the other page left the scroll position elsewhere.
+    await page.route("**/api/v1/continue-watching", async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      await fulfillJSON(
+        route,
+        Array.from({ length: 6 }, (_, i) => ({
+          ...continueEntry,
+          show_id: `tv:${40 + i}`,
+          title: i === 0 ? "The Example Show" : `Another Show ${i}`,
+        })),
+      );
+    });
+    await page.getByRole("button", { name: "Library", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Library" })).toBeVisible();
+    await page.evaluate(() => window.scrollTo(0, 120));
+    await page.getByRole("button", { name: "Watching", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Up next" })).toBeInViewport();
+    await expect(page.locator(".watch-row", { hasText: "The Example Show" })).toBeInViewport();
+    await expect(rows.nth(0)).not.toBeInViewport();
+
+    // Tapping Watching again while already there returns to Up next.
+    await page.waitForTimeout(700);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.getByRole("button", { name: "Watching", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Up next" })).toBeInViewport();
   });
 });
