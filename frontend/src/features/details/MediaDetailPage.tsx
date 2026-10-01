@@ -224,6 +224,7 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
   // server, so the detail record and progress must refetch alongside episodes.
   const episodeScopes = [
     ["detail-episodes", showID],
+    ["detail-all-episodes", showID],
     ["detail-history"],
     detailScope,
     userCache.progress,
@@ -331,13 +332,15 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
         "Could not update this title.",
       ),
     onSuccess: (result, changed) => {
-      void invalidate(
-        userCache.library,
-        userCache.continue,
-        userCache.calendar,
-        userCache.feed,
-        detailScope,
-      );
+      if (changed.confirm_all_episodes) void invalidateEpisodeData();
+      else
+        void invalidate(
+          userCache.library,
+          userCache.continue,
+          userCache.calendar,
+          userCache.feed,
+          detailScope,
+        );
       const previousStatus = library.data?.item.status;
       const previousRating = library.data?.item.rating ?? null;
       if (changed.status === "completed" && previousStatus !== "completed") {
@@ -355,13 +358,7 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
                   status: previousStatus,
                   rating: previousRating,
                 });
-                await invalidate(
-                  userCache.library,
-                  userCache.continue,
-                  userCache.calendar,
-                  userCache.feed,
-                  detailScope,
-                );
+                await invalidateEpisodeData();
               }
             : undefined,
         );
@@ -411,7 +408,8 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
         "Could not add this title.",
       ),
     onSuccess: (result, status) => {
-      void invalidate(userCache.library, detailScope);
+      if (status === "completed" && target.mediaType === "tv") void invalidateEpisodeData();
+      else void invalidate(userCache.library, detailScope);
       if (status === "completed") {
         const createdEpisodeIDs = result.created_episode_ids ?? [];
         showActionFeedback(
@@ -427,7 +425,7 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
                   `/api/v1/library/${encodeURIComponent(showID!)}?status=watching`,
                   "Could not remove the show from your library.",
                 );
-                await invalidate(userCache.library, detailScope);
+                await invalidateEpisodeData();
               }
             : undefined,
         );

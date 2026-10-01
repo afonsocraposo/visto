@@ -1140,9 +1140,12 @@ test("Given a TV show detail, When the user uses compact watch controls, Then sh
   await expect.poll(() => savedStatus).toBe("watchlist");
   await expect(page.getByRole("button", { name: "Status: Watchlist. Change list" })).toBeVisible();
   await expect(page.getByRole("button", { name: /^Alerts:/ })).toHaveCount(0);
-  page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Status: Watchlist. Change list" }).click();
   await page.getByRole("menuitem", { name: "Completed" }).click();
+  await page
+    .getByRole("dialog", { name: "Complete The Example Show?" })
+    .getByRole("button", { name: "Mark all watched" })
+    .click();
   await expect.poll(() => confirmedCompletion).toBe(true);
   await expect(page.getByRole("button", { name: "Status: Completed. Change list" })).toBeVisible();
   await page

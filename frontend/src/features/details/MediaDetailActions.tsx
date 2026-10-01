@@ -1,5 +1,5 @@
-import type { ReactNode } from "react";
-import { ActionIcon, Button, Group, Loader, Menu, Switch, Text } from "@mantine/core";
+import { useState, type ReactNode } from "react";
+import { ActionIcon, Button, Group, Loader, Menu, Modal, Switch, Text } from "@mantine/core";
 import {
   IconBell,
   IconBookmark,
@@ -20,8 +20,34 @@ import type { SearchMedia, ShowEpisodeEntry } from "../../types";
 import { movieReleaseAlertLabel, showMovieReleaseAlert } from "./movieReleaseAlert";
 
 type ActionMutation<T> = { isPending: boolean; variables?: T; mutate: (value: T) => void };
-const completionQuestion =
-  "Have you watched every regular episode, including future-dated episodes? Specials are excluded.";
+
+/** Asks before completing a show, since completion marks every regular episode watched. */
+function useCompletionConfirm(title: string, onConfirm: () => void) {
+  const [opened, setOpened] = useState(false);
+  const close = () => setOpened(false);
+  const modal = (
+    <Modal opened={opened} onClose={close} title={`Complete ${title}?`} centered>
+      <Text mb="md">
+        Have you watched every regular episode, including future-dated episodes? They will all be
+        marked as watched. Specials are excluded.
+      </Text>
+      <Group justify="flex-end">
+        <Button variant="default" onClick={close}>
+          Cancel
+        </Button>
+        <Button
+          onClick={() => {
+            close();
+            onConfirm();
+          }}
+        >
+          Mark all watched
+        </Button>
+      </Group>
+    </Modal>
+  );
+  return { confirm: () => setOpened(true), modal };
+}
 
 type EpisodeActionsProps = {
   entry: ShowEpisodeEntry;
@@ -135,40 +161,39 @@ export function StatusMenu({
 }) {
   const options =
     status === "completed" && media.type === "tv" ? ["completed" as const] : listOptions(media);
+  const completion = useCompletionConfirm(media.title, () => onChange("completed"));
   return (
-    <Menu withinPortal position="bottom-start" disabled={disabled}>
-      <Menu.Target>{children}</Menu.Target>
-      <Menu.Dropdown>
-        <Menu.Label>Move to list</Menu.Label>
-        {options.map((option) => (
-          <Menu.Item
-            key={option}
-            rightSection={status === option ? <IconCheck size={15} /> : undefined}
-            onClick={() => {
-              if (option === status) return;
-              if (
-                option === "completed" &&
-                media.type === "tv" &&
-                !window.confirm(completionQuestion)
-              )
-                return;
-              onChange(option);
-            }}
-          >
-            {statusLabels[option]}
-            {status === option && <span className="visually-hidden"> (current)</span>}
-          </Menu.Item>
-        ))}
-        {status && onRemove && status !== "completed" && (
-          <>
-            <Menu.Divider />
-            <Menu.Item color="red" leftSection={<IconTrash size={15} />} onClick={onRemove}>
-              Remove from {statusLabels[status]}
+    <>
+      {completion.modal}
+      <Menu withinPortal position="bottom-start" disabled={disabled}>
+        <Menu.Target>{children}</Menu.Target>
+        <Menu.Dropdown>
+          <Menu.Label>Move to list</Menu.Label>
+          {options.map((option) => (
+            <Menu.Item
+              key={option}
+              rightSection={status === option ? <IconCheck size={15} /> : undefined}
+              onClick={() => {
+                if (option === status) return;
+                if (option === "completed" && media.type === "tv") completion.confirm();
+                else onChange(option);
+              }}
+            >
+              {statusLabels[option]}
+              {status === option && <span className="visually-hidden"> (current)</span>}
             </Menu.Item>
-          </>
-        )}
-      </Menu.Dropdown>
-    </Menu>
+          ))}
+          {status && onRemove && status !== "completed" && (
+            <>
+              <Menu.Divider />
+              <Menu.Item color="red" leftSection={<IconTrash size={15} />} onClick={onRemove}>
+                Remove from {statusLabels[status]}
+              </Menu.Item>
+            </>
+          )}
+        </Menu.Dropdown>
+      </Menu>
+    </>
   );
 }
 
@@ -219,6 +244,7 @@ export function MediaActions({
   refreshMetadata,
 }: MediaActionsProps) {
   const label = `More actions for ${media.title}`;
+  const completion = useCompletionConfirm(media.title, () => add.mutate("completed"));
   // The admin action alone is enough to show the overflow menu, whatever the title's state.
   // It keeps the menu open while pending so its own spinner stays visible, and never disables
   // the watch, rating, or library actions.
@@ -348,6 +374,7 @@ export function MediaActions({
   if (!isSaved)
     return (
       <Group className="detail-actions" mt="lg" gap="xs">
+        {completion.modal}
         <Button
           className="detail-primary-action"
           leftSection={<IconPlus size={18} />}
@@ -376,10 +403,9 @@ export function MediaActions({
               .map((option) => (
                 <Menu.Item
                   key={option}
-                  onClick={() => {
-                    if (option === "completed" && !window.confirm(completionQuestion)) return;
-                    add.mutate(option);
-                  }}
+                  onClick={() =>
+                    option === "completed" ? completion.confirm() : add.mutate(option)
+                  }
                 >
                   {statusLabels[option]}
                 </Menu.Item>
