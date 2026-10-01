@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.24.0](https://github.com/afonsocraposo/visto/compare/v0.23.3...v0.24.0) (2026-10-01)
+
+
+### Features
+
+* filter Discover by series or movies ([5ff6c72](https://github.com/afonsocraposo/visto/commit/5ff6c7237c890c812459125334f121532f1f2c2e))
+
+
+### Bug Fixes
+
+* paginate MCP get_library results ([97a80af](https://github.com/afonsocraposo/visto/commit/97a80af182e3ee8eedd73fda4e51f8d56b50e32f))
+
 ## [0.23.3](https://github.com/afonsocraposo/visto/compare/v0.23.2...v0.23.3) (2026-10-01)
 
 
