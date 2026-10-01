@@ -248,10 +248,28 @@ export function LibraryPanel({
                       />
                     ))}
                   </div>
-                ) : (
+                ) : section.status === "completed" ? (
                   <Text size="sm" c="dimmed" className="library-section-empty">
-                    {libraryEmptyCopy[section.status]}
+                    Finished shows and watched movies will appear here.
                   </Text>
+                ) : (
+                  <EmptyState
+                    title={
+                      section.status === "watchlist"
+                        ? "Your watchlist is empty"
+                        : "You're not watching anything yet"
+                    }
+                    detail={
+                      section.status === "watchlist"
+                        ? "Save things you're interested in from Discover."
+                        : "Add a show and its next episode will appear in Watching."
+                    }
+                    action={
+                      <Button variant="light" onClick={() => void navigate({ to: "/discover" })}>
+                        {section.status === "watchlist" ? "Browse trending" : "Discover shows"}
+                      </Button>
+                    }
+                  />
                 )}
               </section>
             );
@@ -276,13 +294,5 @@ export function LibraryPanel({
     </>
   );
 }
-
-const libraryEmptyCopy: Record<LibraryStatus, string> = {
-  watching: "Shows you start watching will appear here.",
-  watchlist: "Save things you're interested in from Discover.",
-  completed: "Finished shows and watched movies will appear here.",
-  paused: "",
-  dropped: "",
-};
 
 export { sections as librarySections, PREVIEW_LIMIT };

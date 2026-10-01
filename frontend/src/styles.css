@@ -2501,6 +2501,16 @@ label.tracking-row {
   padding-top: 12px;
   border-top: 1px solid var(--mantine-color-default-border);
 }
+.empty-state-icon {
+  margin: 0 auto 10px;
+}
+.empty-state-detail {
+  max-width: 40ch;
+  margin-inline: auto;
+}
+.empty-state-action {
+  margin-top: 14px;
+}
 .empty-state {
   background: linear-gradient(
     135deg,
