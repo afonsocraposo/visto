@@ -12,7 +12,7 @@ import {
   Title,
 } from "@mantine/core";
 import { IconSearch } from "@tabler/icons-react";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { EmptyState } from "../../components/EmptyState";
 import { PosterGridSkeleton } from "../../components/PosterGridSkeleton";
 import { ImportData } from "./ImportData";
@@ -43,9 +43,11 @@ const PREVIEW_LIMIT = 6;
 export function LibraryPanel({
   onOpenDetail,
   onOpenList,
+  headerAction,
 }: {
   onOpenDetail?: (target: MediaDetailTarget) => void;
   onOpenList?: (status: LibraryStatus, mediaFilter: LibraryMediaFilter) => void;
+  headerAction?: ReactNode;
 }) {
   const navigate = useNavigate();
   const userID = useSessionUserID();
@@ -108,10 +110,13 @@ export function LibraryPanel({
   if (libraries.every((library) => !library.data?.items.length) && !anyLibrary.data?.items.length)
     return (
       <>
-        <div className="page-heading">
-          <Text className="section-kicker">Your collection</Text>
-          <Title order={1}>Library</Title>
-        </div>
+        <Group className="page-heading" justify="space-between" align="center" wrap="nowrap">
+          <div>
+            <Text className="section-kicker">Your collection</Text>
+            <Title order={1}>Library</Title>
+          </div>
+          {headerAction}
+        </Group>
         <Paper className="library-empty" withBorder radius="lg">
           <Title order={2}>Start with your watch history</Title>
           <Text c="dimmed" mt="sm">
@@ -133,13 +138,13 @@ export function LibraryPanel({
     );
   return (
     <>
-      <div className="page-heading">
-        <Text className="section-kicker">Your collection</Text>
-        <Title order={1}>Library</Title>
-        <Text c="dimmed" mt={6}>
-          A quick view of everything you are tracking.
-        </Text>
-      </div>
+      <Group className="page-heading" justify="space-between" align="center" wrap="nowrap">
+        <div>
+          <Text className="section-kicker">Your collection</Text>
+          <Title order={1}>Library</Title>
+        </div>
+        {headerAction}
+      </Group>
       <Group mb="xl" align="end" justify="space-between">
         <SegmentedControl
           aria-label="Filter library by media type"

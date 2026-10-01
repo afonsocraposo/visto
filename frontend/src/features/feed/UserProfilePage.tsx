@@ -7,13 +7,13 @@ import {
   SegmentedControl,
   Select,
   Skeleton,
-  Tabs,
   Text,
   Title,
 } from "@mantine/core";
 import { IconArrowLeft } from "@tabler/icons-react";
 import { useState } from "react";
 import { EmptyState } from "../../components/EmptyState";
+import { SectionTabs } from "../../components/SectionTabs";
 import { InfiniteScrollTrigger } from "../../components/InfiniteScrollTrigger";
 import { MediaPosterCard } from "../../components/MediaPosterCard";
 import { PosterGridSkeleton } from "../../components/PosterGridSkeleton";
@@ -53,6 +53,7 @@ export function UserProfilePage({
   const userQueryKey = useUserQueryKey();
   const [mediaFilter, setMediaFilter] = useState<LibraryMediaFilter>("all");
   const [sort, setSort] = useState<LibrarySort>("updated");
+  const [section, setSection] = useState<"library" | "activity">("library");
   const base = `/api/v1/community/users/${encodeURIComponent(userID)}`;
   const profile = useQuery({
     queryKey: userQueryKey("community-profile", userID),
@@ -130,176 +131,190 @@ export function UserProfilePage({
               detail="This user has not shared their library or activity with this instance."
             />
           ) : (
-            <Tabs className="section-tabs" defaultValue="library" keepMounted={false}>
-              <Tabs.List>
-                <Tabs.Tab value="library">Library</Tabs.Tab>
-                <Tabs.Tab value="activity">Recent activity</Tabs.Tab>
-              </Tabs.List>
-              <Tabs.Panel value="library" pt="md">
-                <Title order={2} mb="md">
-                  Library
-                </Title>
-                <Group mb="xl" align="end" justify="space-between">
-                  <SegmentedControl
-                    aria-label="Filter library by media type"
-                    value={mediaFilter}
-                    onChange={(value) => setMediaFilter(value as LibraryMediaFilter)}
-                    data={libraryMediaFilterOptions}
-                  />
-                  <Select
-                    label="Sort by"
-                    aria-label="Sort library media"
-                    data={librarySortOptions}
-                    value={sort}
-                    onChange={(value) => {
-                      if (!value) return;
-                      setSort(value as LibrarySort);
-                    }}
-                    allowDeselect={false}
-                  />
-                </Group>
-                {library.isPending && <PosterGridSkeleton count={12} />}
-                {library.isError && <Alert color="red">Library is temporarily unavailable.</Alert>}
-                {library.isSuccess &&
-                  (() => {
-                    const entries = library.data.pages.flatMap((page) => page.items);
-                    return entries.length === 0 ? (
-                      <EmptyState
-                        title={
-                          mediaFilter === "all"
-                            ? "This library is empty."
-                            : "No titles in this filter"
-                        }
-                        detail={
-                          mediaFilter === "all"
-                            ? "This user hasn't added anything yet."
-                            : "Choose another media type to see this library."
-                        }
-                      />
-                    ) : (
-                      <div className="library-sections">
-                        {sections.map((section) => {
-                          const sectionItems = entries.filter(
-                            (entry) => entry.status === section.status,
-                          );
-                          return sectionItems.length === 0 ? null : (
-                            <section className="library-section" key={section.status}>
-                              <Title order={3} mb="sm">
-                                {section.label}
-                              </Title>
-                              <div className="poster-grid">
-                                {sectionItems.map((entry) => (
-                                  <MediaPosterCard
-                                    key={entry.media.id}
-                                    media={entry.media}
-                                    target={{
-                                      mediaType: entry.media.type,
-                                      tmdbID: entry.media.tmdb_id,
-                                    }}
-                                    onOpenDetail={onOpenDetail}
-                                    progress={
-                                      entry.progress &&
-                                      entry.status !== "completed" &&
-                                      entry.progress.total_episodes > 0
-                                        ? {
-                                            value: Math.min(
-                                              100,
-                                              Math.round(
-                                                (entry.progress.watched_episodes /
-                                                  entry.progress.total_episodes) *
-                                                  100,
-                                              ),
-                                            ),
-                                            label: `${entry.media.title} watched progress`,
-                                          }
-                                        : undefined
-                                    }
-                                  />
-                                ))}
-                              </div>
-                            </section>
-                          );
-                        })}
-                      </div>
-                    );
-                  })()}
-                <InfiniteScrollTrigger
-                  hasNextPage={!!library.hasNextPage}
-                  isFetchingNextPage={library.isFetchingNextPage}
-                  isFetchNextPageError={library.isFetchNextPageError}
-                  fetchNextPage={() => void library.fetchNextPage()}
-                />
-              </Tabs.Panel>
-              <Tabs.Panel value="activity" pt="md">
-                <Title order={2} mb="md">
-                  Recent activity
-                </Title>
-                {activity.isPending && (
-                  <div className="activity-list">
-                    <ListSkeleton
-                      count={5}
-                      rowClassName="activity-row"
-                      artClassName="activity-row-art"
-                      contentClassName="activity-row-main"
-                      lines={2}
+            <>
+              <SectionTabs
+                label="Profile sections"
+                value={section}
+                onChange={setSection}
+                options={[
+                  { value: "library", label: "Library" },
+                  { value: "activity", label: "Recent activity" },
+                ]}
+              />
+              {section === "library" ? (
+                <div key="library" className="section-panel">
+                  <Title order={2} mb="md">
+                    Library
+                  </Title>
+                  <Group mb="xl" align="end" justify="space-between">
+                    <SegmentedControl
+                      aria-label="Filter library by media type"
+                      value={mediaFilter}
+                      onChange={(value) => setMediaFilter(value as LibraryMediaFilter)}
+                      data={libraryMediaFilterOptions}
                     />
-                  </div>
-                )}
-                {activity.isError && (
-                  <Alert color="red">Activity is temporarily unavailable.</Alert>
-                )}
-                {activity.isSuccess &&
-                  (() => {
-                    const items = activity.data.pages.flatMap((page) => page.items);
-                    return items.length === 0 ? (
-                      <Text c="dimmed">No shared activity yet.</Text>
-                    ) : (
-                      <div className="activity-list">
-                        {items.map((item) => (
-                          <ActivityRow
-                            key={item.id}
-                            title={item.title}
-                            mediaType={item.media_type}
-                            artworkPath={item.artwork_path}
-                            actor={item.display_name}
-                            action={activityAction(item)}
-                            episodeLabel={episodeLabel(item)}
-                            episodeName={item.episode_name}
-                            rating={item.kind === "rating" ? item.rating : undefined}
-                            occurredAt={item.occurred_at}
-                            onOpenDetail={
-                              item.media_type && item.tmdb_id
-                                ? () =>
-                                    onOpenDetail?.({
-                                      mediaType: item.media_type!,
-                                      tmdbID: item.tmdb_id!,
-                                      ...(item.season_number !== undefined
-                                        ? { seasonNumber: item.season_number }
-                                        : {}),
-                                      ...(item.episode_number !== undefined
-                                        ? { episodeNumber: item.episode_number }
-                                        : {}),
-                                    })
-                                : undefined
-                            }
-                            onOpenShow={
-                              item.media_type && item.tmdb_id
-                                ? () => onOpenDetail?.({ mediaType: item.media_type!, tmdbID: item.tmdb_id! })
-                                : undefined
-                            }
-                          />
-                        ))}
-                      </div>
-                    );
-                  })()}
-                <InfiniteScrollTrigger
-                  hasNextPage={!!activity.hasNextPage}
-                  isFetchingNextPage={activity.isFetchingNextPage}
-                  isFetchNextPageError={activity.isFetchNextPageError}
-                  fetchNextPage={() => void activity.fetchNextPage()}
-                />
-              </Tabs.Panel>
-            </Tabs>
+                    <Select
+                      label="Sort by"
+                      aria-label="Sort library media"
+                      data={librarySortOptions}
+                      value={sort}
+                      onChange={(value) => {
+                        if (!value) return;
+                        setSort(value as LibrarySort);
+                      }}
+                      allowDeselect={false}
+                    />
+                  </Group>
+                  {library.isPending && <PosterGridSkeleton count={12} />}
+                  {library.isError && (
+                    <Alert color="red">Library is temporarily unavailable.</Alert>
+                  )}
+                  {library.isSuccess &&
+                    (() => {
+                      const entries = library.data.pages.flatMap((page) => page.items);
+                      return entries.length === 0 ? (
+                        <EmptyState
+                          title={
+                            mediaFilter === "all"
+                              ? "This library is empty."
+                              : "No titles in this filter"
+                          }
+                          detail={
+                            mediaFilter === "all"
+                              ? "This user hasn't added anything yet."
+                              : "Choose another media type to see this library."
+                          }
+                        />
+                      ) : (
+                        <div className="library-sections">
+                          {sections.map((section) => {
+                            const sectionItems = entries.filter(
+                              (entry) => entry.status === section.status,
+                            );
+                            return sectionItems.length === 0 ? null : (
+                              <section className="library-section" key={section.status}>
+                                <Title order={3} mb="sm">
+                                  {section.label}
+                                </Title>
+                                <div className="poster-grid">
+                                  {sectionItems.map((entry) => (
+                                    <MediaPosterCard
+                                      key={entry.media.id}
+                                      media={entry.media}
+                                      target={{
+                                        mediaType: entry.media.type,
+                                        tmdbID: entry.media.tmdb_id,
+                                      }}
+                                      onOpenDetail={onOpenDetail}
+                                      progress={
+                                        entry.progress &&
+                                        entry.status !== "completed" &&
+                                        entry.progress.total_episodes > 0
+                                          ? {
+                                              value: Math.min(
+                                                100,
+                                                Math.round(
+                                                  (entry.progress.watched_episodes /
+                                                    entry.progress.total_episodes) *
+                                                    100,
+                                                ),
+                                              ),
+                                              label: `${entry.media.title} watched progress`,
+                                            }
+                                          : undefined
+                                      }
+                                    />
+                                  ))}
+                                </div>
+                              </section>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+                  <InfiniteScrollTrigger
+                    hasNextPage={!!library.hasNextPage}
+                    isFetchingNextPage={library.isFetchingNextPage}
+                    isFetchNextPageError={library.isFetchNextPageError}
+                    fetchNextPage={() => void library.fetchNextPage()}
+                  />
+                </div>
+              ) : (
+                <div key="activity" className="section-panel">
+                  <Title order={2} mb="md">
+                    Recent activity
+                  </Title>
+                  {activity.isPending && (
+                    <div className="activity-list">
+                      <ListSkeleton
+                        count={5}
+                        rowClassName="activity-row"
+                        artClassName="activity-row-art"
+                        contentClassName="activity-row-main"
+                        lines={2}
+                      />
+                    </div>
+                  )}
+                  {activity.isError && (
+                    <Alert color="red">Activity is temporarily unavailable.</Alert>
+                  )}
+                  {activity.isSuccess &&
+                    (() => {
+                      const items = activity.data.pages.flatMap((page) => page.items);
+                      return items.length === 0 ? (
+                        <Text c="dimmed">No shared activity yet.</Text>
+                      ) : (
+                        <div className="activity-list">
+                          {items.map((item) => (
+                            <ActivityRow
+                              key={item.id}
+                              title={item.title}
+                              mediaType={item.media_type}
+                              artworkPath={item.artwork_path}
+                              actor={item.display_name}
+                              action={activityAction(item)}
+                              episodeLabel={episodeLabel(item)}
+                              episodeName={item.episode_name}
+                              rating={item.kind === "rating" ? item.rating : undefined}
+                              occurredAt={item.occurred_at}
+                              onOpenDetail={
+                                item.media_type && item.tmdb_id
+                                  ? () =>
+                                      onOpenDetail?.({
+                                        mediaType: item.media_type!,
+                                        tmdbID: item.tmdb_id!,
+                                        ...(item.season_number !== undefined
+                                          ? { seasonNumber: item.season_number }
+                                          : {}),
+                                        ...(item.episode_number !== undefined
+                                          ? { episodeNumber: item.episode_number }
+                                          : {}),
+                                      })
+                                  : undefined
+                              }
+                              onOpenShow={
+                                item.media_type && item.tmdb_id
+                                  ? () =>
+                                      onOpenDetail?.({
+                                        mediaType: item.media_type!,
+                                        tmdbID: item.tmdb_id!,
+                                      })
+                                  : undefined
+                              }
+                            />
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  <InfiniteScrollTrigger
+                    hasNextPage={!!activity.hasNextPage}
+                    isFetchingNextPage={activity.isFetchingNextPage}
+                    isFetchNextPageError={activity.isFetchNextPageError}
+                    fetchNextPage={() => void activity.fetchNextPage()}
+                  />
+                </div>
+              )}
+            </>
           )}
         </>
       )}

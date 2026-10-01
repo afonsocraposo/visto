@@ -633,18 +633,26 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
   const previousTemporaryEpisodes = useTemporarySeasonEpisodesQuery(
     target,
     !isSaved &&
-      Boolean((target.episodeID || target.episodeNumber !== undefined) && previousTemporarySeason !== undefined),
+      Boolean(
+        (target.episodeID || target.episodeNumber !== undefined) &&
+        previousTemporarySeason !== undefined,
+      ),
     previousTemporarySeason ?? -1,
   );
   const nextTemporaryEpisodes = useTemporarySeasonEpisodesQuery(
     target,
     !isSaved &&
-      Boolean((target.episodeID || target.episodeNumber !== undefined) && nextTemporarySeason !== undefined),
+      Boolean(
+        (target.episodeID || target.episodeNumber !== undefined) &&
+        nextTemporarySeason !== undefined,
+      ),
     nextTemporarySeason ?? -1,
   );
   const episodeSeasonNumber = candidateEpisode?.episode.season_number ?? target.seasonNumber;
   const episodeNumber =
-    candidateEpisode?.episode.episode_number ?? target.episode?.episode_number ?? target.episodeNumber;
+    candidateEpisode?.episode.episode_number ??
+    target.episode?.episode_number ??
+    target.episodeNumber;
   const episodeDetails = useEpisodeDetailsQuery(target, episodeSeasonNumber, episodeNumber);
   const episodeRating = useEpisodeRatingQuery(target.episodeID);
   const rateEpisode = useMutation({
@@ -721,20 +729,21 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
   const visibleEpisodes = episodeEntries.filter(
     (entry) => String(entry.episode.season_number) === selectedSeason,
   );
-  const selectedEpisode = target.episodeID || target.episodeNumber !== undefined
-    ? (episodeEntries.find((entry) => entry.episode.id === target.episodeID) ??
-      episodeEntries.find((entry) => entry.episode.episode_number === target.episodeNumber) ??
-      (target.episode
-        ? {
-            episode: target.episode,
-            name: `Episode ${target.episode.episode_number}`,
-            overview: "",
-            runtime: 0,
-            still_path: "",
-            watched: false,
-          }
-        : null))
-    : null;
+  const selectedEpisode =
+    target.episodeID || target.episodeNumber !== undefined
+      ? (episodeEntries.find((entry) => entry.episode.id === target.episodeID) ??
+        episodeEntries.find((entry) => entry.episode.episode_number === target.episodeNumber) ??
+        (target.episode
+          ? {
+              episode: target.episode,
+              name: `Episode ${target.episode.episode_number}`,
+              overview: "",
+              runtime: 0,
+              still_path: "",
+              watched: false,
+            }
+          : null))
+      : null;
   const adjacentEpisodes = getAdjacentEpisodes(
     navigationEpisode,
     isSaved
@@ -743,7 +752,7 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
           ...candidateEpisodes,
           ...(previousTemporaryEpisodes.data?.episodes ?? []),
           ...(nextTemporaryEpisodes.data?.episodes ?? []),
-      ],
+        ],
   );
   const episodeListLoaded = isSaved
     ? episodes.isSuccess && !episodes.hasNextPage
@@ -973,10 +982,7 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
   };
 
   return (
-    <EpisodeSwipeArea
-      className="detail-page"
-      onSwipe={selectedEpisode ? openAdjacent : undefined}
-    >
+    <EpisodeSwipeArea className="detail-page" onSwipe={selectedEpisode ? openAdjacent : undefined}>
       <Modal
         opened={movieHistoryMode !== null}
         onClose={() => setMovieHistoryMode(null)}
@@ -1195,7 +1201,9 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
                       { from: returnTo },
                     )
                   }
-                >{media.title}</Button>
+                >
+                  {media.title}
+                </Button>
                 <Badge variant="light" color="gray">
                   {`S${String(selectedEpisode.episode.season_number).padStart(2, "0")}E${String(selectedEpisode.episode.episode_number).padStart(2, "0")}`}
                 </Badge>
@@ -1229,7 +1237,8 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
                   TMDB {episodeDetails.data.vote_average.toFixed(1)} / 10
                 </Text>
               ) : null}
-              {selectedEpisode && (episodeDetails.data?.air_date || selectedEpisode.episode.air_date) ? (
+              {selectedEpisode &&
+              (episodeDetails.data?.air_date || selectedEpisode.episode.air_date) ? (
                 <Text className="detail-runtime">
                   Aired {episodeDetails.data?.air_date || selectedEpisode.episode.air_date}
                   {episodeDetails.data?.production_code
@@ -1674,7 +1683,8 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
           onOpenPerson={onOpenPerson}
         />
       )}
-      {!target.episodeID && target.episodeNumber === undefined &&
+      {!target.episodeID &&
+        target.episodeNumber === undefined &&
         (related.isPending || related.isError || Boolean(related.data?.length)) && (
           <section className="detail-section">
             <Text className="section-kicker">More to explore</Text>

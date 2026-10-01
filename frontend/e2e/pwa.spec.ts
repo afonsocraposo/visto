@@ -99,7 +99,7 @@ test("Given a phone viewport, When switching destinations, Then the bottom navig
       const { height, bottom } = element.getBoundingClientRect();
       return { height, bottom };
     });
-    expect(navBounds).toEqual({ height: 60, bottom: 740 });
+    expect(navBounds).toEqual({ height: 64, bottom: 740 });
     await expect(nav.getByRole("button", { name: "Watching" })).toHaveAttribute(
       "aria-current",
       "page",
@@ -143,7 +143,7 @@ test("Given a signed-in user, When they navigate and manage appearance and accou
   await expect
     .poll(() => page.evaluate(() => sessionStorage.getItem("visto:tab:user-1:watching")))
     .toBe("calendar");
-  await page.getByRole("button", { name: "Feed" }).click();
+  await page.getByRole("button", { name: "Activity", exact: true }).click();
   await page.getByRole("tab", { name: "Community" }).click();
   await expect(page.getByText("No shared activity yet")).toBeVisible();
   await expect
@@ -151,13 +151,11 @@ test("Given a signed-in user, When they navigate and manage appearance and accou
     .toBe("community");
   await page.getByRole("button", { name: "Discover" }).click();
   await expect(page.getByRole("textbox", { name: "Search TMDB" })).toBeVisible();
-  await page.getByRole("button", { name: "Profile" }).click();
+  await page.getByRole("button", { name: "Library" }).click();
   await expect(page.getByRole("heading", { name: "Start with your watch history" })).toBeVisible();
-  await page.getByRole("tab", { name: "Settings" }).click();
+  await page.getByRole("button", { name: "Account and settings" }).click();
   await expect(page.getByText("Choose who can see your activity")).toBeVisible();
-  await expect
-    .poll(() => page.evaluate(() => sessionStorage.getItem("visto:tab:user-1:profile")))
-    .toBe("settings");
+  await expect(page).toHaveURL(/\/settings$/);
 
   await page.getByRole("combobox", { name: "Color theme" }).click();
   await page.getByRole("option", { name: "Dark" }).click();
@@ -171,32 +169,24 @@ test("Given a signed-in user, When they navigate and manage appearance and accou
     "aria-selected",
     "true",
   );
-  await page.getByRole("button", { name: "Profile", exact: true }).click();
-  await expect(page.getByRole("tab", { name: "Settings" })).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
-  await page.getByRole("button", { name: "Feed", exact: true }).click();
+  await page.getByRole("button", { name: "Activity", exact: true }).click();
   await expect(page.getByRole("tab", { name: "Community" })).toHaveAttribute(
     "aria-selected",
     "true",
   );
   await page.reload();
-  await page.getByRole("button", { name: "Feed", exact: true }).click();
+  await page.getByRole("button", { name: "Activity", exact: true }).click();
   await expect(page.getByRole("tab", { name: "Community" })).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
-  await page.getByRole("button", { name: "Profile", exact: true }).click();
-  await expect(page.getByRole("tab", { name: "Settings" })).toHaveAttribute(
     "aria-selected",
     "true",
   );
 
   await page.setViewportSize({ width: 390, height: 844 });
-  for (const label of ["Watching", "Discover", "Feed", "Profile"]) {
+  for (const label of ["Watching", "Discover", "Activity", "Library"]) {
     await expect(page.getByRole("button", { name: label, exact: true })).toBeVisible();
   }
+  await page.getByRole("button", { name: "Library", exact: true }).click();
+  await page.getByRole("button", { name: "Account and settings" }).click();
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page.getByRole("heading", { name: "Welcome to Visto" })).toBeVisible();
 });
@@ -380,8 +370,7 @@ test("Given Plex sync settings, When the user creates, rotates, and revokes a UR
     }
   });
   await page.goto("/");
-  await page.getByRole("button", { name: "Profile" }).click();
-  await page.getByRole("tab", { name: "Settings" }).click();
+  await page.goto("/settings");
   await page.getByRole("button", { name: "Create webhook URL" }).click();
   await expect(
     page.getByText("https://visto.example.com/api/v1/webhooks/plex/secret-1"),
@@ -461,7 +450,7 @@ test("Given a discovered Plex account, When an admin assigns it, Then the mappin
     await route.fulfill({ status: 204, body: "" });
   });
   await page.goto("/");
-  await page.getByRole("button", { name: "Profile" }).click();
+  await page.goto("/settings");
   await page.getByRole("tab", { name: "Admin" }).click();
   await expect(page.getByRole("cell", { name: "Family", exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Use ID" }).click();
@@ -1369,7 +1358,7 @@ test("Given another feed page, When the sentinel enters view, Then it loads with
     });
   });
   await page.goto("/");
-  await page.getByRole("button", { name: "Feed" }).click();
+  await page.getByRole("button", { name: "Activity", exact: true }).click();
   await page.getByRole("tab", { name: "Community" }).click();
   await expect(page.getByText("Second title")).toBeVisible();
   expect(requested).toContain("next-page");
@@ -1415,7 +1404,7 @@ test("Feed cards stay compact and touch does not leave a hover border", async ({
       }),
     );
     await target.goto("/");
-    await target.getByRole("button", { name: "Feed" }).click();
+    await target.getByRole("button", { name: "Activity", exact: true }).click();
     await target.getByRole("tab", { name: "Community" }).click();
     await expect(target.locator(".activity-list-feed .activity-row")).toHaveCount(2);
   };
@@ -1502,7 +1491,7 @@ test("Given another library page, When the user scrolls the list, Then more titl
     return fulfillJSON(route, { items: [entry(1)], next_cursor: "list-more" });
   });
   await page.goto("/");
-  await page.getByRole("button", { name: "Profile" }).click();
+  await page.getByRole("button", { name: "Library", exact: true }).click();
   await page.getByRole("button", { name: "Show all" }).click();
   await expect(page.getByText("Library title 2")).toBeVisible();
 });
@@ -1684,7 +1673,7 @@ test("Library previews show full filtered counts in the requested order and rest
   await page.getByRole("option", { name: "Title" }).click();
 
   await page.getByRole("button", { name: "Watching", exact: true }).click();
-  await page.getByRole("button", { name: "Profile", exact: true }).click();
+  await page.getByRole("button", { name: "Library", exact: true }).click();
   sections = page.locator(".library-section");
   await expect(sections.first().getByText("3 titles")).toBeVisible();
   await expect(page.getByRole("combobox", { name: "Sort library media" })).toHaveValue("Title");

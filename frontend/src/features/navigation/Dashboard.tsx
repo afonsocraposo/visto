@@ -1,15 +1,12 @@
 import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { Alert, AppShell, Button, Center, Group, Loader, Modal, Tabs, Text } from "@mantine/core";
-import {
-  IconCalendar,
-  IconCompass,
-  IconHome,
-  IconSearch,
-  IconUserCircle,
-} from "@tabler/icons-react";
+import { Alert, AppShell, Button, Center, Group, Loader, Modal, Text } from "@mantine/core";
+import { IconCalendar } from "@tabler/icons-react";
 import { WatchCalendar } from "../watch/Watch";
+import { SectionTabs } from "../../components/SectionTabs";
+import { AccountAvatar } from "../../components/AccountAvatar";
+import { navItems } from "./navItems";
 import { WatchHistoryReveal } from "../watch/WatchHistoryReveal";
 import type { LibraryStatus, MediaDetailTarget, Tab, Theme, User } from "../../types";
 import type { LibraryMediaFilter } from "../library/mediaFilter";
@@ -39,9 +36,12 @@ const PersonDetailPage = lazy(async () => ({
 const UserProfilePage = lazy(async () => ({
   default: (await import("../feed/UserProfilePage")).UserProfilePage,
 }));
+const SettingsPage = lazy(async () => ({
+  default: (await import("../library/SettingsPage")).SettingsPage,
+}));
 
 export type DashboardPage =
-  | { kind: "watch" | "discover" | "feed" | "profile" }
+  | { kind: "watch" | "discover" | "feed" | "profile" | "settings" }
   | { kind: "library-list"; status: LibraryStatus; mediaFilter: LibraryMediaFilter; query: string }
   | { kind: "media"; target: MediaDetailTarget; returnTo?: string }
   | { kind: "person"; personID: number; returnTo?: string }
@@ -123,24 +123,55 @@ export function Dashboard({
     };
   }, [user.id]);
 
-  const nav = (value: Tab, label: string, Icon: typeof IconHome) => (
-    <button
-      type="button"
-      className="bottom-nav-button"
-      aria-current={tab === value ? "page" : undefined}
-      onClick={() =>
-        void navigate({
-          to: value === "search" ? "/discover" : value === "library" ? "/profile" : `/${value}`,
-        })
-      }
-    >
-      <Icon size={22} stroke={1.8} aria-hidden="true" />
-      <span>{label}</span>
-    </button>
-  );
+  const settingsOpen = page.kind === "settings";
+  // One routing implementation for both bars; only the presentation differs.
+  const goToTab = (value: Tab) =>
+    void navigate({ to: navItems.find((item) => item.tab === value)!.path });
+  // The top bar marks Settings on the avatar; the bottom bar keeps Library active for it.
+  const navButtons = (className: string, iconSize: number, settingsHasOwnMarker: boolean) =>
+    navItems.map(({ tab: value, label, Icon }) => (
+      <button
+        key={value}
+        type="button"
+        className={className}
+        aria-current={tab === value && !(settingsOpen && settingsHasOwnMarker) ? "page" : undefined}
+        onClick={() => goToTab(value)}
+      >
+        <span className="nav-icon" aria-hidden="true">
+          <Icon size={iconSize} stroke={1.8} />
+        </span>
+        <span className="nav-label">{label}</span>
+      </button>
+    ));
+  const pageContent = !profileUserID && !detail && !personID && !listStatus && !settingsOpen;
 
   return (
-    <AppShell className="visto-shell" footer={{ height: "var(--visto-footer-height)" }} padding={0}>
+    <AppShell
+      className="visto-shell"
+      header={{ height: "var(--visto-header-height)" }}
+      footer={{ height: "var(--visto-footer-height)" }}
+      padding={0}
+    >
+      <AppShell.Header className="visto-topbar">
+        <div className="topbar-inner">
+          <button type="button" className="topbar-brand" onClick={() => goToTab("watch")}>
+            <img src="/icon.svg?v=3" alt="" aria-hidden="true" />
+            <span>Visto</span>
+          </button>
+          <nav className="topbar-nav" aria-label="Main navigation">
+            {navButtons("topbar-nav-button", 18, true)}
+          </nav>
+          <button
+            type="button"
+            className="topbar-account"
+            aria-label="Account and settings"
+            aria-current={settingsOpen ? "page" : undefined}
+            onClick={() => void navigate({ to: "/settings" })}
+          >
+            <AccountAvatar name={user.name} size={34} />
+          </button>
+        </div>
+      </AppShell.Header>
       <Modal
         opened={importWelcome.data?.pending === true}
         onClose={() => dismissImport.mutate()}
@@ -181,7 +212,19 @@ export function Dashboard({
             </Group>
           </Alert>
         )}
-        {profileUserID ? (
+        {settingsOpen ? (
+          <Deferred>
+            <SettingsPage
+              user={user}
+              theme={theme}
+              onThemeChange={setTheme}
+              onSignOut={() => logout.mutate()}
+              signingOut={logout.isPending}
+              signOutError={logout.isError ? logout.error.message : undefined}
+              onBack={() => goBack("/profile")}
+            />
+          </Deferred>
+        ) : profileUserID ? (
           <Deferred>
             <UserProfilePage
               userID={profileUserID}
@@ -243,51 +286,46 @@ export function Dashboard({
             />
           </Deferred>
         ) : (
-          tab === "watch" && (
+          tab === "watch" &&
+          !settingsOpen && (
             <>
-              <Tabs
-                className="section-tabs"
+              <SectionTabs
+                label="Watching views"
                 value={view}
-                onChange={(value) => {
-                  const next = value === "calendar" ? "calendar" : "now";
+                onChange={(next) => {
                   setView(next);
                   writeStoredChoice("session", watchTabStorageKey, next);
                 }}
-              >
-                <Tabs.List>
-                  <Tabs.Tab value="now">To watch</Tabs.Tab>
-                  <Tabs.Tab value="calendar" leftSection={<IconCalendar size={16} />}>
-                    Upcoming
-                  </Tabs.Tab>
-                </Tabs.List>
-              </Tabs>
-              {view === "now" ? (
-                <WatchHistoryReveal onOpenDetail={openDetail} />
-              ) : (
-                <WatchCalendar onOpenDetail={openDetail} />
-              )}
+                options={[
+                  { value: "now", label: "To watch" },
+                  { value: "calendar", label: "Upcoming", icon: <IconCalendar size={16} /> },
+                ]}
+              />
+              <div key={view} className="section-panel">
+                {view === "now" ? (
+                  <WatchHistoryReveal onOpenDetail={openDetail} />
+                ) : (
+                  <WatchCalendar onOpenDetail={openDetail} />
+                )}
+              </div>
             </>
           )
         )}
-        {!profileUserID && !detail && !personID && tab === "search" && (
+        {pageContent && tab === "search" && (
           <Deferred>
             <SearchPanel onOpenDetail={openDetail} />
           </Deferred>
         )}
-        {!profileUserID && !detail && !personID && tab === "feed" && (
+        {pageContent && tab === "feed" && (
           <Deferred>
             <FeedArea userID={user.id} onOpenDetail={openDetail} onOpenUser={openUser} />
           </Deferred>
         )}
-        {!profileUserID && !detail && !personID && !listStatus && tab === "library" && (
+        {pageContent && tab === "library" && (
           <Deferred>
             <LibraryArea
               user={user}
-              theme={theme}
-              onThemeChange={setTheme}
-              onSignOut={() => logout.mutate()}
-              signingOut={logout.isPending}
-              signOutError={logout.isError ? logout.error.message : undefined}
+              onOpenSettings={() => void navigate({ to: "/settings" })}
               onOpenDetail={openDetail}
               onOpenList={(status, mediaFilter) =>
                 void navigate({
@@ -302,10 +340,7 @@ export function Dashboard({
       </AppShell.Main>
       <AppShell.Footer className="visto-footer">
         <nav className="bottom-nav" aria-label="Main navigation">
-          {nav("watch", "Watching", IconHome)}
-          {nav("search", "Discover", IconSearch)}
-          {nav("feed", "Feed", IconCompass)}
-          {nav("library", "Profile", IconUserCircle)}
+          {navButtons("bottom-nav-button", 22, false)}
         </nav>
       </AppShell.Footer>
     </AppShell>

@@ -11,16 +11,20 @@ import { useUserQueryKey } from "../auth/SessionContext";
 import { api } from "../../lib/api";
 import { pageURL } from "../../lib/pagination";
 import { episodePosition } from "../../lib/episodePosition";
+import { groupByLocalDay, relativeDayLabel } from "../../lib/relativeDay";
 import type { CursorPage, HistoryEntry, MediaDetailTarget } from "../../types";
 
 export function HistoryPanel({
   onOpenDetail,
   mediaID,
   editLatest = false,
+  groupByDay = false,
 }: {
   onOpenDetail?: (target: MediaDetailTarget) => void;
   mediaID?: string;
   editLatest?: boolean;
+  /** Group watches under Today / Yesterday / date headings. */
+  groupByDay?: boolean;
 }) {
   const userQueryKey = useUserQueryKey();
   const history = useInfiniteQuery({
@@ -56,33 +60,51 @@ export function HistoryPanel({
     );
 
   const entries = history.data.pages.flatMap((page) => page.items);
+  const card = (entry: HistoryEntry, index: number) => (
+    <HistoryCard
+      key={entry.play.id}
+      entry={entry}
+      onOpenDetail={onOpenDetail}
+      initiallyEditing={editLatest && index === 0}
+    />
+  );
+  const more = (
+    <InfiniteScrollTrigger
+      hasNextPage={!!history.hasNextPage}
+      isFetchingNextPage={history.isFetchingNextPage}
+      isFetchNextPageError={history.isFetchNextPageError}
+      fetchNextPage={() => void history.fetchNextPage()}
+    />
+  );
+  if (entries.length === 0)
+    return (
+      <EmptyState
+        title={mediaID ? "No recent watches found" : "No watches recorded yet"}
+        detail={
+          mediaID
+            ? "No watch for this movie is in your recent history."
+            : "Movies and episodes you mark watched will appear here, grouped by day."
+        }
+      />
+    );
+  if (groupByDay)
+    return (
+      <div className="activity-days">
+        {groupByLocalDay(entries, (entry) => entry.play.watched_at).map((group) => (
+          <section key={group.day} className="activity-day" aria-labelledby={`day-${group.day}`}>
+            <h2 id={`day-${group.day}`} className="activity-day-heading">
+              {relativeDayLabel(group.day)}
+            </h2>
+            <div className="activity-list">{group.items.map((entry) => card(entry, -1))}</div>
+          </section>
+        ))}
+        {more}
+      </div>
+    );
   return (
     <div className="activity-list">
-      {entries.length === 0 ? (
-        <EmptyState
-          title={mediaID ? "No recent watches found" : "No watches recorded yet"}
-          detail={
-            mediaID
-              ? "No watch for this movie is in your recent history."
-              : "Movies and episodes you watch will appear here."
-          }
-        />
-      ) : (
-        entries.map((entry, index) => (
-          <HistoryCard
-            key={entry.play.id}
-            entry={entry}
-            onOpenDetail={onOpenDetail}
-            initiallyEditing={editLatest && index === 0}
-          />
-        ))
-      )}
-      <InfiniteScrollTrigger
-        hasNextPage={!!history.hasNextPage}
-        isFetchingNextPage={history.isFetchingNextPage}
-        isFetchNextPageError={history.isFetchNextPageError}
-        fetchNextPage={() => void history.fetchNextPage()}
-      />
+      {entries.map(card)}
+      {more}
     </div>
   );
 }

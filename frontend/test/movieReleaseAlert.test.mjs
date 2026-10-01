@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { movieReleaseAlertLabel, showMovieReleaseAlert } from "../src/features/details/movieReleaseAlert.ts";
+import {
+  movieReleaseAlertLabel,
+  showMovieReleaseAlert,
+} from "../src/features/details/movieReleaseAlert.ts";
 
 test("unreleased watchlist movie shows a labeled release alert control", () => {
   assert.equal(showMovieReleaseAlert("watchlist", "2027-02-01", "2026-09-29"), true);

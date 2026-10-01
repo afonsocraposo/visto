@@ -7,7 +7,10 @@ test("Given a media detail opened from Profile, When the footer tab is resolved,
 });
 
 test("Given an episode detail opened from a show detail in Profile, When the footer tab is resolved, Then Profile stays selected", () => {
-  assert.equal(activeTabForLocation("/media/tv/42", "?tab=library&episode=tv%3A42%3Aepisode%3A1"), "library");
+  assert.equal(
+    activeTabForLocation("/media/tv/42", "?tab=library&episode=tv%3A42%3Aepisode%3A1"),
+    "library",
+  );
 });
 
 test("Given a media detail opened from Watching, When the footer tab is resolved, Then Watching stays selected", () => {
@@ -32,4 +35,12 @@ test("Given a media detail with no tab param, When the footer tab is resolved, T
 
 test("Given a media detail with an invalid tab value, When the footer tab is resolved, Then it safely defaults to Watching", () => {
   assert.equal(activeTabForLocation("/media/tv/42", "?tab=evil"), "watch");
+});
+
+test("Given an episode page opened from Library, When the main tab is resolved, Then Library stays selected", () => {
+  assert.equal(activeTabForLocation("/shows/42/season/1/episode/2", "?tab=library"), "library");
+});
+
+test("Given the settings page, When the main tab is resolved, Then Library is selected", () => {
+  assert.equal(activeTabForLocation("/settings", ""), "library");
 });

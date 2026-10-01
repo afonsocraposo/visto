@@ -49,6 +49,11 @@ const profileRoute = createRoute({
   path: "/profile",
   component: () => <DashboardRoute page={{ kind: "profile" }} />,
 });
+const settingsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/settings",
+  component: () => <DashboardRoute page={{ kind: "settings" }} />,
+});
 const userProfileRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/users/$userID",
@@ -135,6 +140,7 @@ const routeTree = rootRoute.addChildren([
   discoverRoute,
   feedRoute,
   profileRoute,
+  settingsRoute,
   userProfileRoute,
   logoutRoute,
   profileLibraryListRoute,

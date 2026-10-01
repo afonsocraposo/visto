@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { ActionIcon, Group, Tabs, Text, Title, Tooltip } from "@mantine/core";
+import { Button, Group, Text, Title } from "@mantine/core";
 import { IconUsers } from "@tabler/icons-react";
 import { UserDirectory } from "./UserDirectory";
 import { HistoryPanel } from "../library/HistoryPanel";
 import { FeedPanel } from "./FeedPanel";
 import type { MediaDetailTarget } from "../../types";
 import { readStoredChoice, writeStoredChoice } from "../../lib/browserStorage";
+import { SectionTabs } from "../../components/SectionTabs";
 
 type FeedSection = "history" | "community";
 
@@ -30,19 +31,15 @@ export function FeedArea({
         <div>
           <Text className="section-kicker">Your watchroom</Text>
           <Title order={1}>Activity</Title>
-          <Text c="dimmed" mt={6}>
-            Your watch history and what others have shared.
-          </Text>
         </div>
-        <Tooltip label="Users">
-          <ActionIcon
-            variant="light"
-            aria-label="Users"
-            onClick={() => setDirectoryOpen(true)}
-          >
-            <IconUsers size={18} />
-          </ActionIcon>
-        </Tooltip>
+        <Button
+          className="people-button"
+          variant="default"
+          leftSection={<IconUsers size={18} />}
+          onClick={() => setDirectoryOpen(true)}
+        >
+          People
+        </Button>
       </Group>
       <UserDirectory
         opened={directoryOpen}
@@ -52,27 +49,25 @@ export function FeedArea({
           onOpenUser?.(id);
         }}
       />
-      <Tabs
-        className="section-tabs"
+      <SectionTabs
+        label="Activity views"
         value={section}
-        keepMounted={false}
-        onChange={(value) => {
-          const next = value === "community" ? "community" : "history";
+        onChange={(next) => {
           setSection(next);
           writeStoredChoice("local", tabStorageKey, next);
         }}
-      >
-        <Tabs.List>
-          <Tabs.Tab value="history">History</Tabs.Tab>
-          <Tabs.Tab value="community">Community</Tabs.Tab>
-        </Tabs.List>
-        <Tabs.Panel value="history" pt="md">
-          <HistoryPanel onOpenDetail={onOpenDetail} />
-        </Tabs.Panel>
-        <Tabs.Panel value="community" pt="md">
+        options={[
+          { value: "history", label: "History" },
+          { value: "community", label: "Community" },
+        ]}
+      />
+      <div key={section} className="section-panel">
+        {section === "history" ? (
+          <HistoryPanel onOpenDetail={onOpenDetail} groupByDay />
+        ) : (
           <FeedPanel onOpenDetail={onOpenDetail} onOpenUser={onOpenUser} />
-        </Tabs.Panel>
-      </Tabs>
+        )}
+      </div>
     </section>
   );
 }
