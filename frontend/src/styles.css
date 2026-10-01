@@ -121,10 +121,11 @@ select {
 }
 
 :root {
-  /* Only part of the home-indicator inset is added; the bar's own padding already clears it. */
-  --visto-safe-bottom: calc(env(safe-area-inset-bottom) * 0.45);
+  --visto-bottom-nav-height: 56px;
+  --visto-device-safe-bottom: env(safe-area-inset-bottom, 0px);
+  --visto-safe-bottom: min(var(--visto-device-safe-bottom), 8px);
   --visto-header-height: 0px;
-  --visto-footer-height: calc(57px + var(--visto-safe-bottom)); /* 56px bar + 1px border */
+  --visto-footer-height: calc(var(--visto-bottom-nav-height) + 1px + var(--visto-safe-bottom));
 }
 .visto-shell {
   min-height: 100vh;
@@ -237,7 +238,7 @@ select {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 4px;
   width: min(100% - 16px, 600px);
-  height: 56px;
+  height: var(--visto-bottom-nav-height);
   margin: 0 auto;
 }
 .bottom-nav-button {

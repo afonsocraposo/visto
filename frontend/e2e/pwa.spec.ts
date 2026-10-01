@@ -131,6 +131,41 @@ test("Given a phone viewport, When switching destinations, Then the bottom navig
   }
 });
 
+test("Given an iPhone safe-area inset, Then the bottom bar stays compact and usable", async ({
+  page,
+}) => {
+  await mockSignedInSession(page);
+  await page.setViewportSize({ width: 390, height: 740 });
+  await page.goto("/watch");
+  await page.evaluate(() =>
+    document.documentElement.style.setProperty("--visto-device-safe-bottom", "34px"),
+  );
+
+  const layout = await page.locator(".visto-footer").evaluate((footer) => {
+    const nav = footer.querySelector(".bottom-nav");
+    if (!nav) throw new Error("Bottom navigation is missing");
+    const footerBounds = footer.getBoundingClientRect();
+    return {
+      footerHeight: footerBounds.height,
+      footerBottom: footerBounds.bottom,
+      navHeight: nav.getBoundingClientRect().height,
+      paddingBottom: parseFloat(getComputedStyle(footer).paddingBottom),
+      borderTop: parseFloat(getComputedStyle(footer).borderTopWidth),
+      buttons: Array.from(nav.querySelectorAll("button"), (button) => {
+        const { width, height } = button.getBoundingClientRect();
+        return { width, height };
+      }),
+    };
+  });
+  expect(layout.footerHeight).toBe(65);
+  expect(layout.footerBottom).toBe(740);
+  expect(layout.navHeight).toBe(56);
+  expect(layout.paddingBottom).toBe(8);
+  expect(layout.borderTop).toBe(1);
+  expect(layout.buttons).toHaveLength(4);
+  expect(layout.buttons.every(({ width, height }) => width >= 44 && height >= 44)).toBe(true);
+});
+
 test("Given a signed-in user, When they navigate and manage appearance and account settings, Then the shell stays compact and actions work", async ({
   page,
 }) => {

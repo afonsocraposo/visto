@@ -39,7 +39,7 @@ Stack: React, Mantine, TanStack Router/Query. Do not add another visual framewor
 ### Navigation
 
 - One definition (`features/navigation/navItems.ts`) drives both bars.
-- **Below 900px:** a bottom bar, 56px plus under half of the safe-area inset. The active item gets an amber pill
+- **Below 900px:** a 56px bottom bar with a home-indicator offset capped at 8px. The active item gets an amber pill
   behind the icon.
 - **900px and up:** a 60px top app bar (brand · four destinations · avatar) replaces the
   bottom bar. The active item gets an amber underline and a neutral text colour, never a filled
