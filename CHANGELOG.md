@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.23.0](https://github.com/afonsocraposo/visto/compare/v0.22.2...v0.23.0) (2026-10-01)
+
+
+### Features
+
+* add outlined show badges to watching ([f0f4766](https://github.com/afonsocraposo/visto/commit/f0f47662957d02d0cd1f0b699010cf3419e5ec2b))
+
+
+### Bug Fixes
+
+* preserve media metadata on partial upserts ([5cb13a4](https://github.com/afonsocraposo/visto/commit/5cb13a435b142f96bd3a45b8ab023f4c9d3d5dbf))
+* use native links for app navigation ([fa05299](https://github.com/afonsocraposo/visto/commit/fa05299332f09e937212474399d3bf0d121f045f))
+
 ## [0.22.2](https://github.com/afonsocraposo/visto/compare/v0.22.1...v0.22.2) (2026-10-01)
 
 
