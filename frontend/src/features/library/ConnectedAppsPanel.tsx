@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Group, Modal, Paper, Stack, Text, Title } from "@mantine/core";
-import { IconLink, IconTrash } from "@tabler/icons-react";
+import { Alert, Button, Group, Modal, Text } from "@mantine/core";
+import { IconTrash } from "@tabler/icons-react";
 import { api } from "../../lib/api";
 import { useUserQueryKey } from "../auth/SessionContext";
 import type { ConnectedApp } from "../../types";
+import { QueryError } from "../../components/QueryError";
+import { SettingsListSkeleton, SettingsSection } from "./SettingsSection";
 
 export function ConnectedAppsPanel() {
   const queryClient = useQueryClient();
@@ -35,19 +37,13 @@ export function ConnectedAppsPanel() {
   });
 
   return (
-    <Paper withBorder p="md" mt="lg">
-      <Group gap="xs">
-        <IconLink size={19} />
-        <Title order={2}>Connected apps</Title>
-      </Group>
-      <Text size="sm" c="dimmed" mt="xs">
-        Apps connected with OAuth can access only the permissions you approved. Revoke access at any
-        time.
-      </Text>
+    <SettingsSection
+      id="apps"
+      title="Connected apps"
+      description="Apps connected with OAuth can access only the permissions you approved. Revoke access at any time."
+    >
       {connections.isError && (
-        <Alert color="red" mt="md">
-          {connections.error.message}
-        </Alert>
+        <QueryError message={connections.error.message} onRetry={() => connections.refetch()} />
       )}
       {revoke.isError && (
         <Alert color="red" mt="md">
@@ -88,51 +84,56 @@ export function ConnectedAppsPanel() {
         </Alert>
       )}
       {connections.isPending ? (
-        <Text size="sm" c="dimmed" mt="md">
-          Loading connected apps…
-        </Text>
+        <SettingsListSkeleton />
       ) : connections.data?.length ? (
         <>
-          <Group justify="flex-end" mt="md">
-            <Button variant="subtle" color="red" size="xs" onClick={() => setPendingRevoke("all")}>
-              Revoke all
-            </Button>
-          </Group>
-          <Stack gap="xs" mt="xs">
+          <ul className="settings-list">
             {connections.data.map((connection) => (
-              <Paper key={connection.client_id} withBorder p="sm">
-                <Group justify="space-between" align="center" wrap="nowrap">
-                  <div>
-                    <Text fw={650}>{connection.client_name}</Text>
-                    <Text size="xs" c="dimmed">
-                      Can {scopeLabel(connection.scopes)} ·{" "}
-                      {connection.last_used_at
-                        ? `Last used ${formatDate(connection.last_used_at)}`
-                        : connection.connected_at
-                          ? `Connected ${formatDate(connection.connected_at)}`
-                          : "Connected before activity tracking"}
-                    </Text>
-                  </div>
-                  <Button
-                    variant="subtle"
-                    color="red"
-                    aria-label={`Revoke ${connection.client_name}`}
-                    leftSection={<IconTrash size={16} />}
-                    onClick={() => setPendingRevoke(connection)}
-                  >
-                    Revoke
-                  </Button>
-                </Group>
-              </Paper>
+              <li key={connection.client_id} className="settings-list-row">
+                <div className="settings-list-text">
+                  <Text fw={650} className="settings-list-title">
+                    {connection.client_name}
+                  </Text>
+                  <Text size="xs" c="dimmed" className="settings-list-meta">
+                    Can {scopeLabel(connection.scopes)} ·{" "}
+                    {connection.last_used_at
+                      ? `Last used ${formatDate(connection.last_used_at)}`
+                      : connection.connected_at
+                        ? `Connected ${formatDate(connection.connected_at)}`
+                        : "Connected before activity tracking"}
+                  </Text>
+                </div>
+                <Button
+                  variant="subtle"
+                  color="red"
+                  aria-label={`Revoke ${connection.client_name}`}
+                  leftSection={<IconTrash size={16} />}
+                  onClick={() => setPendingRevoke(connection)}
+                >
+                  Revoke
+                </Button>
+              </li>
             ))}
-          </Stack>
+          </ul>
+          {connections.data.length > 1 && (
+            <Group justify="flex-end" mt="sm">
+              <Button
+                variant="subtle"
+                color="red"
+                size="xs"
+                onClick={() => setPendingRevoke("all")}
+              >
+                Revoke all
+              </Button>
+            </Group>
+          )}
         </>
       ) : (
         <Text size="sm" c="dimmed" mt="md">
           You have no connected apps.
         </Text>
       )}
-    </Paper>
+    </SettingsSection>
   );
 }
 
@@ -145,5 +146,7 @@ function scopeLabel(scopes: string[]): string {
 
 function formatDate(value: string): string {
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }

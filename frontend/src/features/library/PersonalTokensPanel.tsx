@@ -8,17 +8,16 @@ import {
   CopyButton,
   Group,
   Modal,
-  Paper,
-  Stack,
   Text,
   TextInput,
-  Title,
   Tooltip,
 } from "@mantine/core";
 import { IconCheck, IconCopy, IconKey, IconTrash } from "@tabler/icons-react";
 import { api } from "../../lib/api";
 import { useUserQueryKey } from "../auth/SessionContext";
 import type { IssuedPersonalAPIToken, PersonalAPIToken } from "../../types";
+import { QueryError } from "../../components/QueryError";
+import { SettingsListSkeleton, SettingsSection, SettingsSubsection } from "./SettingsSection";
 
 export function PersonalTokensPanel() {
   const queryClient = useQueryClient();
@@ -59,19 +58,13 @@ export function PersonalTokensPanel() {
   });
 
   return (
-    <Paper withBorder p="md" mt="lg">
-      <Group gap="xs">
-        <IconKey size={19} />
-        <Title order={2}>Personal API tokens</Title>
-      </Group>
-      <Text size="sm" c="dimmed" mt="xs">
-        Use a token to access your Visto data from scripts and integrations. Keep it private and
-        revoke it if it is exposed.
-      </Text>
+    <SettingsSection
+      id="tokens"
+      title="Personal API tokens"
+      description="Use a token to access your Visto data from scripts and integrations. Keep it private and revoke it if it is exposed."
+    >
       {tokens.isError && (
-        <Alert color="red" mt="md">
-          {tokens.error.message}
-        </Alert>
+        <QueryError message={tokens.error.message} onRetry={() => tokens.refetch()} />
       )}
       {issued && (
         <Alert color="green" mt="md" title="Copy your new token now">
@@ -157,21 +150,18 @@ export function PersonalTokensPanel() {
           Create token
         </Button>
       </form>
-      <Title order={3} mt="xl">
-        Active tokens
-      </Title>
-      {tokens.isPending ? (
-        <Text size="sm" c="dimmed" mt="sm">
-          Loading tokens…
-        </Text>
-      ) : tokens.data?.length ? (
-        <Stack gap="xs" mt="sm">
-          {tokens.data.map((token) => (
-            <Paper key={token.id} withBorder p="sm">
-              <Group justify="space-between" align="center" wrap="nowrap">
-                <div>
-                  <Text fw={650}>{token.name}</Text>
-                  <Text size="xs" c="dimmed">
+      <SettingsSubsection title="Active tokens">
+        {tokens.isPending ? (
+          <SettingsListSkeleton />
+        ) : tokens.data?.length ? (
+          <ul className="settings-list">
+            {tokens.data.map((token) => (
+              <li key={token.id} className="settings-list-row">
+                <div className="settings-list-text">
+                  <Text fw={650} className="settings-list-title">
+                    {token.name}
+                  </Text>
+                  <Text size="xs" c="dimmed" className="settings-list-meta">
                     Created {formatDate(token.created_at)} ·{" "}
                     {token.last_used_at
                       ? `Last used ${formatDate(token.last_used_at)}`
@@ -190,20 +180,22 @@ export function PersonalTokensPanel() {
                 >
                   Revoke
                 </Button>
-              </Group>
-            </Paper>
-          ))}
-        </Stack>
-      ) : (
-        <Text size="sm" c="dimmed" mt="sm">
-          You have no active API tokens.
-        </Text>
-      )}
-    </Paper>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <Text size="sm" c="dimmed" mt="xs">
+            You have no active API tokens.
+          </Text>
+        )}
+      </SettingsSubsection>
+    </SettingsSection>
   );
 }
 
 function formatDate(value: string): string {
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+  return Number.isNaN(date.getTime())
+    ? value
+    : date.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
 }

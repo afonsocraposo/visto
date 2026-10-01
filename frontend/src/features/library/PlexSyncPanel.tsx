@@ -8,17 +8,17 @@ import {
   Code,
   Group,
   Modal,
-  Paper,
   ScrollArea,
   Stack,
   Table,
   Text,
   TextInput,
-  Title,
 } from "@mantine/core";
 import { IconCopy, IconRefresh, IconTrash } from "@tabler/icons-react";
 import { useUserQueryKey } from "../auth/SessionContext";
 import { ActivityTime } from "../../components/ActivityTime";
+import { QueryError } from "../../components/QueryError";
+import { SettingsSection, SettingsSubsection } from "./SettingsSection";
 
 type PlexEvent = {
   id: number;
@@ -138,13 +138,15 @@ export function PlexSyncPanel() {
   });
 
   return (
-    <Paper withBorder p="md" mt="lg">
-      <Title order={3}>Plex watch sync</Title>
-      <Text size="sm" c="dimmed" mt="xs">
-        {status.data?.mode === "managed"
+    <SettingsSection
+      id="plex"
+      title="Plex watch sync"
+      description={
+        status.data?.mode === "managed"
           ? "Your administrator manages one Plex webhook for this instance. Your watches sync when your Plex account is assigned below."
-          : "Sync new watched movies and episodes from your Plex account. Plex Pass and a public HTTPS address for this Visto instance are required."}
-      </Text>
+          : "Sync new watched movies and episodes from your Plex account. Plex Pass and a public HTTPS address for this Visto instance are required."
+      }
+    >
       {status.data?.mode === "personal" && (
         <Text size="sm" c="dimmed" mt="xs">
           After you create a webhook URL, add it in your{" "}
@@ -168,9 +170,7 @@ export function PlexSyncPanel() {
         </Text>
       )}
       {status.isError && (
-        <Alert color="red" mt="md">
-          {status.error.message}
-        </Alert>
+        <QueryError message={status.error.message} onRetry={() => status.refetch()} />
       )}
       {issue.isError && (
         <Alert color="red" mt="md">
@@ -283,59 +283,58 @@ export function PlexSyncPanel() {
         </>
       )}
       {(status.data?.recent_events.length ?? 0) > 0 && (
-        <>
-          <Title order={4} mt="xl">
-            Recent sync activity
-          </Title>
-          <Table mt="sm" striped highlightOnHover withTableBorder>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Media</Table.Th>
-                <Table.Th>Event</Table.Th>
-                <Table.Th>Status</Table.Th>
-                <Table.Th>Details</Table.Th>
-                <Table.Th>Time</Table.Th>
-                <Table.Th />
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {status.data!.recent_events.map((event) => (
-                <Table.Tr key={event.id}>
-                  <Table.Td>{event.title || event.media_type || "Plex event"}</Table.Td>
-                  <Table.Td>{event.event_type || "—"}</Table.Td>
-                  <Table.Td>
-                    <Badge
-                      color={
-                        event.status === "synced"
-                          ? "green"
-                          : event.status === "failed"
-                            ? "red"
-                            : "gray"
-                      }
-                    >
-                      {event.status}
-                    </Badge>
-                  </Table.Td>
-                  <Table.Td>{event.message || "—"}</Table.Td>
-                  <Table.Td>
-                    <ActivityTime value={event.occurred_at} />
-                  </Table.Td>
-                  <Table.Td>
-                    <Button
-                      variant="subtle"
-                      size="compact-xs"
-                      onClick={() => setPayloadEventId(event.id)}
-                    >
-                      View payload
-                    </Button>
-                  </Table.Td>
+        <SettingsSubsection title="Recent sync activity">
+          <Table.ScrollContainer minWidth={620} mt="sm">
+            <Table striped highlightOnHover withTableBorder>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Media</Table.Th>
+                  <Table.Th>Event</Table.Th>
+                  <Table.Th>Status</Table.Th>
+                  <Table.Th>Details</Table.Th>
+                  <Table.Th>Time</Table.Th>
+                  <Table.Th />
                 </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
-        </>
+              </Table.Thead>
+              <Table.Tbody>
+                {status.data!.recent_events.map((event) => (
+                  <Table.Tr key={event.id}>
+                    <Table.Td>{event.title || event.media_type || "Plex event"}</Table.Td>
+                    <Table.Td>{event.event_type || "—"}</Table.Td>
+                    <Table.Td>
+                      <Badge
+                        color={
+                          event.status === "synced"
+                            ? "green"
+                            : event.status === "failed"
+                              ? "red"
+                              : "gray"
+                        }
+                      >
+                        {event.status}
+                      </Badge>
+                    </Table.Td>
+                    <Table.Td>{event.message || "—"}</Table.Td>
+                    <Table.Td>
+                      <ActivityTime value={event.occurred_at} />
+                    </Table.Td>
+                    <Table.Td>
+                      <Button
+                        variant="subtle"
+                        size="compact-xs"
+                        onClick={() => setPayloadEventId(event.id)}
+                      >
+                        View payload
+                      </Button>
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </Table.ScrollContainer>
+        </SettingsSubsection>
       )}
       <PayloadModal eventId={payloadEventId} onClose={() => setPayloadEventId(null)} />
-    </Paper>
+    </SettingsSection>
   );
 }

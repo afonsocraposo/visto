@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Button, Text, Title } from "@mantine/core";
+import { Button, Title } from "@mantine/core";
 import { IconArrowLeft } from "@tabler/icons-react";
 import { ProfilePanel } from "./ProfilePanel";
 import { AdminPanel } from "./AdminPanel";
@@ -45,7 +45,6 @@ export function SettingsPage({
         Library
       </Button>
       <div className="page-heading">
-        <Text className="section-kicker">{user.name || "Your account"}</Text>
         <Title order={1}>Settings</Title>
       </div>
       {isAdmin && (
@@ -67,6 +66,7 @@ export function SettingsPage({
           <AdminPanel currentUser={user} />
         ) : (
           <ProfilePanel
+            user={user}
             theme={theme}
             onThemeChange={onThemeChange}
             onSignOut={onSignOut}

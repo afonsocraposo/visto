@@ -170,6 +170,16 @@ supports opening in a new tab, and a plain click uses in-app navigation.
 - Watching, Watchlist and Completed show up to 6 posters with _Show all_. Paused and Dropped
   appear as compact list links with counts.
 
+### Settings
+
+- One column of `SettingsSection` cards (Profile, Appearance, Notifications, Plex, Your data,
+  API tokens, Connected apps, Account), with `SettingsSubsection` for divided parts. Section
+  titles are compact (1.2rem), never page-title sized. Sign out lives in Account, at the end.
+- From 900px a sticky jump list sits to the left and the content column caps at 720px.
+- Lists (tokens, connected apps) are divided rows, never cards nested inside the section card.
+- Save buttons stay disabled until something changed. Device-dependent states show one status
+  line, the most limiting one first.
+
 ### Posters
 
 `MediaPosterCard` has two variants:

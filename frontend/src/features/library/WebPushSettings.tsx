@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { Alert, Button, Group, Text, Title } from "@mantine/core";
+import { Alert, Button, Group, Text } from "@mantine/core";
 import { showActionFeedback } from "../../lib/actionFeedback";
+import { SettingsSubsection } from "./SettingsSection";
 
 const supported = () =>
   "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
@@ -130,37 +131,39 @@ export function WebPushSettings() {
       setBusyAction(null);
     }
   };
+  // One status line: what is true on this device right now, most limiting first.
+  const status =
+    available === null
+      ? "Checking this device…"
+      : available === false
+        ? "Browser notifications are unavailable here. On iPhone or iPad, add Visto to the Home Screen, then open it from there. Your server must also enable Web Push."
+        : !enabled && permission === "denied"
+          ? "Notifications are blocked in this browser. Allow them in the site settings to enable alerts."
+          : enabled
+            ? "Enabled on this device."
+            : "Off on this device.";
   return (
-    <>
-      <Title order={3} mt="xl">
-        Browser notifications
-      </Title>
-      <Text size="sm" c="dimmed" mt="xs">
-        Get episode alerts on this device, even when Visto is closed.
+    <SettingsSubsection
+      title="Browser notifications"
+      description="Get episode alerts on this device, even when Visto is closed."
+    >
+      <Text
+        size="sm"
+        mt="xs"
+        className={available ? "settings-status" : undefined}
+        c={available ? undefined : "dimmed"}
+      >
+        {status}
       </Text>
-      <Text size="sm" mt="xs">
-        {enabled ? "Enabled on this device" : "Off on this device"}
-      </Text>
-      {available === false && (
-        <Text size="sm" c="dimmed" mt="xs">
-          Browser notifications are unavailable here. On iPhone or iPad, add Visto to the Home
-          Screen, then open it from there. Your server must also enable Web Push.
-        </Text>
-      )}
-      {permission === "denied" && (
-        <Text size="sm" c="dimmed" mt="xs">
-          Notifications are blocked in this browser. Allow them in the site settings to enable
-          alerts.
-        </Text>
-      )}
       {message && (
         <Alert color="red" mt="md">
           {message}
         </Alert>
       )}
       {available && (
-        <Group mt="md">
+        <Group mt="md" gap="sm">
           <Button
+            variant={enabled ? "default" : "filled"}
             loading={busyAction === "toggle"}
             disabled={(!enabled && permission === "denied") || busyAction !== null}
             onClick={enabled ? disable : enable}
@@ -179,6 +182,6 @@ export function WebPushSettings() {
           )}
         </Group>
       )}
-    </>
+    </SettingsSubsection>
   );
 }
