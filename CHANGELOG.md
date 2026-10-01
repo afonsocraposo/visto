@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.22.0](https://github.com/afonsocraposo/visto/compare/v0.21.0...v0.22.0) (2026-10-01)
+
+
+### Features
+
+* polish the settings page ([cf20dfe](https://github.com/afonsocraposo/visto/commit/cf20dfe58ad3888ed9f33f54e41eaaecadc52da7))
+
+
+### Bug Fixes
+
+* integrate Plex episode matching ([c625e89](https://github.com/afonsocraposo/visto/commit/c625e8979e0bfece3726cc81fa8ac6a203b42782))
+* land on Up next when choosing Watching; show-first cards; slimmer nav ([4c3d06d](https://github.com/afonsocraposo/visto/commit/4c3d06d0117290639a4fbcac78e3cc5c8dc20bd1))
+* match Plex episodes whose show title carries a year, with fewer TMDB requests ([920db1f](https://github.com/afonsocraposo/visto/commit/920db1f086f792edba1be0e099253acfe2064e10))
+* skip Plex episodes with mismatched TMDB IDs ([30c940c](https://github.com/afonsocraposo/visto/commit/30c940caa5a9bd456d52e8832e06fb40b5fe0bd3))
+
 ## [0.21.0](https://github.com/afonsocraposo/visto/compare/v0.20.1...v0.21.0) (2026-10-01)
 
 
