@@ -1,8 +1,8 @@
 module github.com/afonsocosta/visto
 
-go 1.25.0
+go 1.26.0
 
-toolchain go1.25.13
+toolchain go1.26.6
 
 require (
 	github.com/SherClockHolmes/webpush-go v1.4.0
@@ -13,7 +13,7 @@ require (
 	github.com/cyruzin/golang-tmdb v1.6.9
 	github.com/modelcontextprotocol/go-sdk v1.7.0
 	golang.org/x/crypto v0.31.0
-	golang.org/x/oauth2 v0.35.0
+	golang.org/x/oauth2 v0.37.0
 	golang.org/x/sync v0.20.0
 	modernc.org/sqlite v1.34.5
 )
