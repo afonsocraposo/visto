@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
+import { useElementScrollRestoration } from "@tanstack/react-router";
 import { IconArrowUp } from "@tabler/icons-react";
 import type { MediaDetailTarget } from "../../types";
 import { headerOffset } from "../../lib/headerOffset";
@@ -16,6 +17,7 @@ export function WatchHistoryReveal({
   onOpenDetail?: (target: MediaDetailTarget) => void;
 }) {
   const history = useRecentWatches();
+  const restoredScrollY = useElementScrollRestoration({ getElement: () => window })?.scrollY;
   const block = useRef<HTMLElement>(null);
   const stopSettling = useRef<() => void>(() => {});
   const entries = history.data ?? [];
@@ -71,7 +73,8 @@ export function WatchHistoryReveal({
   useLayoutEffect(() => {
     if (!ready) return;
     if (wantUpNext.current === null)
-      wantUpNext.current = upNextRequestedRecently() || window.scrollY === 0;
+      wantUpNext.current =
+        upNextRequestedRecently() || (restoredScrollY === undefined && window.scrollY === 0);
     if (wantUpNext.current) settleOnUpNext();
     return () => stopSettling.current();
   }, [ready]);
@@ -79,7 +82,10 @@ export function WatchHistoryReveal({
   // Tapping Watching while already here goes back to Up next.
   useEffect(() => {
     return onUpNextRequest(() => {
-      if (!block.current) return;
+      if (!block.current) {
+        window.scrollTo({ top: 0, behavior: "instant" });
+        return;
+      }
       wantUpNext.current = true;
       settleOnUpNext();
     });

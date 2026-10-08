@@ -1326,6 +1326,174 @@ test("Watching links keep native browser navigation and separate the watched act
   await expect(page).toHaveURL(/\/watch$/);
 });
 
+test("Watching restores the same row after show and episode details", async ({ page }) => {
+  await mockSignedInSession(page);
+  await page.setViewportSize({ width: 390, height: 740 });
+  await page.route("**/api/v1/plays?limit=10", (route) =>
+    fulfillJSON(route, {
+      items: [
+        {
+          play: {
+            id: "recent-play",
+            media_id: "movie:1",
+            episode_id: null,
+            watched_at: "2026-09-30T21:50:00Z",
+          },
+          title: "Recent film",
+          tmdb_id: 1,
+        },
+      ],
+      next_cursor: null,
+    }),
+  );
+  await page.route("**/api/v1/continue-watching", (route) =>
+    fulfillJSON(
+      route,
+      Array.from({ length: 24 }, (_, index) => ({
+        ...continueEntry,
+        show_id: `tv:${100 + index}`,
+        title: `Scroll show ${index}`,
+        next_episode: {
+          ...continueEntry.next_episode,
+          id: `tv:${100 + index}:episode:101`,
+        },
+      })),
+    ),
+  );
+  await page.route(/\/api\/v1\/shows\/\d+$/, (route) => {
+    const id = Number(new URL(route.request().url()).pathname.split("/").at(-1));
+    return fulfillJSON(route, {
+      media: {
+        id: `tv:${id}`,
+        tmdb_id: id,
+        type: "tv",
+        title: `Scroll show ${id - 100}`,
+        original_title: `Scroll show ${id - 100}`,
+        overview: "A show.",
+        release_date: "2024-01-01",
+        poster_path: "",
+        original_language: "en",
+      },
+      item: { media_id: `tv:${id}`, status: "watching", rating: null },
+      cast: [],
+    });
+  });
+
+  await page.goto("/watch");
+  const row = page.locator(".watch-row", { hasText: "Scroll show 15" });
+  await row.scrollIntoViewIfNeeded();
+  const scrollY = await page.evaluate(() => window.scrollY);
+  expect(scrollY).toBeGreaterThan(500);
+
+  await row.locator("a.watch-row-show").click();
+  await expect(page).toHaveURL(/\/media\/tv\/115/);
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await expect(page).toHaveURL(/\/watch$/);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(scrollY - 40);
+  await expect(row).toBeInViewport();
+
+  await row.locator("a.watch-row-title").click();
+  await expect(page).toHaveURL(/\/shows\/115\/season\/1\/episode\/1/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/watch$/);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(scrollY - 40);
+  await expect(row).toBeInViewport();
+
+  await page.getByRole("link", { name: "Watching", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Up next" })).toBeInViewport();
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeLessThan(500);
+});
+
+test("Discover, Activity and Library restore their list positions after Back", async ({ page }) => {
+  await mockSignedInSession(page);
+  await page.setViewportSize({ width: 390, height: 740 });
+  const media = Array.from({ length: 24 }, (_, index) => ({
+    id: `tv:${100 + index}`,
+    tmdb_id: 100 + index,
+    type: "tv",
+    title: `Scroll show ${index}`,
+    original_title: `Scroll show ${index}`,
+    overview: "A show.",
+    release_date: "2024-01-01",
+    poster_path: "",
+    original_language: "en",
+  }));
+  let delaySearch = false;
+  let delayedSearchRequests = 0;
+  await page.route("**/api/v1/search**", async (route) => {
+    if (delaySearch) {
+      delayedSearchRequests++;
+      await new Promise((resolve) => setTimeout(resolve, 400));
+    }
+    await fulfillJSON(route, media);
+  });
+  await page.route("**/api/v1/feed**", (route) =>
+    fulfillJSON(route, {
+      items: media.map((item, index) => ({
+        id: `feed-${index}`,
+        user_id: "user-1",
+        display_name: "Afonso",
+        kind: "watch",
+        title: item.title,
+        media_type: "tv",
+        tmdb_id: item.tmdb_id,
+        occurred_at: "2026-09-30T21:50:00Z",
+      })),
+      next_cursor: null,
+    }),
+  );
+  await page.route(/\/api\/v1\/library(?:\?.*)?$/, (route) =>
+    fulfillJSON(route, {
+      items: media.map((item) => ({
+        item: { media_id: item.id, status: "watchlist", rating: null },
+        media: item,
+      })),
+      next_cursor: null,
+    }),
+  );
+  await page.route(/\/api\/v1\/shows\/\d+$/, (route) => {
+    const id = Number(new URL(route.request().url()).pathname.split("/").at(-1));
+    return fulfillJSON(route, {
+      media: media[id - 100],
+      item: { media_id: `tv:${id}`, status: "watchlist", rating: null },
+      cast: [],
+    });
+  });
+
+  for (const source of ["discover", "feed", "profile/library/watchlist"]) {
+    const path = source === "discover" ? "/discover?q=Scroll" : `/${source}`;
+    await page.goto(path);
+    if (source === "feed") await page.getByRole("tab", { name: "Community" }).click();
+    const link =
+      source === "feed"
+        ? page.getByRole("link", { name: "Scroll show 15", exact: true })
+        : page.getByRole("link", { name: "Open details for Scroll show 15" });
+    await link.scrollIntoViewIfNeeded();
+    const scrollY = await page.evaluate(() => window.scrollY);
+    expect(scrollY).toBeGreaterThan(500);
+    await link.click();
+    await expect(page).toHaveURL(/\/media\/tv\/115/);
+    await page.getByRole("button", { name: "Back", exact: true }).click();
+    await expect(page).toHaveURL(new RegExp(path.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(scrollY - 40);
+    await expect(link).toBeInViewport();
+  }
+
+  await page.goto("/discover?q=Scroll");
+  const link = page.getByRole("link", { name: "Open details for Scroll show 15" });
+  await link.scrollIntoViewIfNeeded();
+  const scrollY = await page.evaluate(() => window.scrollY);
+  await link.click();
+  await expect(page).toHaveURL(/\/media\/tv\/115/);
+  delaySearch = true;
+  await page.reload();
+  await page.goBack();
+  await expect(page).toHaveURL(/\/discover\?q=Scroll/);
+  await expect.poll(() => delayedSearchRequests).toBeGreaterThan(0);
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(scrollY - 40);
+  await expect(link).toBeInViewport();
+});
+
 test("Given the ordinary next episode, When the user taps Watched, Then only that episode is recorded", async ({
   page,
 }) => {

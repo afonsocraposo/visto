@@ -175,7 +175,7 @@ const routeTree = rootRoute.addChildren([
   episodeRoute,
   personRoute,
 ]);
-export const router = createRouter({ routeTree, context: undefined! });
+export const router = createRouter({ routeTree, context: undefined!, scrollRestoration: true });
 
 function DashboardRoute({ page }: { page: DashboardPage }) {
   return <Dashboard {...rootRoute.useRouteContext()} page={page} />;
