@@ -1381,7 +1381,10 @@ test("Watching restores the same row after show and episode details", async ({ p
 
   await page.goto("/watch");
   const row = page.locator(".watch-row", { hasText: "Scroll show 15" });
+  await expect(page.getByLabel("Recently watched")).toBeAttached();
+  await page.getByRole("heading", { name: "Up next" }).click();
   await row.scrollIntoViewIfNeeded();
+  await expect(row).toBeInViewport();
   const scrollY = await page.evaluate(() => window.scrollY);
   expect(scrollY).toBeGreaterThan(500);
 
