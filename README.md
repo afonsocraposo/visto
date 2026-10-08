@@ -3,21 +3,58 @@
 Visto is a self-hosted movie and TV tracker. It stores viewing data locally in
 SQLite and uses TMDB only for metadata.
 
-## Quick start (Docker)
+## Run Visto with Docker
 
-1. Install Docker Compose and create a [TMDB API key](https://www.themoviedb.org/settings/api) — needed for search, artwork, cast, episode details, and other metadata.
-2. Copy `.env.example` to `.env` beside `compose.yaml` and set `VISTO_TMDB_API_KEY`. `.env.example` lists every supported variable with safe defaults; `.env` is git-ignored, so keep your key there.
-3. Start Visto and follow the logs until it's ready:
+You need Docker with Compose and a [TMDB API key](https://www.themoviedb.org/settings/api).
+The key lets Visto search for titles and load their artwork and episode details.
+
+1. Make a directory for Visto:
 
    ```sh
-   docker compose pull
-   docker compose up -d
-   docker compose logs -f visto
+   mkdir visto
+   cd visto
    ```
 
-4. Open <http://localhost:8080>. The first account created becomes the instance administrator; admins manage accounts under Profile → Admin. Public signup can be turned off with `VISTO_ALLOW_SIGNUPS=false`.
+2. Save this as `compose.yaml` in that directory:
 
-The named volume `visto-data` holds the SQLite database and backups and survives `docker compose down`. See [docs/configuration.md](docs/configuration.md) for the full environment variable reference, host-directory volumes, backups & S3, reverse proxies, and Google sign-in.
+   ```yaml
+   services:
+     visto:
+       image: ghcr.io/afonsocraposo/visto:${VISTO_VERSION:-latest}
+       ports:
+         - "8080:8080"
+       environment:
+         VISTO_TMDB_API_KEY: ${VISTO_TMDB_API_KEY}
+       volumes:
+         - visto-data:/data
+       restart: unless-stopped
+
+   volumes:
+     visto-data:
+   ```
+
+3. Save a `.env` file beside `compose.yaml`, replacing the example value with
+   your TMDB API key:
+
+   ```dotenv
+   VISTO_TMDB_API_KEY=your_tmdb_api_key
+   ```
+
+4. Start the app:
+
+   ```sh
+   docker compose up -d
+   ```
+
+5. Open <http://localhost:8080> and create an account. The first account is the
+   administrator.
+
+If the page does not open, run `docker compose ps` and `docker compose logs visto`
+from the `visto` directory to check the container. To stop the app, run
+`docker compose down`. Your database and backups remain in the `visto-data`
+volume. See [configuration](docs/configuration.md) for backups, public access,
+and other settings. The repository also has a [full Compose file](compose.yaml)
+for optional features. Updates are covered under [Releases](#releases).
 
 ## Optional features
 
@@ -35,21 +72,41 @@ Pin a deployment to a release with `VISTO_VERSION=0.1.0` in `.env`, then `docker
 
 ## Development
 
-Requirements: Go 1.25.13+, Node.js 22+, [Air](https://github.com/air-verse/air), and a TMDB API key.
+To run the source code locally, install Go 1.25.13+ and Node.js 22+. You also
+need a TMDB API key. If you already have a checkout or `.env`, keep them and
+skip the matching commands below:
+
+```sh
+git clone https://github.com/afonsocraposo/visto.git
+cd visto
+cp .env.example .env
+```
+
+Replace the example `VISTO_TMDB_API_KEY` value in `.env` with your key. Then
+install [Air](https://github.com/air-verse/air):
 
 ```sh
 go install github.com/air-verse/air@v1.67.4
+```
 
-# terminal 1
+Start the backend and frontend in separate terminals, both from the repository
+directory:
+
+```sh
+# Terminal 1: backend
 air
+```
 
-# terminal 2
+```sh
+# Terminal 2: frontend
 cd frontend
-npm install
+npm ci
 npm run dev
 ```
 
-Open <http://localhost:5173>. Vite proxies `/api` and `/health` to the Go server on `:8080`; Air rebuilds and restarts the Go server on Go/SQL/env changes, loading `.env.development` then `.env` (values in `.env` win). Docker is not needed for the dev loop — use it on port 8080 only for production-like checks.
+Open <http://localhost:5173>. Air runs the backend on port 8080 and reloads it
+when backend files change. Vite runs the frontend on port 5173. Stop both with
+Ctrl+C. Do not run the Docker app at the same time: it also uses port 8080.
 
 See [docs/development.md](docs/development.md) for inspecting the dev database, resetting it after baseline changes, and regenerating the schema diagram.
 
