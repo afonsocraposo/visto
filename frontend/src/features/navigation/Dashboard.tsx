@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useElementScrollRestoration, useNavigate, useRouterState } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { Alert, AppShell, Button, Group, Modal, Text } from "@mantine/core";
 import { IconCalendar } from "@tabler/icons-react";
 import { WatchCalendar, WatchNow } from "../watch/Watch";
@@ -60,39 +60,6 @@ export type DashboardPage =
       mediaFilter: LibraryMediaFilter;
       query: string;
     };
-
-function RestoreScrollAfterLoad() {
-  const locationKey = useRouterState({ select: (state) => state.location.state.__TSR_key });
-  const savedY = useElementScrollRestoration({ getElement: () => window })?.scrollY;
-
-  useEffect(() => {
-    if (savedY === undefined || savedY === 0) return;
-    const main = document.querySelector(".visto-main");
-    if (!main) return;
-
-    let stopped = false;
-    const stop = () => {
-      if (stopped) return;
-      stopped = true;
-      observer.disconnect();
-      for (const type of ["wheel", "touchstart", "keydown", "pointerdown"])
-        window.removeEventListener(type, stop);
-    };
-    const restore = () => {
-      if (stopped) return;
-      window.scrollTo({ top: savedY, behavior: "instant" });
-      if (Math.abs(window.scrollY - savedY) < 2) stop();
-    };
-    const observer = new ResizeObserver(restore);
-    observer.observe(main);
-    for (const type of ["wheel", "touchstart", "keydown", "pointerdown"])
-      window.addEventListener(type, stop, { passive: true });
-    restore();
-    return stop;
-  }, [locationKey, savedY]);
-
-  return null;
-}
 
 export function Dashboard({
   user,
@@ -273,7 +240,6 @@ export function Dashboard({
         )}
       </Modal>
       <AppShell.Main className="visto-main">
-        <RestoreScrollAfterLoad />
         {!online && (
           <Alert color="yellow" mb="md">
             <Group justify="space-between" align="center">

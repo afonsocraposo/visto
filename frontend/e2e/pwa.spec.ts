@@ -1421,15 +1421,7 @@ test("Discover, Activity and Library restore their list positions after Back", a
     poster_path: "",
     original_language: "en",
   }));
-  let delaySearch = false;
-  let delayedSearchRequests = 0;
-  await page.route("**/api/v1/search**", async (route) => {
-    if (delaySearch) {
-      delayedSearchRequests++;
-      await new Promise((resolve) => setTimeout(resolve, 400));
-    }
-    await fulfillJSON(route, media);
-  });
+  await page.route("**/api/v1/search**", (route) => fulfillJSON(route, media));
   await page.route("**/api/v1/feed**", (route) =>
     fulfillJSON(route, {
       items: media.map((item, index) => ({
@@ -1481,20 +1473,6 @@ test("Discover, Activity and Library restore their list positions after Back", a
     await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(scrollY - 40);
     await expect(link).toBeInViewport();
   }
-
-  await page.goto("/discover?q=Scroll");
-  const link = page.getByRole("link", { name: "Open details for Scroll show 15" });
-  await link.scrollIntoViewIfNeeded();
-  const scrollY = await page.evaluate(() => window.scrollY);
-  await link.click();
-  await expect(page).toHaveURL(/\/media\/tv\/115/);
-  delaySearch = true;
-  await page.reload();
-  await page.goBack();
-  await expect(page).toHaveURL(/\/discover\?q=Scroll/);
-  await expect.poll(() => delayedSearchRequests).toBeGreaterThan(0);
-  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(scrollY - 40);
-  await expect(link).toBeInViewport();
 });
 
 test("Given the ordinary next episode, When the user taps Watched, Then only that episode is recorded", async ({
