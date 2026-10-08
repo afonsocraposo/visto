@@ -141,7 +141,10 @@ export function Dashboard({
   const settingsOpen = page.kind === "settings";
   // One routing implementation for both bars; only the presentation differs.
   const goToTab = (value: Tab) => {
-    if (value === "watch") requestUpNextScroll();
+    if (value === "watch") {
+      requestUpNextScroll();
+      setView("now");
+    }
     void navigate({ to: navItems.find((item) => item.tab === value)!.path });
   };
   // The top bar marks Settings on the avatar; the bottom bar keeps Library active for it.
