@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.26.3](https://github.com/afonsocraposo/visto/compare/v0.26.2...v0.26.3) (2026-10-08)
+
+
+### Bug Fixes
+
+* restore scroll position when navigating back ([7864564](https://github.com/afonsocraposo/visto/commit/7864564bf95e66d0b764b5471fb206988bf0b6cf))
+* switch to To watch view when clicking Watching tab from Upcoming ([84163b7](https://github.com/afonsocraposo/visto/commit/84163b719b237205d1f0a2cd5cd340c6028667fb))
+
 ## [0.26.2](https://github.com/afonsocraposo/visto/compare/v0.26.1...v0.26.2) (2026-10-01)
 
 
