@@ -8,7 +8,7 @@ COPY version.txt ./version.txt
 COPY frontend/ ./
 RUN npm run build
 
-FROM --platform=$BUILDPLATFORM golang:1.25.13-alpine AS server
+FROM --platform=$BUILDPLATFORM golang:1.26.9-alpine AS server
 ARG TARGETOS
 ARG TARGETARCH
 WORKDIR /build
