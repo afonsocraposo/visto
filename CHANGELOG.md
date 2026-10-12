@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.26.4](https://github.com/afonsocraposo/visto/compare/v0.26.3...v0.26.4) (2026-10-12)
+
+
+### Bug Fixes
+
+* backfill missing movie posters ([c34bdbe](https://github.com/afonsocraposo/visto/commit/c34bdbe1add80ab5b017d99e645665556c38a1bb))
+* use patched Go toolchain ([7af6815](https://github.com/afonsocraposo/visto/commit/7af68157043e713d0b51902b8e57e08be4d13fcb))
+
 ## [0.26.3](https://github.com/afonsocraposo/visto/compare/v0.26.2...v0.26.3) (2026-10-08)
 
 
