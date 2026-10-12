@@ -157,6 +157,38 @@ func TestImportedMetadataHydratesOnOpenAndBackfillsWithoutChangingWatches(t *tes
 
 func itoa(id int64) string { return strconv.FormatInt(id, 10) }
 
+func TestMovieSnapshotWithoutPosterRemainsEligibleForBackfill(t *testing.T) {
+	ctx := context.Background()
+	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "visto.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	media := library.Media{ID: "movie:10", Type: domain.MovieMediaType, TMDBID: 10, Title: "Film"}
+	if err := store.UpsertMedia(ctx, media); err != nil {
+		t.Fatal(err)
+	}
+	var updatedAt string
+	if err := store.DB.QueryRow(`SELECT metadata_updated_at FROM media WHERE id=?`, media.ID).Scan(&updatedAt); err != nil || updatedAt != "" {
+		t.Fatalf("new snapshot metadata timestamp=%q err=%v", updatedAt, err)
+	}
+	// Old snapshots were incorrectly stamped as complete despite missing artwork.
+	if _, err := store.DB.Exec(`UPDATE media SET metadata_updated_at=? WHERE id=?`, testTimestamp, media.ID); err != nil {
+		t.Fatal(err)
+	}
+	missing, err := store.MissingMetadataAfter(ctx, watch.MissingMedia{}, 10)
+	if err != nil || len(missing) != 1 || missing[0].Type != domain.MovieMediaType || missing[0].TMDBID != 10 {
+		t.Fatalf("missing movie snapshot=%+v err=%v", missing, err)
+	}
+	if err := watch.NewService(store, &metadataFixture{}).BackfillMissingMetadata(ctx); err != nil {
+		t.Fatal(err)
+	}
+	missing, err = store.MissingMetadataAfter(ctx, watch.MissingMedia{}, 10)
+	if err != nil || len(missing) != 0 {
+		t.Fatalf("backfilled movie still missing=%+v err=%v", missing, err)
+	}
+}
+
 func TestUpsertMediaPreservesMetadataFromPartialSnapshots(t *testing.T) {
 	ctx := context.Background()
 	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "visto.db"))
