@@ -2316,7 +2316,7 @@ test("Given a regular user on a saved title, Then Refresh metadata is not offere
 
 test("Private title notes save, retain failed drafts, reload and delete; external scores stay separate", async ({
   page,
-}) => {
+}, testInfo) => {
   await mockSignedInSession(page);
   const media = {
     id: "movie:10",
@@ -2387,7 +2387,7 @@ test("Private title notes save, retain failed drafts, reload and delete; externa
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
     ).toBe(true);
-    await page.screenshot({ path: `/private/tmp/visto-title-note-${width}.png`, fullPage: true });
+    await page.screenshot({ path: testInfo.outputPath(`title-note-${width}.png`), fullPage: true });
   }
   await page.getByRole("button", { name: "Delete note", exact: true }).click();
   await expect(input).toHaveValue("");
