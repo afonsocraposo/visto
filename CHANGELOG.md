@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.27.0](https://github.com/afonsocraposo/visto/compare/v0.26.4...v0.27.0) (2026-11-14)
+
+
+### Features
+
+* add private title notes and cached external ratings ([#68](https://github.com/afonsocraposo/visto/issues/68)) ([bdb0f70](https://github.com/afonsocraposo/visto/commit/bdb0f7039cf96ff8141e91539e367b730827c7ae))
+
 ## [0.26.4](https://github.com/afonsocraposo/visto/compare/v0.26.3...v0.26.4) (2026-10-12)
 
 
