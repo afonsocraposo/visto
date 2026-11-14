@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.28.1](https://github.com/afonsocraposo/visto/compare/v0.28.0...v0.28.1) (2026-11-14)
+
+
+### Bug Fixes
+
+* keep note editors collapsed until requested ([#72](https://github.com/afonsocraposo/visto/issues/72)) ([8d1e42c](https://github.com/afonsocraposo/visto/commit/8d1e42c771b311d9d2f5382f44ace3398960ace7))
+
 ## [0.28.0](https://github.com/afonsocraposo/visto/compare/v0.27.0...v0.28.0) (2026-11-14)
 
 
