@@ -143,15 +143,18 @@ supports opening in a new tab, and a plain click uses in-app navigation.
 
 ### Media details
 
-- Saved movie and show pages include **Your note**, a private plain-text editor
+- Saved movie, show, and episode pages include **Your note**, a private plain-text editor
   below tracking and before the catalog. It has explicit Save and Delete actions,
   an unsaved state, and inline errors that preserve the draft. Notes are limited
   to 5,000 characters. They are not shown on community profiles.
+  Episode notes are separate from the series note and follow the permanent episode ID.
 - Optional IMDb and Rotten Tomatoes scores sit with the hero metadata. Show only
   available scores, label each source, link out, and attribute OMDb. Personal
   ratings stay in Your tracking.
   The score links use locally bundled Simple Icons brand SVGs, with source names
   in accessible labels and tooltips.
+  Episode pages show only scores returned for that episode, never series-level
+  fallback scores. Unavailable scores stay hidden.
 
 - **Desktop:** cinematic hero with backdrop, poster, title, facts, overview and actions.
 - **Mobile:** about 340px of artwork, no large poster, left-aligned, overview clamped to 3

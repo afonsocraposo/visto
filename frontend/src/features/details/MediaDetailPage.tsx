@@ -1304,9 +1304,19 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
                 ))}
               </p>
             )}
-            {!selectedEpisode && (
-              <ExternalRatings mediaType={media.type} tmdbID={media.tmdb_id} title={media.title} />
-            )}
+            <ExternalRatings
+              mediaType={media.type}
+              tmdbID={media.tmdb_id}
+              title={media.title}
+              episode={
+                selectedEpisode
+                  ? {
+                      seasonNumber: selectedEpisode.episode.season_number,
+                      episodeNumber: selectedEpisode.episode.episode_number,
+                    }
+                  : undefined
+              }
+            />
             <ClampedText className="detail-overview" lines={isMobile ? 3 : 5}>
               {(selectedEpisode
                 ? episodeDetails.data?.overview || selectedEpisode.overview
@@ -1499,9 +1509,12 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
             {markEpisodesWatched.error.message}
           </Alert>
         )}
-        {!selectedEpisode && savedMediaID && (
-          <TitleNote key={savedMediaID} mediaID={savedMediaID} />
-        )}
+        {savedMediaID &&
+          (selectedEpisode ? (
+            <TitleNote key={selectedEpisode.episode.id} episodeID={selectedEpisode.episode.id} />
+          ) : (
+            <TitleNote key={savedMediaID} mediaID={savedMediaID} />
+          ))}
         {target.mediaType === "tv" && !selectedEpisode && (
           <section className="detail-section season-section">
             <div className="season-section-heading">

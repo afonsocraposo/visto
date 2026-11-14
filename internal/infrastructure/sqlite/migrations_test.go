@@ -19,8 +19,8 @@ func TestMigrator_GivenFreshDatabase_WhenAppliedTwice_ThenCurrentSchemaExistsAnd
 	if err != nil {
 		t.Fatalf("new migrator: %v", err)
 	}
-	if len(migrator.Migrations) != 18 || migrator.Migrations[0].Version != 1 || migrator.Migrations[17].Version != 18 {
-		t.Fatalf("loaded migrations = %#v, want versions 1 through 18", migrator.Migrations)
+	if len(migrator.Migrations) != 19 || migrator.Migrations[0].Version != 1 || migrator.Migrations[18].Version != 19 {
+		t.Fatalf("loaded migrations = %#v, want versions 1 through 19", migrator.Migrations)
 	}
 	migrator.Now = func() time.Time { return time.Date(2026, 9, 24, 0, 0, 0, 0, time.UTC) }
 
@@ -35,8 +35,8 @@ func TestMigrator_GivenFreshDatabase_WhenAppliedTwice_ThenCurrentSchemaExistsAnd
 	if err := db.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&count); err != nil {
 		t.Fatalf("count migrations: %v", err)
 	}
-	if count != 18 {
-		t.Fatalf("migration count = %d, want 18", count)
+	if count != 19 {
+		t.Fatalf("migration count = %d, want 19", count)
 	}
 	var version int
 	var name string
@@ -155,6 +155,28 @@ func TestMigrator_GivenExistingPersonalWebhook_WhenUpgraded_ThenItsTokenIsPreser
 	}
 	if hash != "old-hash" || accountID != "123" {
 		t.Fatalf("preserved webhook hash=%q account=%q", hash, accountID)
+	}
+}
+
+func TestEpisodeScoresMigrationPreservesExistingTitleCache(t *testing.T) {
+	db := openTestDatabase(t)
+	migrator, err := sqlite.NewMigrator()
+	if err != nil {
+		t.Fatal(err)
+	}
+	legacy := &sqlite.Migrator{Migrations: migrator.Migrations[:18], Now: time.Now}
+	if err := legacy.Apply(context.Background(), db); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`INSERT INTO external_ratings(media_type,tmdb_id,data,fetched_at) VALUES('tv',42,'{"imdb":8.7}','2026-11-14T00:00:00Z')`); err != nil {
+		t.Fatal(err)
+	}
+	if err := migrator.Apply(context.Background(), db); err != nil {
+		t.Fatal(err)
+	}
+	var raw string
+	if err := db.QueryRow(`SELECT data FROM external_ratings WHERE media_type='tv' AND tmdb_id=42 AND season_number=0 AND episode_number=0`).Scan(&raw); err != nil || raw != `{"imdb":8.7}` {
+		t.Fatalf("title cache=%q err=%v", raw, err)
 	}
 }
 

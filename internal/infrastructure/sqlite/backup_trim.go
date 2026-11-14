@@ -29,6 +29,7 @@ func trimMetadata(ctx context.Context, path string) error {
 			SELECT episode_id FROM plays WHERE episode_id IS NOT NULL UNION
 			SELECT episode_id FROM activity_events WHERE episode_id IS NOT NULL UNION
 			SELECT episode_id FROM episode_ratings UNION
+			SELECT episode_id FROM episode_notes UNION
 			SELECT episode_id FROM notification_deliveries UNION
 			SELECT episode_id FROM web_push_deliveries)`,
 		`DELETE FROM seasons WHERE id NOT IN (SELECT season_id FROM episodes UNION SELECT season_id FROM season_ready_alerts)`,

@@ -180,7 +180,7 @@ To enable IMDb and Rotten Tomatoes scores, request a **free** key at
 `VISTO_OMDB_API_KEY` in `.env`. Recreate the app container after changing the key.
 The key stays on the server. No paid provider is required.
 
-The first visit to a title resolves its IMDb ID through TMDB and stores available
+The first visit to a movie, series, or episode resolves its own IMDb ID through TMDB and stores available
 scores in SQLite. Later visits use those stored scores, including after a restart.
 A background job runs at startup and hourly, refreshing at most 20 titles per run
 when their scores are at least 7 days old. Empty results are cached too.
@@ -190,9 +190,17 @@ free key limit is 1,000 per day, including other apps using that key. The local
 counter resets on restart, while OMDb still enforces the key's own limit.
 
 Scores are matched by IMDb ID. Unavailable scores are hidden, never shown as zero.
+Episodes have separate IMDb and Rotten Tomatoes scores when supplied by OMDb;
+Visto never substitutes the series score for an episode. All score lookups share
+the same cache, refresh batches, and daily request budget.
 Rotten Tomatoes coverage can vary by title, including series. Scores link to IMDb
 or Rotten Tomatoes search, with OMDb attribution and the fetch date in a tooltip.
 OMDb content is licensed under [CC BY-NC 4.0](https://www.omdbapi.com/).
+
+Episode pages for saved shows also have a private note editor. Notes belong to
+the account and permanent episode ID, independently of series notes and rewatches.
+JSON exports include `episode_notes`; CSV exports include `episode_note` rows.
+Both full and user-data backups preserve episode notes, including unwatched episodes.
 
 ## Catalog refresh & activity retention
 

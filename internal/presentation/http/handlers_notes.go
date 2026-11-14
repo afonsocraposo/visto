@@ -20,6 +20,10 @@ func titleNote(authService *auth.Service, service *library.Service) http.Handler
 			return
 		}
 		mediaID := r.PathValue("mediaID")
+		load, save := service.Note, service.SetNote
+		if episodeID := r.PathValue("episodeID"); episodeID != "" {
+			mediaID, load, save = episodeID, service.EpisodeNote, service.SetEpisodeNote
+		}
 		if r.Method == http.MethodPut {
 			var request struct {
 				Note *string `json:"note"`
@@ -28,9 +32,9 @@ func titleNote(authService *auth.Service, service *library.Service) http.Handler
 				writeError(w, http.StatusBadRequest, "note is required; use an empty string to delete it")
 				return
 			}
-			err := service.SetNote(r.Context(), user.ID, mediaID, *request.Note)
+			err := save(r.Context(), user.ID, mediaID, *request.Note)
 			if errors.Is(err, library.ErrMediaNotFound) {
-				writeError(w, http.StatusNotFound, "title is not in your library")
+				writeError(w, http.StatusNotFound, "item not found")
 				return
 			}
 			if err != nil {
@@ -44,9 +48,9 @@ func titleNote(authService *auth.Service, service *library.Service) http.Handler
 			writeJSON(w, http.StatusOK, map[string]string{"note": *request.Note})
 			return
 		}
-		note, err := service.Note(r.Context(), user.ID, mediaID)
+		note, err := load(r.Context(), user.ID, mediaID)
 		if errors.Is(err, library.ErrMediaNotFound) {
-			writeError(w, http.StatusNotFound, "title is not in your library")
+			writeError(w, http.StatusNotFound, "item not found")
 			return
 		}
 		if err != nil {

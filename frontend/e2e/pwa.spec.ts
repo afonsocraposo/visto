@@ -76,6 +76,10 @@ async function mockSignedInSession(page: Page, asAdmin = false) {
   );
   await page.route("**/api/v1/library/lookup", (route) => fulfillJSON(route, []));
   await page.route("**/api/v1/library/*/note", (route) => fulfillJSON(route, { note: "" }));
+  await page.route("**/api/v1/episodes/*/note", (route) => fulfillJSON(route, { note: "" }));
+  await page.route("**/api/v1/media/tv/*/seasons/*/episodes/*/ratings", (route) =>
+    fulfillJSON(route, { enabled: false }),
+  );
   await page.route("**/api/v1/media/*/*/ratings", (route) =>
     fulfillJSON(route, { enabled: false }),
   );
@@ -2312,6 +2316,110 @@ test("Given a regular user on a saved title, Then Refresh metadata is not offere
   await page.goto("/media/movie/10");
   await expect(page.getByRole("heading", { name: "Example Movie" })).toBeVisible();
   await expect(page.getByRole("button", { name: "More actions for Example Movie" })).toHaveCount(0);
+});
+
+test("Episode scores and private notes stay separate across episodes and the series", async ({
+  page,
+}, testInfo) => {
+  await mockSignedInSession(page);
+  const media = {
+    id: "tv:100",
+    tmdb_id: 100,
+    type: "tv",
+    title: "The Example Show",
+    original_title: "The Example Show",
+    overview: "A test show.",
+    release_date: "2024-01-01",
+    poster_path: "",
+    original_language: "en",
+  };
+  const episodes = [1, 2].map((number) => ({
+    episode: {
+      id: `tv:100:episode:${number}`,
+      show_id: "tv:100",
+      season_number: 1,
+      episode_number: number,
+      air_date: "2024-01-01",
+    },
+    name: `Episode ${number}`,
+    overview: "An episode to remember.",
+    watched: false,
+  }));
+  await page.route("**/api/v1/shows/100", (route) =>
+    fulfillJSON(route, { media, item: { media_id: media.id, status: "watching", rating: 4 } }),
+  );
+  await page.route("**/api/v1/plays**", (route) =>
+    fulfillJSON(route, { items: [], next_cursor: null }),
+  );
+  await page.route("**/api/v1/discover/tv/100/related", (route) => fulfillJSON(route, []));
+  await page.route("**/api/v1/shows/*/progress", (route) =>
+    fulfillJSON(route, { watched_episodes: 0 }),
+  );
+  await page.route("**/api/v1/shows/*/episodes**", (route) =>
+    fulfillJSON(route, { items: episodes, next_cursor: null }),
+  );
+  await page.route("**/api/v1/episodes/*/rating", (route) => fulfillJSON(route, { rating: null }));
+  await page.route("**/api/v1/seasons/*/episodes**", (route) =>
+    fulfillJSON(route, { items: episodes, next_cursor: null }),
+  );
+  await page.route("**/api/v1/discover/shows/100/seasons/1/episodes/*", (route) =>
+    fulfillJSON(route, { name: "Episode", runtime: 45 }),
+  );
+  await page.route("**/api/v1/media/tv/100/ratings", (route) =>
+    fulfillJSON(route, { enabled: true, imdb_id: "tt1111111", imdb: 7, rotten_tomatoes: 60 }),
+  );
+  await page.route("**/api/v1/media/tv/100/seasons/1/episodes/*/ratings", (route) => {
+    const first = route.request().url().includes("/episodes/1/");
+    return fulfillJSON(
+      route,
+      first
+        ? { enabled: true, imdb_id: "tt1000101", imdb: 9.1, rotten_tomatoes: 95 }
+        : { enabled: true, imdb_id: "tt1000102", imdb: 8.2 },
+    );
+  });
+  let seriesNote = "A note about the entire series.";
+  const notes: Record<string, string> = {};
+  await page.route("**/api/v1/library/*/note", (route) => fulfillJSON(route, { note: seriesNote }));
+  await page.route("**/api/v1/episodes/*/note", (route) => {
+    const id = decodeURIComponent(new URL(route.request().url()).pathname.split("/").at(-2)!);
+    if (route.request().method() === "PUT") notes[id] = route.request().postDataJSON().note;
+    return fulfillJSON(route, { note: notes[id] ?? "" });
+  });
+  await page.goto("/media/tv/100?episode=tv%3A100%3Aepisode%3A1");
+  await expect(page.getByRole("link", { name: "IMDb 9.1/10" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Rotten Tomatoes 95%" })).toBeVisible();
+  const input = page.getByRole("textbox", { name: "Your private note" });
+  await input.fill("Episode one: loved the reveal.");
+  await page.getByRole("button", { name: "Save note", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("Saved");
+  await page.getByRole("link", { name: /^Next episode/ }).click();
+  await expect(page.getByRole("link", { name: "IMDb 8.2/10" })).toBeVisible();
+  await expect(page.getByRole("link", { name: /Rotten Tomatoes/ })).toHaveCount(0);
+  await expect(input).toHaveValue("");
+  await input.fill("Episode two: a different note.");
+  await page.getByRole("button", { name: "Save note", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("Saved");
+  await page.getByRole("link", { name: /^Previous episode/ }).click();
+  await expect(input).toHaveValue("Episode one: loved the reveal.");
+  await page.reload();
+  await expect(input).toHaveValue("Episode one: loved the reveal.");
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await input.scrollIntoViewIfNeeded();
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true);
+    await page.screenshot({
+      path: testInfo.outputPath(`episode-notes-${width}.png`),
+      fullPage: true,
+    });
+  }
+  await page.getByRole("button", { name: "Delete note", exact: true }).click();
+  await expect(input).toHaveValue("");
+  expect(notes["tv:100:episode:2"]).toBe("Episode two: a different note.");
+  await page.goto("/media/tv/100");
+  await expect(input).toHaveValue(seriesNote);
+  await expect(page.getByRole("link", { name: "IMDb 7.0/10" })).toBeVisible();
 });
 
 test("Private title notes save, retain failed drafts, reload and delete; external scores stay separate", async ({

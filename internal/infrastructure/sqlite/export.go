@@ -10,7 +10,7 @@ import (
 )
 
 func (store *Store) Export(ctx context.Context, userID string) (exportapp.Data, error) {
-	data := exportapp.Data{Library: []exportapp.LibraryItem{}, Plays: []exportapp.Play{}, EpisodeRatings: []exportapp.EpisodeRating{}}
+	data := exportapp.Data{Library: []exportapp.LibraryItem{}, Plays: []exportapp.Play{}, EpisodeRatings: []exportapp.EpisodeRating{}, EpisodeNotes: []exportapp.EpisodeNote{}}
 	libraryRows, err := store.DB.QueryContext(ctx, `SELECT um.media_id,m.title,m.media_type,um.status,um.rating,um.note FROM user_media um JOIN media m ON m.id=um.media_id WHERE um.user_id=? ORDER BY um.updated_at DESC`, userID)
 	if err != nil {
 		return data, fmt.Errorf("export library: %w", err)
@@ -82,7 +82,24 @@ func (store *Store) Export(ctx context.Context, userID string) (exportapp.Data, 
 	if err := ratingRows.Err(); err != nil {
 		return data, fmt.Errorf("iterate export episode ratings: %w", err)
 	}
-	return data, nil
+	notes, err := store.DB.QueryContext(ctx, `SELECT episode_id,note,updated_at FROM episode_notes WHERE user_id=? ORDER BY updated_at DESC,episode_id`, userID)
+	if err != nil {
+		return data, fmt.Errorf("export episode notes: %w", err)
+	}
+	defer notes.Close()
+	for notes.Next() {
+		var note exportapp.EpisodeNote
+		var stamp string
+		if err := notes.Scan(&note.EpisodeID, &note.Note, &stamp); err != nil {
+			return data, err
+		}
+		note.UpdatedAt, err = time.Parse(time.RFC3339Nano, stamp)
+		if err != nil {
+			return data, err
+		}
+		data.EpisodeNotes = append(data.EpisodeNotes, note)
+	}
+	return data, notes.Err()
 }
 
 var _ exportapp.Repository = (*Store)(nil)

@@ -5,26 +5,22 @@ import type { TitleNote as Note } from "../../generated/models/titleNote";
 import { api } from "../../lib/api";
 import { useUserQueryKey } from "../auth/SessionContext";
 
-export function TitleNote({ mediaID }: { mediaID: string }) {
+export function TitleNote({
+  mediaID,
+  episodeID,
+}: { mediaID: string; episodeID?: never } | { episodeID: string; mediaID?: never }) {
   const userQueryKey = useUserQueryKey();
-  const queryKey = userQueryKey("title-note", mediaID);
+  const resource = episodeID ? "episodes" : "library";
+  const path = `/api/v1/${resource}/${encodeURIComponent(episodeID ?? mediaID!)}/note`;
+  const queryKey = userQueryKey("private-note", resource, episodeID ?? mediaID);
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState<string>();
   const note = useQuery({
     queryKey,
-    queryFn: () =>
-      api.get<Note>(
-        `/api/v1/library/${encodeURIComponent(mediaID)}/note`,
-        "Could not load your note.",
-      ),
+    queryFn: () => api.get<Note>(path, "Could not load your note."),
   });
   const save = useMutation({
-    mutationFn: (text: string) =>
-      api.put<Note>(
-        `/api/v1/library/${encodeURIComponent(mediaID)}/note`,
-        { note: text },
-        "Could not save your note.",
-      ),
+    mutationFn: (text: string) => api.put<Note>(path, { note: text }, "Could not save your note."),
     onSuccess: (saved) => {
       queryClient.setQueryData(queryKey, saved);
       setDraft(undefined);
