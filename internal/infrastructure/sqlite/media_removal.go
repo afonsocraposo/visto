@@ -57,6 +57,9 @@ func (store *Store) RemoveMediaAndHistory(ctx context.Context, userID, mediaID s
 	if _, err := tx.ExecContext(ctx, `DELETE FROM episode_ratings WHERE user_id=? AND episode_id IN (SELECT id FROM episodes WHERE show_id=?)`, userID, mediaID); err != nil {
 		return tracking.RemovedMedia{}, fmt.Errorf("remove episode ratings: %w", err)
 	}
+	if _, err := tx.ExecContext(ctx, `DELETE FROM episode_notes WHERE user_id=? AND episode_id IN (SELECT id FROM episodes WHERE show_id=?)`, userID, mediaID); err != nil {
+		return tracking.RemovedMedia{}, fmt.Errorf("remove episode notes: %w", err)
+	}
 	if _, err := tx.ExecContext(ctx, `DELETE FROM user_media WHERE user_id=? AND media_id=?`, userID, mediaID); err != nil {
 		return tracking.RemovedMedia{}, fmt.Errorf("remove library entry: %w", err)
 	}

@@ -41,6 +41,7 @@ export * from "./episodeRating";
 export * from "./episodesPage";
 export * from "./errorResponse";
 export * from "./exportData";
+export * from "./exportDataEpisodeNotesItem";
 export * from "./exportDataEpisodeRatingsItem";
 export * from "./exportDataLibraryItem";
 export * from "./exportDataLibraryItemStatus";

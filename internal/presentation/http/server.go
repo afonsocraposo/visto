@@ -72,6 +72,7 @@ func (server *Server) WithImports(service *importer.Service) *Server {
 
 func (server *Server) WithExternalRatings(service *ratings.Service) *Server {
 	server.mux.HandleFunc("GET /api/v1/media/{mediaType}/{tmdbID}/ratings", externalRatings(server.authService, service))
+	server.mux.HandleFunc("GET /api/v1/media/tv/{tmdbID}/seasons/{seasonNumber}/episodes/{episodeNumber}/ratings", externalEpisodeRatings(server.authService, service))
 	return server
 }
 

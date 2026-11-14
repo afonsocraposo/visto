@@ -7569,6 +7569,485 @@ export const usePatchLibraryMediaID = <
   return useMutation(getPatchLibraryMediaIDMutationOptions(options), queryClient);
 };
 
+export const getGetEpisodesEpisodeIDNoteUrl = (episodeID: string) => {
+  return `/episodes/${episodeID}/note`;
+};
+
+/**
+ * @summary Read the authenticated user's private episode note
+ */
+export const getEpisodesEpisodeIDNote = async (
+  episodeID: string,
+  options?: Parameters<typeof customFetch>[1],
+): Promise<TitleNote> => {
+  return customFetch<TitleNote>(getGetEpisodesEpisodeIDNoteUrl(episodeID), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetEpisodesEpisodeIDNoteQueryKey = (episodeID: string) => {
+  return [`/episodes/${episodeID}/note`] as const;
+};
+
+export const getGetEpisodesEpisodeIDNoteQueryOptions = <
+  TData = Awaited<ReturnType<typeof getEpisodesEpisodeIDNote>>,
+  TError = UnauthorizedResponse | void,
+>(
+  episodeID: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getEpisodesEpisodeIDNote>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetEpisodesEpisodeIDNoteQueryKey(episodeID);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getEpisodesEpisodeIDNote>>> = ({
+    signal,
+  }) => getEpisodesEpisodeIDNote(episodeID, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: episodeID !== null && episodeID !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof getEpisodesEpisodeIDNote>>, TError, TData> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+};
+
+export type GetEpisodesEpisodeIDNoteQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getEpisodesEpisodeIDNote>>
+>;
+export type GetEpisodesEpisodeIDNoteQueryError = UnauthorizedResponse | void;
+
+export function useGetEpisodesEpisodeIDNote<
+  TData = Awaited<ReturnType<typeof getEpisodesEpisodeIDNote>>,
+  TError = UnauthorizedResponse | void,
+>(
+  episodeID: string,
+  options: {
+    query: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getEpisodesEpisodeIDNote>>, TError, TData>
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getEpisodesEpisodeIDNote>>,
+          TError,
+          Awaited<ReturnType<typeof getEpisodesEpisodeIDNote>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetEpisodesEpisodeIDNote<
+  TData = Awaited<ReturnType<typeof getEpisodesEpisodeIDNote>>,
+  TError = UnauthorizedResponse | void,
+>(
+  episodeID: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getEpisodesEpisodeIDNote>>, TError, TData>
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof getEpisodesEpisodeIDNote>>,
+          TError,
+          Awaited<ReturnType<typeof getEpisodesEpisodeIDNote>>
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetEpisodesEpisodeIDNote<
+  TData = Awaited<ReturnType<typeof getEpisodesEpisodeIDNote>>,
+  TError = UnauthorizedResponse | void,
+>(
+  episodeID: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getEpisodesEpisodeIDNote>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Read the authenticated user's private episode note
+ */
+
+export function useGetEpisodesEpisodeIDNote<
+  TData = Awaited<ReturnType<typeof getEpisodesEpisodeIDNote>>,
+  TError = UnauthorizedResponse | void,
+>(
+  episodeID: string,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<Awaited<ReturnType<typeof getEpisodesEpisodeIDNote>>, TError, TData>
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions = getGetEpisodesEpisodeIDNoteQueryOptions(episodeID, options);
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+export const getPutEpisodesEpisodeIDNoteUrl = (episodeID: string) => {
+  return `/episodes/${episodeID}/note`;
+};
+
+/**
+ * @summary Save or clear the authenticated user's private episode note
+ */
+export const putEpisodesEpisodeIDNote = async (
+  episodeID: string,
+  titleNote: TitleNote,
+  options?: Parameters<typeof customFetch>[1],
+): Promise<TitleNote> => {
+  const getHeaders = (
+    h?: NonNullable<RequestInit["headers"]>,
+  ): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(
+          h as Iterable<Iterable<string>>,
+          (entry) => Array.from(entry) as [string, string],
+        ),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+  return customFetch<TitleNote>(getPutEpisodesEpisodeIDNoteUrl(episodeID), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...getHeaders(options?.headers) },
+    body: JSON.stringify(titleNote),
+  });
+};
+
+export const getPutEpisodesEpisodeIDNoteMutationKey = () => ["putEpisodesEpisodeIDNote"] as const;
+
+export const getPutEpisodesEpisodeIDNoteMutationOptions = <
+  TError = BadRequestResponse | UnauthorizedResponse | void,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof putEpisodesEpisodeIDNote>>,
+    TError,
+    PutEpisodesEpisodeIDNoteMutationVariables,
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof putEpisodesEpisodeIDNote>>,
+  TError,
+  PutEpisodesEpisodeIDNoteMutationVariables,
+  TContext
+> => {
+  const mutationKey = getPutEpisodesEpisodeIDNoteMutationKey();
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation && "mutationKey" in options.mutation && options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof putEpisodesEpisodeIDNote>>,
+    PutEpisodesEpisodeIDNoteMutationVariables
+  > = (props) => {
+    const { episodeID, data } = props ?? {};
+
+    return putEpisodesEpisodeIDNote(episodeID, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PutEpisodesEpisodeIDNoteMutationResult = NonNullable<
+  Awaited<ReturnType<typeof putEpisodesEpisodeIDNote>>
+>;
+export type PutEpisodesEpisodeIDNoteMutationBody = TitleNote;
+export type PutEpisodesEpisodeIDNoteMutationError =
+  BadRequestResponse | UnauthorizedResponse | void;
+export type PutEpisodesEpisodeIDNoteMutationVariables = { episodeID: string; data: TitleNote };
+
+/**
+ * @summary Save or clear the authenticated user's private episode note
+ */
+export const usePutEpisodesEpisodeIDNote = <
+  TError = BadRequestResponse | UnauthorizedResponse | void,
+  TContext = unknown,
+>(
+  options?: {
+    mutation?: UseMutationOptions<
+      Awaited<ReturnType<typeof putEpisodesEpisodeIDNote>>,
+      TError,
+      PutEpisodesEpisodeIDNoteMutationVariables,
+      TContext
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseMutationResult<
+  Awaited<ReturnType<typeof putEpisodesEpisodeIDNote>>,
+  TError,
+  PutEpisodesEpisodeIDNoteMutationVariables,
+  TContext
+> => {
+  return useMutation(getPutEpisodesEpisodeIDNoteMutationOptions(options), queryClient);
+};
+
+export const getGetMediaTvTmdbIDSeasonsSeasonNumberEpisodesEpisodeNumberRatingsUrl = (
+  tmdbID: number,
+  seasonNumber: number,
+  episodeNumber: number,
+) => {
+  return `/media/tv/${tmdbID}/seasons/${seasonNumber}/episodes/${episodeNumber}/ratings`;
+};
+
+/**
+ * The episode is matched by its own IMDb ID. Scores use the shared persistent cache and seven-day background refresh; unavailable scores are omitted.
+ * @summary Get available episode IMDb and Rotten Tomatoes scores via OMDb
+ */
+export const getMediaTvTmdbIDSeasonsSeasonNumberEpisodesEpisodeNumberRatings = async (
+  tmdbID: number,
+  seasonNumber: number,
+  episodeNumber: number,
+  options?: Parameters<typeof customFetch>[1],
+): Promise<ExternalRatings> => {
+  return customFetch<ExternalRatings>(
+    getGetMediaTvTmdbIDSeasonsSeasonNumberEpisodesEpisodeNumberRatingsUrl(
+      tmdbID,
+      seasonNumber,
+      episodeNumber,
+    ),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetMediaTvTmdbIDSeasonsSeasonNumberEpisodesEpisodeNumberRatingsQueryKey = (
+  tmdbID: number,
+  seasonNumber: number,
+  episodeNumber: number,
+) => {
+  return [`/media/tv/${tmdbID}/seasons/${seasonNumber}/episodes/${episodeNumber}/ratings`] as const;
+};
+
+export const getGetMediaTvTmdbIDSeasonsSeasonNumberEpisodesEpisodeNumberRatingsQueryOptions = <
+  TData = Awaited<
+    ReturnType<typeof getMediaTvTmdbIDSeasonsSeasonNumberEpisodesEpisodeNumberRatings>
+  >,
+  TError = BadRequestResponse | UnauthorizedResponse | void,
+>(
+  tmdbID: number,
+  seasonNumber: number,
+  episodeNumber: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getMediaTvTmdbIDSeasonsSeasonNumberEpisodesEpisodeNumberRatings>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ??
+    getGetMediaTvTmdbIDSeasonsSeasonNumberEpisodesEpisodeNumberRatingsQueryKey(
+      tmdbID,
+      seasonNumber,
+      episodeNumber,
+    );
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getMediaTvTmdbIDSeasonsSeasonNumberEpisodesEpisodeNumberRatings>>
+  > = ({ signal }) =>
+    getMediaTvTmdbIDSeasonsSeasonNumberEpisodesEpisodeNumberRatings(
+      tmdbID,
+      seasonNumber,
+      episodeNumber,
+      { signal, ...requestOptions },
+    );
+
+  return {
+    queryKey,
+    queryFn,
+    enabled:
+      tmdbID !== null &&
+      tmdbID !== undefined &&
+      seasonNumber !== null &&
+      seasonNumber !== undefined &&
+      episodeNumber !== null &&
+      episodeNumber !== undefined,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getMediaTvTmdbIDSeasonsSeasonNumberEpisodesEpisodeNumberRatings>>,
+    TError,
+    TData
+  > & { queryKey: DataTag<QueryKey, TData, TError> };
+};
+
+export type GetMediaTvTmdbIDSeasonsSeasonNumberEpisodesEpisodeNumberRatingsQueryResult =
+  NonNullable<
+    Awaited<ReturnType<typeof getMediaTvTmdbIDSeasonsSeasonNumberEpisodesEpisodeNumberRatings>>
+  >;
+export type GetMediaTvTmdbIDSeasonsSeasonNumberEpisodesEpisodeNumberRatingsQueryError =
+  BadRequestResponse | UnauthorizedResponse | void;
+
+export function useGetMediaTvTmdbIDSeasonsSeasonNumberEpisodesEpisodeNumberRatings<
+  TData = Awaited<
+    ReturnType<typeof getMediaTvTmdbIDSeasonsSeasonNumberEpisodesEpisodeNumberRatings>
+  >,
+  TError = BadRequestResponse | UnauthorizedResponse | void,
+>(
+  tmdbID: number,
+  seasonNumber: number,
+  episodeNumber: number,
+  options: {
+    query: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getMediaTvTmdbIDSeasonsSeasonNumberEpisodesEpisodeNumberRatings>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        DefinedInitialDataOptions<
+          Awaited<
+            ReturnType<typeof getMediaTvTmdbIDSeasonsSeasonNumberEpisodesEpisodeNumberRatings>
+          >,
+          TError,
+          Awaited<
+            ReturnType<typeof getMediaTvTmdbIDSeasonsSeasonNumberEpisodesEpisodeNumberRatings>
+          >
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetMediaTvTmdbIDSeasonsSeasonNumberEpisodesEpisodeNumberRatings<
+  TData = Awaited<
+    ReturnType<typeof getMediaTvTmdbIDSeasonsSeasonNumberEpisodesEpisodeNumberRatings>
+  >,
+  TError = BadRequestResponse | UnauthorizedResponse | void,
+>(
+  tmdbID: number,
+  seasonNumber: number,
+  episodeNumber: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getMediaTvTmdbIDSeasonsSeasonNumberEpisodesEpisodeNumberRatings>>,
+        TError,
+        TData
+      >
+    > &
+      Pick<
+        UndefinedInitialDataOptions<
+          Awaited<
+            ReturnType<typeof getMediaTvTmdbIDSeasonsSeasonNumberEpisodesEpisodeNumberRatings>
+          >,
+          TError,
+          Awaited<
+            ReturnType<typeof getMediaTvTmdbIDSeasonsSeasonNumberEpisodesEpisodeNumberRatings>
+          >
+        >,
+        "initialData"
+      >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+export function useGetMediaTvTmdbIDSeasonsSeasonNumberEpisodesEpisodeNumberRatings<
+  TData = Awaited<
+    ReturnType<typeof getMediaTvTmdbIDSeasonsSeasonNumberEpisodesEpisodeNumberRatings>
+  >,
+  TError = BadRequestResponse | UnauthorizedResponse | void,
+>(
+  tmdbID: number,
+  seasonNumber: number,
+  episodeNumber: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getMediaTvTmdbIDSeasonsSeasonNumberEpisodesEpisodeNumberRatings>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+/**
+ * @summary Get available episode IMDb and Rotten Tomatoes scores via OMDb
+ */
+
+export function useGetMediaTvTmdbIDSeasonsSeasonNumberEpisodesEpisodeNumberRatings<
+  TData = Awaited<
+    ReturnType<typeof getMediaTvTmdbIDSeasonsSeasonNumberEpisodesEpisodeNumberRatings>
+  >,
+  TError = BadRequestResponse | UnauthorizedResponse | void,
+>(
+  tmdbID: number,
+  seasonNumber: number,
+  episodeNumber: number,
+  options?: {
+    query?: Partial<
+      UseQueryOptions<
+        Awaited<ReturnType<typeof getMediaTvTmdbIDSeasonsSeasonNumberEpisodesEpisodeNumberRatings>>,
+        TError,
+        TData
+      >
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+  queryClient?: QueryClient,
+): UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+  const queryOptions =
+    getGetMediaTvTmdbIDSeasonsSeasonNumberEpisodesEpisodeNumberRatingsQueryOptions(
+      tmdbID,
+      seasonNumber,
+      episodeNumber,
+      options,
+    );
+
+  const query = useQuery(queryOptions, queryClient) as UseQueryResult<TData, TError> & {
+    queryKey: DataTag<QueryKey, TData, TError>;
+  };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
 export const getGetLibraryMediaIDNoteUrl = (mediaID: string) => {
   return `/library/${mediaID}/note`;
 };

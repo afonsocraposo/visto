@@ -651,6 +651,41 @@ paths:
         '200': { description: Updated library item, content: { application/json: { schema: { $ref: '#/components/schemas/LibraryItem' } } } }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+  /episodes/{episodeID}/note:
+    get:
+      summary: Read the authenticated user's private episode note
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      parameters:
+        - { name: episodeID, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Private episode note, content: { application/json: { schema: { $ref: '#/components/schemas/TitleNote' } } } }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: Episode not found }
+    put:
+      summary: Save or clear the authenticated user's private episode note
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      parameters:
+        - { name: episodeID, in: path, required: true, schema: { type: string } }
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/TitleNote' } } } }
+      responses:
+        '200': { description: Saved episode note, content: { application/json: { schema: { $ref: '#/components/schemas/TitleNote' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { description: Episode not found }
+  /media/tv/{tmdbID}/seasons/{seasonNumber}/episodes/{episodeNumber}/ratings:
+    get:
+      summary: Get available episode IMDb and Rotten Tomatoes scores via OMDb
+      description: The episode is matched by its own IMDb ID. Scores use the shared persistent cache and seven-day background refresh; unavailable scores are omitted.
+      security: [{ sessionCookie: [] }, { bearerToken: [] }]
+      parameters:
+        - { name: tmdbID, in: path, required: true, schema: { type: integer, format: int64, minimum: 1 } }
+        - { name: seasonNumber, in: path, required: true, schema: { type: integer, minimum: 0 } }
+        - { name: episodeNumber, in: path, required: true, schema: { type: integer, minimum: 1 } }
+      responses:
+        '200': { description: Available episode scores, content: { application/json: { schema: { $ref: '#/components/schemas/ExternalRatings' } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '503': { description: Ratings storage is unavailable }
   /library/{mediaID}/note:
     get:
       summary: Read the authenticated user's private title note
@@ -1156,7 +1191,7 @@ components:
         next_cursor: { type: [string, 'null'] }
     ExportData:
       type: object
-      required: [exported_at, library, plays, episode_ratings]
+      required: [exported_at, library, plays, episode_ratings, episode_notes]
       properties:
         exported_at: { type: string, format: date-time }
         library:
@@ -1181,6 +1216,15 @@ components:
               media_id: { type: [string, 'null'] }
               episode_id: { type: [string, 'null'] }
               watched_at: { type: string, format: date-time }
+        episode_notes:
+          type: array
+          items:
+            type: object
+            required: [episode_id, note, updated_at]
+            properties:
+              episode_id: { type: string }
+              note: { type: string }
+              updated_at: { type: string, format: date-time }
         episode_ratings:
           type: array
           items:

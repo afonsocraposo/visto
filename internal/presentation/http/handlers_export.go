@@ -71,6 +71,9 @@ func csvExport(authService *auth.Service, service *exportapp.Service) http.Handl
 			}
 			_ = writer.Write([]string{"episode_rating", "", "", rating.EpisodeID, "", "episode", "", value, rating.UpdatedAt.Format(time.RFC3339Nano), ""})
 		}
+		for _, note := range data.EpisodeNotes {
+			_ = writer.Write([]string{"episode_note", "", "", note.EpisodeID, "", "episode", "", "", note.UpdatedAt.Format(time.RFC3339Nano), spreadsheetCell(note.Note)})
+		}
 		writer.Flush()
 	}
 }

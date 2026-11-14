@@ -50,10 +50,11 @@ func (c *Client) Ratings(ctx context.Context, imdbID string) (ratings.Scores, er
 		return scores, fmt.Errorf("ratings provider returned status %d", response.StatusCode)
 	}
 	var body struct {
-		Response string
-		Error    string
-		IMDbID   string `json:"imdbID"`
-		Ratings  []struct{ Source, Value string }
+		Response   string
+		Error      string
+		IMDbID     string `json:"imdbID"`
+		IMDbRating string `json:"imdbRating"`
+		Ratings    []struct{ Source, Value string }
 	}
 	if err := json.NewDecoder(io.LimitReader(response.Body, 1<<20)).Decode(&body); err != nil {
 		return scores, fmt.Errorf("invalid ratings response")
@@ -68,6 +69,10 @@ func (c *Client) Ratings(ctx context.Context, imdbID string) (ratings.Scores, er
 		return scores, fmt.Errorf("ratings response does not match the title")
 	}
 	scores.IMDbID = imdbID
+	// Episode responses can provide imdbRating without an entry in Ratings.
+	if value, err := strconv.ParseFloat(body.IMDbRating, 64); err == nil && !math.IsNaN(value) && value >= 0 && value <= 10 {
+		scores.IMDb = &value
+	}
 	for _, rating := range body.Ratings {
 		switch rating.Source {
 		case "Internet Movie Database":

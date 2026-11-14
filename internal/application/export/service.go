@@ -33,6 +33,13 @@ type Data struct {
 	Library        []LibraryItem   `json:"library"`
 	Plays          []Play          `json:"plays"`
 	EpisodeRatings []EpisodeRating `json:"episode_ratings"`
+	EpisodeNotes   []EpisodeNote   `json:"episode_notes"`
+}
+
+type EpisodeNote struct {
+	EpisodeID string    `json:"episode_id"`
+	Note      string    `json:"note"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 type Repository interface {

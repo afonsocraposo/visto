@@ -224,7 +224,7 @@ func reconcileSeasonEpisodes(ctx context.Context, tx *sql.Tx, seasonID string, i
 			continue
 		}
 		var hasUserData bool
-		if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM plays WHERE episode_id=? UNION SELECT 1 FROM episode_ratings WHERE episode_id=? UNION SELECT 1 FROM activity_events WHERE episode_id=?)`, item.id, item.id, item.id).Scan(&hasUserData); err != nil {
+		if err := tx.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM plays WHERE episode_id=? UNION SELECT 1 FROM episode_ratings WHERE episode_id=? UNION SELECT 1 FROM activity_events WHERE episode_id=? UNION SELECT 1 FROM episode_notes WHERE episode_id=?)`, item.id, item.id, item.id, item.id).Scan(&hasUserData); err != nil {
 			return err
 		}
 		if hasUserData {

@@ -25,18 +25,24 @@ type Result struct {
 }
 
 type Repository interface {
-	GetExternalRatings(context.Context, domain.MediaType, int64) (Scores, bool, error)
-	SaveExternalRatings(context.Context, domain.MediaType, int64, Scores) error
+	GetExternalRatings(context.Context, Title) (Scores, bool, error)
+	SaveExternalRatings(context.Context, Title, Scores) error
 	ExternalRatingsDue(context.Context, time.Time, int) ([]Title, error)
 }
 
 type Title struct {
-	Type   domain.MediaType
-	TMDBID int64
+	Type          domain.MediaType
+	TMDBID        int64
+	SeasonNumber  int
+	EpisodeNumber int
 }
 
 type IMDbResolver interface {
 	IMDbID(context.Context, domain.MediaType, int64) (string, error)
+}
+
+type episodeIMDbResolver interface {
+	EpisodeIMDbID(context.Context, int64, int, int) (string, error)
 }
 
 type Provider interface {
@@ -60,17 +66,24 @@ func New(repository Repository, resolver IMDbResolver, provider Provider) *Servi
 }
 
 func (s *Service) Get(ctx context.Context, mediaType domain.MediaType, tmdbID int64) (Result, error) {
-	return s.get(ctx, mediaType, tmdbID, false)
+	return s.get(ctx, Title{Type: mediaType, TMDBID: tmdbID}, false)
 }
 
-func (s *Service) get(ctx context.Context, mediaType domain.MediaType, tmdbID int64, refresh bool) (Result, error) {
-	if (mediaType != domain.MovieMediaType && mediaType != domain.TVMediaType) || tmdbID <= 0 {
+func (s *Service) GetEpisode(ctx context.Context, showID int64, season, episode int) (Result, error) {
+	if season < 0 || episode <= 0 {
+		return Result{}, fmt.Errorf("valid season and episode numbers are required")
+	}
+	return s.get(ctx, Title{Type: domain.TVMediaType, TMDBID: showID, SeasonNumber: season, EpisodeNumber: episode}, false)
+}
+
+func (s *Service) get(ctx context.Context, title Title, refresh bool) (Result, error) {
+	if (title.Type != domain.MovieMediaType && title.Type != domain.TVMediaType) || title.TMDBID <= 0 {
 		return Result{}, fmt.Errorf("valid media type and TMDB ID are required")
 	}
 	if s == nil || s.provider == nil || s.resolver == nil {
 		return Result{}, nil
 	}
-	cached, found, err := s.repository.GetExternalRatings(ctx, mediaType, tmdbID)
+	cached, found, err := s.repository.GetExternalRatings(ctx, title)
 	if err != nil {
 		return Result{}, err
 	}
@@ -81,7 +94,7 @@ func (s *Service) get(ctx context.Context, mediaType domain.MediaType, tmdbID in
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	// A concurrent request may have filled the durable cache while we waited.
-	cached, found, err = s.repository.GetExternalRatings(ctx, mediaType, tmdbID)
+	cached, found, err = s.repository.GetExternalRatings(ctx, title)
 	if err != nil {
 		return Result{}, err
 	}
@@ -100,7 +113,15 @@ func (s *Service) get(ctx context.Context, mediaType domain.MediaType, tmdbID in
 	}
 	imdbID := cached.IMDbID
 	if imdbID == "" {
-		imdbID, err = s.resolver.IMDbID(ctx, mediaType, tmdbID)
+		if title.EpisodeNumber > 0 {
+			resolver, ok := s.resolver.(episodeIMDbResolver)
+			if !ok {
+				return Result{}, fmt.Errorf("episode scores are not configured")
+			}
+			imdbID, err = resolver.EpisodeIMDbID(ctx, title.TMDBID, title.SeasonNumber, title.EpisodeNumber)
+		} else {
+			imdbID, err = s.resolver.IMDbID(ctx, title.Type, title.TMDBID)
+		}
 		if err != nil {
 			s.retryAfter = now.Add(10 * time.Minute)
 			return result, nil
@@ -117,7 +138,7 @@ func (s *Service) get(ctx context.Context, mediaType domain.MediaType, tmdbID in
 		scores.IMDbID = imdbID
 	}
 	scores.FetchedAt = now
-	if err := s.repository.SaveExternalRatings(ctx, mediaType, tmdbID, scores); err != nil {
+	if err := s.repository.SaveExternalRatings(ctx, title, scores); err != nil {
 		return Result{}, err
 	}
 	return Result{Scores: scores, Enabled: true}, nil
@@ -137,7 +158,7 @@ func (s *Service) Refresh(ctx context.Context) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if _, err := s.get(ctx, title.Type, title.TMDBID, true); err != nil {
+		if _, err := s.get(ctx, title, true); err != nil {
 			return err
 		}
 	}

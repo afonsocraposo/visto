@@ -20,6 +20,7 @@ func TestRatingsParsesOnlyValidMatchingScores(t *testing.T) {
 		wantError    bool
 	}{
 		{"both scores", `{"Response":"True","imdbID":"tt0111161","Ratings":[{"Source":"Internet Movie Database","Value":"9.3/10"},{"Source":"Rotten Tomatoes","Value":"91%"}]}`, true, true, false},
+		{"episode IMDb field", `{"Response":"True","Type":"episode","imdbID":"tt0111161","imdbRating":"8.7","Ratings":[]}`, true, false, false},
 		{"missing scores", `{"Response":"True","imdbID":"tt0111161","Ratings":[{"Source":"Internet Movie Database","Value":"N/A"}]}`, false, false, false},
 		{"invalid ranges", `{"Response":"True","imdbID":"tt0111161","Ratings":[{"Source":"Internet Movie Database","Value":"NaN/10"},{"Source":"Rotten Tomatoes","Value":"101%"}]}`, false, false, false},
 		{"zero is real", `{"Response":"True","imdbID":"tt0111161","Ratings":[{"Source":"Rotten Tomatoes","Value":"0%"}]}`, false, true, false},

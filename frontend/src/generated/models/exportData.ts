@@ -5,6 +5,7 @@
  * Self-hosted movie and TV tracking API.
  * OpenAPI spec version: 0.1.0
  */
+import type { ExportDataEpisodeNotesItem } from "./exportDataEpisodeNotesItem";
 import type { ExportDataEpisodeRatingsItem } from "./exportDataEpisodeRatingsItem";
 import type { ExportDataLibraryItem } from "./exportDataLibraryItem";
 import type { ExportDataPlaysItem } from "./exportDataPlaysItem";
@@ -13,5 +14,6 @@ export interface ExportData {
   exported_at: string;
   library: ExportDataLibraryItem[];
   plays: ExportDataPlaysItem[];
+  episode_notes: ExportDataEpisodeNotesItem[];
   episode_ratings: ExportDataEpisodeRatingsItem[];
 }

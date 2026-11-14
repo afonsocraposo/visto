@@ -14,6 +14,13 @@ erDiagram
     text created_at
   }
 
+  episode_notes {
+    integer user_id PK, FK
+    text episode_id PK, FK
+    text note
+    text updated_at
+  }
+
   episode_ratings {
     integer user_id PK, FK
     text episode_id PK, FK
@@ -43,6 +50,8 @@ erDiagram
   external_ratings {
     text media_type PK
     integer tmdb_id PK
+    integer season_number PK
+    integer episode_number PK
     text data
     text fetched_at
   }
@@ -285,6 +294,7 @@ erDiagram
   }
 
   episodes ||--o{ activity_events : episode_id
+  episodes ||--o{ episode_notes : episode_id
   episodes ||--o{ episode_ratings : episode_id
   episodes ||--o{ notification_deliveries : episode_id
   episodes ||--o{ plays : episode_id
@@ -303,6 +313,7 @@ erDiagram
   seasons ||--o{ episodes : season_id
   seasons ||--o{ season_ready_alerts : season_id
   users ||--o{ activity_events : user_id
+  users ||--o{ episode_notes : user_id
   users ||--o{ episode_ratings : user_id
   users ||--o{ movie_release_deliveries : user_id
   users ||--o{ notification_deliveries : user_id

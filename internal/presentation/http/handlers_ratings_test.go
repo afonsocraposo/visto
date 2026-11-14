@@ -20,6 +20,10 @@ func TestExternalRatingsRequireAuthenticationAndAllowDisabledProvider(t *testing
 		{"/api/v1/media/movie/10/ratings", "", 401},
 		{"/api/v1/media/movie/10/ratings", "viewer-session", 200},
 		{"/api/v1/media/tv/2316/ratings", "viewer-session", 200},
+		{"/api/v1/media/tv/2316/seasons/1/episodes/1/ratings", "", 401},
+		{"/api/v1/media/tv/2316/seasons/0/episodes/1/ratings", "viewer-session", 200},
+		{"/api/v1/media/tv/2316/seasons/-1/episodes/1/ratings", "viewer-session", 400},
+		{"/api/v1/media/tv/2316/seasons/1/episodes/0/ratings", "viewer-session", 400},
 		{"/api/v1/media/person/10/ratings", "viewer-session", 400},
 		{"/api/v1/media/movie/0/ratings", "viewer-session", 400},
 	} {

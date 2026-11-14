@@ -8,15 +8,28 @@ export function ExternalRatings({
   mediaType,
   tmdbID,
   title,
+  episode,
 }: {
   mediaType: "movie" | "tv";
   tmdbID: number;
   title: string;
+  episode?: { seasonNumber: number; episodeNumber: number };
 }) {
   const userQueryKey = useUserQueryKey();
   const scores = useQuery({
-    queryKey: userQueryKey("external-ratings", mediaType, tmdbID),
-    queryFn: () => api.get<Scores>(`/api/v1/media/${mediaType}/${tmdbID}/ratings`),
+    queryKey: userQueryKey(
+      "external-ratings",
+      mediaType,
+      tmdbID,
+      episode?.seasonNumber,
+      episode?.episodeNumber,
+    ),
+    queryFn: () =>
+      api.get<Scores>(
+        episode
+          ? `/api/v1/media/tv/${tmdbID}/seasons/${episode.seasonNumber}/episodes/${episode.episodeNumber}/ratings`
+          : `/api/v1/media/${mediaType}/${tmdbID}/ratings`,
+      ),
     staleTime: 60 * 60 * 1000,
     retry: false,
   });

@@ -101,6 +101,8 @@ func TestBackupWithScope_PreservesUserLinksWithoutTMDBMetadata(t *testing.T) {
 		('movie:2','movie',2,'Unrelated title','Other description','now','now');
 		INSERT INTO seasons(id,show_id,season_number,name) VALUES('tv:1:season:1','tv:1',1,'Season');
 		INSERT INTO episodes(id,show_id,season_id,season_number,episode_number,name) VALUES('tv:1:episode:11','tv:1','tv:1:season:1',1,1,'Episode');
+		INSERT INTO episodes(id,show_id,season_id,season_number,episode_number,name) VALUES('tv:1:episode:12','tv:1','tv:1:season:1',1,2,'Note-only episode');
+		INSERT INTO episode_notes(user_id,episode_id,note,updated_at) VALUES(1,'tv:1:episode:12','Private episode note','now');
 		INSERT INTO user_media(id,user_id,media_id,status,added_at,updated_at,note) VALUES('saved',1,'tv:1','watching','now','now','My private note');
 		INSERT INTO plays(user_id,episode_id,watched_at,created_at) VALUES(1,'tv:1:episode:11','now','now');`)
 	if err != nil {
@@ -115,6 +117,9 @@ func TestBackupWithScope_PreservesUserLinksWithoutTMDBMetadata(t *testing.T) {
 		t.Fatalf("restore backup: %v", err)
 	}
 	defer restored.Close()
+	if note, err := restored.GetEpisodeNote(ctx, "1", "tv:1:episode:12"); err != nil || note != "Private episode note" {
+		t.Fatalf("backup lost episode note: %q %v", note, err)
+	}
 	var note string
 	if err := restored.DB.QueryRow(`SELECT note FROM user_media WHERE user_id=1 AND media_id='tv:1'`).Scan(&note); err != nil || note != "My private note" {
 		t.Fatalf("backup lost note: %q, %v", note, err)
