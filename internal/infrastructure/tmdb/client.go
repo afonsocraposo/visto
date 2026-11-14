@@ -20,7 +20,7 @@ import (
 const (
 	defaultRequestTimeout  = 10 * time.Second
 	searchCacheTTL         = 5 * time.Minute
-	showCacheTTL           = 24 * time.Hour
+	showCacheTTL           = 6 * time.Hour
 	maxAttempts            = 3
 	maxSearchCacheEntries  = 500
 	maxShowCacheEntries    = 100

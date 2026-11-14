@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { TitleNote } from "./TitleNote";
+import { ExternalRatings } from "./ExternalRatings";
 import { useMediaQuery } from "@mantine/hooks";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -1302,6 +1304,9 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
                 ))}
               </p>
             )}
+            {!selectedEpisode && (
+              <ExternalRatings mediaType={media.type} tmdbID={media.tmdb_id} title={media.title} />
+            )}
             <ClampedText className="detail-overview" lines={isMobile ? 3 : 5}>
               {(selectedEpisode
                 ? episodeDetails.data?.overview || selectedEpisode.overview
@@ -1493,6 +1498,9 @@ export function MediaDetailPage({ target, returnTo, onBack, onOpenDetail, onOpen
           <Alert color="red" mt="sm">
             {markEpisodesWatched.error.message}
           </Alert>
+        )}
+        {!selectedEpisode && savedMediaID && (
+          <TitleNote key={savedMediaID} mediaID={savedMediaID} />
         )}
         {target.mediaType === "tv" && !selectedEpisode && (
           <section className="detail-section season-section">

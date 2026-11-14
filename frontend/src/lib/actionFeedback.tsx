@@ -4,8 +4,15 @@ import { notifications } from "@mantine/notifications";
 const feedbackDuration = 5000;
 
 export function showActionFeedback(message: string, undo?: () => Promise<void>) {
+  // Drop queued feedback before adding another action so old messages do not pile up.
+  notifications.cleanQueue();
   if (!undo) {
-    notifications.show({ message, color: "blue", autoClose: feedbackDuration });
+    notifications.show({
+      id: `action:${message}`,
+      message,
+      color: "blue",
+      autoClose: feedbackDuration,
+    });
     return;
   }
 

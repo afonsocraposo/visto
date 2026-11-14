@@ -12,6 +12,7 @@ type LibraryItem struct {
 	Type    string `json:"type"`
 	Status  string `json:"status"`
 	Rating  *int   `json:"rating"`
+	Note    string `json:"note"`
 }
 
 type Play struct {

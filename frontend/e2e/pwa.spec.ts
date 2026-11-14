@@ -41,6 +41,7 @@ async function touchDrag(page: Page, from: { x: number; y: number }, to: { x: nu
 }
 
 async function mockSignedInSession(page: Page, asAdmin = false) {
+  await page.route("**/health", (route) => fulfillJSON(route, { status: "ok" }));
   let signedIn = true;
   await page.route("**/api/v1/auth/status", (route) =>
     fulfillJSON(route, { bootstrap_available: false, signup_enabled: true, google_enabled: false }),
@@ -74,6 +75,10 @@ async function mockSignedInSession(page: Page, asAdmin = false) {
     fulfillJSON(route, { items: [], next_cursor: null }),
   );
   await page.route("**/api/v1/library/lookup", (route) => fulfillJSON(route, []));
+  await page.route("**/api/v1/library/*/note", (route) => fulfillJSON(route, { note: "" }));
+  await page.route("**/api/v1/media/*/*/ratings", (route) =>
+    fulfillJSON(route, { enabled: false }),
+  );
   await page.route("**/api/v1/feed**", (route) =>
     fulfillJSON(route, { items: [], next_cursor: null }),
   );
@@ -2307,4 +2312,86 @@ test("Given a regular user on a saved title, Then Refresh metadata is not offere
   await page.goto("/media/movie/10");
   await expect(page.getByRole("heading", { name: "Example Movie" })).toBeVisible();
   await expect(page.getByRole("button", { name: "More actions for Example Movie" })).toHaveCount(0);
+});
+
+test("Private title notes save, retain failed drafts, reload and delete; external scores stay separate", async ({
+  page,
+}, testInfo) => {
+  await mockSignedInSession(page);
+  const media = {
+    id: "movie:10",
+    tmdb_id: 10,
+    type: "movie",
+    title: "Example Movie",
+    original_title: "Example Movie",
+    overview: "A film worth remembering.",
+    release_date: "2024-01-01",
+    poster_path: "",
+    original_language: "en",
+  };
+  await page.route("**/api/v1/movies/10", (route) =>
+    fulfillJSON(route, {
+      media,
+      item: { media_id: media.id, status: "completed", rating: 4 },
+    }),
+  );
+  await page.route("**/api/v1/plays**", (route) =>
+    fulfillJSON(route, { items: [], next_cursor: null }),
+  );
+  await page.route("**/api/v1/discover/movie/10/related", (route) => fulfillJSON(route, []));
+  await page.route("**/api/v1/media/movie/10/ratings", (route) =>
+    fulfillJSON(route, {
+      enabled: true,
+      imdb_id: "tt0111161",
+      imdb: 9.3,
+      rotten_tomatoes: 91,
+      fetched_at: "2026-11-14T00:00:00Z",
+    }),
+  );
+  let stored = "";
+  let failSave = false;
+  await page.route("**/api/v1/library/*/note", (route) => {
+    if (route.request().method() === "PUT") {
+      if (failSave) return fulfillJSON(route, { error: "Could not save your note." }, 500);
+      stored = route.request().postDataJSON().note;
+    }
+    return fulfillJSON(route, { note: stored });
+  });
+  await page.goto("/media/movie/10");
+  await expect(page.getByRole("link", { name: "IMDb 9.3/10" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Rotten Tomatoes 91%" })).toBeVisible();
+  const input = page.getByRole("textbox", { name: "Your private note" });
+  await input.fill("Loved the ending. 🎬\nWatch again with friends.");
+  await page.getByRole("button", { name: "Save note", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("Saved");
+  await page.reload();
+  await expect(input).toHaveValue(stored);
+  failSave = true;
+  await input.fill("A draft that must survive a failed save.");
+  await page.getByRole("button", { name: "Save note", exact: true }).click();
+  await expect(
+    page.getByRole("alert").filter({ hasText: "Your text is still here" }),
+  ).toBeVisible();
+  await expect(input).toHaveValue("A draft that must survive a failed save.");
+  failSave = false;
+  await page.getByRole("button", { name: "Save note", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("Saved");
+  for (const [width, height, scheme] of [
+    [1280, 900, "light"],
+    [390, 844, "dark"],
+    [320, 740, "light"],
+  ] as const) {
+    await page.setViewportSize({ width, height });
+    await page.emulateMedia({ colorScheme: scheme });
+    await input.scrollIntoViewIfNeeded();
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath(`title-note-${width}.png`), fullPage: true });
+  }
+  await page.getByRole("button", { name: "Delete note", exact: true }).click();
+  await expect(input).toHaveValue("");
+  await page.reload();
+  await expect(input).toHaveValue("");
+  expect(stored).toBe("");
 });

@@ -1425,6 +1425,24 @@ a.watch-row-show {
   max-width: 640px;
   margin-top: 16px;
 }
+.detail-external-ratings {
+  margin-top: 12px;
+  color: rgb(255 255 255 / 0.9);
+  font-variant-numeric: tabular-nums;
+}
+.title-note {
+  max-width: 640px;
+}
+.detail-external-score {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.detail-external-score img {
+  display: block;
+  flex-shrink: 0;
+}
 .clamped-text-body {
   display: -webkit-box;
   margin: 0;
