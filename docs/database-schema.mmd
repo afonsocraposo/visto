@@ -40,6 +40,13 @@ erDiagram
     integer original_episode_number
   }
 
+  external_ratings {
+    text media_type PK
+    integer tmdb_id PK
+    text data
+    text fetched_at
+  }
+
   media {
     text id PK
     text media_type
@@ -231,6 +238,7 @@ erDiagram
     text updated_at
     text notifications_since
     integer season_alerts_enabled
+    text note
   }
 
   user_settings {

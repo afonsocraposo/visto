@@ -11,7 +11,7 @@ import (
 
 func (store *Store) Export(ctx context.Context, userID string) (exportapp.Data, error) {
 	data := exportapp.Data{Library: []exportapp.LibraryItem{}, Plays: []exportapp.Play{}, EpisodeRatings: []exportapp.EpisodeRating{}}
-	libraryRows, err := store.DB.QueryContext(ctx, `SELECT um.media_id,m.title,m.media_type,um.status,um.rating FROM user_media um JOIN media m ON m.id=um.media_id WHERE um.user_id=? ORDER BY um.updated_at DESC`, userID)
+	libraryRows, err := store.DB.QueryContext(ctx, `SELECT um.media_id,m.title,m.media_type,um.status,um.rating,um.note FROM user_media um JOIN media m ON m.id=um.media_id WHERE um.user_id=? ORDER BY um.updated_at DESC`, userID)
 	if err != nil {
 		return data, fmt.Errorf("export library: %w", err)
 	}
@@ -19,7 +19,7 @@ func (store *Store) Export(ctx context.Context, userID string) (exportapp.Data, 
 	for libraryRows.Next() {
 		var item exportapp.LibraryItem
 		var rating sql.NullInt64
-		if err := libraryRows.Scan(&item.MediaID, &item.Title, &item.Type, &item.Status, &rating); err != nil {
+		if err := libraryRows.Scan(&item.MediaID, &item.Title, &item.Type, &item.Status, &rating, &item.Note); err != nil {
 			return data, fmt.Errorf("scan export library item: %w", err)
 		}
 		if rating.Valid {

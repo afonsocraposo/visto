@@ -13,6 +13,7 @@ import "github.com/afonsocosta/visto/internal/application/library"
 import "github.com/afonsocosta/visto/internal/application/oauth"
 import "github.com/afonsocosta/visto/internal/application/plexsync"
 import "github.com/afonsocosta/visto/internal/application/profile"
+import "github.com/afonsocosta/visto/internal/application/ratings"
 import "github.com/afonsocosta/visto/internal/application/seasonalerts"
 import "github.com/afonsocosta/visto/internal/application/tracking"
 import "github.com/afonsocosta/visto/internal/application/watch"
@@ -66,6 +67,11 @@ func (server *Server) WithImports(service *importer.Service) *Server {
 	server.mux.HandleFunc("GET /api/v1/imports/welcome", importWelcome(server.authService, service))
 	server.mux.HandleFunc("POST /api/v1/imports/welcome/dismiss", dismissImportWelcome(server.authService, service))
 	server.mux.HandleFunc("POST /api/v1/imports/bingers", importBingers(server.authService, service))
+	return server
+}
+
+func (server *Server) WithExternalRatings(service *ratings.Service) *Server {
+	server.mux.HandleFunc("GET /api/v1/media/{mediaType}/{tmdbID}/ratings", externalRatings(server.authService, service))
 	return server
 }
 

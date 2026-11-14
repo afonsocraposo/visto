@@ -27,11 +27,13 @@ import (
 	"github.com/afonsocosta/visto/internal/application/oauth"
 	"github.com/afonsocosta/visto/internal/application/plexsync"
 	"github.com/afonsocosta/visto/internal/application/profile"
+	"github.com/afonsocosta/visto/internal/application/ratings"
 	"github.com/afonsocosta/visto/internal/application/seasonalerts"
 	"github.com/afonsocosta/visto/internal/application/tracking"
 	"github.com/afonsocosta/visto/internal/application/watch"
 	"github.com/afonsocosta/visto/internal/domain"
 	backupjob "github.com/afonsocosta/visto/internal/infrastructure/backup"
+	"github.com/afonsocosta/visto/internal/infrastructure/omdb"
 	"github.com/afonsocosta/visto/internal/infrastructure/pushover"
 	"github.com/afonsocosta/visto/internal/infrastructure/sqlite"
 	"github.com/afonsocosta/visto/internal/infrastructure/tmdb"
@@ -87,9 +89,9 @@ func main() {
 	}
 	providers := newMetadataProviders(tmdbClient)
 	watchService := watch.NewService(store, providers.shows...)
-	refreshInterval := durationEnvironment("VISTO_CATALOG_REFRESH_INTERVAL", 6*time.Hour)
-	activeRefreshTTL := durationEnvironment("VISTO_CATALOG_ACTIVE_TTL", 24*time.Hour)
-	finishedRefreshTTL := durationEnvironment("VISTO_CATALOG_FINISHED_TTL", 30*24*time.Hour)
+	refreshInterval := durationEnvironment("VISTO_CATALOG_REFRESH_INTERVAL", time.Hour)
+	activeRefreshTTL := durationEnvironment("VISTO_CATALOG_ACTIVE_TTL", 6*time.Hour)
+	finishedRefreshTTL := durationEnvironment("VISTO_CATALOG_FINISHED_TTL", 7*24*time.Hour)
 	startWorker(func(ctx context.Context) {
 		watchService.RunCatalogRefresher(ctx, refreshInterval, activeRefreshTTL, finishedRefreshTTL)
 	})
@@ -210,9 +212,14 @@ func main() {
 	appHandler.Handle("/mcp", mcpHandler)
 	appHandler.Handle("/oauth/", mcpHandler)
 	appHandler.Handle("/.well-known/", mcpHandler)
+	var ratingService *ratings.Service
+	if key := strings.TrimSpace(os.Getenv("VISTO_OMDB_API_KEY")); key != "" && tmdbClient != nil {
+		ratingService = ratings.New(store, tmdbClient, omdb.New(key, nil))
+		startWorker(ratingService.RunRefresher)
+	}
 	appServer := httpserver.New(authService, providers.metadata, os.Getenv("VISTO_WEB_DIR"), library.NewService(store), tracking.NewService(store), profiles, feed.NewService(store), exportapp.NewService(store), watchService, pushConfig).
 		WithTrustedProxies(trustedProxies).WithOAuth(oauthService).WithGoogleOAuth(googleOAuth).
-		WithSeasonAlerts(seasonalerts.NewService(store))
+		WithSeasonAlerts(seasonalerts.NewService(store)).WithExternalRatings(ratingService)
 	appServer.WithImports(importer.NewService(store, providers.importResolver, watchService.WakeMetadataBackfill))
 	plexMode := environment("VISTO_PLEX_SYNC_MODE", "personal")
 	if plexMode != "personal" && plexMode != "managed" {

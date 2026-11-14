@@ -19,4 +19,6 @@ export type ExportDataLibraryItem = {
    * @nullable
    */
   rating: number | null;
+  /** Private title note. */
+  note: string;
 };

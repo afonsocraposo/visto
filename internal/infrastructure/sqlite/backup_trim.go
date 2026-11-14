@@ -24,6 +24,7 @@ func trimMetadata(ctx context.Context, path string) error {
 	}
 	defer tx.Rollback()
 	statements := []string{
+		`DELETE FROM external_ratings`,
 		`DELETE FROM episodes WHERE id NOT IN (
 			SELECT episode_id FROM plays WHERE episode_id IS NOT NULL UNION
 			SELECT episode_id FROM activity_events WHERE episode_id IS NOT NULL UNION

@@ -10,6 +10,7 @@ deployment — everything else has a default.
 | --- | --- | --- |
 | `VISTO_VERSION` | `latest` | Docker image tag used by Compose. Pin to a release such as `0.1.0` for predictable upgrades. |
 | `VISTO_TMDB_API_KEY` | empty | TMDB API key. Set this to enable metadata features. |
+| `VISTO_OMDB_API_KEY` | empty | Optional free OMDb API key for IMDb and Rotten Tomatoes scores. Requires TMDB. |
 | `VISTO_GOOGLE_CLIENT_ID` | empty | Google OAuth client ID. Set with the secret and redirect URL to show "Continue with Google" on the sign-in page. |
 | `VISTO_GOOGLE_CLIENT_SECRET` | empty | Secret for the Google OAuth client. |
 | `VISTO_GOOGLE_REDIRECT_URL` | empty | Exact callback URL registered in Google Cloud, e.g. `https://visto.example.com/api/v1/auth/google/callback`. All three Google variables are required; if any is missing, Google sign-in stays disabled. |
@@ -32,9 +33,9 @@ deployment — everything else has a default.
 | `VISTO_BACKUP_S3_PATH_STYLE` | `false` | Set to `true` for S3-compatible providers that need path-style addressing. |
 | `VISTO_BACKUP_S3_PREFIX` | `visto/` | Object key prefix for uploaded backups. |
 | `VISTO_BACKUP_S3_MAX_KEEP` | `30` | Number of scheduled S3 backups to retain. Visto deletes only older scheduled backups matching its own filename pattern under the configured prefix; manual backups are untouched. |
-| `VISTO_CATALOG_REFRESH_INTERVAL` | `6h` | How often the backend checks tracked TV metadata for refresh. |
-| `VISTO_CATALOG_ACTIVE_TTL` | `24h` | Minimum age of metadata for active shows before refresh. |
-| `VISTO_CATALOG_FINISHED_TTL` | `720h` | Minimum age of metadata for ended or cancelled shows before refresh (30 days). |
+| `VISTO_CATALOG_REFRESH_INTERVAL` | `1h` | How often the backend checks tracked media metadata for refresh. |
+| `VISTO_CATALOG_ACTIVE_TTL` | `6h` | Minimum age of metadata for active shows and unreleased movies before refresh. |
+| `VISTO_CATALOG_FINISHED_TTL` | `168h` | Minimum age of metadata for ended or cancelled shows before refresh (7 days). |
 | `VISTO_ACTIVITY_CLEANUP_INTERVAL` | `24h` | How often the backend removes old activity feed events. |
 | `VISTO_ACTIVITY_RETENTION` | `8760h` | How long activity feed events are kept (365 days). Does not affect watch history. |
 | `VISTO_SECRET_ENCRYPTION_KEY` | empty | Optional base64-encoded 32-byte key for encrypting users' Pushover credentials and Web Push subscriptions. Generate with `openssl rand -base64 32` and keep it safe — losing it makes saved credentials unreadable. |
@@ -172,13 +173,37 @@ configured `VISTO_DATABASE_PATH` (normally `/data/visto.db` in the volume),
 then start Visto and confirm the expected accounts and library appear before
 discarding the pre-restore copy.
 
+## External ratings
+
+To enable IMDb and Rotten Tomatoes scores, request a **free** key at
+[OMDb](https://www.omdbapi.com/apikey.aspx), activate it by email, and set
+`VISTO_OMDB_API_KEY` in `.env`. Recreate the app container after changing the key.
+The key stays on the server. No paid provider is required.
+
+The first visit to a title resolves its IMDb ID through TMDB and stores available
+scores in SQLite. Later visits use those stored scores, including after a restart.
+A background job runs at startup and hourly, refreshing at most 20 titles per run
+when their scores are at least 7 days old. Empty results are cached too.
+Provider failures keep the last successful scores and delay further lookups for
+10 minutes. Visto limits OMDb calls to 900 per UTC day per running server; OMDb's
+free key limit is 1,000 per day, including other apps using that key. The local
+counter resets on restart, while OMDb still enforces the key's own limit.
+
+Scores are matched by IMDb ID. Unavailable scores are hidden, never shown as zero.
+Rotten Tomatoes coverage can vary by title, including series. Scores link to IMDb
+or Rotten Tomatoes search, with OMDb attribution and the fetch date in a tooltip.
+OMDb content is licensed under [CC BY-NC 4.0](https://www.omdbapi.com/).
+
 ## Catalog refresh & activity retention
 
-Tracked TV catalogs refresh in the background, independently of page views —
-every 6 hours by default, with a 24-hour freshness window for active shows and
-a 30-day window for ended or cancelled shows
+Tracked TV catalogs and unreleased movies refresh in the background, independently
+of page views. Checks run every hour by default, with a 6-hour freshness window
+for active shows and unreleased movies, and a 7-day window for ended or cancelled shows
 (`VISTO_CATALOG_REFRESH_INTERVAL`, `VISTO_CATALOG_ACTIVE_TTL`,
 `VISTO_CATALOG_FINISHED_TTL`).
+
+TMDB detail responses are cached in memory for 6 hours. Existing environment
+overrides keep their configured values; update them to use the shorter intervals.
 
 Activity feed events are removed after 365 days by default
 (`VISTO_ACTIVITY_RETENTION`, cleaned up every `VISTO_ACTIVITY_CLEANUP_INTERVAL`).

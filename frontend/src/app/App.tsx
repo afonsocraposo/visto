@@ -110,7 +110,7 @@ export function App() {
       defaultColorScheme="auto"
       forceColorScheme={forcedColorScheme(theme)}
     >
-      <Notifications position="bottom-center" autoClose={5000} />
+      <Notifications position="bottom-center" autoClose={5000} limit={3} />
       {setup.isPending || session.isPending ? (
         <AppLoadingShell />
       ) : setup.isError || (session.isError && !session.data) ? (

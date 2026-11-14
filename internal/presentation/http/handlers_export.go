@@ -46,13 +46,13 @@ func csvExport(authService *auth.Service, service *exportapp.Service) http.Handl
 		w.Header().Set("Content-Type", "text/csv")
 		w.Header().Set("Content-Disposition", "attachment; filename=visto-export.csv")
 		writer := csv.NewWriter(w)
-		_ = writer.Write([]string{"kind", "id", "media_id", "episode_id", "title", "type", "status", "rating", "watched_at"})
+		_ = writer.Write([]string{"kind", "id", "media_id", "episode_id", "title", "type", "status", "rating", "watched_at", "note"})
 		for _, item := range data.Library {
 			rating := ""
 			if item.Rating != nil {
 				rating = strconv.Itoa(*item.Rating)
 			}
-			_ = writer.Write([]string{"library", "", item.MediaID, "", spreadsheetCell(item.Title), item.Type, item.Status, rating, ""})
+			_ = writer.Write([]string{"library", "", item.MediaID, "", spreadsheetCell(item.Title), item.Type, item.Status, rating, "", spreadsheetCell(item.Note)})
 		}
 		for _, play := range data.Plays {
 			mediaID, episodeID := "", ""
@@ -62,14 +62,14 @@ func csvExport(authService *auth.Service, service *exportapp.Service) http.Handl
 			if play.EpisodeID != nil {
 				episodeID = *play.EpisodeID
 			}
-			_ = writer.Write([]string{"play", play.ID, mediaID, episodeID, "", "", "", "", play.WatchedAt.Format(time.RFC3339Nano)})
+			_ = writer.Write([]string{"play", play.ID, mediaID, episodeID, "", "", "", "", play.WatchedAt.Format(time.RFC3339Nano), ""})
 		}
 		for _, rating := range data.EpisodeRatings {
 			value := ""
 			if rating.Rating != nil {
 				value = strconv.Itoa(*rating.Rating)
 			}
-			_ = writer.Write([]string{"episode_rating", "", "", rating.EpisodeID, "", "episode", "", value, rating.UpdatedAt.Format(time.RFC3339Nano)})
+			_ = writer.Write([]string{"episode_rating", "", "", rating.EpisodeID, "", "episode", "", value, rating.UpdatedAt.Format(time.RFC3339Nano), ""})
 		}
 		writer.Flush()
 	}

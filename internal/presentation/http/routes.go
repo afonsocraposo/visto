@@ -61,6 +61,8 @@ func registerAPIRoutes(mux *http.ServeMux, authService *auth.Service, metadataPr
 	mux.HandleFunc("PATCH /api/v1/library/{mediaID}", updateLibrary(authService, libraryService, metadataProvider))
 	mux.HandleFunc("DELETE /api/v1/library/{mediaID}", removeWatchlistItem(authService, libraryService))
 	mux.HandleFunc("PATCH /api/v1/library/{mediaID}/notifications", setLibraryNotifications(authService, libraryService))
+	mux.HandleFunc("GET /api/v1/library/{mediaID}/note", titleNote(authService, libraryService))
+	mux.HandleFunc("PUT /api/v1/library/{mediaID}/note", titleNote(authService, libraryService))
 	mux.HandleFunc("POST /api/v1/plays", createPlay(authService, trackingService))
 	mux.HandleFunc("GET /api/v1/plays", playHistory(authService, trackingService))
 	mux.HandleFunc("POST /api/v1/plays/bulk", createBulkPlays(authService, trackingService))
