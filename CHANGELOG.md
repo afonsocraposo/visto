@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.28.0](https://github.com/afonsocraposo/visto/compare/v0.27.0...v0.28.0) (2026-11-14)
+
+
+### Features
+
+* add episode scores and private notes ([#70](https://github.com/afonsocraposo/visto/issues/70)) ([53fdf00](https://github.com/afonsocraposo/visto/commit/53fdf00e16122a031f4a12a11eebf542e5148167))
+
 ## [0.27.0](https://github.com/afonsocraposo/visto/compare/v0.26.4...v0.27.0) (2026-11-14)
 
 
