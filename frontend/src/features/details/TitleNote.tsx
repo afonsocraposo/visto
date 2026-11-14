@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Alert, Button, Group, Skeleton, Stack, Text, Textarea, Title } from "@mantine/core";
+import { IconNote, IconPencil } from "@tabler/icons-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { TitleNote as Note } from "../../generated/models/titleNote";
 import { api } from "../../lib/api";
@@ -15,6 +16,11 @@ export function TitleNote({
   const queryKey = userQueryKey("private-note", resource, episodeID ?? mediaID);
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState<string>();
+  const trigger = useRef<HTMLButtonElement>(null);
+  const closeEditor = () => {
+    setDraft(undefined);
+    requestAnimationFrame(() => trigger.current?.focus());
+  };
   const note = useQuery({
     queryKey,
     queryFn: () => api.get<Note>(path, "Could not load your note."),
@@ -23,34 +29,56 @@ export function TitleNote({
     mutationFn: (text: string) => api.put<Note>(path, { note: text }, "Could not save your note."),
     onSuccess: (saved) => {
       queryClient.setQueryData(queryKey, saved);
-      setDraft(undefined);
+      closeEditor();
     },
   });
   const value = draft ?? note.data?.note ?? "";
   const tooLong = Array.from(value).length > 5000;
   return (
-    <section className="detail-section title-note" aria-labelledby="title-note-heading">
+    <section className="detail-section title-note" aria-label="Your note">
       <Stack gap="sm">
-        <div>
-          <Title order={2} id="title-note-heading">
-            Your note
-          </Title>
-          <Text size="sm" c="dimmed">
-            Private. Only you can see this note.
-          </Text>
-        </div>
+        {(draft !== undefined || note.data?.note) && (
+          <div>
+            <Title order={2}>Your note</Title>
+            <Text size="sm" c="dimmed">
+              Private. Only you can see this note.
+            </Text>
+          </div>
+        )}
         {note.isPending ? (
-          <Skeleton height={100} />
+          <Skeleton height={28} />
         ) : note.isError ? (
           <Alert color="red" title="Could not load your note">
             <Button variant="subtle" onClick={() => void note.refetch()}>
               Try again
             </Button>
           </Alert>
+        ) : draft === undefined ? (
+          <>
+            {note.data.note && (
+              <Text style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
+                {note.data.note}
+              </Text>
+            )}
+            <Button
+              ref={trigger}
+              variant="subtle"
+              color="gray"
+              style={{ alignSelf: "flex-start" }}
+              leftSection={note.data.note ? <IconPencil size={16} /> : <IconNote size={16} />}
+              onClick={() => {
+                setDraft(note.data.note);
+                save.reset();
+              }}
+            >
+              {note.data.note ? "Edit note" : "Add note"}
+            </Button>
+          </>
         ) : (
           <>
             <Textarea
               aria-label="Your private note"
+              autoFocus
               placeholder="What did you think?"
               autosize
               minRows={3}
@@ -67,9 +95,7 @@ export function TitleNote({
               <Text size="xs" c="dimmed" role="status">
                 {value !== note.data.note
                   ? "Unsaved changes"
-                  : save.isSuccess
-                    ? "Saved"
-                    : `${Array.from(value).length.toLocaleString()} / 5,000`}
+                  : `${Array.from(value).length.toLocaleString()} / 5,000`}
               </Text>
               <Group gap="xs">
                 {note.data.note !== "" && (
@@ -82,6 +108,17 @@ export function TitleNote({
                     Delete note
                   </Button>
                 )}
+                <Button
+                  variant="subtle"
+                  color="gray"
+                  disabled={save.isPending}
+                  onClick={() => {
+                    closeEditor();
+                    save.reset();
+                  }}
+                >
+                  Cancel
+                </Button>
                 <Button
                   loading={save.isPending}
                   disabled={tooLong || value === note.data.note}

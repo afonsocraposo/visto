@@ -143,8 +143,10 @@ supports opening in a new tab, and a plain click uses in-app navigation.
 
 ### Media details
 
-- Saved movie, show, and episode pages include **Your note**, a private plain-text editor
-  below tracking and before the catalog. It has explicit Save and Delete actions,
+- Saved movie, show, and episode pages include **Your note**, a private plain-text note
+  below tracking and before the catalog. Empty notes show a subtle **Add note** button.
+  Saved notes show their text with **Edit note**. The inline editor opens on request
+  with Save, Cancel, and Delete actions,
   an unsaved state, and inline errors that preserve the draft. Notes are limited
   to 5,000 characters. They are not shown on community profiles.
   Episode notes are separate from the series note and follow the permanent episode ID.

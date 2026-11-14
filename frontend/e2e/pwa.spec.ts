@@ -2389,23 +2389,26 @@ test("Episode scores and private notes stay separate across episodes and the ser
   await expect(page.getByRole("link", { name: "IMDb 9.1/10" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Rotten Tomatoes 95%" })).toBeVisible();
   const input = page.getByRole("textbox", { name: "Your private note" });
+  await expect(input).toHaveCount(0);
+  await page.getByRole("button", { name: "Add note", exact: true }).click();
   await input.fill("Episode one: loved the reveal.");
   await page.getByRole("button", { name: "Save note", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText("Saved");
+  await expect(input).toHaveCount(0);
   await page.getByRole("link", { name: /^Next episode/ }).click();
   await expect(page.getByRole("link", { name: "IMDb 8.2/10" })).toBeVisible();
   await expect(page.getByRole("link", { name: /Rotten Tomatoes/ })).toHaveCount(0);
-  await expect(input).toHaveValue("");
+  await expect(input).toHaveCount(0);
+  await page.getByRole("button", { name: "Add note", exact: true }).click();
   await input.fill("Episode two: a different note.");
   await page.getByRole("button", { name: "Save note", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText("Saved");
+  await expect(input).toHaveCount(0);
   await page.getByRole("link", { name: /^Previous episode/ }).click();
-  await expect(input).toHaveValue("Episode one: loved the reveal.");
+  await expect(page.getByText("Episode one: loved the reveal.", { exact: true })).toBeVisible();
   await page.reload();
-  await expect(input).toHaveValue("Episode one: loved the reveal.");
+  await expect(page.getByText("Episode one: loved the reveal.", { exact: true })).toBeVisible();
   for (const width of [1280, 390]) {
     await page.setViewportSize({ width, height: 900 });
-    await input.scrollIntoViewIfNeeded();
+    await page.getByRole("button", { name: "Edit note", exact: true }).scrollIntoViewIfNeeded();
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
     ).toBe(true);
@@ -2414,11 +2417,14 @@ test("Episode scores and private notes stay separate across episodes and the ser
       fullPage: true,
     });
   }
+  await page.getByRole("button", { name: "Edit note", exact: true }).click();
   await page.getByRole("button", { name: "Delete note", exact: true }).click();
-  await expect(input).toHaveValue("");
+  await expect(input).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Add note", exact: true })).toBeVisible();
   expect(notes["tv:100:episode:2"]).toBe("Episode two: a different note.");
   await page.goto("/media/tv/100");
-  await expect(input).toHaveValue(seriesNote);
+  await expect(page.getByText(seriesNote, { exact: true })).toBeVisible();
+  await expect(input).toHaveCount(0);
   await expect(page.getByRole("link", { name: "IMDb 7.0/10" })).toBeVisible();
 });
 
@@ -2469,11 +2475,28 @@ test("Private title notes save, retain failed drafts, reload and delete; externa
   await expect(page.getByRole("link", { name: "IMDb 9.3/10" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Rotten Tomatoes 91%" })).toBeVisible();
   const input = page.getByRole("textbox", { name: "Your private note" });
+  await expect(input).toHaveCount(0);
+  await page.getByRole("button", { name: "Add note", exact: true }).click();
+  await expect(input).toBeFocused();
+  await input.fill("Discard this draft.");
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(input).toHaveCount(0);
+  expect(stored).toBe("");
+  await page.getByRole("button", { name: "Add note", exact: true }).click();
+  await expect(input).toHaveValue("");
   await input.fill("Loved the ending. 🎬\nWatch again with friends.");
   await page.getByRole("button", { name: "Save note", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText("Saved");
+  await expect(input).toHaveCount(0);
+  await expect(page.getByText(stored, { exact: true })).toBeVisible();
   await page.reload();
+  await expect(input).toHaveCount(0);
+  await expect(page.getByText(stored, { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Edit note", exact: true }).click();
   await expect(input).toHaveValue(stored);
+  await input.fill("Discard this edit.");
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(page.getByText(stored, { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Edit note", exact: true }).click();
   failSave = true;
   await input.fill("A draft that must survive a failed save.");
   await page.getByRole("button", { name: "Save note", exact: true }).click();
@@ -2483,7 +2506,8 @@ test("Private title notes save, retain failed drafts, reload and delete; externa
   await expect(input).toHaveValue("A draft that must survive a failed save.");
   failSave = false;
   await page.getByRole("button", { name: "Save note", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText("Saved");
+  await expect(input).toHaveCount(0);
+  await expect(page.getByText(stored, { exact: true })).toBeVisible();
   for (const [width, height, scheme] of [
     [1280, 900, "light"],
     [390, 844, "dark"],
@@ -2491,15 +2515,29 @@ test("Private title notes save, retain failed drafts, reload and delete; externa
   ] as const) {
     await page.setViewportSize({ width, height });
     await page.emulateMedia({ colorScheme: scheme });
-    await input.scrollIntoViewIfNeeded();
+    await page.getByRole("button", { name: "Edit note", exact: true }).scrollIntoViewIfNeeded();
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
     ).toBe(true);
     await page.screenshot({ path: testInfo.outputPath(`title-note-${width}.png`), fullPage: true });
+    await page.getByRole("button", { name: "Edit note", exact: true }).click();
+    await expect(input).toBeFocused();
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+    ).toBe(true);
+    await page.screenshot({
+      path: testInfo.outputPath(`note-editor-${width}.png`),
+      fullPage: true,
+    });
+    await page.getByRole("button", { name: "Cancel", exact: true }).click();
   }
+  await page.getByRole("button", { name: "Edit note", exact: true }).click();
   await page.getByRole("button", { name: "Delete note", exact: true }).click();
-  await expect(input).toHaveValue("");
+  await expect(input).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Add note", exact: true })).toBeVisible();
   await page.reload();
-  await expect(input).toHaveValue("");
+  await expect(input).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Add note", exact: true })).toBeVisible();
   expect(stored).toBe("");
+  await page.screenshot({ path: testInfo.outputPath("empty-note.png"), fullPage: true });
 });
