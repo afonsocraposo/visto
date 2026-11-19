@@ -138,3 +138,95 @@ func TestFeed_GivenPrivateAndOptedInActivity_WhenListed_ThenPrivateEventsStayHid
 }
 
 const testTimestamp = "2026-09-24T00:00:00Z"
+
+func TestFeedEpisodeArtworkFallbacksAndRefreshPersistence(t *testing.T) {
+	ctx := context.Background()
+	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "visto.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	userID := insertTestUser(t, store.DB, "artwork", "Artwork", "instance")
+	if _, err := store.DB.Exec(`
+  INSERT INTO media(id,media_type,tmdb_id,title,poster_path,metadata_updated_at,created_at) VALUES('tv:42','tv',42,'Show','/poster.jpg','2026-09-24T00:00:00Z','2026-09-24T00:00:00Z');
+  INSERT INTO seasons(id,show_id,season_number,name) VALUES('season','tv:42',1,'Season 1');
+  INSERT INTO episodes(id,show_id,season_id,tmdb_id,season_number,episode_number,name,metadata_updated_at) VALUES('episode','tv:42','season',101,1,1,'Pilot','2026-09-24T00:00:00Z')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.DB.Exec(`INSERT INTO activity_events(user_id,kind,episode_id,occurred_at,created_at) VALUES(?,'watch','episode',?,?)`, userID, testTimestamp, testTimestamp); err != nil {
+		t.Fatal(err)
+	}
+	assertArtwork := func(t *testing.T, want string) {
+		t.Helper()
+		for _, user := range []string{"", userID} {
+			var page feed.Page
+			var err error
+			if user == "" {
+				page, err = store.List(ctx, "", 10)
+			} else {
+				page, err = store.ListUser(ctx, user, "", 10)
+			}
+			if err != nil || len(page.Items) != 1 {
+				t.Fatalf("feed=%+v err=%v", page, err)
+			}
+			if page.Items[0].ArtworkPath != want {
+				t.Fatalf("artwork=%q want %q", page.Items[0].ArtworkPath, want)
+			}
+		}
+	}
+	for _, tc := range []struct {
+		name         string
+		still        any
+		raw          any
+		poster, want string
+	}{
+		{"legacy JSON with empty column", "", `{"StillPath":"/details.jpg"}`, "/poster.jpg", "/details.jpg"},
+		{"legacy JSON with null column", nil, `{"StillPath":"/details.jpg"}`, "/poster.jpg", "/details.jpg"},
+		{"column takes priority", "/catalog.jpg", `{"StillPath":"/details.jpg"}`, "/poster.jpg", "/catalog.jpg"},
+		{"invalid legacy JSON", "", `{invalid`, "/poster.jpg", "/poster.jpg"},
+		{"empty JSON artwork", "", `{"StillPath":""}`, "/poster.jpg", "/poster.jpg"},
+		{"missing JSON artwork", "", `{}`, "/poster.jpg", "/poster.jpg"},
+		{"no artwork", "", nil, "", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if _, err := store.DB.Exec(`UPDATE episodes SET still_path=?,raw_metadata=? WHERE id='episode'`, tc.still, tc.raw); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := store.DB.Exec(`UPDATE media SET poster_path=? WHERE id='tv:42'`, tc.poster); err != nil {
+				t.Fatal(err)
+			}
+			assertArtwork(t, tc.want)
+		})
+	}
+	started := time.Now().UTC().Add(-time.Hour)
+	episode := domain.TVEpisodeMetadata{TMDBID: 101, SeasonNumber: 1, EpisodeNumber: 1, Name: "Pilot", StillPath: "/refreshed.jpg", FetchStartedAt: started}
+	if err := store.RefreshEpisodeMetadata(ctx, 42, episode); err != nil {
+		t.Fatal(err)
+	}
+	var still, rawStill, catalogStamp string
+	if err := store.DB.QueryRow(`SELECT still_path,json_extract(raw_metadata,'$.StillPath'),metadata_updated_at FROM episodes WHERE id='episode'`).Scan(&still, &rawStill, &catalogStamp); err != nil || still != episode.StillPath || rawStill != episode.StillPath || catalogStamp != testTimestamp {
+		t.Fatalf("persisted still=%q raw still=%q catalog timestamp=%q err=%v", still, rawStill, catalogStamp, err)
+	}
+	assertArtwork(t, "/refreshed.jpg")
+	// An older details response must not replace the stored image or JSON.
+	episode.StillPath, episode.FetchStartedAt = "/old.jpg", started.Add(-time.Minute)
+	if err := store.RefreshEpisodeMetadata(ctx, 42, episode); err != nil {
+		t.Fatal(err)
+	}
+	assertArtwork(t, "/refreshed.jpg")
+	// A later response with no artwork must not discard a known image.
+	episode.StillPath, episode.FetchStartedAt = "", started.Add(time.Minute)
+	if err := store.RefreshEpisodeMetadata(ctx, 42, episode); err != nil {
+		t.Fatal(err)
+	}
+	assertArtwork(t, "/refreshed.jpg")
+	// A details request that began before a newer season snapshot cannot replace its artwork.
+	if _, err := store.DB.Exec(`UPDATE episodes SET still_path='/new-catalog.jpg',metadata_updated_at=? WHERE id='episode'`, started.Add(3*time.Minute).Format(time.RFC3339Nano)); err != nil {
+		t.Fatal(err)
+	}
+	episode.StillPath, episode.FetchStartedAt = "/older-details.jpg", started.Add(2*time.Minute)
+	if err := store.RefreshEpisodeMetadata(ctx, 42, episode); err != nil {
+		t.Fatal(err)
+	}
+	assertArtwork(t, "/new-catalog.jpg")
+}
