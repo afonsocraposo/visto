@@ -392,11 +392,16 @@ func (store *Store) RefreshEpisodeMetadata(ctx context.Context, showID int64, ep
 	if newer {
 		return nil
 	}
+	catalogNewer, err := metadataNewer(ctx, tx, "SELECT metadata_updated_at FROM episodes WHERE id=?", id, episode.FetchStartedAt)
+	if err != nil {
+		return err
+	}
 	raw, err := json.Marshal(episode)
 	if err != nil {
 		return err
 	}
-	_, err = tx.ExecContext(ctx, `UPDATE episodes SET raw_metadata=?,details_updated_at=? WHERE id=?`, raw, metadataTimestamp(episode.FetchStartedAt), id)
+	_, err = tx.ExecContext(ctx, `UPDATE episodes SET raw_metadata=?,details_updated_at=?,
+		still_path=CASE WHEN ? OR ?='' THEN still_path ELSE ? END WHERE id=?`, raw, metadataTimestamp(episode.FetchStartedAt), catalogNewer, episode.StillPath, episode.StillPath, id)
 	if err != nil {
 		return err
 	}

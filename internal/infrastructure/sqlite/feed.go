@@ -32,7 +32,9 @@ func (store *Store) listFeed(ctx context.Context, userID, cursor string, limit i
 		arguments = append(arguments, userID)
 	}
 	arguments = append(arguments, limit+1)
-	rows, err := store.DB.QueryContext(ctx, `SELECT ae.id,ae.user_id,u.display_name,ae.kind,COALESCE(media.title,show.title),COALESCE(media.media_type,show.media_type,''),COALESCE(media.tmdb_id,show.tmdb_id,0),COALESCE(episode.still_path,media.poster_path,show.poster_path,''),ae.rating,COALESCE(json_extract(ae.detail_json,'$.count'),0),episode.season_number,episode.episode_number,episode.name,ae.occurred_at
+	rows, err := store.DB.QueryContext(ctx, `SELECT ae.id,ae.user_id,u.display_name,ae.kind,COALESCE(media.title,show.title),COALESCE(media.media_type,show.media_type,''),COALESCE(media.tmdb_id,show.tmdb_id,0),
+		COALESCE(NULLIF(episode.still_path,''),CASE WHEN json_valid(episode.raw_metadata) THEN NULLIF(json_extract(episode.raw_metadata,'$.StillPath'),'') END,NULLIF(media.poster_path,''),NULLIF(show.poster_path,''),''),
+		ae.rating,COALESCE(json_extract(ae.detail_json,'$.count'),0),episode.season_number,episode.episode_number,episode.name,ae.occurred_at
 		FROM activity_events ae
 		JOIN users u ON u.id=ae.user_id
 		JOIN user_settings settings ON settings.user_id=u.id AND settings.activity_visibility='instance'
