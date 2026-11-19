@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"golang.org/x/sync/singleflight"
 	_ "modernc.org/sqlite"
 )
 
 type Store struct {
-	DB *sql.DB
+	DB                *sql.DB
+	metadataRefreshes singleflight.Group
 }
 
 func Open(ctx context.Context, databasePath string) (*Store, error) {
@@ -55,4 +57,15 @@ func (store *Store) configure(ctx context.Context) error {
 
 func (store *Store) Close() error {
 	return store.DB.Close()
+}
+
+// RefreshMetadataOnce coalesces the complete database check, fetch and write.
+func (store *Store) RefreshMetadataOnce(ctx context.Context, key string, refresh func() error) error {
+	result := store.metadataRefreshes.DoChan(key, func() (any, error) { return nil, refresh() })
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case outcome := <-result:
+		return outcome.Err
+	}
 }

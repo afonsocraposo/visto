@@ -19,8 +19,8 @@ func TestMigrator_GivenFreshDatabase_WhenAppliedTwice_ThenCurrentSchemaExistsAnd
 	if err != nil {
 		t.Fatalf("new migrator: %v", err)
 	}
-	if len(migrator.Migrations) != 19 || migrator.Migrations[0].Version != 1 || migrator.Migrations[18].Version != 19 {
-		t.Fatalf("loaded migrations = %#v, want versions 1 through 19", migrator.Migrations)
+	if len(migrator.Migrations) != 20 || migrator.Migrations[0].Version != 1 || migrator.Migrations[19].Version != 20 {
+		t.Fatalf("loaded migrations = %#v, want versions 1 through 20", migrator.Migrations)
 	}
 	migrator.Now = func() time.Time { return time.Date(2026, 9, 24, 0, 0, 0, 0, time.UTC) }
 
@@ -35,8 +35,8 @@ func TestMigrator_GivenFreshDatabase_WhenAppliedTwice_ThenCurrentSchemaExistsAnd
 	if err := db.QueryRow(`SELECT COUNT(*) FROM schema_migrations`).Scan(&count); err != nil {
 		t.Fatalf("count migrations: %v", err)
 	}
-	if count != 19 {
-		t.Fatalf("migration count = %d, want 19", count)
+	if count != 20 {
+		t.Fatalf("migration count = %d, want 20", count)
 	}
 	var version int
 	var name string
@@ -84,6 +84,8 @@ func TestMigrator_GivenFreshDatabase_WhenAppliedTwice_ThenCurrentSchemaExistsAnd
 
 	for _, check := range []struct{ table, column string }{
 		{"media", "catalog_updated_at"},
+		{"seasons", "metadata_updated_at"},
+		{"episodes", "details_updated_at"},
 		{"oauth_access_tokens", "last_used_at"},
 		{"activity_events", "created_at"},
 	} {

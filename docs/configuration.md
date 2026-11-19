@@ -33,6 +33,9 @@ deployment — everything else has a default.
 | `VISTO_BACKUP_S3_PATH_STYLE` | `false` | Set to `true` for S3-compatible providers that need path-style addressing. |
 | `VISTO_BACKUP_S3_PREFIX` | `visto/` | Object key prefix for uploaded backups. |
 | `VISTO_BACKUP_S3_MAX_KEEP` | `30` | Number of scheduled S3 backups to retain. Visto deletes only older scheduled backups matching its own filename pattern under the configured prefix; manual backups are untouched. |
+| `VISTO_ON_DEMAND_METADATA_TTL` | `24h` | Maximum metadata age before opening a saved movie, show, season, or episode refreshes it. |
+| `VISTO_CATALOG_SHOW_BATCH_SIZE` | `10` | Maximum shows processed per scheduled run. Must be positive. |
+| `VISTO_CATALOG_MOVIE_BATCH_SIZE` | `10` | Maximum eligible movies processed per scheduled run. Must be positive. |
 | `VISTO_CATALOG_REFRESH_INTERVAL` | `1h` | How often the backend checks tracked media metadata for refresh. |
 | `VISTO_CATALOG_ACTIVE_TTL` | `6h` | Minimum age of metadata for active shows and unreleased movies before refresh. |
 | `VISTO_CATALOG_FINISHED_TTL` | `168h` | Minimum age of metadata for ended or cancelled shows before refresh (7 days). |
@@ -210,7 +213,17 @@ for active shows and unreleased movies, and a 7-day window for ended or cancelle
 (`VISTO_CATALOG_REFRESH_INTERVAL`, `VISTO_CATALOG_ACTIVE_TTL`,
 `VISTO_CATALOG_FINISHED_TTL`).
 
-TMDB detail responses are cached in memory for 6 hours. Existing environment
+Each scheduled run processes up to 10 shows and 10 eligible movies. The two batch
+sizes are configurable. A title failure is logged, and the remaining titles continue.
+
+Opening a saved movie, show, season, or episode refreshes metadata older than
+24 hours (`VISTO_ON_DEMAND_METADATA_TTL`). Missing timestamps are stale. Requests
+fetch only the selected resource and return stored data if TMDB fails. Browsing
+unsaved Discover content does not create catalog entries. Episode supplementary
+details are stored in SQLite and survive restarts. Season refreshes preserve them.
+
+TMDB detail responses are cached in memory for 6 hours. Durable refreshes bypass
+cached responses and coalesce concurrent requests for the same resource. Existing environment
 overrides keep their configured values; update them to use the shorter intervals.
 
 Activity feed events are removed after 365 days by default

@@ -87,7 +87,7 @@ func (client *Client) ShowSummary(ctx context.Context, tmdbID int64) (domain.TVS
 // RefreshShow fetches the show summary and its latest regular season only.
 // This keeps scheduled refresh traffic bounded even for long-running shows.
 func (client *Client) RefreshShow(ctx context.Context, tmdbID int64) (domain.TVShowMetadata, error) {
-	show, err := client.ShowSummary(ctx, tmdbID)
+	show, err := client.FreshShowSummary(ctx, tmdbID)
 	if err != nil {
 		return domain.TVShowMetadata{}, err
 	}
@@ -95,13 +95,13 @@ func (client *Client) RefreshShow(ctx context.Context, tmdbID int64) (domain.TVS
 	if !found {
 		return show, nil
 	}
-	season, err := client.Season(ctx, tmdbID, latestSeason)
+	season, err := client.FreshSeason(ctx, tmdbID, latestSeason)
 	if err != nil {
 		return domain.TVShowMetadata{}, err
 	}
 	for index := range show.Seasons {
 		if show.Seasons[index].Number == latestSeason {
-			show.Seasons[index].Episodes = season.Episodes
+			show.Seasons[index] = season
 			break
 		}
 	}
@@ -175,6 +175,7 @@ func (client *Client) fetchShow(ctx context.Context, tmdbID int64) (domain.TVSho
 }
 
 func (client *Client) fetchShowSummary(ctx context.Context, tmdbID int64) (domain.TVShowMetadata, error) {
+	started := time.Now().UTC()
 	if err := client.acquire(ctx); err != nil {
 		return domain.TVShowMetadata{}, err
 	}
@@ -187,7 +188,7 @@ func (client *Client) fetchShowSummary(ctx context.Context, tmdbID int64) (domai
 	}); err != nil {
 		return domain.TVShowMetadata{}, err
 	}
-	show := domain.TVShowMetadata{TMDBID: details.ID, Name: details.Name, Overview: details.Overview, PosterPath: details.PosterPath, BackdropPath: details.BackdropPath, FirstAirDate: details.FirstAirDate, OriginalLanguage: details.OriginalLanguage, Status: details.Status}
+	show := domain.TVShowMetadata{FetchStartedAt: started, TMDBID: details.ID, Name: details.Name, Overview: details.Overview, PosterPath: details.PosterPath, BackdropPath: details.BackdropPath, FirstAirDate: details.FirstAirDate, OriginalLanguage: details.OriginalLanguage, Status: details.Status}
 	if details.TVAggregateCreditsAppend != nil && details.AggregateCredits != nil {
 		show.Cast = aggregateCast(details.AggregateCredits)
 	}
@@ -242,6 +243,7 @@ func aggregateCast(credits *tmdbapi.TVAggregateCredits) []domain.TVCastMember {
 }
 
 func (client *Client) fetchSeason(ctx context.Context, tmdbID int64, seasonNumber int) (domain.TVSeasonMetadata, error) {
+	started := time.Now().UTC()
 	if err := client.acquire(ctx); err != nil {
 		return domain.TVSeasonMetadata{}, err
 	}
@@ -254,10 +256,35 @@ func (client *Client) fetchSeason(ctx context.Context, tmdbID int64, seasonNumbe
 	}); err != nil {
 		return domain.TVSeasonMetadata{}, err
 	}
-	season := domain.TVSeasonMetadata{TMDBID: seasonDetails.ID, Number: seasonDetails.SeasonNumber, Name: seasonDetails.Name, Overview: seasonDetails.Overview, PosterPath: seasonDetails.PosterPath, AirDate: seasonDetails.AirDate, Episodes: []domain.TVEpisodeMetadata{}}
+	season := domain.TVSeasonMetadata{FetchStartedAt: started, TMDBID: seasonDetails.ID, Number: seasonDetails.SeasonNumber, Name: seasonDetails.Name, Overview: seasonDetails.Overview, PosterPath: seasonDetails.PosterPath, AirDate: seasonDetails.AirDate, Episodes: []domain.TVEpisodeMetadata{}}
 	season.EpisodeCount = len(seasonDetails.Episodes)
 	for _, episode := range seasonDetails.Episodes {
 		season.Episodes = append(season.Episodes, domain.TVEpisodeMetadata{TMDBID: episode.ID, SeasonNumber: episode.SeasonNumber, EpisodeNumber: episode.EpisodeNumber, Name: episode.Name, Overview: episode.Overview, AirDate: episode.AirDate, Runtime: episode.Runtime, StillPath: episode.StillPath})
 	}
 	return season, nil
+}
+
+// FreshShowSummary bypasses cached browsing responses for durable refreshes.
+func (client *Client) FreshShowSummary(ctx context.Context, id int64) (domain.TVShowMetadata, error) {
+	return client.fetchShowSummary(ctx, id)
+}
+
+func (client *Client) FreshSeason(ctx context.Context, id int64, number int) (domain.TVSeasonMetadata, error) {
+	return client.fetchSeason(ctx, id, number)
+}
+
+// FreshShow is reserved for explicit full-series imports and administrator refreshes.
+func (client *Client) FreshShow(ctx context.Context, id int64) (domain.TVShowMetadata, error) {
+	show, err := client.FreshShowSummary(ctx, id)
+	if err != nil {
+		return show, err
+	}
+	for i := range show.Seasons {
+		season, err := client.FreshSeason(ctx, id, show.Seasons[i].Number)
+		if err != nil {
+			return domain.TVShowMetadata{}, err
+		}
+		show.Seasons[i] = season
+	}
+	return show, nil
 }

@@ -3,6 +3,8 @@ package sqlite
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -332,3 +334,71 @@ var _ interface {
 	MoviesNeedingReleaseRefresh(context.Context, time.Duration, int) ([]int64, error)
 	ImportShowMetadata(context.Context, string, domain.TVShowMetadata) error
 } = (*Store)(nil)
+
+func (store *Store) SeasonMetadataNeedsRefresh(ctx context.Context, id string, ttl time.Duration) (int64, int, bool, error) {
+	var showID int64
+	var number int
+	var stamp sql.NullString
+	err := store.DB.QueryRowContext(ctx, `SELECT m.tmdb_id,s.season_number,s.metadata_updated_at FROM seasons s JOIN media m ON m.id=s.show_id WHERE s.id=?`, id).Scan(&showID, &number, &stamp)
+	return showID, number, metadataStale(stamp, ttl), err
+}
+
+// EpisodeMetadata returns durable supplementary details with the latest catalog fields.
+func (store *Store) EpisodeMetadata(ctx context.Context, showID int64, season, number int, ttl time.Duration) (domain.TVEpisodeMetadata, bool, bool, error) {
+
+	var episode, details domain.TVEpisodeMetadata
+	var raw, stamp, catalogStamp sql.NullString
+	err := store.DB.QueryRowContext(ctx, `SELECT raw_metadata,details_updated_at,metadata_updated_at,COALESCE(tmdb_id,0),season_number,episode_number,COALESCE(name,''),COALESCE(overview,''),COALESCE(air_date,''),COALESCE(runtime,0),COALESCE(still_path,'') FROM episodes WHERE show_id=? AND season_number=? AND episode_number=? AND active=1`, fmt.Sprintf("tv:%d", showID), season, number).Scan(&raw, &stamp, &catalogStamp, &episode.TMDBID, &episode.SeasonNumber, &episode.EpisodeNumber, &episode.Name, &episode.Overview, &episode.AirDate, &episode.Runtime, &episode.StillPath)
+	if errors.Is(err, sql.ErrNoRows) {
+		return episode, false, false, nil
+	}
+	if err != nil {
+		return episode, false, false, err
+	}
+	if !raw.Valid || json.Unmarshal([]byte(raw.String), &details) != nil {
+		return episode, true, true, nil
+	}
+	catalogUpdated, _ := time.Parse(time.RFC3339Nano, catalogStamp.String)
+	detailsUpdated, _ := time.Parse(time.RFC3339Nano, stamp.String)
+	if !detailsUpdated.IsZero() && !catalogUpdated.After(detailsUpdated) {
+		episode = details
+	} else {
+		episode.VoteAverage, episode.ProductionCode, episode.GuestStars, episode.Crew = details.VoteAverage, details.ProductionCode, details.GuestStars, details.Crew
+	}
+	return episode, true, metadataStale(stamp, ttl), nil
+}
+
+func (store *Store) RefreshEpisodeMetadata(ctx context.Context, showID int64, episode domain.TVEpisodeMetadata) error {
+	if episode.TMDBID <= 0 || episode.Name == "" || episode.SeasonNumber < 0 || episode.EpisodeNumber <= 0 {
+		return fmt.Errorf("invalid episode metadata")
+	}
+	tx, err := store.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	var id string
+	var tmdbID sql.NullInt64
+	if err := tx.QueryRowContext(ctx, `SELECT id,tmdb_id FROM episodes WHERE show_id=? AND season_number=? AND episode_number=? AND active=1`, fmt.Sprintf("tv:%d", showID), episode.SeasonNumber, episode.EpisodeNumber).Scan(&id, &tmdbID); err != nil {
+		return err
+	}
+	if tmdbID.Valid && tmdbID.Int64 != episode.TMDBID {
+		return fmt.Errorf("episode identity changed")
+	}
+	newer, err := metadataNewer(ctx, tx, "SELECT details_updated_at FROM episodes WHERE id=?", id, episode.FetchStartedAt)
+	if err != nil {
+		return err
+	}
+	if newer {
+		return nil
+	}
+	raw, err := json.Marshal(episode)
+	if err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, `UPDATE episodes SET raw_metadata=?,details_updated_at=? WHERE id=?`, raw, metadataTimestamp(episode.FetchStartedAt), id)
+	if err != nil {
+		return err
+	}
+	return tx.Commit()
+}

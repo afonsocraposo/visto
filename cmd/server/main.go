@@ -89,6 +89,16 @@ func main() {
 	}
 	providers := newMetadataProviders(tmdbClient)
 	watchService := watch.NewService(store, providers.shows...)
+	metadataTTL := durationEnvironment("VISTO_ON_DEMAND_METADATA_TTL", 24*time.Hour)
+	libraryService := library.NewService(store)
+	libraryService.SetMetadataTTL(metadataTTL)
+	watchService.SetMetadataTTL(metadataTTL)
+	showBatch := intEnvironment("VISTO_CATALOG_SHOW_BATCH_SIZE", 10)
+	movieBatch := intEnvironment("VISTO_CATALOG_MOVIE_BATCH_SIZE", 10)
+	if showBatch <= 0 || movieBatch <= 0 {
+		log.Fatal("VISTO_CATALOG_SHOW_BATCH_SIZE and VISTO_CATALOG_MOVIE_BATCH_SIZE must be positive")
+	}
+	watchService.SetCatalogBatchSizes(showBatch, movieBatch)
 	refreshInterval := durationEnvironment("VISTO_CATALOG_REFRESH_INTERVAL", time.Hour)
 	activeRefreshTTL := durationEnvironment("VISTO_CATALOG_ACTIVE_TTL", 6*time.Hour)
 	finishedRefreshTTL := durationEnvironment("VISTO_CATALOG_FINISHED_TTL", 7*24*time.Hour)
@@ -208,7 +218,7 @@ func main() {
 			log.Printf("activity retention cleanup removed %d events", removed)
 		})
 	})
-	mcpHandler := mcpserver.NewWithTrustedProxies(authService, oauthService, publicURL, providers.metadata, library.NewService(store), tracking.NewService(store), watchService, trustedProxies)
+	mcpHandler := mcpserver.NewWithTrustedProxies(authService, oauthService, publicURL, providers.metadata, libraryService, tracking.NewService(store), watchService, trustedProxies)
 	appHandler.Handle("/mcp", mcpHandler)
 	appHandler.Handle("/oauth/", mcpHandler)
 	appHandler.Handle("/.well-known/", mcpHandler)
@@ -217,7 +227,7 @@ func main() {
 		ratingService = ratings.New(store, tmdbClient, omdb.New(key, nil))
 		startWorker(ratingService.RunRefresher)
 	}
-	appServer := httpserver.New(authService, providers.metadata, os.Getenv("VISTO_WEB_DIR"), library.NewService(store), tracking.NewService(store), profiles, feed.NewService(store), exportapp.NewService(store), watchService, pushConfig).
+	appServer := httpserver.New(authService, providers.metadata, os.Getenv("VISTO_WEB_DIR"), libraryService, tracking.NewService(store), profiles, feed.NewService(store), exportapp.NewService(store), watchService, pushConfig).
 		WithTrustedProxies(trustedProxies).WithOAuth(oauthService).WithGoogleOAuth(googleOAuth).
 		WithSeasonAlerts(seasonalerts.NewService(store)).WithExternalRatings(ratingService)
 	appServer.WithImports(importer.NewService(store, providers.importResolver, watchService.WakeMetadataBackfill))

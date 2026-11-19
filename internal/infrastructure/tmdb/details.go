@@ -132,6 +132,7 @@ func (client *Client) Episode(ctx context.Context, showID int64, seasonNumber in
 }
 
 func (client *Client) fetchMovie(ctx context.Context, tmdbID int64) (domain.MovieMetadata, error) {
+	started := time.Now().UTC()
 	if err := client.acquire(ctx); err != nil {
 		return domain.MovieMetadata{}, err
 	}
@@ -144,7 +145,7 @@ func (client *Client) fetchMovie(ctx context.Context, tmdbID int64) (domain.Movi
 	}); err != nil {
 		return domain.MovieMetadata{}, err
 	}
-	movie := domain.MovieMetadata{TMDBID: details.ID, Title: details.Title, OriginalTitle: details.OriginalTitle, Overview: details.Overview, PosterPath: details.PosterPath, BackdropPath: details.BackdropPath, ReleaseDate: details.ReleaseDate, OriginalLanguage: details.OriginalLanguage, Runtime: details.Runtime, Status: details.Status, VoteAverage: details.VoteAverage}
+	movie := domain.MovieMetadata{FetchStartedAt: started, TMDBID: details.ID, Title: details.Title, OriginalTitle: details.OriginalTitle, Overview: details.Overview, PosterPath: details.PosterPath, BackdropPath: details.BackdropPath, ReleaseDate: details.ReleaseDate, OriginalLanguage: details.OriginalLanguage, Runtime: details.Runtime, Status: details.Status, VoteAverage: details.VoteAverage}
 	for _, genre := range details.Genres {
 		movie.Genres = append(movie.Genres, genre.Name)
 	}
@@ -206,6 +207,7 @@ func (client *Client) fetchPerson(ctx context.Context, tmdbID int64) (domain.Per
 }
 
 func (client *Client) fetchEpisode(ctx context.Context, showID int64, seasonNumber int, episodeNumber int) (domain.TVEpisodeMetadata, error) {
+	started := time.Now().UTC()
 	if err := client.acquire(ctx); err != nil {
 		return domain.TVEpisodeMetadata{}, err
 	}
@@ -218,7 +220,7 @@ func (client *Client) fetchEpisode(ctx context.Context, showID int64, seasonNumb
 	}); err != nil {
 		return domain.TVEpisodeMetadata{}, err
 	}
-	episode := domain.TVEpisodeMetadata{TMDBID: details.ID, SeasonNumber: details.SeasonNumber, EpisodeNumber: details.EpisodeNumber, Name: details.Name, Overview: details.Overview, AirDate: details.AirDate, Runtime: details.Runtime, StillPath: details.StillPath, VoteAverage: details.VoteAverage, ProductionCode: details.ProductionCode}
+	episode := domain.TVEpisodeMetadata{FetchStartedAt: started, TMDBID: details.ID, SeasonNumber: details.SeasonNumber, EpisodeNumber: details.EpisodeNumber, Name: details.Name, Overview: details.Overview, AirDate: details.AirDate, Runtime: details.Runtime, StillPath: details.StillPath, VoteAverage: details.VoteAverage, ProductionCode: details.ProductionCode}
 	for _, member := range details.GuestStars {
 		episode.GuestStars = append(episode.GuestStars, domain.TVCastMember{ID: member.ID, Name: member.Name, Character: member.Character, ProfilePath: member.ProfilePath})
 	}
@@ -228,4 +230,12 @@ func (client *Client) fetchEpisode(ctx context.Context, showID int64, seasonNumb
 		}
 	}
 	return episode, nil
+}
+
+func (client *Client) FreshMovie(ctx context.Context, id int64) (domain.MovieMetadata, error) {
+	return client.fetchMovie(ctx, id)
+}
+
+func (client *Client) FreshEpisode(ctx context.Context, id int64, season, number int) (domain.TVEpisodeMetadata, error) {
+	return client.fetchEpisode(ctx, id, season, number)
 }

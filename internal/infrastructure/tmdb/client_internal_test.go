@@ -521,3 +521,44 @@ func TestShowSummary_GivenAggregateCredits_WhenFetched_ThenCastSpansTheWholeSeri
 		t.Fatalf("calls=%d err=%v, want aggregate cast cached with the summary", calls.Load(), err)
 	}
 }
+
+func TestDurableRefreshesBypassBrowsingCaches(t *testing.T) {
+	var calls atomic.Int32
+	client, err := New("test-key", &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		calls.Add(1)
+		body := `{"id":42,"title":"Fresh movie","name":"Fresh","season_number":1,"episode_number":1,"seasons":[{"id":1,"season_number":1,"episode_count":1}],"episodes":[{"id":42,"season_number":1,"episode_number":1,"name":"Fresh episode"}]}`
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header), Request: request}, nil
+	})})
+	if err != nil {
+		t.Fatal(err)
+	}
+	expires := time.Now().Add(time.Hour)
+	client.showCache[42] = cachedShow{show: domain.TVShowMetadata{TMDBID: 42, Name: "Old full show", Seasons: []domain.TVSeasonMetadata{{Number: 1, Episodes: []domain.TVEpisodeMetadata{{TMDBID: 1}}}}}, expiresAt: expires}
+	client.summaryCache[42] = cachedShow{show: domain.TVShowMetadata{TMDBID: 42, Name: "Old summary"}, expiresAt: expires}
+	client.movieCache[42] = cachedMovie{movie: domain.MovieMetadata{TMDBID: 42, Title: "Old movie"}, expiresAt: expires}
+	client.seasonCache["42:1"] = cachedSeason{season: domain.TVSeasonMetadata{Number: 1, Name: "Old season"}, expiresAt: expires}
+	client.episodeCache["42:1:1"] = cachedEpisode{episode: domain.TVEpisodeMetadata{Name: "Old episode"}, expiresAt: expires}
+	ctx := context.Background()
+	show, err := client.FreshShowSummary(ctx, 42)
+	if err != nil || show.Name != "Fresh" || len(show.Seasons) != 1 || show.Seasons[0].Episodes != nil {
+		t.Fatalf("summary=%+v err=%v", show, err)
+	}
+	movie, err := client.FreshMovie(ctx, 42)
+	if err != nil || movie.Title != "Fresh movie" {
+		t.Fatalf("movie=%+v err=%v", movie, err)
+	}
+	season, err := client.FreshSeason(ctx, 42, 1)
+	if err != nil || season.Name != "Fresh" {
+		t.Fatalf("season=%+v err=%v", season, err)
+	}
+	episode, err := client.FreshEpisode(ctx, 42, 1, 1)
+	if err != nil || episode.Name != "Fresh" {
+		t.Fatalf("episode=%+v err=%v", episode, err)
+	}
+	if calls.Load() != 4 {
+		t.Fatalf("requests=%d, want exactly one per selected resource", calls.Load())
+	}
+	if client.showCache[42].expiresAt != expires || client.movieCache[42].expiresAt != expires {
+		t.Fatal("durable refresh changed cache TTLs")
+	}
+}
