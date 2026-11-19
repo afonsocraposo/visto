@@ -256,7 +256,7 @@ func mediaDetails(authService *auth.Service, service *library.Service, provider 
 			writeError(w, http.StatusBadRequest, "invalid TMDB ID")
 			return
 		}
-		entry, err := service.HydrateMissing(r.Context(), user.ID, mediaType, tmdbID, provider)
+		entry, err := service.Details(r.Context(), user.ID, mediaType, tmdbID, provider)
 		if err != nil {
 			if errors.Is(err, library.ErrMediaNotFound) {
 				if mediaType == domain.TVMediaType {

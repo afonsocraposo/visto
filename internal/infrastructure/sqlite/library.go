@@ -53,12 +53,30 @@ func (s *Store) SaveMovieMetadata(ctx context.Context, movie domain.MovieMetadat
 }
 
 func (s *Store) RefreshMovieMetadata(ctx context.Context, movie domain.MovieMetadata) error {
+	if movie.TMDBID <= 0 || movie.Title == "" {
+		return fmt.Errorf("invalid movie metadata")
+	}
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	newer, err := metadataNewer(ctx, tx, "SELECT metadata_updated_at FROM media WHERE id=?", fmt.Sprintf("movie:%d", movie.TMDBID), movie.FetchStartedAt)
+	if err != nil {
+		return err
+	}
+	if newer {
+		return nil
+	}
 	raw, err := json.Marshal(mediaExtras{Cast: movie.Cast, Runtime: movie.Runtime, Genres: movie.Genres, VoteAverage: movie.VoteAverage})
 	if err != nil {
 		return err
 	}
-	_, err = s.DB.ExecContext(ctx, `UPDATE media SET title=?,original_title=?,overview=?,release_date=?,poster_path=?,backdrop_path=?,original_language=?,status=?,raw_metadata=?,metadata_updated_at=? WHERE media_type='movie' AND tmdb_id=?`, movie.Title, movie.OriginalTitle, movie.Overview, movie.ReleaseDate, movie.PosterPath, movie.BackdropPath, movie.OriginalLanguage, movie.Status, raw, time.Now().UTC().Format(time.RFC3339Nano), movie.TMDBID)
-	return err
+	_, err = tx.ExecContext(ctx, `UPDATE media SET title=?,original_title=?,overview=?,release_date=?,poster_path=?,backdrop_path=?,original_language=?,status=?,raw_metadata=?,metadata_updated_at=? WHERE media_type='movie' AND tmdb_id=?`, movie.Title, movie.OriginalTitle, movie.Overview, movie.ReleaseDate, movie.PosterPath, movie.BackdropPath, movie.OriginalLanguage, movie.Status, raw, metadataTimestamp(movie.FetchStartedAt), movie.TMDBID)
+	if err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (s *Store) CatalogMediaExists(ctx context.Context, mediaType domain.MediaType, tmdbID int64) (bool, error) {
@@ -103,6 +121,26 @@ func (s *Store) ShowMetadataMissing(ctx context.Context, tmdbID int64) (bool, er
 }
 
 func (s *Store) ImportShowMetadata(ctx context.Context, showID string, show domain.TVShowMetadata) error {
+	if show.TMDBID <= 0 || show.Name == "" {
+		return fmt.Errorf("invalid show metadata")
+	}
+	return s.importShowMetadata(ctx, showID, show, false)
+}
+
+// RefreshSeasonMetadata uses the same reconciliation transaction without advancing show freshness.
+func (s *Store) RefreshSeasonMetadata(ctx context.Context, showID string, season domain.TVSeasonMetadata) error {
+	if season.Number < 0 || season.Episodes == nil {
+		return fmt.Errorf("invalid season metadata")
+	}
+	for _, episode := range season.Episodes {
+		if episode.SeasonNumber != season.Number || episode.EpisodeNumber <= 0 {
+			return fmt.Errorf("invalid season episode")
+		}
+	}
+	return s.importShowMetadata(ctx, showID, domain.TVShowMetadata{Seasons: []domain.TVSeasonMetadata{season}}, true)
+}
+
+func (s *Store) importShowMetadata(ctx context.Context, showID string, show domain.TVShowMetadata, seasonOnly bool) error {
 	raw, err := json.Marshal(mediaExtras{Cast: show.Cast})
 	if err != nil {
 		return err
@@ -112,12 +150,41 @@ func (s *Store) ImportShowMetadata(ctx context.Context, showID string, show doma
 		return fmt.Errorf("begin show metadata import: %w", err)
 	}
 	defer tx.Rollback()
-	now := time.Now().UTC().Format(time.RFC3339Nano)
-	if _, err := tx.ExecContext(ctx, `UPDATE media SET title=?,original_title=?,overview=?,release_date=?,poster_path=?,backdrop_path=?,original_language=?,status=?,raw_metadata=?,metadata_updated_at=?,catalog_updated_at=? WHERE id=? AND media_type='tv' AND tmdb_id=?`, show.Name, show.Name, show.Overview, show.FirstAirDate, show.PosterPath, show.BackdropPath, show.OriginalLanguage, show.Status, raw, now, now, showID, show.TMDBID); err != nil {
-		return fmt.Errorf("update show metadata: %w", err)
+	now := metadataTimestamp(show.FetchStartedAt)
+	var catalogUpdated any
+	if len(show.Seasons) == 0 {
+		catalogUpdated = now
+	}
+	for _, season := range show.Seasons {
+		if season.Episodes != nil {
+			catalogUpdated = now
+			break
+		}
+	}
+	if !seasonOnly {
+		newer, err := metadataNewer(ctx, tx, "SELECT metadata_updated_at FROM media WHERE id=?", showID, show.FetchStartedAt)
+		if err != nil {
+			return err
+		}
+		if !newer {
+			if _, err := tx.ExecContext(ctx, `UPDATE media SET title=?,original_title=?,overview=?,release_date=?,poster_path=?,backdrop_path=?,original_language=?,status=?,raw_metadata=?,metadata_updated_at=?,catalog_updated_at=COALESCE(?,catalog_updated_at) WHERE id=? AND media_type='tv' AND tmdb_id=?`, show.Name, show.Name, show.Overview, show.FirstAirDate, show.PosterPath, show.BackdropPath, show.OriginalLanguage, show.Status, raw, now, catalogUpdated, showID, show.TMDBID); err != nil {
+				return fmt.Errorf("update show metadata: %w", err)
+			}
+		}
 	}
 	for _, season := range show.Seasons {
 		seasonID := fmt.Sprintf("%s:season:%d", showID, season.Number)
+		started := season.FetchStartedAt
+		if started.IsZero() {
+			started = show.FetchStartedAt
+		}
+		newer, err := metadataNewer(ctx, tx, "SELECT metadata_updated_at FROM seasons WHERE id=?", seasonID, started)
+		if err != nil {
+			return err
+		}
+		if newer {
+			continue
+		}
 		var seasonTMDB any
 		if season.TMDBID > 0 {
 			seasonTMDB = season.TMDBID
@@ -131,6 +198,9 @@ func (s *Store) ImportShowMetadata(ctx context.Context, showID string, show doma
 			return fmt.Errorf("upsert season %d: %w", season.Number, err)
 		}
 		if season.Episodes != nil {
+			if _, err := tx.ExecContext(ctx, `UPDATE seasons SET metadata_updated_at=? WHERE id=?`, metadataTimestamp(started), seasonID); err != nil {
+				return err
+			}
 			if err := reconcileSeasonEpisodes(ctx, tx, seasonID, season.Episodes); err != nil {
 				return fmt.Errorf("reconcile season %d: %w", season.Number, err)
 			}
@@ -144,7 +214,7 @@ func (s *Store) ImportShowMetadata(ctx context.Context, showID string, show doma
 				episodeID = fmt.Sprintf("%s:episode:%d:%d", showID, episode.SeasonNumber, episode.EpisodeNumber)
 			}
 			if _, err := tx.ExecContext(ctx, `INSERT INTO episodes(id,show_id,season_id,tmdb_id,season_number,episode_number,name,overview,air_date,runtime,still_path,metadata_updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
-				ON CONFLICT DO UPDATE SET season_id=excluded.season_id,tmdb_id=excluded.tmdb_id,season_number=excluded.season_number,episode_number=excluded.episode_number,name=excluded.name,overview=excluded.overview,air_date=excluded.air_date,runtime=excluded.runtime,still_path=excluded.still_path,metadata_updated_at=excluded.metadata_updated_at,active=1,original_episode_number=NULL`, episodeID, showID, seasonID, episodeTMDB, episode.SeasonNumber, episode.EpisodeNumber, episode.Name, episode.Overview, episode.AirDate, episode.Runtime, episode.StillPath, now); err != nil {
+				ON CONFLICT DO UPDATE SET season_id=excluded.season_id,tmdb_id=excluded.tmdb_id,season_number=excluded.season_number,episode_number=excluded.episode_number,name=excluded.name,overview=excluded.overview,air_date=excluded.air_date,runtime=excluded.runtime,still_path=excluded.still_path,metadata_updated_at=excluded.metadata_updated_at,active=1,original_episode_number=NULL`, episodeID, showID, seasonID, episodeTMDB, episode.SeasonNumber, episode.EpisodeNumber, episode.Name, episode.Overview, episode.AirDate, episode.Runtime, episode.StillPath, metadataTimestamp(started)); err != nil {
 				return fmt.Errorf("upsert S%02dE%02d: %w", episode.SeasonNumber, episode.EpisodeNumber, err)
 			}
 		}
@@ -595,3 +665,42 @@ var _ interface {
 	ListItems(context.Context, string) ([]library.Entry, error)
 	GetMediaByTMDBID(context.Context, string, domain.MediaType, int64) (library.Entry, error)
 } = (*Store)(nil)
+
+// metadataNewer prevents an earlier provider request from replacing a later saved snapshot.
+func metadataNewer(ctx context.Context, tx *sql.Tx, query, id string, started time.Time) (bool, error) {
+	if started.IsZero() {
+		return false, nil
+	}
+	var stamp sql.NullString
+	err := tx.QueryRowContext(ctx, query, id).Scan(&stamp)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	updated, _ := time.Parse(time.RFC3339Nano, stamp.String)
+	return updated.After(started), nil
+}
+
+func (s *Store) MediaMetadataNeedsRefresh(ctx context.Context, id string, ttl time.Duration) (bool, error) {
+	var stamp sql.NullString
+	err := s.DB.QueryRowContext(ctx, `SELECT metadata_updated_at FROM media WHERE id=?`, id).Scan(&stamp)
+	if err != nil {
+		return false, err
+	}
+	return metadataStale(stamp, ttl), nil
+}
+
+func metadataStale(stamp sql.NullString, ttl time.Duration) bool {
+	updated, err := time.Parse(time.RFC3339Nano, stamp.String)
+	return err != nil || time.Since(updated) >= ttl
+}
+
+// Use request start time so overlapping resources keep the order of their snapshots.
+func metadataTimestamp(started time.Time) string {
+	if started.IsZero() {
+		started = time.Now()
+	}
+	return started.UTC().Format(time.RFC3339Nano)
+}

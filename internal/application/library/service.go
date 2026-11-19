@@ -104,8 +104,9 @@ type catalogMediaRepository interface {
 	CatalogMediaExists(context.Context, domain.MediaType, int64) (bool, error)
 }
 type Service struct {
-	repository Repository
-	now        func() time.Time
+	repository  Repository
+	now         func() time.Time
+	metadataTTL time.Duration
 }
 
 type notificationPreferenceRepository interface {
@@ -156,7 +157,7 @@ func (s *Service) StoreMedia(ctx context.Context, media Media) error {
 }
 
 func NewService(repository Repository) *Service {
-	return &Service{repository: repository, now: time.Now}
+	return &Service{repository: repository, now: time.Now, metadataTTL: 24 * time.Hour}
 }
 func (s *Service) Save(ctx context.Context, userID, mediaID string, status domain.LibraryStatus, rating *int) (Item, error) {
 	if userID == "" || mediaID == "" {
@@ -385,7 +386,17 @@ func (s *Service) importShow(ctx context.Context, tmdbID int64, provider domain.
 	if !needsRefresh {
 		return nil
 	}
-	metadata, err := provider.Show(ctx, tmdbID)
+	started := time.Now().UTC()
+	var metadata domain.TVShowMetadata
+	var err error
+	if fresh, ok := provider.(interface {
+		FreshShow(context.Context, int64) (domain.TVShowMetadata, error)
+	}); ok {
+		metadata, err = fresh.FreshShow(ctx, tmdbID)
+	} else {
+		metadata, err = provider.Show(ctx, tmdbID)
+	}
+	metadata.FetchStartedAt = started
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrMetadataProvider, err)
 	}
@@ -405,7 +416,17 @@ func (s *Service) RefreshMovie(ctx context.Context, tmdbID int64, provider domai
 	if !ok {
 		return fmt.Errorf("movie metadata storage is not configured")
 	}
-	metadata, err := provider.Movie(ctx, tmdbID)
+	started := time.Now().UTC()
+	var metadata domain.MovieMetadata
+	var err error
+	if fresh, ok := provider.(interface {
+		FreshMovie(context.Context, int64) (domain.MovieMetadata, error)
+	}); ok {
+		metadata, err = fresh.FreshMovie(ctx, tmdbID)
+	} else {
+		metadata, err = provider.Movie(ctx, tmdbID)
+	}
+	metadata.FetchStartedAt = started
 	if err != nil {
 		return fmt.Errorf("%w: %w", ErrMetadataProvider, err)
 	}
@@ -469,4 +490,78 @@ func (s *Service) ImportShowSeason(ctx context.Context, userID string, show doma
 		show.Seasons = append(show.Seasons, season)
 	}
 	return repository.ImportShowMetadata(ctx, fmt.Sprintf("tv:%d", show.TMDBID), show)
+}
+
+func (s *Service) SetMetadataTTL(ttl time.Duration) { s.metadataTTL = ttl }
+
+// Details refreshes only saved titles. Provider failures leave the stored snapshot available.
+func (s *Service) Details(ctx context.Context, userID string, mediaType domain.MediaType, id int64, provider domain.MetadataProvider) (Entry, error) {
+	entry, err := s.GetByTMDBID(ctx, userID, mediaType, id)
+	if err != nil || provider == nil {
+		return entry, err
+	}
+	repo, ok := s.repository.(interface {
+		MediaMetadataNeedsRefresh(context.Context, string, time.Duration) (bool, error)
+		RefreshMetadataOnce(context.Context, string, func() error) error
+	})
+	if !ok {
+		return s.HydrateMissing(ctx, userID, mediaType, id, provider)
+	}
+	key := fmt.Sprintf("%s:%d", mediaType, id)
+	err = repo.RefreshMetadataOnce(ctx, key, func() error {
+		stale, err := repo.MediaMetadataNeedsRefresh(ctx, key, s.metadataTTL)
+		if err != nil || !stale {
+			return err
+		}
+		started := time.Now().UTC()
+		if mediaType == domain.MovieMediaType {
+			var movie domain.MovieMetadata
+			if fresh, ok := provider.(interface {
+				FreshMovie(context.Context, int64) (domain.MovieMetadata, error)
+			}); ok {
+				movie, err = fresh.FreshMovie(ctx, id)
+			} else if fetcher, ok := provider.(domain.MovieMetadataProvider); ok {
+				movie, err = fetcher.Movie(ctx, id)
+			} else {
+				return nil
+			}
+			if err != nil || movie.TMDBID != id || movie.Title == "" {
+				return nil
+			}
+			movie.FetchStartedAt = started
+			if writer, ok := s.repository.(movieMetadataRefreshRepository); ok {
+				return writer.RefreshMovieMetadata(ctx, movie)
+			}
+		} else {
+			var show domain.TVShowMetadata
+			if fresh, ok := provider.(interface {
+				FreshShowSummary(context.Context, int64) (domain.TVShowMetadata, error)
+			}); ok {
+				show, err = fresh.FreshShowSummary(ctx, id)
+			} else if fetcher, ok := provider.(domain.TVShowSummaryProvider); ok {
+				show, err = fetcher.ShowSummary(ctx, id)
+			} else {
+				return nil
+			}
+			if err != nil || show.TMDBID != id || show.Name == "" {
+				return nil
+			}
+			// A summary must never carry episodes from a provider's full-show cache.
+			for i := range show.Seasons {
+				show.Seasons[i].Episodes = nil
+			}
+			show.FetchStartedAt = started
+			if writer, ok := s.repository.(showMetadataRepository); ok {
+				return writer.ImportShowMetadata(ctx, key, show)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		if ctx.Err() != nil {
+			return entry, ctx.Err()
+		}
+		return entry, nil
+	}
+	return s.GetByTMDBID(ctx, userID, mediaType, id)
 }

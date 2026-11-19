@@ -1,6 +1,9 @@
 package domain
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // MetadataProvider is the domain boundary for external media metadata.
 // Implementations may cache and rate-limit provider requests, but callers never
@@ -78,6 +81,7 @@ type PersonCredit struct {
 }
 
 type TVShowMetadata struct {
+	FetchStartedAt   time.Time `json:"-"`
 	TMDBID           int64
 	Name             string
 	Overview         string
@@ -98,17 +102,19 @@ type TVCastMember struct {
 }
 
 type TVSeasonMetadata struct {
-	TMDBID       int64
-	Number       int
-	EpisodeCount int
-	Name         string
-	Overview     string
-	PosterPath   string
-	AirDate      string
-	Episodes     []TVEpisodeMetadata
+	FetchStartedAt time.Time `json:"-"`
+	TMDBID         int64
+	Number         int
+	EpisodeCount   int
+	Name           string
+	Overview       string
+	PosterPath     string
+	AirDate        string
+	Episodes       []TVEpisodeMetadata
 }
 
 type TVEpisodeMetadata struct {
+	FetchStartedAt time.Time `json:"-"`
 	TMDBID         int64
 	SeasonNumber   int
 	EpisodeNumber  int
@@ -132,6 +138,7 @@ type TVCrewMember struct {
 }
 
 type MovieMetadata struct {
+	FetchStartedAt   time.Time `json:"-"`
 	TMDBID           int64
 	Title            string
 	OriginalTitle    string

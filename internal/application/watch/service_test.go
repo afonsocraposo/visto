@@ -14,6 +14,9 @@ type metadataRepository struct {
 	showIDs      []int64
 	imported     []int64
 	refreshLimit int
+	movieIDs     []int64
+	movies       []int64
+	movieLimit   int
 	missing      bool
 }
 
@@ -39,6 +42,9 @@ func (r *metadataRepository) ImportShowMetadata(_ context.Context, showID string
 type showMetadataProvider struct {
 	calls        []int64
 	refreshCalls []int64
+	movieCalls   []int64
+	failID       int64
+	cancel       context.CancelFunc
 }
 
 func (p *showMetadataProvider) Show(_ context.Context, tmdbID int64) (domain.TVShowMetadata, error) {
@@ -48,6 +54,13 @@ func (p *showMetadataProvider) Show(_ context.Context, tmdbID int64) (domain.TVS
 
 func (p *showMetadataProvider) RefreshShow(_ context.Context, tmdbID int64) (domain.TVShowMetadata, error) {
 	p.refreshCalls = append(p.refreshCalls, tmdbID)
+	if p.cancel != nil {
+		p.cancel()
+		return domain.TVShowMetadata{}, context.Canceled
+	}
+	if tmdbID == p.failID {
+		return domain.TVShowMetadata{}, fmt.Errorf("unavailable")
+	}
 	return domain.TVShowMetadata{TMDBID: tmdbID, Name: fmt.Sprintf("Show %d", tmdbID)}, nil
 }
 
@@ -247,15 +260,16 @@ func TestRefreshCatalog_GivenManyStaleShows_WhenSchedulerRefreshesCatalog_ThenPr
 	repository := &metadataRepository{showIDs: []int64{10, 11, 12, 13, 14}}
 	provider := &showMetadataProvider{}
 	service := NewService(repository, provider)
+	service.SetCatalogBatchSizes(3, 4)
 
 	if err := service.RefreshCatalog(context.Background(), 24*time.Hour, 30*24*time.Hour); err != nil {
 		t.Fatal(err)
 	}
-	if len(provider.refreshCalls) != maxShowRefreshesPerRequest || len(provider.calls) != 0 || len(repository.imported) != maxShowRefreshesPerRequest {
-		t.Fatalf("bounded provider calls=%v full provider calls=%v imports=%v, want at most %d bounded refreshes for one request", provider.refreshCalls, provider.calls, repository.imported, maxShowRefreshesPerRequest)
+	if len(provider.refreshCalls) != 3 || len(provider.calls) != 0 || len(repository.imported) != 3 {
+		t.Fatalf("bounded provider calls=%v full provider calls=%v imports=%v, want at most %d bounded refreshes for one request", provider.refreshCalls, provider.calls, repository.imported, 3)
 	}
-	if repository.refreshLimit != maxShowRefreshesPerRequest {
-		t.Fatalf("refresh query limit=%d, want %d", repository.refreshLimit, maxShowRefreshesPerRequest)
+	if repository.refreshLimit != 3 {
+		t.Fatalf("refresh query limit=%d, want %d", repository.refreshLimit, 3)
 	}
 	if provider.refreshCalls[0] != 10 || provider.refreshCalls[1] != 11 {
 		t.Fatalf("refresh order=%v, want most recently tracked shows first", provider.refreshCalls)
@@ -271,5 +285,55 @@ func TestRefreshCatalog_GivenRestoredShow_WhenMetadataIsMissing_ThenLoadsAllSeas
 	}
 	if len(provider.calls) != 1 || provider.calls[0] != 10 || len(provider.refreshCalls) != 0 {
 		t.Fatalf("full calls=%v, bounded calls=%v", provider.calls, provider.refreshCalls)
+	}
+}
+
+func (r *metadataRepository) MoviesNeedingReleaseRefresh(_ context.Context, _ time.Duration, limit int) ([]int64, error) {
+	r.movieLimit = limit
+	if len(r.movieIDs) > limit {
+		return r.movieIDs[:limit], nil
+	}
+	return r.movieIDs, nil
+}
+func (r *metadataRepository) RefreshMovieMetadata(_ context.Context, movie domain.MovieMetadata) error {
+	r.movies = append(r.movies, movie.TMDBID)
+	return nil
+}
+func (p *showMetadataProvider) Movie(_ context.Context, id int64) (domain.MovieMetadata, error) {
+	p.movieCalls = append(p.movieCalls, id)
+	if id == p.failID {
+		return domain.MovieMetadata{}, fmt.Errorf("unavailable")
+	}
+	return domain.MovieMetadata{TMDBID: id, Title: "Movie"}, nil
+}
+func TestCatalogBatchSizesAndFailureIsolation(t *testing.T) {
+	for _, custom := range []bool{false, true} {
+		t.Run(fmt.Sprint(custom), func(t *testing.T) {
+			ids := []int64{10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21}
+			repo := &metadataRepository{showIDs: ids, movieIDs: ids}
+			provider := &showMetadataProvider{failID: 10}
+			service := NewService(repo, provider)
+			shows, movies := 10, 10
+			if custom {
+				shows, movies = 3, 2
+				service.SetCatalogBatchSizes(shows, movies)
+			}
+			if err := service.RefreshCatalog(context.Background(), time.Hour, 7*24*time.Hour); err != nil {
+				t.Fatal(err)
+			}
+			if len(provider.refreshCalls) != shows || len(provider.movieCalls) != movies || len(repo.imported) != shows-1 || len(repo.movies) != movies-1 || repo.refreshLimit != shows || repo.movieLimit != movies {
+				t.Fatalf("calls shows=%v movies=%v imports shows=%v movies=%v limits=%d,%d", provider.refreshCalls, provider.movieCalls, repo.imported, repo.movies, repo.refreshLimit, repo.movieLimit)
+			}
+		})
+	}
+}
+func TestCatalogRefreshStopsOnCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	repo := &metadataRepository{showIDs: []int64{10, 11}, movieIDs: []int64{10, 11}}
+	provider := &showMetadataProvider{cancel: cancel}
+	err := NewService(repo, provider).RefreshCatalog(ctx, time.Hour, time.Hour)
+	if err != context.Canceled || len(provider.refreshCalls) != 1 || len(repo.imported) != 0 || len(provider.movieCalls) != 0 {
+		t.Fatalf("cancellation: err=%v show calls=%v imports=%v movie calls=%v", err, provider.refreshCalls, repo.imported, provider.movieCalls)
 	}
 }

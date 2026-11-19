@@ -85,8 +85,8 @@ func TestRefreshCatalog_RepairsOldSeasonWithoutLosingHistory(t *testing.T) {
 	}
 	provider := &repairingCatalogProvider{fail: true}
 	service := watch.NewService(store, provider)
-	if err := service.RefreshCatalog(ctx, 24*time.Hour, 30*24*time.Hour); err == nil {
-		t.Fatal("expected season fetch failure")
+	if err := service.RefreshCatalog(ctx, 24*time.Hour, 30*24*time.Hour); err != nil {
+		t.Fatal(err)
 	}
 	var after string
 	if err := store.DB.QueryRow(`SELECT catalog_updated_at FROM media WHERE id='tv:42'`).Scan(&after); err != nil || after != before {
@@ -377,5 +377,115 @@ func TestRefreshShow_GivenSavedShowWithPartialCast_WhenRefreshed_ThenTheAggregat
 	}
 	if !slices.Equal(entry.Cast, show.Cast) {
 		t.Fatalf("saved cast=%+v, want refreshed aggregate cast %+v", entry.Cast, show.Cast)
+	}
+}
+
+func TestOlderRefreshesCannotOverwriteNewerCatalogSnapshots(t *testing.T) {
+	ctx := context.Background()
+	store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "visto.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	userID := insertTestUser(t, store.DB, "ordered", "Ordered", "private")
+	libraries := library.NewService(store)
+	for _, media := range []library.Media{{Type: domain.TVMediaType, TMDBID: 42, Title: "Show"}, {Type: domain.MovieMediaType, TMDBID: 43, Title: "Movie"}} {
+		if _, err := libraries.SaveMedia(ctx, userID, media, domain.WatchlistStatus, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	started := time.Now().Add(-time.Hour)
+	season := domain.TVSeasonMetadata{Number: 1, Name: "New season", Episodes: []domain.TVEpisodeMetadata{{TMDBID: 101, SeasonNumber: 1, EpisodeNumber: 1, Name: "New episode"}}}
+	show := domain.TVShowMetadata{TMDBID: 42, Name: "New show", Seasons: []domain.TVSeasonMetadata{season}}
+	if err := store.ImportShowMetadata(ctx, "tv:42", show); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.RefreshMovieMetadata(ctx, domain.MovieMetadata{TMDBID: 43, Title: "New movie"}); err != nil {
+		t.Fatal(err)
+	}
+	episode := domain.TVEpisodeMetadata{TMDBID: 101, SeasonNumber: 1, EpisodeNumber: 1, Name: "New episode", ProductionCode: "new"}
+	if err := store.RefreshEpisodeMetadata(ctx, 42, episode); err != nil {
+		t.Fatal(err)
+	}
+	show.Name, show.FetchStartedAt = "Old show", started
+	show.Seasons[0].Episodes = []domain.TVEpisodeMetadata{}
+	if err := store.ImportShowMetadata(ctx, "tv:42", show); err != nil {
+		t.Fatal(err)
+	}
+	season.FetchStartedAt, season.Name, season.Episodes = started, "Old season", []domain.TVEpisodeMetadata{}
+	if err := store.RefreshSeasonMetadata(ctx, "tv:42", season); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.RefreshMovieMetadata(ctx, domain.MovieMetadata{TMDBID: 43, Title: "Old movie", FetchStartedAt: started}); err != nil {
+		t.Fatal(err)
+	}
+	episode.ProductionCode, episode.FetchStartedAt = "old", started
+	if err := store.RefreshEpisodeMetadata(ctx, 42, episode); err != nil {
+		t.Fatal(err)
+	}
+	for kind, id := range map[domain.MediaType]int64{domain.TVMediaType: 42, domain.MovieMediaType: 43} {
+		entry, err := libraries.GetByTMDBID(ctx, userID, kind, id)
+		if err != nil || (entry.Media.Title != "New show" && entry.Media.Title != "New movie") {
+			t.Fatalf("overwrote newer %s: %+v %v", kind, entry, err)
+		}
+	}
+	details, exists, stale, err := store.EpisodeMetadata(ctx, 42, 1, 1, 24*time.Hour)
+	if err != nil || !exists || stale || details.ProductionCode != "new" {
+		t.Fatalf("details overwritten: %+v exists=%v stale=%v err=%v", details, exists, stale, err)
+	}
+	var name string
+	if err := store.DB.QueryRow(`SELECT name FROM seasons WHERE show_id='tv:42'`).Scan(&name); err != nil || name != "New season" {
+		t.Fatalf("season overwritten: %q %v", name, err)
+	}
+}
+
+func TestEpisodeDetailsAndSeasonRefreshKeepTheNewerSnapshot(t *testing.T) {
+	for _, newerDetails := range []bool{false, true} {
+		t.Run(fmt.Sprint(newerDetails), func(t *testing.T) {
+			ctx := context.Background()
+			store, err := sqlite.Open(ctx, filepath.Join(t.TempDir(), "visto.db"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer store.Close()
+			if _, err := store.DB.Exec(`INSERT INTO media(id,media_type,tmdb_id,title,metadata_updated_at,created_at) VALUES('tv:42','tv',42,'Show','','2026-01-01')`); err != nil {
+				t.Fatal(err)
+			}
+			now := time.Now().UTC()
+			season := domain.TVSeasonMetadata{Number: 1, FetchStartedAt: now.Add(-3 * time.Hour), Episodes: []domain.TVEpisodeMetadata{{TMDBID: 101, SeasonNumber: 1, EpisodeNumber: 1, Name: "Initial"}}}
+			if err := store.RefreshSeasonMetadata(ctx, "tv:42", season); err != nil {
+				t.Fatal(err)
+			}
+			details := domain.TVEpisodeMetadata{TMDBID: 101, SeasonNumber: 1, EpisodeNumber: 1, Name: "Details", ProductionCode: "keep", FetchStartedAt: now.Add(-2 * time.Hour)}
+			season.FetchStartedAt = now.Add(-time.Hour)
+			season.Episodes[0].Name = "Catalog"
+			if newerDetails {
+				details.FetchStartedAt, season.FetchStartedAt = season.FetchStartedAt, details.FetchStartedAt
+			}
+			// Complete the older request last to exercise overlapping fetches.
+			if newerDetails {
+				if err := store.RefreshEpisodeMetadata(ctx, 42, details); err != nil {
+					t.Fatal(err)
+				}
+				if err := store.RefreshSeasonMetadata(ctx, "tv:42", season); err != nil {
+					t.Fatal(err)
+				}
+			} else {
+				if err := store.RefreshSeasonMetadata(ctx, "tv:42", season); err != nil {
+					t.Fatal(err)
+				}
+				if err := store.RefreshEpisodeMetadata(ctx, 42, details); err != nil {
+					t.Fatal(err)
+				}
+			}
+			episode, _, _, err := store.EpisodeMetadata(ctx, 42, 1, 1, 24*time.Hour)
+			want := "Catalog"
+			if newerDetails {
+				want = "Details"
+			}
+			if err != nil || episode.Name != want || episode.ProductionCode != "keep" {
+				t.Fatalf("episode=%+v err=%v want name %q", episode, err, want)
+			}
+		})
 	}
 }

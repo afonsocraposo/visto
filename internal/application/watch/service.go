@@ -111,10 +111,13 @@ type Service struct {
 	now              func() time.Time
 	metadataProvider domain.TVShowMetadataProvider
 	backfillWake     chan struct{}
+	metadataTTL      time.Duration
+	showBatchSize    int
+	movieBatchSize   int
 }
 
 func NewService(repository Repository, providers ...domain.TVShowMetadataProvider) *Service {
-	service := &Service{repository: repository, now: time.Now, backfillWake: make(chan struct{}, 1)}
+	service := &Service{repository: repository, now: time.Now, backfillWake: make(chan struct{}, 1), metadataTTL: 24 * time.Hour, showBatchSize: 10, movieBatchSize: 10}
 	if len(providers) > 0 {
 		service.metadataProvider = providers[0]
 	}
@@ -198,4 +201,9 @@ func continueActivityTime(shows []Show, entry ContinueEntry, now time.Time) time
 		return latest
 	}
 	return time.Time{}
+}
+
+func (service *Service) SetMetadataTTL(ttl time.Duration) { service.metadataTTL = ttl }
+func (service *Service) SetCatalogBatchSizes(shows, movies int) {
+	service.showBatchSize, service.movieBatchSize = shows, movies
 }

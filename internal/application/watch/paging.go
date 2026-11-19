@@ -29,5 +29,13 @@ func (service *Service) SeasonEpisodesPage(ctx context.Context, userID, seasonID
 	if !ok {
 		return pagination.Page[ShowEpisode]{}, fmt.Errorf("episode paging is not configured")
 	}
+	// Read first to enforce access and validate pagination before provider work.
+	page, err := repo.ListSeasonEpisodesPage(ctx, userID, seasonID, request)
+	if err != nil {
+		return page, err
+	}
+	if err := service.refreshSeason(ctx, seasonID); err != nil {
+		return page, err
+	}
 	return repo.ListSeasonEpisodesPage(ctx, userID, seasonID, request)
 }

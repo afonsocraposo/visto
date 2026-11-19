@@ -43,10 +43,10 @@ func trimMetadata(ctx context.Context, path string) error {
 			original_title=NULL,overview=NULL,release_date=NULL,status=NULL,
 			poster_path=NULL,backdrop_path=NULL,original_language=NULL,
 			raw_metadata=NULL,metadata_updated_at='',catalog_updated_at=NULL`,
-		`UPDATE seasons SET tmdb_id=NULL,name=NULL,overview=NULL,poster_path=NULL,
+		`UPDATE seasons SET metadata_updated_at=NULL, tmdb_id=NULL,name=NULL,overview=NULL,poster_path=NULL,
 			air_date=NULL,episode_count=NULL`,
 		`UPDATE episodes SET name=NULL,overview=NULL,air_date=NULL,runtime=NULL,
-			still_path=NULL,raw_metadata=NULL,metadata_updated_at=NULL`,
+			still_path=NULL,raw_metadata=NULL,metadata_updated_at=NULL,details_updated_at=NULL`,
 	}
 	for _, statement := range statements {
 		if _, err := tx.ExecContext(ctx, statement); err != nil {

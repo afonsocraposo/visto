@@ -49,7 +49,7 @@ func registerAPIRoutes(mux *http.ServeMux, authService *auth.Service, metadataPr
 	mux.HandleFunc("GET /api/v1/discover/shows/{tmdbID}", temporaryShowDetails(authService, metadataProvider))
 	mux.HandleFunc("GET /api/v1/discover/{mediaType}/{tmdbID}/related", relatedMedia(authService, metadataProvider))
 	mux.HandleFunc("GET /api/v1/discover/shows/{tmdbID}/seasons/{seasonNumber}", temporaryShowSeasonEpisodes(authService, metadataProvider))
-	mux.HandleFunc("GET /api/v1/discover/shows/{tmdbID}/seasons/{seasonNumber}/episodes/{episodeNumber}", temporaryEpisodeDetails(authService, metadataProvider))
+	mux.HandleFunc("GET /api/v1/discover/shows/{tmdbID}/seasons/{seasonNumber}/episodes/{episodeNumber}", temporaryEpisodeDetails(authService, metadataProvider, watchService))
 	mux.HandleFunc("GET /api/v1/discover/movies/{tmdbID}", temporaryMovieDetails(authService, metadataProvider))
 	mux.HandleFunc("GET /api/v1/people/{tmdbID}", personDetails(authService, metadataProvider))
 	mux.HandleFunc("GET /api/v1/movies/{tmdbID}", mediaDetails(authService, libraryService, metadataProvider, domain.MovieMediaType, watchService))

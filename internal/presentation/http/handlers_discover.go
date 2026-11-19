@@ -237,7 +237,7 @@ func personDetails(authService *auth.Service, provider domain.MetadataProvider) 
 	}
 }
 
-func temporaryEpisodeDetails(authService *auth.Service, provider domain.MetadataProvider) http.HandlerFunc {
+func temporaryEpisodeDetails(authService *auth.Service, provider domain.MetadataProvider, service *watch.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if _, ok := authenticatedUser(w, r, authService); !ok {
 			return
@@ -254,7 +254,13 @@ func temporaryEpisodeDetails(authService *auth.Service, provider domain.Metadata
 			writeError(w, http.StatusBadRequest, "invalid TV episode")
 			return
 		}
-		episode, err := episodeProvider.Episode(r.Context(), showID, seasonNumber, episodeNumber)
+		var episode domain.TVEpisodeMetadata
+		var err error
+		if service != nil {
+			episode, err = service.EpisodeDetails(r.Context(), showID, seasonNumber, episodeNumber, episodeProvider)
+		} else {
+			episode, err = episodeProvider.Episode(r.Context(), showID, seasonNumber, episodeNumber)
+		}
 		if err != nil {
 			writeError(w, http.StatusBadGateway, "episode details are temporarily unavailable")
 			return
