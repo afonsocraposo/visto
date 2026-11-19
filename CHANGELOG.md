@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.29.1](https://github.com/afonsocraposo/visto/compare/v0.29.0...v0.29.1) (2026-11-19)
+
+
+### Bug Fixes
+
+* persist episode artwork for activity feeds ([#76](https://github.com/afonsocraposo/visto/issues/76)) ([acc9b05](https://github.com/afonsocraposo/visto/commit/acc9b05e982c834a28aa88eb4bdf408cf0039018))
+
 ## [0.29.0](https://github.com/afonsocraposo/visto/compare/v0.28.1...v0.29.0) (2026-11-19)
 
 
