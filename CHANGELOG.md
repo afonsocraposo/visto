@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.29.0](https://github.com/afonsocraposo/visto/compare/v0.28.1...v0.29.0) (2026-11-19)
+
+
+### Features
+
+* refresh saved metadata on demand ([#74](https://github.com/afonsocraposo/visto/issues/74)) ([974fecb](https://github.com/afonsocraposo/visto/commit/974fecbb47141e500fc7b5af3399a21d7b01a885))
+
 ## [0.28.1](https://github.com/afonsocraposo/visto/compare/v0.28.0...v0.28.1) (2026-11-14)
 
 
