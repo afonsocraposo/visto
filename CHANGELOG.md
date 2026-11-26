@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.29.2](https://github.com/afonsocraposo/visto/compare/v0.29.1...v0.29.2) (2026-11-26)
+
+
+### Bug Fixes
+
+* only suggest episodes since the last watched one ([#78](https://github.com/afonsocraposo/visto/issues/78)) ([cd0dffa](https://github.com/afonsocraposo/visto/commit/cd0dffa7c7c52ea6ff6466dbfe548f7e0283712c))
+
 ## [0.29.1](https://github.com/afonsocraposo/visto/compare/v0.29.0...v0.29.1) (2026-11-19)
 
 
